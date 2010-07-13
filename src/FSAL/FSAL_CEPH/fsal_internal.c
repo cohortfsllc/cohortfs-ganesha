@@ -31,16 +31,15 @@
 fsal_staticfsinfo_t global_fs_info;
 fs_specific_initinfo_t global_spec_info;
 
-/* you can define here your supported attributes
- * if your filesystem is "homogenous".
- */
-#define CEPH_SUPPORTED_ATTRIBUTES (                                       \
+#define POSIX_SUPPORTED_ATTRIBUTES (                                       \
           FSAL_ATTR_SUPPATTR | FSAL_ATTR_TYPE     | FSAL_ATTR_SIZE      | \
-          FSAL_ATTR_FSID     | FSAL_ATTR_ACL      | FSAL_ATTR_FILEID    | \
+          FSAL_ATTR_FSID     | FSAL_ATTR_FILEID   | \
           FSAL_ATTR_MODE     | FSAL_ATTR_NUMLINKS | FSAL_ATTR_OWNER     | \
-          FSAL_ATTR_GROUP    | FSAL_ATTR_ATIME    | FSAL_ATTR_CREATION  | \
+          FSAL_ATTR_GROUP    | FSAL_ATTR_ATIME    | FSAL_ATTR_RAWDEV    | \
           FSAL_ATTR_CTIME    | FSAL_ATTR_MTIME    | FSAL_ATTR_SPACEUSED | \
-          FSAL_ATTR_MOUNTFILEID | FSAL_ATTR_CHGTIME  )
+          FSAL_ATTR_CHGTIME  )
+
+
 
 /* filesystem info for your filesystem */
 static fsal_staticfsinfo_t default_hpss_info = {
@@ -62,7 +61,7 @@ static fsal_staticfsinfo_t default_hpss_info = {
   FSAL_ACLSUPPORT_DENY,        /* ACL support */
   TRUE,                         /* can change times */
   TRUE,                         /* homogenous */
-  CEPH_SUPPORTED_ATTRIBUTES,    /* supported attributes */
+  POSIX_SUPPORTED_ATTRIBUTES,    /* supported attributes */
   (4096 * 1024),                /* maxread size */
   (4096 * 1024),                /* maxwrite size */
   0,                            /* default umask */

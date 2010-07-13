@@ -71,6 +71,7 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   char filename[FSAL_MAX_NAME_LEN];
 
+
   /* sanity checks.
    * note : object_attributes is optional.
    */

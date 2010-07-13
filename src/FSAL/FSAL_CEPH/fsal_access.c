@@ -1,13 +1,13 @@
 /*
- * vim:expandtab:shiftwidth=8:tabstop=8:
+ * Copyright (C) 2010 The Linux Box Corporation.
  */
 
 /**
  *
  * \file    fsal_access.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/17 14:20:07 $
- * \version $Revision: 1.16 $
+ * \author  $Author: aemerson $
+ * \date    $Date: 2010/07/13 10:31:47 $
+ * \version $Revision: 0.80 $
  * \brief   FSAL access permissions functions.
  *
  */
@@ -21,18 +21,18 @@
 
 /**
  * FSAL_access :
- * Tests whether the user or entity identified by the p_context structure
- * can access the object identified by object_handle,
+ * Tests whether the user or entity identified by the context structure
+ * can access the object identified by filehandle
  * as indicated by the access_type parameter.
  *
- * \param object_handle (input):
+ * \param filehandle (input):
  *        The handle of the object to test permissions on.
- * \param p_context (input):
+ * \param context (input):
  *        Authentication context for the operation (export entry, user,...).
  * \param access_type (input):
  *        Indicates the permissions to be tested.
  *        This is an inclusive OR of the permissions
- *        to be checked for the user specified by p_context.
+ *        to be checked for the user specified by context.
  *        Permissions constants are :
  *        - FSAL_R_OK : test for read permission
  *        - FSAL_W_OK : test for write permission
@@ -53,8 +53,8 @@
  *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
  *        - Other error codes when something anormal occurs.
  */
-fsal_status_t FSAL_access(fsal_handle_t * object_handle,        /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
+fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
+                          fsal_op_context_t * context,        /* IN */
                           fsal_accessflags_t access_type,       /* IN */
                           fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     )
@@ -74,15 +74,15 @@ fsal_status_t FSAL_access(fsal_handle_t * object_handle,        /* IN */
   /* sanity checks.
    * note : object_attributes is optional in FSAL_access.
    */
-  if(!object_handle || !p_context)
+  if(!filehandle || !context)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_access);
 
-  uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  uid=FSAL_OP_CONTEXT_TO_UID(context);
+  gid=FSAL_OP_CONTEXT_TO_GID(context);
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_getattr(object_handle->vi, &st, uid, gid);
+  rc=ceph_ll_getattr(filehandle->vi, &st, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -117,9 +117,9 @@ fsal_status_t FSAL_access(fsal_handle_t * object_handle,        /* IN */
 
   if (!is_grp)
     {
-      for(i=0; i<p_context->credential.nbgroups; i++)
+      for(i=0; i<context->credential.nbgroups; i++)
 	{
-	  is_grp = (p_context->credential.alt_groups[i]);
+	  is_grp = (context->credential.alt_groups[i]);
 	  if (is_grp)
 	    break;
 	}

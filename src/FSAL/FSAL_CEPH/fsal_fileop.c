@@ -206,26 +206,44 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
     )
 {
   int nb_read=0;
+  int whence;
+  fsal_off_t offset;
 
   /* sanity checks. */
 
   if(!file_descriptor || !buffer || !read_amount || !end_of_file)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_read);
 
-  /* seek operations are not allowed (and do they even make sense in
-     the context of NFSv4.1?) */
-
-  if(seek_descriptor && seek_descriptor->whence == FSAL_SEEK_SET
-     && seek_descriptor->offset != 0)
-    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_read);
-  if(seek_descriptor && seek_descriptor->whence == FSAL_SEEK_CUR
-     && seek_descriptor->offset != 0)
-    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_read);
+  if (seek_descriptor)
+    {
+      if (seek_descriptor->whence == FSAL_SEEK_SET)
+	whence = SEEK_SET;
+      else if (seek_descriptor->whence == FSAL_SEEK_CUR)
+	whence = SEEK_CUR;
+      else if (seek_descriptor->whence == FSAL_SEEK_END)
+	whence = SEEK_END;
+    }
 
   TakeTokenFSCall();
 
-  nb_read=ceph_ll_read(*file_descriptor, seek_descriptor->offset,
-		       buffer_size, buffer);
+  if (seek_descriptor)
+    {
+      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
+			   whence);
+    }
+  else
+    {
+      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
+    }
+      
+  ReleaseTokenFSCall();
+
+  if (offset < 0)
+    Return(posix2fsal_error(offset), 0, INDEX_FSAL_read);
+
+  TakeTokenFSCall();
+
+  nb_read=ceph_ll_read(*file_descriptor, offset, buffer_size, buffer);
 
   ReleaseTokenFSCall();
 
@@ -234,8 +252,6 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
   else if ((buffer_size != 0) &&
 	   (nb_read == 0))
     *end_of_file=TRUE;
-
-  /* >> dont forget setting output vars : read_amount, end_of_file << */
 
   *read_amount=nb_read;
 
@@ -275,27 +291,44 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
     )
 {
   int nb_written=0;
+  int whence;
+  fsal_off_t offset;
 
   /* sanity checks. */
   if(!file_descriptor || !buffer || !write_amount)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_write);
 
-  if(seek_descriptor && seek_descriptor->whence == FSAL_SEEK_END)
-    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_read);
-
-  if(seek_descriptor && seek_descriptor->whence == FSAL_SEEK_SET
-     && seek_descriptor->offset != 0)
-    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_read);
-
-  if(seek_descriptor && seek_descriptor->whence == FSAL_SEEK_CUR
-     && seek_descriptor->offset != 0)
-    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_read);
+  if (seek_descriptor)
+    {
+      if (seek_descriptor->whence == FSAL_SEEK_SET)
+	whence = SEEK_SET;
+      else if (seek_descriptor->whence == FSAL_SEEK_CUR)
+	whence = SEEK_CUR;
+      else if (seek_descriptor->whence == FSAL_SEEK_END)
+	whence = SEEK_END;
+    }
 
   TakeTokenFSCall();
 
-  nb_written=ceph_ll_write(*file_descriptor,
-			   seek_descriptor->offset,
-			   buffer_size, buffer);
+  if (seek_descriptor)
+    {
+      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
+			whence);
+    }
+  else
+    {
+      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
+    }
+      
+  ReleaseTokenFSCall();
+
+  if (offset < 0)
+    Return(posix2fsal_error(offset), 0, INDEX_FSAL_read);
+
+  TakeTokenFSCall();
+
+  nb_written=ceph_ll_write(*file_descriptor, offset, buffer_size,
+			   buffer);
   
   ReleaseTokenFSCall();
 
