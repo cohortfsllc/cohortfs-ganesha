@@ -70,6 +70,7 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   char filename[FSAL_MAX_NAME_LEN];
+  struct Fh *fd;
 
 
   /* sanity checks.
@@ -86,8 +87,8 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
   TakeTokenFSCall();
 
   rc=ceph_ll_create(parent_directory_handle->vi, filename,
-		    mode, 0, &st, uid, gid);
-  ceph_ll_close(rc);
+		    mode, 0, &fd, &st, uid, gid);
+  ceph_ll_close(fd);
 
   ReleaseTokenFSCall();
 

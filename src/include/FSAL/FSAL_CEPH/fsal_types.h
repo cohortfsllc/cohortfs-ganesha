@@ -43,6 +43,7 @@
 #include "config_parsing.h"
 #include "err_fsal.h"
 #include <ceph/libceph.h>
+#include <pthread.h>
 
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
@@ -115,7 +116,13 @@ typedef struct fsal_op_context__
 #define FSAL_OP_CONTEXT_TO_GID( pcontext ) ( pcontext->credential.group )
 
 typedef uintptr_t fsal_dir_t;
-typedef int fsal_file_t;
+/* typedef uintptr_t fsal_file_t; */
+
+typedef struct __fsal_file
+{
+  char guard[12];
+  Fh *desc;
+} fsal_file_t;
 
 # define FSAL_FILENO(_f) fileno(_f)
 
