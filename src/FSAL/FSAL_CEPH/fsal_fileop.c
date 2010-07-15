@@ -17,6 +17,7 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
+#include <stdio.h>
 
 /**
  * FSAL_open:
@@ -74,9 +75,6 @@ fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
   if(!filehandle || !p_context || !file_descriptor)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open);
 
-  memset(file_descriptor, sizeof(fsal_file_t), 0);
-  strncpy(file_descriptor->guard, "Tiger Woods", 12);
-
   rc = fsal2posix_openflags(openflags, &posix_flags);
 
   /* flags conflicts. */
@@ -92,7 +90,7 @@ fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
   /*  rc=ceph_ll_open(filehandle->vi, posix_flags, file_descriptor, uid, gid); */
   rc=ceph_ll_open(filehandle->vi, posix_flags, &desc, uid, gid);
 
-  file_descriptor->desc=desc;
+  *file_descriptor=desc;
 
   ReleaseTokenFSCall();
 
@@ -232,12 +230,12 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
 
   if (seek_descriptor)
     {
-      offset=ceph_ll_lseek(file_descriptor->desc, seek_descriptor->offset,
+      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
 			   whence);
     }
   else
     {
-      offset=ceph_ll_lseek(file_descriptor->desc, 0, SEEK_CUR);
+      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
     }
       
   ReleaseTokenFSCall();
@@ -247,7 +245,7 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
 
   TakeTokenFSCall();
 
-  nb_read=ceph_ll_read(file_descriptor->desc, offset, buffer_size, buffer);
+  nb_read=ceph_ll_read(*file_descriptor, offset, buffer_size, buffer);
 
   ReleaseTokenFSCall();
 
@@ -316,12 +314,12 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
 
   if (seek_descriptor)
     {
-      offset=ceph_ll_lseek(file_descriptor->desc, seek_descriptor->offset,
-			whence);
+      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
+			   whence);
     }
   else
     {
-      offset=ceph_ll_lseek(file_descriptor->desc, 0, SEEK_CUR);
+      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
     }
       
   ReleaseTokenFSCall();
@@ -331,7 +329,7 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
 
   TakeTokenFSCall();
 
-  nb_written=ceph_ll_write(file_descriptor->desc, offset, buffer_size,
+  nb_written=ceph_ll_write(*file_descriptor, offset, buffer_size,
 			   buffer);
   
   ReleaseTokenFSCall();
@@ -369,11 +367,19 @@ fsal_status_t FSAL_close(fsal_file_t * file_descriptor  /* IN */
   if(!file_descriptor)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_close);
 
+  /* This is because of a bug in the cache layer which must be fixed
+     later.  Right now, we work around it. */
+  
+  if(!(*file_descriptor))
+    Return(ERR_FSAL_NOT_OPENED, 0, INDEX_FSAL_close);
+
   TakeTokenFSCall();
 
-  rc=ceph_ll_close(file_descriptor->desc);
+  rc=ceph_ll_close(*file_descriptor);
 
   ReleaseTokenFSCall();
+
+  *file_descriptor=NULL;
 
   if (rc != 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_read);

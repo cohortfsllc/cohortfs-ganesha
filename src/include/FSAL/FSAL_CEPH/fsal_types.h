@@ -118,11 +118,7 @@ typedef struct fsal_op_context__
 typedef uintptr_t fsal_dir_t;
 /* typedef uintptr_t fsal_file_t; */
 
-typedef struct __fsal_file
-{
-  char guard[12];
-  Fh *desc;
-} fsal_file_t;
+typedef Fh* fsal_file_t;
 
 # define FSAL_FILENO(_f) fileno(_f)
 
