@@ -55,7 +55,7 @@ static fsal_staticfsinfo_t default_hpss_info = {
   TRUE,                         /* hard link support */
   TRUE,                         /* sym link support */
   FALSE,                        /* lock support */
-  FALSE,                         /* named attributes */
+  TRUE,                         /* named attributes */
   TRUE,                         /* handles are unique and persistent */
   {10, 0},                      /* Duration of lease at FS in seconds */
   FSAL_ACLSUPPORT_DENY,        /* ACL support */
