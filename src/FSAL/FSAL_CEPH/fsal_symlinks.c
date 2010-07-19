@@ -144,7 +144,7 @@ fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   char path[FSAL_MAX_PATH_LEN];
   char name[FSAL_MAX_NAME_LEN];
-  struct stat st;
+  struct stat_precise st;
   
   /* sanity checks.
    * note : link_attributes is optional.
@@ -161,7 +161,7 @@ fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
   if(!global_fs_info.symlink_support)
     Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_symlink);
 
-  rc=ceph_ll_symlink(parent_directory_handle->vi, name, path, &st, uid, gid);
+  rc=ceph_ll_symlink_precise(parent_directory_handle->vi, name, path, &st, uid, gid);
   if (rc)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
 

@@ -65,7 +65,7 @@ fsal_status_t FSAL_opendir(fsal_handle_t * dir_handle,  /* IN */
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_opendir);
 
   TakeTokenFSCall();
-  rc=ceph_ll_opendir(dir_handle->vi, dir_descriptor, uid, gid);
+  rc=ceph_ll_opendir(dir_handle->vi, (void **)dir_descriptor, uid, gid);
   ReleaseTokenFSCall();
 
   if (rc < 0)
@@ -134,7 +134,6 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
   int rc;
   fsal_status_t status;
   struct dirent de;
-  struct stat st;
   unsigned int max_entries=buffersize/sizeof(fsal_dirent_t);
   /* sanity checks */
 
@@ -150,21 +149,25 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
 
   while ((*nb_entries <= max_entries) && !(*end_of_dir))
     {
+      struct stat_precise st_p;
+      struct stat st; /* No obvious way to make a precise
+			 readdirplus_r */
+
       memset(&pdirent[*nb_entries], sizeof(fsal_dirent_t),0);
       memset(&de, sizeof(struct dirent), 0);
       memset(&st, sizeof(struct stat), 0);
+      memset(&st_p, sizeof(struct stat_precise), 0);
 
       TakeTokenFSCall();
       rc=ceph_readdirplus_r(*dir_descriptor, &de, &st, 0);
       if (rc < 0) /* Error */
-	Return(posix2fsal_error(rc), 0, INDEX_FSAL_getattrs);
+	Return(posix2fsal_error(rc), 0, INDEX_FSAL_readdir);
 
       else if (rc == 1) /* Got a dirent */
 	{
           /* skip . and .. */
           if(!strcmp(de.d_name, ".") || !strcmp(de.d_name, ".."))
             continue;
-	  stat2fsal_fh(&st,&(pdirent[*nb_entries].handle));
 	  status = FSAL_str2name(de.d_name, FSAL_MAX_NAME_LEN,
 				 &(pdirent[*nb_entries].name));
           if(FSAL_IS_ERROR(status))
@@ -172,7 +175,24 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
 	    
 	  pdirent[*nb_entries].cookie=ceph_telldir(*dir_descriptor);
 	  pdirent[*nb_entries].attributes.asked_attributes=get_attr_mask;
-	  status = posix2fsal_attributes(&st, &(pdirent[*nb_entries].attributes));
+
+	  /* Come back and fix this */
+	  st_p.st_dev=st.st_dev;
+	  st_p.st_ino=st.st_ino;
+	  st_p.st_mode=st.st_mode;
+	  st_p.st_nlink=st.st_nlink;
+	  st_p.st_uid=st.st_uid;
+	  st_p.st_gid=st.st_gid;
+	  st_p.st_rdev=st.st_rdev;
+	  st_p.st_size=st.st_size;
+	  st_p.st_blksize=st.st_blksize;
+	  st_p.st_blocks=st.st_blocks;
+	  st_p.st_atime_sec=st.st_atime;
+	  st_p.st_mtime_sec=st.st_mtime;
+	  st_p.st_ctime_sec=st.st_ctime;
+	  stat2fsal_fh(&st_p,&(pdirent[*nb_entries].handle));
+	  status =
+	    posix2fsal_attributes(&st_p, &(pdirent[*nb_entries].attributes));
 	  if(FSAL_IS_ERROR(status))
 	    {
 	      FSAL_CLEAR_MASK(pdirent[*nb_entries].attributes.asked_attributes);

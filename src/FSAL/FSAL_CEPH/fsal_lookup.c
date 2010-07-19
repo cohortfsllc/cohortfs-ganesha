@@ -87,7 +87,7 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
 
   int rc;
   fsal_status_t status;
-  struct stat st;
+  struct stat_precise st;
   char name[FSAL_MAX_NAME_LEN];
   
   /* sanity checks
@@ -140,9 +140,9 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
 
       /* Ceph returns POSIX errors, so let's use them */
       
-      rc=ceph_ll_lookup(parent_directory_handle->vi, name, &st,
-			FSAL_OP_CONTEXT_TO_UID(p_context),
-			FSAL_OP_CONTEXT_TO_GID(p_context));
+      rc=ceph_ll_lookup_precise(parent_directory_handle->vi, name, &st,
+				FSAL_OP_CONTEXT_TO_UID(p_context),
+				FSAL_OP_CONTEXT_TO_GID(p_context));
 
       if(rc)
 	{
@@ -250,7 +250,7 @@ fsal_status_t FSAL_lookupPath(fsal_path_t * p_path,     /* IN */
 {
   int rc;
   fsal_status_t status;
-  struct stat st;
+  struct stat_precise st;
   char pathname[FSAL_MAX_PATH_LEN];
   
   /* sanity checks
@@ -290,7 +290,7 @@ fsal_status_t FSAL_lookupPath(fsal_path_t * p_path,     /* IN */
     {
       /* Ceph returns POSIX errors, so let's use them */
       
-      rc=ceph_ll_walk(pathname, &st);
+      rc=ceph_ll_walk_precise(pathname, &st);
 
       if(rc)
         {

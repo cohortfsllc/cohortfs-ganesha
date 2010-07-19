@@ -60,7 +60,7 @@ fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
     )
 {
 
-  struct stat st;
+  struct stat_precise st;
   int uid;
   int gid;
   fsal_accessflags_t missing_access;
@@ -82,7 +82,7 @@ fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_getattr(filehandle->vi, &st, uid, gid);
+  rc=ceph_ll_getattr_precise(filehandle->vi, &st, uid, gid);
 
   ReleaseTokenFSCall();
 

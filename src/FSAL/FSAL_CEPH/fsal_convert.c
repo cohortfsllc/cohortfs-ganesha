@@ -162,7 +162,7 @@ int posix2fsal_error(int posix_errorcode)
 
 }
 
-fsal_status_t posix2fsal_attributes(struct stat * p_buffstat,
+fsal_status_t posix2fsal_attributes(struct stat_precise * p_buffstat,
                                     fsal_attrib_list_t * p_fsalattr_out)
 {
 
@@ -234,23 +234,41 @@ fsal_status_t posix2fsal_attributes(struct stat * p_buffstat,
     }
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_ATIME))
     {
-      p_fsalattr_out->atime = posix2fsal_time(p_buffstat->st_atime);
+      p_fsalattr_out->atime = ceph2fsal_time(p_buffstat->st_atime_sec,
+					     p_buffstat->st_atime_micro);
 
     }
 
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_CTIME))
     {
-      p_fsalattr_out->ctime = posix2fsal_time(p_buffstat->st_ctime);
+      p_fsalattr_out->ctime = ceph2fsal_time(p_buffstat->st_ctime_sec,
+					     p_buffstat->st_ctime_micro);
     }
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_MTIME))
     {
-      p_fsalattr_out->mtime = posix2fsal_time(p_buffstat->st_mtime);
+      p_fsalattr_out->mtime = ceph2fsal_time(p_buffstat->st_mtime_sec,
+					     p_buffstat->st_mtime_micro);
     }
 
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_CHGTIME))
     {
-      p_fsalattr_out->chgtime
-          = posix2fsal_time(MAX_2(p_buffstat->st_mtime, p_buffstat->st_ctime));
+      if ((p_buffstat->st_mtime_sec >
+	   p_buffstat->st_ctime_sec) ||
+	  ((p_buffstat->st_mtime_sec
+	    == p_buffstat->st_ctime_sec) &&
+	   (p_buffstat->st_mtime_micro >=
+	    p_buffstat->st_ctime_micro)))
+	{
+	  p_fsalattr_out->chgtime
+	    = ceph2fsal_time(p_buffstat->st_mtime_sec,
+			     p_buffstat->st_mtime_micro);
+	}
+      else
+	{
+	  p_fsalattr_out->chgtime
+	    = ceph2fsal_time(p_buffstat->st_ctime_sec,
+			     p_buffstat->st_ctime_micro);
+	}
     }
 
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_SPACEUSED))
@@ -436,12 +454,12 @@ int fsal2posix_openflags(fsal_openflags_t fsal_flags, int *p_posix_flags)
 }
 #endif                          /* _FSAL_POSIX_USE_STREAM */
 
-fsal_time_t posix2fsal_time(time_t tsec)
+fsal_time_t ceph2fsal_time(time_t tsec, time_t tmicro)
 {
   fsal_time_t fsaltime;
 
   fsaltime.seconds = (fsal_uint_t) tsec;
-  fsaltime.nseconds = 0;
+  fsaltime.nseconds = (fsal_uint_t) tmicro*1000;
 
   return fsaltime;
 }
@@ -469,7 +487,7 @@ fsal_dev_t posix2fsal_devt(dev_t posix_devid)
   return dev;
 }
 
-void stat2fsal_fh(struct stat *st, fsal_handle_t *fh)
+void stat2fsal_fh(struct stat_precise *st, fsal_handle_t *fh)
 {
   fh->volid=0;
   fh->vi.ino.val=st->st_ino;

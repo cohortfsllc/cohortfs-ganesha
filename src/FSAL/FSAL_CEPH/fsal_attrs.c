@@ -48,7 +48,7 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
 
   int rc;
   fsal_status_t status;
-  struct stat st;
+  struct stat_precise st;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
@@ -60,7 +60,7 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_getattr(filehandle->vi, &st, uid, gid);
+  rc=ceph_ll_getattr_precise(filehandle->vi, &st, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -122,7 +122,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
 
   int rc;
   int mask=0;
-  struct stat st;
+  struct stat_precise st;
   int uid;
   int gid;
   fsal_attrib_list_t attrs;
@@ -145,7 +145,6 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
 
   if(!global_fs_info.cansettime)
     {
-
       if(attrs.asked_attributes
          & (FSAL_ATTR_ATIME | FSAL_ATTR_CREATION | FSAL_ATTR_CTIME | FSAL_ATTR_MTIME))
         {
@@ -163,7 +162,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
       attrs.mode &= (~global_fs_info.umask);
     }
 
-  /* Build flags and struct stat */
+  /* Build flags and struct stat_precise */
 
   if(FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_MODE))
     {
@@ -183,22 +182,25 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
   if(FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_ATIME))
     {
       mask |= CEPH_SETATTR_ATIME;
-      st.st_atime=attrs.atime.seconds;
+      st.st_atime_sec=attrs.atime.seconds;
+      st.st_atime_micro=attrs.atime.nseconds/1000;
     }
   if (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_MTIME))
     {
       mask |= CEPH_SETATTR_MTIME;
-      st.st_atime=attrs.mtime.seconds;
+      st.st_mtime_sec=attrs.mtime.seconds;
+      st.st_mtime_micro=attrs.mtime.nseconds/1000;
     }
   if (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_CTIME))
     {
       mask |= CEPH_SETATTR_CTIME;
-      st.st_atime=attrs.ctime.seconds;
+      st.st_ctime_sec=attrs.ctime.seconds;
+      st.st_ctime_micro=attrs.ctime.nseconds/1000;
     }
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_setattr(filehandle->vi, &st, mask, uid, gid);
+  rc=ceph_ll_setattr_precise(filehandle->vi, &st, mask, uid, gid);
 
   ReleaseTokenFSCall();
 

@@ -65,7 +65,7 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
 {
 
   int rc;
-  struct stat st;
+  struct stat_precise st;
   mode_t mode;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
@@ -86,8 +86,8 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_create(parent_directory_handle->vi, filename,
-		    mode, 0, &fd, &st, uid, gid);
+  rc=ceph_ll_create_precise(parent_directory_handle->vi, filename,
+			    mode, 0, &fd, &st, uid, gid);
   ceph_ll_close(fd);
 
   ReleaseTokenFSCall();
@@ -161,7 +161,7 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
 {
 
   int rc;
-  struct stat st;
+  struct stat_precise st;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   mode_t mode;
@@ -179,8 +179,8 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
   FSAL_name2str(p_dirname, name, FSAL_MAX_NAME_LEN);
   TakeTokenFSCall();
 
-  rc=ceph_ll_mkdir(parent_directory_handle->vi, p_dirname->name,
-		   mode, &st, uid, gid);
+  rc=ceph_ll_mkdir_precise(parent_directory_handle->vi, p_dirname->name,
+			   mode, &st, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -252,7 +252,7 @@ fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
 {
 
   int rc;
-  struct stat st;
+  struct stat_precise st;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   char name[FSAL_MAX_NAME_LEN];
@@ -272,8 +272,8 @@ fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
 
   TakeTokenFSCall();
 
-  ceph_ll_link(target_handle->vi, dir_handle->vi,
-	       name, &st, uid, gid);
+  ceph_ll_link_precise(target_handle->vi, dir_handle->vi,
+		       name, &st, uid, gid);
 
   ReleaseTokenFSCall();
 

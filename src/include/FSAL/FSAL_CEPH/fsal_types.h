@@ -115,7 +115,7 @@ typedef struct fsal_op_context__
 #define FSAL_OP_CONTEXT_TO_UID( pcontext ) ( pcontext->credential.user )
 #define FSAL_OP_CONTEXT_TO_GID( pcontext ) ( pcontext->credential.group )
 
-typedef uintptr_t fsal_dir_t;
+typedef void* fsal_dir_t;
 /* typedef uintptr_t fsal_file_t; */
 
 typedef Fh* fsal_file_t;

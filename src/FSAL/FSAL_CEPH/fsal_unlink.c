@@ -60,7 +60,7 @@ fsal_status_t FSAL_unlink(fsal_handle_t * parentdir_handle,     /* IN */
   int uid;
   int gid;
   char name[FSAL_MAX_NAME_LEN];
-  struct stat st;
+  struct stat_precise st;
   
   uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   gid=FSAL_OP_CONTEXT_TO_GID(p_context);
@@ -87,7 +87,7 @@ fsal_status_t FSAL_unlink(fsal_handle_t * parentdir_handle,     /* IN */
 
   FSAL_name2str(p_object_name, name, FSAL_MAX_NAME_LEN);
 
-  rc=ceph_ll_lookup(parentdir_handle->vi, name, &st, uid, gid);
+  rc=ceph_ll_lookup_precise(parentdir_handle->vi, name, &st, uid, gid);
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_unlink);
   
