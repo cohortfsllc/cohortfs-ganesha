@@ -84,8 +84,6 @@ typedef struct fsal_handle__
 {
   vinodeno_t vi;
   volume_id_t volid;
-  fsal_nodetype_t object_type_reminder;
-
 } fsal_handle_t;
 
 #define FSAL_NGROUPS_MAX 32
@@ -107,7 +105,6 @@ typedef struct fsal_export_context__
 
 typedef struct fsal_op_context__
 {
-  fsal_cred_t user_credential;
   fsal_cred_t credential;
   fsal_export_context_t *export_context;
 } fsal_op_context_t;
