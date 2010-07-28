@@ -101,7 +101,7 @@ void nfs_debug_debug_label_info();
 
 extern nfs_worker_data_t *workers_data;
 extern nfs_parameter_t nfs_param;
-extern SVCXPRT *Xports[FD_SETSIZE];        /* The one from RPCSEC_GSS library */
+extern SVCXPRT *Xports[FD_SETSIZE];     /* The one from RPCSEC_GSS library */
 extern hash_table_t *ht_dupreq; /* duplicate request hash */
 
 /* These two variables keep state of the thread that gc at this time */
@@ -389,9 +389,9 @@ const nfs_function_desc_t rquota2_func_desc[] = {
 #endif
 
 #ifdef _USE_TIRPC
-void Svc_dg_soft_destroy( register SVCXPRT *xprt) ;
+void Svc_dg_soft_destroy(register SVCXPRT * xprt);
 #else
-void Svcudp_soft_destroy(register SVCXPRT * xprt) ;
+void Svcudp_soft_destroy(register SVCXPRT * xprt);
 #endif
 
 /**
@@ -412,7 +412,7 @@ void nfs_Cleanup_request_data(nfs_request_data_t * pdata)
 
   pdata->tcp_xprt = NULL;
   pdata->xprt = NULL;
-}  /* nfs_Cleanup_request_data */                     
+}                               /* nfs_Cleanup_request_data */
 
 /**
  * nfs_rpc_execute: main rpc dispatcher routine
@@ -858,7 +858,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
        * of a struct sockaddr_in directly.
        */
       pnetbuf = svc_getrpccaller(ptr_svc);
-      memcpy((char *)&pworker_data->hostaddr, (char *)pnetbuf->buf, pnetbuf->len ) ;
+      memcpy((char *)&pworker_data->hostaddr, (char *)pnetbuf->buf, pnetbuf->len);
 #else
       phostaddr = svc_getcaller(ptr_svc);
       memcpy((char *)&pworker_data->hostaddr, (char *)phostaddr,
@@ -979,11 +979,10 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       /* store in dupreq cache if needed */
       if(do_dupreq_cache)
         {
-          if(nfs_dupreq_add( rpcxid,
-             		     ptr_req, 
-                             &res_nfs,
-                             lru_dupreq,
-                             &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+          if(nfs_dupreq_add(rpcxid,
+                            ptr_req,
+                            &res_nfs,
+                            lru_dupreq, &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
             {
               DisplayLogLevel(NIV_EVENT,
                               "NFS DISPATCHER: FAILURE: Bad insertion in dupreq cache");
@@ -1046,22 +1045,20 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 int nfs_Init_worker_data(nfs_worker_data_t * pdata)
 {
   LRU_status_t status = LRU_LIST_SUCCESS;
-  pthread_mutexattr_t mutexattr;
-  pthread_condattr_t condattr;
 
-  if(pthread_mutexattr_init(&mutexattr) != 0)
+  if(pthread_mutex_init(&(pdata->mutex_req_condvar), NULL) != 0)
     return -1;
 
-  if(pthread_condattr_init(&condattr) != 0)
+  if(pthread_mutex_init(&(pdata->request_pool_mutex), NULL) != 0)
     return -1;
 
-  if(pthread_mutex_init(&(pdata->mutex_req_condvar), &mutexattr) != 0)
+  if(pthread_cond_init(&(pdata->req_condvar), NULL) != 0)
     return -1;
 
-  if(pthread_mutex_init(&(pdata->request_pool_mutex), &mutexattr) != 0)
+  if(pthread_mutex_init(&(pdata->mutex_export_condvar), NULL) != 0)
     return -1;
 
-  if(pthread_cond_init(&(pdata->req_condvar), &condattr) != 0)
+  if(pthread_cond_init(&(pdata->export_condvar), NULL) != 0)
     return -1;
 
   if((pdata->pending_request =
@@ -1081,6 +1078,8 @@ int nfs_Init_worker_data(nfs_worker_data_t * pdata)
   pdata->passcounter = 0;
   pdata->is_ready = FALSE;
   pdata->gc_in_progress = FALSE;
+  pdata->reparse_exports_in_progress = FALSE;
+  pdata->waiting_for_exports = FALSE;
 
   return 0;
 }                               /* nfs_Init_worker_data */
@@ -1250,8 +1249,22 @@ void *worker_thread(void *IndexArg)
                       pmydata->pending_request->nb_invalid);
 #endif
       P(pmydata->mutex_req_condvar);
-      while(pmydata->pending_request->nb_entry == pmydata->pending_request->nb_invalid)
-        pthread_cond_wait(&(pmydata->req_condvar), &(pmydata->mutex_req_condvar));
+      while(pmydata->pending_request->nb_entry == pmydata->pending_request->nb_invalid 
+	    || pmydata->reparse_exports_in_progress == TRUE)
+	{
+	  /* block because someone is changing the exports list */
+	  if (pmydata->reparse_exports_in_progress == TRUE)
+	    {
+	      pmydata->waiting_for_exports = TRUE;
+	      P(pmydata->mutex_export_condvar);
+	      pthread_cond_wait(&(pmydata->export_condvar), &(pmydata->mutex_export_condvar));
+	      pmydata->waiting_for_exports = FALSE;
+	      V(pmydata->mutex_export_condvar);
+	    }
+	  /* block until there are requests to process in the queue */
+	  else
+	    pthread_cond_wait(&(pmydata->req_condvar), &(pmydata->mutex_req_condvar));
+	}
 #ifdef _DEBUG_DISPATCH
       DisplayLogLevel(NIV_DEBUG, "NFS WORKER #%d: Processing a new request", index);
 #endif
@@ -1545,10 +1558,9 @@ void *worker_thread(void *IndexArg)
           V(mutex_cond_xprt[xprt->xp_sock]);
 #endif
         }
-      else if(pnfsreq->ipproto == IPPROTO_UDP )
-         nfs_Cleanup_request_data( pnfsreq ) ;
+      else if(pnfsreq->ipproto == IPPROTO_UDP)
+        nfs_Cleanup_request_data(pnfsreq);
 
-       
       /* If needed, perform garbage collection on cache_inode layer */
       P(lock_nb_current_gc_workers);
       if(nb_current_gc_workers < nfs_param.core_param.nb_max_concurrent_gc)

@@ -74,11 +74,11 @@
  *        - Another error code if an error occured.
  */
 
-fsal_status_t FSAL_rename(fsal_handle_t * p_old_parentdir_handle,       /* IN */
+fsal_status_t GPFSFSAL_rename(gpfsfsal_handle_t * p_old_parentdir_handle,       /* IN */
                           fsal_name_t * p_old_name,     /* IN */
-                          fsal_handle_t * p_new_parentdir_handle,       /* IN */
+                          gpfsfsal_handle_t * p_new_parentdir_handle,       /* IN */
                           fsal_name_t * p_new_name,     /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
+                          gpfsfsal_op_context_t * p_context,        /* IN */
                           fsal_attrib_list_t * p_src_dir_attributes,    /* [ IN/OUT ] */
                           fsal_attrib_list_t * p_tgt_dir_attributes     /* [ IN/OUT ] */
     )
@@ -264,7 +264,7 @@ fsal_status_t FSAL_rename(fsal_handle_t * p_old_parentdir_handle,       /* IN */
   if(p_src_dir_attributes)
     {
 
-      status = FSAL_getattrs(p_old_parentdir_handle, p_context, p_src_dir_attributes);
+      status = GPFSFSAL_getattrs(p_old_parentdir_handle, p_context, p_src_dir_attributes);
 
       if(FSAL_IS_ERROR(status))
         {
@@ -277,7 +277,7 @@ fsal_status_t FSAL_rename(fsal_handle_t * p_old_parentdir_handle,       /* IN */
   if(p_tgt_dir_attributes)
     {
 
-      status = FSAL_getattrs(p_new_parentdir_handle, p_context, p_tgt_dir_attributes);
+      status = GPFSFSAL_getattrs(p_new_parentdir_handle, p_context, p_tgt_dir_attributes);
 
       if(FSAL_IS_ERROR(status))
         {

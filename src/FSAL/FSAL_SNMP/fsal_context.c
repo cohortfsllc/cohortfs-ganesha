@@ -36,9 +36,9 @@
  * Parse FS specific option string
  * to build the export entry option.
  */
-fsal_status_t FSAL_BuildExportContext(fsal_export_context_t * p_export_context, /* OUT */
-                                      fsal_path_t * p_export_path,      /* IN */
-                                      char *fs_specific_options /* IN */
+fsal_status_t SNMPFSAL_BuildExportContext(snmpfsal_export_context_t * p_export_context, /* OUT */
+                                          fsal_path_t * p_export_path,  /* IN */
+                                          char *fs_specific_options     /* IN */
     )
 {
   struct tree *tree_head, *sub_tree;
@@ -88,8 +88,8 @@ fsal_status_t FSAL_BuildExportContext(fsal_export_context_t * p_export_context, 
 
       /* get the subtree */
       sub_tree =
-          FSAL_GetTree(p_export_context->root_handle.oid_tab,
-                       p_export_context->root_handle.oid_len, tree_head, FALSE);
+          FSAL_GetTree(p_export_context->root_handle.data.oid_tab,
+                       p_export_context->root_handle.data.oid_len, tree_head, FALSE);
 
       if(sub_tree == NULL)
         Return(ERR_FSAL_NOENT, snmp_errno, INDEX_FSAL_BuildExportContext);
@@ -97,7 +97,7 @@ fsal_status_t FSAL_BuildExportContext(fsal_export_context_t * p_export_context, 
       /* if it has some childs or the object is unknown, consider it has a node */
       if((sub_tree->child_list != NULL) || (sub_tree->type == TYPE_OTHER))
         {
-          p_export_context->root_handle.object_type_reminder = FSAL_NODETYPE_NODE;
+          p_export_context->root_handle.data.object_type_reminder = FSAL_NODETYPE_NODE;
         }
       else
         {
@@ -131,7 +131,21 @@ fsal_status_t FSAL_BuildExportContext(fsal_export_context_t * p_export_context, 
 
 }
 
-fsal_status_t FSAL_InitClientContext(fsal_op_context_t * p_thr_context)
+
+/**
+ * FSAL_CleanUpExportContext :
+ * this will clean up and state in an export that was created during
+ * the BuildExportContext phase.  For many FSALs this may be a noop.
+ *
+ * \param p_export_context (in, gpfsfsal_export_context_t)
+ */
+
+fsal_status_t SNMPFSAL_CleanUpExportContext(snmpfsal_export_context_t * p_export_context) 
+{
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_CleanUpExportContext);
+}
+
+fsal_status_t SNMPFSAL_InitClientContext(snmpfsal_op_context_t * p_thr_context)
 {
 
   int rc, i;
@@ -232,7 +246,7 @@ fsal_status_t FSAL_InitClientContext(fsal_op_context_t * p_thr_context)
  * FSAL_GetClientContext :
  * Get a user credential from its uid.
  * 
- * \param p_cred (in out, fsal_cred_t *)
+ * \param p_cred (in out, snmpfsal_cred_t *)
  *        Initialized credential to be changed
  *        for representing user.
  * \param uid (in, fsal_uid_t)
@@ -251,12 +265,12 @@ fsal_status_t FSAL_InitClientContext(fsal_op_context_t * p_thr_context)
  *      - ERR_FSAL_SERVERFAULT : unexpected error.
  */
 
-fsal_status_t FSAL_GetClientContext(fsal_op_context_t * p_thr_context,  /* IN/OUT  */
-                                    fsal_export_context_t * p_export_context,   /* IN */
-                                    fsal_uid_t uid,     /* IN */
-                                    fsal_gid_t gid,     /* IN */
-                                    fsal_gid_t * alt_groups,    /* IN */
-                                    fsal_count_t nb_alt_groups  /* IN */
+fsal_status_t SNMPFSAL_GetClientContext(snmpfsal_op_context_t * p_thr_context,  /* IN/OUT  */
+                                        snmpfsal_export_context_t * p_export_context,   /* IN */
+                                        fsal_uid_t uid, /* IN */
+                                        fsal_gid_t gid, /* IN */
+                                        fsal_gid_t * alt_groups,        /* IN */
+                                        fsal_count_t nb_alt_groups      /* IN */
     )
 {
 

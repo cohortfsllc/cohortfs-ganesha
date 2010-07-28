@@ -41,7 +41,7 @@
 #include <utime.h>
 
 /**
- * FSAL_getattrs:
+ * GPFSFSAL_getattrs:
  * Get attributes for the object specified by its filehandle.
  *
  * \param filehandle (input):
@@ -59,8 +59,8 @@
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_getattrs(fsal_handle_t * p_filehandle,       /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
+fsal_status_t GPFSFSAL_getattrs(gpfsfsal_handle_t * p_filehandle,       /* IN */
+                            gpfsfsal_op_context_t * p_context,      /* IN */
                             fsal_attrib_list_t * p_object_attributes    /* IN/OUT */
     )
 {
@@ -70,7 +70,7 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * p_filehandle,       /* IN */
   struct stat buffstat;
 
   /* sanity checks.
-   * note : object_attributes is mandatory in FSAL_getattrs.
+   * note : object_attributes is mandatory in GPFSFSAL_getattrs.
    */
   if(!p_filehandle || !p_context || !p_object_attributes)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getattrs);
@@ -112,7 +112,7 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * p_filehandle,       /* IN */
 }
 
 /**
- * FSAL_setattrs:
+ * GPFSFSAL_setattrs:
  * Set attributes for the object specified by its filehandle.
  *
  * \param filehandle (input):
@@ -135,8 +135,8 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * p_filehandle,       /* IN */
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_setattrs(fsal_handle_t * p_filehandle,       /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
+fsal_status_t GPFSFSAL_setattrs(gpfsfsal_handle_t * p_filehandle,       /* IN */
+                            gpfsfsal_op_context_t * p_context,      /* IN */
                             fsal_attrib_list_t * p_attrib_set,  /* IN */
                             fsal_attrib_list_t * p_object_attributes    /* [ IN/OUT ] */
     )
@@ -307,11 +307,11 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * p_filehandle,       /* IN */
   if(FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_OWNER | FSAL_ATTR_GROUP))
     {
 #ifdef _DEBUG_FSAL
-      DisplayLogJdLevel(fsal_log, NIV_FULL_DEBUG, "Performing chown(%s, %d,%d)",
+      /*      DisplayLogJdLevel(fsal_log, NIV_FULL_DEBUG, "Performing chown(%s, %d,%d)",
                         fsalpath.path, FSAL_TEST_MASK(attrs.asked_attributes,
                                                       FSAL_ATTR_OWNER) ? (int)attrs.owner
                         : -1, FSAL_TEST_MASK(attrs.asked_attributes,
-                                             FSAL_ATTR_GROUP) ? (int)attrs.group : -1);
+			FSAL_ATTR_GROUP) ? (int)attrs.group : -1);*/
 #endif
 
       TakeTokenFSCall();
@@ -360,14 +360,14 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * p_filehandle,       /* IN */
 
       /* Atime */
       timebuf[0].tv_sec =
-          (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_ATIME) ? (time_t) attrs.atime.
-           seconds : buffstat.st_atime);
+          (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_ATIME) ? (time_t) attrs.
+           atime.seconds : buffstat.st_atime);
       timebuf[0].tv_usec = 0;
 
       /* Mtime */
       timebuf[1].tv_sec =
-          (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_MTIME) ? (time_t) attrs.mtime.
-           seconds : buffstat.st_mtime);
+          (FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_MTIME) ? (time_t) attrs.
+           mtime.seconds : buffstat.st_mtime);
       timebuf[1].tv_usec = 0;
 
       TakeTokenFSCall();
@@ -385,7 +385,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * p_filehandle,       /* IN */
 
   if(p_object_attributes)
     {
-      status = FSAL_getattrs(p_filehandle, p_context, p_object_attributes);
+      status = GPFSFSAL_getattrs(p_filehandle, p_context, p_object_attributes);
 
       /* on error, we set a special bit in the mask. */
       if(FSAL_IS_ERROR(status))

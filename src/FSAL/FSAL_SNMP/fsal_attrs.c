@@ -41,9 +41,9 @@
  *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument) 
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_attrib_list_t * object_attributes      /* IN/OUT */
+fsal_status_t SNMPFSAL_getattrs(snmpfsal_handle_t * filehandle, /* IN */
+                                snmpfsal_op_context_t * p_context,      /* IN */
+                                fsal_attrib_list_t * object_attributes  /* IN/OUT */
     )
 {
 
@@ -60,14 +60,14 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getattrs);
 
   /* don't call GET request on directory */
-  if(filehandle->object_type_reminder == FSAL_NODETYPE_LEAF && filehandle->oid_len != 0)
+  if(filehandle->data.object_type_reminder == FSAL_NODETYPE_LEAF && filehandle->data.oid_len != 0)
     {
       query_desc.request_type = SNMP_MSG_GET;
 
       TakeTokenFSCall();
 
       /* call to snmpget */
-      rc = IssueSNMPQuery(p_context, filehandle->oid_tab, filehandle->oid_len,
+      rc = IssueSNMPQuery(p_context, filehandle->data.oid_tab, filehandle->data.oid_len,
                           &query_desc);
 
       ReleaseTokenFSCall();
@@ -91,8 +91,8 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
       mib_node = GetMIBNode(p_context, filehandle, TRUE);
 
     }                           /* endif not root  */
-  else if(filehandle->object_type_reminder != FSAL_NODETYPE_ROOT
-          && filehandle->oid_len != 0)
+  else if(filehandle->data.object_type_reminder != FSAL_NODETYPE_ROOT
+          && filehandle->data.oid_len != 0)
     {
       /* retrieve the associated MIB node (can be null) */
       mib_node = GetMIBNode(p_context, filehandle, TRUE);
@@ -142,10 +142,10 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
  *        the object_attributes->asked_attributes field.
  */
 
-fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_attrib_list_t * attrib_set,    /* IN */
-                            fsal_attrib_list_t * object_attributes      /* [ IN/OUT ] */
+fsal_status_t SNMPFSAL_setattrs(snmpfsal_handle_t * filehandle, /* IN */
+                                snmpfsal_op_context_t * p_context,      /* IN */
+                                fsal_attrib_list_t * attrib_set,        /* IN */
+                                fsal_attrib_list_t * object_attributes  /* [ IN/OUT ] */
     )
 {
 
@@ -168,7 +168,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
   if(object_attributes)
     {
 
-      status = FSAL_getattrs(filehandle, p_context, object_attributes);
+      status = SNMPFSAL_getattrs(filehandle, p_context, object_attributes);
 
       /* on error, we set a special bit in the mask. */
       if(FSAL_IS_ERROR(status))
