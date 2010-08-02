@@ -189,8 +189,7 @@ typedef enum fsal_nodetype__
  * --------------*/
 
 /* prefered readdir size */
-//#define FSAL_READDIR_SIZE 2048
-#define FSAL_READDIR_SIZE 128
+#define FSAL_READDIR_SIZE 2048
 
 #define FSAL_MAX_NAME_LEN   NAME_MAX
 #define FSAL_MAX_PATH_LEN   PATH_MAX
@@ -241,6 +240,8 @@ static const fsal_name_t FSAL_DOT_DOT = { "..", 2 };
 #include "FSAL/FSAL_XFS/fsal_types.h"
 #elif defined ( _USE_GPFS )
 #include "FSAL/FSAL_GPFS/fsal_types.h"
+#elif defined ( _USE_ZFS )
+#include "FSAL/FSAL_ZFS/fsal_types.h"
 #elif defined ( _USE_CEPH )
 #include "FSAL/FSAL_CEPH/fsal_types.h"
 #elif defined ( _USE_TEMPLATE ) /* <- place here your own define */
