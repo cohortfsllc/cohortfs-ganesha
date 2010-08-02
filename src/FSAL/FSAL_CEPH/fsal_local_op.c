@@ -1,19 +1,8 @@
 /*
- * vim:expandtab:shiftwidth=8:tabstop=8:
- */
-
-/**
+ * Copyright (C) 2010 The Linx Box Corporation
+ * Contributor : Adam C. Emerson
  *
- * \file    fsal_local_check.c
- * \author  $Author: deniel $
- * \date    $Date: 2008/03/13 14:20:07 $
- * \version $Revision: 1.0 $
- * \brief   Check for FSAL authentication locally
- *
- */
-
-/*
- * Copyright CEA/DAM/DIF  (2008)
+ * Some Portions Copyright CEA/DAM/DIF  (2008)
  * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
  *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
  *
@@ -33,6 +22,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  * 
  * ---------------------------------------
+ */
+
+/**
+ *
+ * \file    fsal_local_check.c
+ * \author  $Author: deniel $
+ * \date    $Date: 2008/03/13 14:20:07 $
+ * \version $Revision: 1.0 $
+ * \brief   Check for FSAL authentication locally
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -75,9 +74,9 @@
  *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_test_access(fsal_op_context_t * p_context,   /* IN */
-                               fsal_accessflags_t access_type,  /* IN */
-                               fsal_attrib_list_t * object_attributes   /* IN */
+fsal_status_t CEPHFSAL_test_access(cephfsal_op_context_t * p_context,   /* IN */
+				   fsal_accessflags_t access_type,  /* IN */
+				   fsal_attrib_list_t * object_attributes   /* IN */
     )
 {
   fsal_accessflags_t missing_access;
@@ -200,9 +199,9 @@ fsal_status_t FSAL_test_access(fsal_op_context_t * p_context,   /* IN */
  *        - ERR_FSAL_INVAL        (missing attributes : mode, group, user,...)
  *        - ERR_FSAL_SERVERFAULT  (unexpected error)
  */
-fsal_status_t FSAL_setattr_access(fsal_op_context_t * p_context,        /* IN */
-                                  fsal_attrib_list_t * candidate_attributes,    /* IN */
-                                  fsal_attrib_list_t * object_attributes        /* IN */
+fsal_status_t CEPHFSAL_setattr_access(cephfsal_op_context_t * p_context,        /* IN */
+				      fsal_attrib_list_t * candidate_attributes,    /* IN */
+				      fsal_attrib_list_t * object_attributes        /* IN */
     )
 {
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_setattr_access);
@@ -225,9 +224,9 @@ fsal_status_t FSAL_setattr_access(fsal_op_context_t * p_context,        /* IN */
  *        - ERR_FSAL_SERVERFAULT  (unexpected error)
  */
 
-fsal_status_t FSAL_rename_access(fsal_op_context_t * pcontext,  /* IN */
-                                 fsal_attrib_list_t * pattrsrc, /* IN */
-                                 fsal_attrib_list_t * pattrdest)        /* IN */
+fsal_status_t CEPHFSAL_rename_access(cephfsal_op_context_t * pcontext,  /* IN */
+				     fsal_attrib_list_t * pattrsrc, /* IN */
+				     fsal_attrib_list_t * pattrdest)        /* IN */
 {
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_rename_access);
 }                               /* FSAL_rename_access */
@@ -246,8 +245,8 @@ fsal_status_t FSAL_rename_access(fsal_op_context_t * pcontext,  /* IN */
  *        - ERR_FSAL_INVAL        (missing attributes : mode, group, user,...)
  *        - ERR_FSAL_SERVERFAULT  (unexpected error)
  */
-fsal_status_t FSAL_create_access(fsal_op_context_t * pcontext,  /* IN */
-                                 fsal_attrib_list_t * pattr)    /* IN */
+fsal_status_t CEPHFSAL_create_access(cephfsal_op_context_t * pcontext,  /* IN */
+				     fsal_attrib_list_t * pattr)    /* IN */
 {
   fsal_status_t fsal_status;
 
@@ -273,8 +272,36 @@ fsal_status_t FSAL_create_access(fsal_op_context_t * pcontext,  /* IN */
  *        - ERR_FSAL_INVAL        (missing attributes : mode, group, user,...)
  *        - ERR_FSAL_SERVERFAULT  (unexpected error)
  */
-fsal_status_t FSAL_unlink_access(fsal_op_context_t * pcontext,  /* IN */
-                                 fsal_attrib_list_t * pattr)    /* IN */
+
+fsal_status_t CEPHFSAL_link_access(fsal_op_context_t * pcontext,    /* IN */
+				   fsal_attrib_list_t * pattr)      /* IN */
+{
+  fsal_status_t fsal_status;
+
+  fsal_status = FSAL_test_access(pcontext, FSAL_W_OK, pattr);
+  if(FSAL_IS_ERROR(fsal_status))
+    Return(fsal_status.major, fsal_status.minor, INDEX_FSAL_link_access);
+
+  /* If this point is reached, then access is granted */
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_create_access);
+}                               /* FSAL_create_access */
+
+/**
+ * FSAL_unlink_access :
+ * test if a client identified by cred can unlink on a directory knowing its attributes
+ *
+ * \param pcontext (in fsal_cred_t *) user's context.
+ * \param pattr      source directory attributes
+ *
+ * \return Major error codes :
+ *        - ERR_FSAL_NO_ERROR     (no error)
+ *        - ERR_FSAL_ACCESS       (Permission denied)
+ *        - ERR_FSAL_FAULT        (null pointer parameter)
+ *        - ERR_FSAL_INVAL        (missing attributes : mode, group, user,...)
+ *        - ERR_FSAL_SERVERFAULT  (unexpected error)
+ */
+fsal_status_t CEPHFSAL_unlink_access(cephfsal_op_context_t * pcontext,  /* IN */
+				     fsal_attrib_list_t * pattr)    /* IN */
 {
   fsal_status_t fsal_status;
 
@@ -302,9 +329,9 @@ fsal_status_t FSAL_unlink_access(fsal_op_context_t * pcontext,  /* IN */
  *        - ERR_FSAL_INVAL        Invalid argument(s)
  */
 
-fsal_status_t FSAL_merge_attrs(fsal_attrib_list_t * pinit_attr,
-                               fsal_attrib_list_t * pnew_attr,
-                               fsal_attrib_list_t * presult_attr)
+fsal_status_t CEPHFSAL_merge_attrs(fsal_attrib_list_t * pinit_attr,
+				   fsal_attrib_list_t * pnew_attr,
+				   fsal_attrib_list_t * presult_attr)
 {
   if(pinit_attr == NULL || pnew_attr == NULL || presult_attr == NULL)
     Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_merge_attrs);

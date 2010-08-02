@@ -28,9 +28,6 @@
 
 /**
  * \file    fsal_lookup.c
- * \author  $Author: aemerson $
- * \date    $Date: 2010/07/02 17:00:54 $
-* \version $Revision: 0.80 $
  * \brief   Lookup operations.
  *
  */
@@ -77,11 +74,11 @@
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  *          
  */
-fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
-                          fsal_name_t * p_filename,     /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
-                          fsal_handle_t * object_handle,        /* OUT */
-                          fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_lookup(cephfsal_handle_t * parent_directory_handle, /* IN */
+			      fsal_name_t * p_filename, /* IN */
+			      cephfsal_op_context_t * p_context, /* IN */
+			      cephfsal_handle_t * object_handle,        /* OUT */
+			      fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
     )
 {
 
@@ -113,20 +110,18 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
       /* Ceph seems to have a constant identifying the root inode.
 	 Possible source of bugs, so check here if trouble */
 
-      object_handle->vi.ino.val=CEPH_INO_ROOT;
-      object_handle->vi.snapid.val=CEPH_NOSNAP;
+      VINODE(object_handle).ino.val=CEPH_INO_ROOT;
+      VINODE(object_handle).snapid.val=CEPH_NOSNAP;
 
       if(object_attributes)
         {
-          status = FSAL_getattrs(object_handle, p_context, object_attributes);
-
-          /* On error, we set a flag in the returned attributes */
-
-          if(FSAL_IS_ERROR(status))
-            {
-              FSAL_CLEAR_MASK(object_attributes->asked_attributes);
-              FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-            }
+	  status = CEPHFSAL_getattrs(object_handle, p_context, object_attributes);
+	  
+	  if(FSAL_IS_ERROR(status))
+	    {
+	      FSAL_CLEAR_MASK(object_attributes->asked_attributes);
+	      FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	    }
         }
 
     }
@@ -140,7 +135,8 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
 
       /* Ceph returns POSIX errors, so let's use them */
       
-      rc=ceph_ll_lookup_precise(parent_directory_handle->vi, name, &st,
+      rc=ceph_ll_lookup_precise(VINODE(parent_directory_handle),
+				name, &st,
 				FSAL_OP_CONTEXT_TO_UID(p_context),
 				FSAL_OP_CONTEXT_TO_GID(p_context));
 
@@ -159,7 +155,7 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
 	    {
 	      FSAL_CLEAR_MASK(object_attributes->asked_attributes);
 	      FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_lookup);
 	    }
         }
     }
@@ -196,7 +192,7 @@ fsal_status_t FSAL_lookup(fsal_handle_t * parent_directory_handle,      /* IN */
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  *          
  */
-fsal_status_t FSAL_lookupJunction(fsal_handle_t * p_junction_handle,    /* IN */
+fsal_status_t CEPHFSAL_lookupJunction(fsal_handle_t * p_junction_handle,    /* IN */
                                   fsal_op_context_t * p_context,        /* IN */
                                   fsal_handle_t * p_fsoot_handle,       /* OUT */
                                   fsal_attrib_list_t * p_fsroot_attributes      /* [ IN/OUT ] */
@@ -242,10 +238,10 @@ fsal_status_t FSAL_lookupJunction(fsal_handle_t * p_junction_handle,    /* IN */
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_lookupPath(fsal_path_t * p_path,     /* IN */
-                              fsal_op_context_t * p_context,    /* IN */
-                              fsal_handle_t * object_handle,    /* OUT */
-                              fsal_attrib_list_t * object_attributes    /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_lookupPath(fsal_path_t * p_path,     /* IN */
+				  cephfsal_op_context_t * p_context,    /* IN */
+				  fsal_handle_t * object_handle,    /* OUT */
+				  fsal_attrib_list_t * object_attributes    /* [ IN/OUT ] */
     )
 {
   int rc;
@@ -269,12 +265,12 @@ fsal_status_t FSAL_lookupPath(fsal_path_t * p_path,     /* IN */
       /* Ceph seems to have a constant identifying the root inode.
 	 Possible source of bugs, so check here if trouble */
 
-      object_handle->vi.ino.val=CEPH_INO_ROOT;
-      object_handle->vi.snapid.val=CEPH_NOSNAP;
+      VINODE(object_handle).ino.val=CEPH_INO_ROOT;
+      VINODE(object_handle).snapid.val=CEPH_NOSNAP;
 
       if(object_attributes)
         {
-          status = FSAL_getattrs(object_handle, p_context, object_attributes);
+          status = CEPHFSAL_getattrs(object_handle, p_context, object_attributes);
 
           /* On error, we set a flag in the returned attributes */
 

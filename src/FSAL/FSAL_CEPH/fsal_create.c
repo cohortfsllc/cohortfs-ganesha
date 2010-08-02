@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010, The Linux Box Corporation
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Some portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_create.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/24 13:45:36 $
- * \version $Revision: 1.18 $
  * \brief   Filesystem objects creation functions.
  *
  */
@@ -27,7 +48,7 @@
  *        Handle of the parent directory where the file is to be created.
  * \param p_filename (input):
  *        Pointer to the name of the file to be created.
- * \param cred (input):
+ * \param p_context (input):
  *        Authentication context for the operation (user, export...).
  * \param accessmode (input):
  *        Mode for the file to be created.
@@ -55,22 +76,22 @@
  *        but the FSAL_ATTR_RDATTR_ERR bit is set in
  *        the object_attributes->asked_attributes field.
  */
-fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
+fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      /* IN */
                           fsal_name_t * p_filename,     /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
+                          cephfsal_op_context_t * p_context,        /* IN */
                           fsal_accessmode_t accessmode, /* IN */
-                          fsal_handle_t * object_handle,        /* OUT */
+                          cephfsal_handle_t * object_handle,        /* OUT */
                           fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     )
 {
 
-  int rc;
   struct stat_precise st;
+  struct Fh *fd;
   mode_t mode;
+  char filename[FSAL_MAX_NAME_LEN];
+  int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
-  char filename[FSAL_MAX_NAME_LEN];
-  struct Fh *fd;
 
 
   /* sanity checks.
@@ -106,7 +127,7 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
 	  fsal_status_t status;
 	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
 	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_create);
 	}
     }
 
@@ -123,7 +144,7 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
  *        the subdirectory is to be created.
  * \param p_dirname (input):
  *        Pointer to the name of the directory to be created.
- * \param cred (input):
+ * \param p_context (input):
  *        Authentication context for the operation (user,...).
  * \param accessmode (input):
  *        Mode for the directory to be created.
@@ -151,21 +172,21 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
  *        but the FSAL_ATTR_RDATTR_ERR bit is set in
  *        the object_attributes->asked_attributes field.
  */
-fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
-                         fsal_name_t * p_dirname,       /* IN */
-                         fsal_op_context_t * p_context, /* IN */
-                         fsal_accessmode_t accessmode,  /* IN */
-                         fsal_handle_t * object_handle, /* OUT */
-                         fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
+			     fsal_name_t * p_dirname,       /* IN */
+			     fsal_op_context_t * p_context, /* IN */
+			     fsal_accessmode_t accessmode,  /* IN */
+			     fsal_handle_t * object_handle, /* OUT */
+			     fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
     )
 {
 
-  int rc;
   struct stat_precise st;
-  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   mode_t mode;
   char name[FSAL_MAX_NAME_LEN];
+  int rc;
+  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
   
   /* sanity checks.
    * note : object_attributes is optional.
@@ -197,7 +218,7 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
 	{
 	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
 	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_mkdir);
 	}
     }
 
@@ -217,7 +238,7 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
  *        the hardlink is to be created.
  * \param p_link_name (input):
  *        Pointer to the name of the hardlink to be created.
- * \param cred (input):
+ * \param p_context (input):
  *        Authentication context for the operation (user,...).
  * \param accessmode (input):
  *        Mode for the directory to be created.
@@ -243,19 +264,19 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
  *        but the FSAL_ATTR_RDATTR_ERR bit is set in
  *        the attributes->asked_attributes field.
  */
-fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
-                        fsal_handle_t * dir_handle,     /* IN */
-                        fsal_name_t * p_link_name,      /* IN */
-                        fsal_op_context_t * p_context,  /* IN */
-                        fsal_attrib_list_t * attributes /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_link(cephfsal_handle_t * target_handle,  /* IN */
+			    cephfsal_handle_t * dir_handle,     /* IN */
+			    fsal_name_t * p_link_name,      /* IN */
+			    cephfsal_op_context_t * p_context,  /* IN */
+			    fsal_attrib_list_t * attributes /* [ IN/OUT ] */
     )
 {
 
-  int rc;
   struct stat_precise st;
+  char name[FSAL_MAX_NAME_LEN];
+  int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
-  char name[FSAL_MAX_NAME_LEN];
 
   /* sanity checks.
    * note : attributes is optional.
@@ -272,7 +293,7 @@ fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
 
   TakeTokenFSCall();
 
-  ceph_ll_link_precise(target_handle->vi, dir_handle->vi,
+  ceph_ll_link_precise(VINODE(target_handle), VINODE(dir_handle),
 		       name, &st, uid, gid);
 
   ReleaseTokenFSCall();
@@ -288,7 +309,7 @@ fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
 	{
 	  FSAL_CLEAR_MASK(attributes->asked_attributes);
 	  FSAL_SET_MASK(attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_link);
 	}
     }
 
@@ -304,14 +325,14 @@ fsal_status_t FSAL_link(fsal_handle_t * target_handle,  /* IN */
  *
  * \return ERR_FSAL_NOTSUPP.
  */
-fsal_status_t FSAL_mknode(fsal_handle_t * parentdir_handle,     /* IN */
-                          fsal_name_t * p_node_name,    /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
-                          fsal_accessmode_t accessmode, /* IN */
-                          fsal_nodetype_t nodetype,     /* IN */
-                          fsal_dev_t * dev,     /* IN */
-                          fsal_handle_t * p_object_handle,      /* OUT (handle to the created node) */
-                          fsal_attrib_list_t * node_attributes  /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_mknode(cephfsal_handle_t * parentdir_handle,     /* IN */
+			      fsal_name_t * p_node_name,    /* IN */
+			      cephfsal_op_context_t * p_context,        /* IN */
+			      fsal_accessmode_t accessmode, /* IN */
+			      fsal_nodetype_t nodetype,     /* IN */
+			      fsal_dev_t * dev,     /* IN */
+			      cephfsal_handle_t * p_object_handle,      /* OUT (handle to the created node) */
+			      fsal_attrib_list_t * node_attributes  /* [ IN/OUT ] */
     )
 {
 

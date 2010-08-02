@@ -1,7 +1,10 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright CEA/DAM/DIF  (2008)
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
  * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
  *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
  *
@@ -26,9 +29,6 @@
 /**
  *
  * \file    fsal_truncate.c
- * \author  $Author: leibovic $
- * \date    $Date: 2005/07/29 09:39:05 $
- * \version $Revision: 1.4 $
  * \brief   Truncate function.
  *
  */
@@ -67,17 +67,18 @@
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_truncate(fsal_handle_t * filehandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_size_t length, /* IN */
-                            fsal_file_t * file_descriptor,      /* Unused in this FSAL */
-                            fsal_attrib_list_t * object_attributes      /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_truncate(cephfsal_handle_t * filehandle, /* IN */
+				cephfsal_op_context_t * p_context, /* IN */
+				fsal_size_t length, /* IN */
+				cephfsal_file_t * file_descriptor, /* Unused in this FSAL */
+				fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
     )
 {
 
   int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  fsal_status_t status;
 
   /* sanity checks.
    * note : object_attributes is optional.
@@ -85,24 +86,22 @@ fsal_status_t FSAL_truncate(fsal_handle_t * filehandle, /* IN */
   if(!filehandle || !p_context)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_truncate);
 
-  rc=ceph_ll_truncate(filehandle->vi, length, uid, gid);
+  TakeTokenFSCall();
+  rc=ceph_ll_truncate(VINODE(filehandle), length, uid, gid);
+  ReleaseTokenFSCall();
 
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_create);
 
   if(object_attributes)
     {
-
-      fsal_status_t st;
-
-      st = FSAL_getattrs(filehandle, p_context, object_attributes);
-
-      if(FSAL_IS_ERROR(st))
-        {
-          FSAL_CLEAR_MASK(object_attributes->asked_attributes);
-          FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-        }
-
+      status = CEPHFSAL_getattrs(filehandle, p_context, object_attributes);
+      
+      if(FSAL_IS_ERROR(status))
+	{
+	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
+	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	}
     }
 
   /* No error occured */

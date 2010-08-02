@@ -1,9 +1,32 @@
+/*
+ * Copyright (C) 2010 The Linx Box Corporation
+ * Contributor : Adam C. Emerson
+ *
+ * Some Portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * 
+ * ---------------------------------------
+ */
+
 /**
  *
  * \file    fsal_internal.h
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/24 13:45:37 $
- * \version $Revision: 1.12 $
  * \brief   Extern definitions for variables that are
  *          defined in fsal_internal.c.
  *
@@ -63,33 +86,6 @@ void ReleaseTokenFSCall();
  */
 fsal_boolean_t fsal_do_log(fsal_status_t status);
 
-/**
- * Return :
- * Macro for returning from functions
- * with trace and function call increment.
- */
-
-#define Return( _code_, _minor_ , _f_ ) do {                          \
-                                                                      \
-               char _str_[256];                                       \
-               fsal_status_t _struct_status_ = FSAL_STATUS_NO_ERROR ; \
-               (_struct_status_).major = (_code_) ;                   \
-               (_struct_status_).minor = (_minor_) ;                  \
-               fsal_increment_nbcall( _f_,_struct_status_ );          \
-               log_snprintf( _str_, 256, "%J%r",ERR_FSAL, _code_ );   \
-                                                                      \
-               if ( fsal_do_log( _struct_status_ ) )                  \
-                   DisplayLogJdLevel( fsal_log, NIV_EVENT,            \
-                        "%s returns ( %s, %d )",fsal_function_names[_f_], \
-                        _str_, _minor_);                              \
-               else                                                   \
-                   DisplayLogJdLevel( fsal_log, NIV_FULL_DEBUG,       \
-                        "%s returns ( %s, %d )",fsal_function_names[_f_], \
-                        _str_, _minor_);                              \
-                                                                      \
-               return (_struct_status_);                              \
-                                                                      \
-              } while(0)
 
 /**
  *  ReturnCode :
@@ -101,3 +97,340 @@ fsal_boolean_t fsal_do_log(fsal_status_t status);
                (_struct_status_).minor = (_minor_) ;         \
                return (_struct_status_);                     \
               } while(0)
+
+
+/* All the call to FSAL to be wrapped */
+fsal_status_t CEPHFSAL_access(cephfsal_handle_t * p_object_handle,        /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             fsal_accessflags_t access_type,    /* IN */
+                             fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_getattrs(cephfsal_handle_t * p_filehandle, /* IN */
+                               cephfsal_op_context_t * p_context,        /* IN */
+                               fsal_attrib_list_t * p_object_attributes /* IN/OUT */ );
+
+fsal_status_t CEPHFSAL_setattrs(cephfsal_handle_t * p_filehandle, /* IN */
+                               cephfsal_op_context_t * p_context,        /* IN */
+                               fsal_attrib_list_t * p_attrib_set,       /* IN */
+                               fsal_attrib_list_t *
+                               p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_BuildExportContext(cephfsal_export_context_t * p_export_context,   /* OUT */
+                                         fsal_path_t * p_export_path,   /* IN */
+                                         char *fs_specific_options /* IN */ );
+
+fsal_status_t CEPHFSAL_InitClientContext(cephfsal_op_context_t * p_thr_context);
+
+fsal_status_t CEPHFSAL_CleanUpExportContext(cephfsal_export_context_t * p_export_context) ;
+
+fsal_status_t CEPHFSAL_GetClientContext(cephfsal_op_context_t * p_thr_context,    /* IN/OUT  */
+                                       cephfsal_export_context_t * p_export_context,     /* IN */
+                                       fsal_uid_t uid,  /* IN */
+                                       fsal_gid_t gid,  /* IN */
+                                       fsal_gid_t * alt_groups, /* IN */
+                                       fsal_count_t nb_alt_groups /* IN */ );
+
+fsal_status_t CEPHFSAL_create(cephfsal_handle_t * p_parent_directory_handle,      /* IN */
+                             fsal_name_t * p_filename,  /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             fsal_accessmode_t accessmode,      /* IN */
+                             cephfsal_handle_t * p_object_handle,        /* OUT */
+                             fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_mkdir(cephfsal_handle_t * p_parent_directory_handle,       /* IN */
+                            fsal_name_t * p_dirname,    /* IN */
+                            cephfsal_op_context_t * p_context,   /* IN */
+                            fsal_accessmode_t accessmode,       /* IN */
+                            cephfsal_handle_t * p_object_handle, /* OUT */
+                            fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_link(cephfsal_handle_t * p_target_handle,  /* IN */
+                           cephfsal_handle_t * p_dir_handle,     /* IN */
+                           fsal_name_t * p_link_name,   /* IN */
+                           cephfsal_op_context_t * p_context,    /* IN */
+                           fsal_attrib_list_t * p_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_mknode(cephfsal_handle_t * parentdir_handle,       /* IN */
+                             fsal_name_t * p_node_name, /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             fsal_accessmode_t accessmode,      /* IN */
+                             fsal_nodetype_t nodetype,  /* IN */
+                             fsal_dev_t * dev,  /* IN */
+                             cephfsal_handle_t * p_object_handle,        /* OUT (handle to the created node) */
+                             fsal_attrib_list_t * node_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_opendir(cephfsal_handle_t * p_dir_handle,  /* IN */
+                              cephfsal_op_context_t * p_context, /* IN */
+                              cephfsal_dir_t * p_dir_descriptor, /* OUT */
+                              fsal_attrib_list_t * p_dir_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * p_dir_descriptor, /* IN */
+                              cephfsal_cookie_t start_position,  /* IN */
+                              fsal_attrib_mask_t get_attr_mask, /* IN */
+                              fsal_mdsize_t buffersize, /* IN */
+                              fsal_dirent_t * p_pdirent,        /* OUT */
+                              cephfsal_cookie_t * p_end_position,        /* OUT */
+                              fsal_count_t * p_nb_entries,      /* OUT */
+                              fsal_boolean_t * p_end_of_dir /* OUT */ );
+
+fsal_status_t CEPHFSAL_closedir(cephfsal_dir_t * p_dir_descriptor /* IN */ );
+
+fsal_status_t CEPHFSAL_open_by_name(cephfsal_handle_t * dirhandle,        /* IN */
+                                   fsal_name_t * filename,      /* IN */
+                                   cephfsal_op_context_t * p_context,    /* IN */
+                                   fsal_openflags_t openflags,  /* IN */
+                                   cephfsal_file_t * file_descriptor,    /* OUT */
+                                   fsal_attrib_list_t *
+                                   file_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_open(cephfsal_handle_t * p_filehandle,     /* IN */
+                           cephfsal_op_context_t * p_context,    /* IN */
+                           fsal_openflags_t openflags,  /* IN */
+                           cephfsal_file_t * p_file_descriptor,  /* OUT */
+                           fsal_attrib_list_t * p_file_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_read(cephfsal_file_t * p_file_descriptor,  /* IN */
+                           fsal_seek_t * p_seek_descriptor,     /* [IN] */
+                           fsal_size_t buffer_size,     /* IN */
+                           caddr_t buffer,      /* OUT */
+                           fsal_size_t * p_read_amount, /* OUT */
+                           fsal_boolean_t * p_end_of_file /* OUT */ );
+
+fsal_status_t CEPHFSAL_write(cephfsal_file_t * p_file_descriptor, /* IN */
+                            fsal_seek_t * p_seek_descriptor,    /* IN */
+                            fsal_size_t buffer_size,    /* IN */
+                            caddr_t buffer,     /* IN */
+                            fsal_size_t * p_write_amount /* OUT */ );
+
+fsal_status_t CEPHFSAL_close(cephfsal_file_t * p_file_descriptor /* IN */ );
+
+fsal_status_t CEPHFSAL_open_by_fileid(cephfsal_handle_t * filehandle,     /* IN */
+                                     fsal_u64_t fileid, /* IN */
+                                     cephfsal_op_context_t * p_context,  /* IN */
+                                     fsal_openflags_t openflags,        /* IN */
+                                     cephfsal_file_t * file_descriptor,  /* OUT */
+                                     fsal_attrib_list_t *
+                                     file_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_close_by_fileid(cephfsal_file_t * file_descriptor /* IN */ ,
+                                      fsal_u64_t fileid);
+
+fsal_status_t CEPHFSAL_static_fsinfo(cephfsal_handle_t * p_filehandle,    /* IN */
+                                    cephfsal_op_context_t * p_context,   /* IN */
+                                    fsal_staticfsinfo_t * p_staticinfo /* OUT */ );
+
+fsal_status_t CEPHFSAL_dynamic_fsinfo(cephfsal_handle_t * p_filehandle,   /* IN */
+                                     cephfsal_op_context_t * p_context,  /* IN */
+                                     fsal_dynamicfsinfo_t * p_dynamicinfo /* OUT */ );
+
+fsal_status_t CEPHFSAL_Init(fsal_parameter_t * init_info /* IN */ );
+
+fsal_status_t CEPHFSAL_terminate();
+
+fsal_status_t CEPHFSAL_test_access(cephfsal_op_context_t * p_context,     /* IN */
+                                  fsal_accessflags_t access_type,       /* IN */
+                                  fsal_attrib_list_t * p_object_attributes /* IN */ );
+
+fsal_status_t CEPHFSAL_setattr_access(cephfsal_op_context_t * p_context,  /* IN */
+                                     fsal_attrib_list_t * candidate_attributes, /* IN */
+                                     fsal_attrib_list_t * object_attributes /* IN */ );
+
+fsal_status_t CEPHFSAL_rename_access(cephfsal_op_context_t * pcontext,    /* IN */
+                                    fsal_attrib_list_t * pattrsrc,      /* IN */
+                                    fsal_attrib_list_t * pattrdest) /* IN */ ;
+
+fsal_status_t CEPHFSAL_create_access(cephfsal_op_context_t * pcontext,    /* IN */
+                                    fsal_attrib_list_t * pattr) /* IN */ ;
+
+fsal_status_t CEPHFSAL_unlink_access(cephfsal_op_context_t * pcontext,    /* IN */
+                                    fsal_attrib_list_t * pattr) /* IN */ ;
+
+fsal_status_t CEPHFSAL_link_access(cephfsal_op_context_t * pcontext,      /* IN */
+                                  fsal_attrib_list_t * pattr) /* IN */ ;
+
+fsal_status_t CEPHFSAL_merge_attrs(fsal_attrib_list_t * pinit_attr,
+                                  fsal_attrib_list_t * pnew_attr,
+                                  fsal_attrib_list_t * presult_attr);
+
+fsal_status_t CEPHFSAL_lookup(cephfsal_handle_t * p_parent_directory_handle,      /* IN */
+                             fsal_name_t * p_filename,  /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             cephfsal_handle_t * p_object_handle,        /* OUT */
+                             fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_lookupPath(fsal_path_t * p_path,  /* IN */
+                                 cephfsal_op_context_t * p_context,      /* IN */
+                                 cephfsal_handle_t * object_handle,      /* OUT */
+                                 fsal_attrib_list_t *
+                                 p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_lookupJunction(cephfsal_handle_t * p_junction_handle,      /* IN */
+                                     cephfsal_op_context_t * p_context,  /* IN */
+                                     cephfsal_handle_t * p_fsoot_handle, /* OUT */
+                                     fsal_attrib_list_t *
+                                     p_fsroot_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_lock(cephfsal_file_t * obj_handle,
+                           cephfsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+
+fsal_status_t CEPHFSAL_changelock(cephfsal_lockdesc_t * lock_descriptor,  /* IN / OUT */
+                                 fsal_lockparam_t * lock_info /* IN */ );
+
+fsal_status_t CEPHFSAL_unlock(cephfsal_file_t * obj_handle, cephfsal_lockdesc_t * ldesc);
+
+fsal_status_t CEPHFSAL_getlock(cephfsal_file_t * obj_handle, cephfsal_lockdesc_t * ldesc);
+
+fsal_status_t CEPHFSAL_CleanObjectResources(cephfsal_handle_t * in_fsal_handle);
+
+fsal_status_t CEPHFSAL_set_quota(fsal_path_t * pfsal_path,       /* IN */
+                                int quota_type, /* IN */
+                                fsal_uid_t fsal_uid,    /* IN */
+                                fsal_quota_t * pquota,  /* IN */
+                                fsal_quota_t * presquota);      /* OUT */
+
+fsal_status_t CEPHFSAL_get_quota(fsal_path_t * pfsal_path,       /* IN */
+                                int quota_type, /* IN */
+                                fsal_uid_t fsal_uid,    /* IN */
+                                fsal_quota_t * pquota); /* OUT */
+
+fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,        /* IN */
+                          cephfsal_op_context_t * p_context,     /* IN */
+                          fsal_path_t * p_local_path,   /* IN */
+                          fsal_rcpflag_t transfer_opt /* IN */ );
+
+fsal_status_t CEPHFSAL_rcp_by_fileid(cephfsal_handle_t * filehandle,      /* IN */
+                                    fsal_u64_t fileid,  /* IN */
+                                    cephfsal_op_context_t * p_context,   /* IN */
+                                    fsal_path_t * p_local_path, /* IN */
+                                    fsal_rcpflag_t transfer_opt /* IN */ );
+
+fsal_status_t CEPHFSAL_rename(cephfsal_handle_t * p_old_parentdir_handle, /* IN */
+                             fsal_name_t * p_old_name,  /* IN */
+                             cephfsal_handle_t * p_new_parentdir_handle, /* IN */
+                             fsal_name_t * p_new_name,  /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             fsal_attrib_list_t * p_src_dir_attributes, /* [ IN/OUT ] */
+                             fsal_attrib_list_t * p_tgt_dir_attributes /* [ IN/OUT ] */ );
+
+void CEPHFSAL_get_stats(fsal_statistics_t * stats,       /* OUT */
+                       fsal_boolean_t reset /* IN */ );
+
+fsal_status_t CEPHFSAL_readlink(cephfsal_handle_t * p_linkhandle, /* IN */
+                               cephfsal_op_context_t * p_context,        /* IN */
+                               fsal_path_t * p_link_content,    /* OUT */
+                               fsal_attrib_list_t * p_link_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_symlink(cephfsal_handle_t * p_parent_directory_handle,     /* IN */
+                              fsal_name_t * p_linkname, /* IN */
+                              fsal_path_t * p_linkcontent,      /* IN */
+                              cephfsal_op_context_t * p_context, /* IN */
+                              fsal_accessmode_t accessmode,     /* IN (ignored) */
+                              cephfsal_handle_t * p_link_handle, /* OUT */
+                              fsal_attrib_list_t * p_link_attributes /* [ IN/OUT ] */ );
+
+int CEPHFSAL_handlecmp(cephfsal_handle_t * handle1, cephfsal_handle_t * handle2,
+                      fsal_status_t * status);
+
+unsigned int CEPHFSAL_Handle_to_HashIndex(cephfsal_handle_t * p_handle,
+                                         unsigned int cookie,
+                                         unsigned int alphabet_len,
+                                         unsigned int index_size);
+
+unsigned int CEPHFSAL_Handle_to_RBTIndex(cephfsal_handle_t * p_handle, unsigned int cookie);
+
+fsal_status_t CEPHFSAL_DigestHandle(cephfsal_export_context_t * p_expcontext,     /* IN */
+                                   fsal_digesttype_t output_type,       /* IN */
+                                   cephfsal_handle_t * p_in_fsal_handle, /* IN */
+                                   caddr_t out_buff /* OUT */ );
+
+fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,     /* IN */
+                                   fsal_digesttype_t in_type,   /* IN */
+                                   caddr_t in_buff,     /* IN */
+                                   cephfsal_handle_t * p_out_fsal_handle /* OUT */ );
+
+fsal_status_t CEPHFSAL_SetDefault_FSAL_parameter(fsal_parameter_t * out_parameter);
+
+fsal_status_t CEPHFSAL_SetDefault_FS_common_parameter(fsal_parameter_t * out_parameter);
+
+fsal_status_t CEPHFSAL_SetDefault_FS_specific_parameter(fsal_parameter_t * out_parameter);
+
+fsal_status_t CEPHFSAL_load_FSAL_parameter_from_conf(config_file_t in_config,
+                                                    fsal_parameter_t * out_parameter);
+
+fsal_status_t CEPHFSAL_load_FS_common_parameter_from_conf(config_file_t in_config,
+                                                         fsal_parameter_t *
+                                                         out_parameter);
+
+fsal_status_t CEPHFSAL_load_FS_specific_parameter_from_conf(config_file_t in_config,
+                                                           fsal_parameter_t *
+                                                           out_parameter);
+
+fsal_status_t CEPHFSAL_truncate(cephfsal_handle_t * p_filehandle, /* IN */
+                               cephfsal_op_context_t * p_context,        /* IN */
+                               fsal_size_t length,      /* IN */
+                               cephfsal_file_t * file_descriptor,        /* Unused in this FSAL */
+                               fsal_attrib_list_t *
+                               p_object_attributes /* [ IN/OUT ] */ );
+
+fsal_status_t CEPHFSAL_unlink(cephfsal_handle_t * p_parent_directory_handle,      /* IN */
+                             fsal_name_t * p_object_name,       /* IN */
+                             cephfsal_op_context_t * p_context,  /* IN */
+                             fsal_attrib_list_t *
+                             p_parent_directory_attributes /* [IN/OUT ] */ );
+
+char *CEPHFSAL_GetFSName();
+
+fsal_status_t CEPHFSAL_GetXAttrAttrs(cephfsal_handle_t * p_objecthandle,  /* IN */
+                                    cephfsal_op_context_t * p_context,   /* IN */
+                                    unsigned int xattr_id,      /* IN */
+                                    fsal_attrib_list_t * p_attrs);
+
+fsal_status_t CEPHFSAL_ListXAttrs(cephfsal_handle_t * p_objecthandle,     /* IN */
+                                 unsigned int cookie,   /* IN */
+                                 cephfsal_op_context_t * p_context,      /* IN */
+                                 fsal_xattrent_t * xattrs_tab,  /* IN/OUT */
+                                 unsigned int xattrs_tabsize,   /* IN */
+                                 unsigned int *p_nb_returned,   /* OUT */
+                                 int *end_of_list /* OUT */ );
+
+fsal_status_t CEPHFSAL_GetXAttrValueById(cephfsal_handle_t * p_objecthandle,      /* IN */
+                                        unsigned int xattr_id,  /* IN */
+                                        cephfsal_op_context_t * p_context,       /* IN */
+                                        caddr_t buffer_addr,    /* IN/OUT */
+                                        size_t buffer_size,     /* IN */
+                                        size_t * p_output_size /* OUT */ );
+
+fsal_status_t CEPHFSAL_GetXAttrIdByName(cephfsal_handle_t * p_objecthandle,       /* IN */
+                                       const fsal_name_t * xattr_name,  /* IN */
+                                       cephfsal_op_context_t * p_context,        /* IN */
+                                       unsigned int *pxattr_id /* OUT */ );
+
+fsal_status_t CEPHFSAL_GetXAttrValueByName(cephfsal_handle_t * p_objecthandle,    /* IN */
+                                          const fsal_name_t * xattr_name,       /* IN */
+                                          cephfsal_op_context_t * p_context,     /* IN */
+                                          caddr_t buffer_addr,  /* IN/OUT */
+                                          size_t buffer_size,   /* IN */
+                                          size_t * p_output_size /* OUT */ );
+
+fsal_status_t CEPHFSAL_SetXAttrValue(cephfsal_handle_t * p_objecthandle,  /* IN */
+                                    const fsal_name_t * xattr_name,     /* IN */
+                                    cephfsal_op_context_t * p_context,   /* IN */
+                                    caddr_t buffer_addr,        /* IN */
+                                    size_t buffer_size, /* IN */
+                                    int create /* IN */ );
+
+fsal_status_t CEPHFSAL_SetXAttrValueById(cephfsal_handle_t * p_objecthandle,      /* IN */
+                                        unsigned int xattr_id,  /* IN */
+                                        cephfsal_op_context_t * p_context,       /* IN */
+                                        caddr_t buffer_addr,    /* IN */
+                                        size_t buffer_size /* IN */ );
+
+fsal_status_t CEPHFSAL_RemoveXAttrById(cephfsal_handle_t * p_objecthandle,        /* IN */
+                                      cephfsal_op_context_t * p_context, /* IN */
+                                      unsigned int xattr_id) /* IN */ ;
+
+fsal_status_t CEPHFSAL_RemoveXAttrByName(cephfsal_handle_t * p_objecthandle,      /* IN */
+                                        cephfsal_op_context_t * p_context,       /* IN */
+                                        const fsal_name_t * xattr_name) /* IN */ ;
+
+unsigned int CEPHFSAL_GetFileno(fsal_file_t * pfile);

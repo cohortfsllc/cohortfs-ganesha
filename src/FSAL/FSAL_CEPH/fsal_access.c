@@ -1,13 +1,34 @@
 /*
- * Copyright (C) 2010 The Linux Box Corporation.
+ * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010, The Linux Box Corporation
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Some portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_access.c
- * \author  $Author: aemerson $
- * \date    $Date: 2010/07/13 10:31:47 $
- * \version $Revision: 0.80 $
  * \brief   FSAL access permissions functions.
  *
  */
@@ -53,21 +74,19 @@
  *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
  *        - Other error codes when something anormal occurs.
  */
-fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
-                          fsal_op_context_t * context,        /* IN */
-                          fsal_accessflags_t access_type,       /* IN */
-                          fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_access(cephfsal_handle_t * filehandle,        /* IN */
+			      cephfsal_op_context_t * context,        /* IN */
+			      fsal_accessflags_t access_type,       /* IN */
+			      fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     )
 {
 
   struct stat_precise st;
-  int uid;
-  int gid;
   fsal_accessflags_t missing_access;
-  int rc;
-  int is_grp;
   fsal_accessmode_t mode;
-  int i;
+  int rc, is_grp, i;
+  int uid=FSAL_OP_CONTEXT_TO_UID(context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(context);
   
   missing_access = access_type;
   
@@ -77,12 +96,10 @@ fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
   if(!filehandle || !context)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_access);
 
-  uid=FSAL_OP_CONTEXT_TO_UID(context);
-  gid=FSAL_OP_CONTEXT_TO_GID(context);
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_getattr_precise(filehandle->vi, &st, uid, gid);
+  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -169,7 +186,7 @@ fsal_status_t FSAL_access(fsal_handle_t * filehandle,        /* IN */
 	{
 	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
 	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_access);
 	}
     }
 

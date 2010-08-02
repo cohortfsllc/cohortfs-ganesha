@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_unlink.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/24 13:45:37 $
- * \version $Revision: 1.9 $
  * \brief   object removing function.
  *
  */
@@ -48,22 +69,19 @@
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_unlink(fsal_handle_t * parentdir_handle,     /* IN */
-                          fsal_name_t * p_object_name,  /* IN */
-                          fsal_op_context_t * p_context,        /* IN */
-                          fsal_attrib_list_t * parentdir_attributes     /* [IN/OUT ] */
+fsal_status_t CEPHFSAL_unlink(cephfsal_handle_t * parentdir_handle,     /* IN */
+			      fsal_name_t * p_object_name,  /* IN */
+			      cephfsal_op_context_t * p_context,        /* IN */
+			      fsal_attrib_list_t * parentdir_attributes     /* [IN/OUT ] */
     )
 {
 
   fsal_status_t status;
   int rc;
-  int uid;
-  int gid;
   char name[FSAL_MAX_NAME_LEN];
   struct stat_precise st;
-  
-  uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
   /* sanity checks.
    * note : parentdir_attributes are optional.
@@ -76,25 +94,28 @@ fsal_status_t FSAL_unlink(fsal_handle_t * parentdir_handle,     /* IN */
 
   if(parentdir_attributes)
     {
-      status = FSAL_getattrs(parentdir_handle, p_context, parentdir_attributes);
-
+      status = CEPHFSAL_getattrs(parentdir_handle, p_context, parentdir_attributes);
+      
       if(FSAL_IS_ERROR(status))
-        {
-          FSAL_CLEAR_MASK(parentdir_attributes->asked_attributes);
-          FSAL_SET_MASK(parentdir_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-        }
+	{
+	  FSAL_CLEAR_MASK(parentdir_attributes->asked_attributes);
+	  FSAL_SET_MASK(parentdir_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	}
     }
 
   FSAL_name2str(p_object_name, name, FSAL_MAX_NAME_LEN);
 
-  rc=ceph_ll_lookup_precise(parentdir_handle->vi, name, &st, uid, gid);
+  TakeTokenFSCall();
+  rc=ceph_ll_lookup_precise(VINODE(parentdir_handle), name, &st, uid, gid);
+  ReleaseTokenFSCall();
+
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_unlink);
   
   if(S_ISDIR(st.st_mode))
-    rc=ceph_ll_rmdir(parentdir_handle->vi, name, uid, gid);
+    rc=ceph_ll_rmdir(VINODE(parentdir_handle), name, uid, gid);
   else
-    rc=ceph_ll_unlink(parentdir_handle->vi, name, uid, gid);
+    rc=ceph_ll_unlink(VINODE(parentdir_handle), name, uid, gid);
 
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_unlink);

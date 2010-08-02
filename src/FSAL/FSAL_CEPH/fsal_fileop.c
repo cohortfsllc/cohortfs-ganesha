@@ -1,12 +1,31 @@
 /*
- * vim:expandtab:shiftwidth=8:tabstop=8:
+ * Copyright (C) 2010 The Linx Box Corporation
+ * Contributor : Adam C. Emerson
+ *
+ * Some Portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * 
+ * ---------------------------------------
  */
 
 /**
  * \file    fsal_fileop.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/02/15 14:26:10 $
- * \version $Revision: 1.11 $
  * \brief   Files operations.
  *
  */
@@ -55,11 +74,11 @@
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
-                        fsal_op_context_t * p_context,  /* IN */
-                        fsal_openflags_t openflags,     /* IN */
-                        fsal_file_t * file_descriptor,  /* OUT */
-                        fsal_attrib_list_t * file_attributes    /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_open(cephfsal_handle_t * filehandle,     /* IN */
+			    cephfsal_op_context_t * p_context,  /* IN */
+			    fsal_openflags_t openflags,     /* IN */
+			    cephfsal_file_t * file_descriptor,  /* OUT */
+			    fsal_attrib_list_t * file_attributes    /* [ IN/OUT ] */
     )
 {
 
@@ -88,9 +107,11 @@ fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
   TakeTokenFSCall();
 
   /*  rc=ceph_ll_open(filehandle->vi, posix_flags, file_descriptor, uid, gid); */
-  rc=ceph_ll_open(filehandle->vi, posix_flags, &desc, uid, gid);
+  rc=ceph_ll_open(VINODE(filehandle), posix_flags, &desc, uid, gid);
 
-  *file_descriptor=desc;
+  file_descriptor->fh=desc;
+  file_descriptor->vi=VINODE(filehandle);
+  file_descriptor->ctx=*p_context;
 
   ReleaseTokenFSCall();
 
@@ -99,9 +120,9 @@ fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
 
   if(file_attributes)
     {
-      fsal_status_t status;
-      
-      status=FSAL_getattrs(filehandle, p_context, file_attributes);
+      fsal_status_t status
+	= CEPHFSAL_getattrs(filehandle, p_context, file_attributes);
+
       if(FSAL_IS_ERROR(status))
         {
           FSAL_CLEAR_MASK(file_attributes->asked_attributes);
@@ -151,12 +172,12 @@ fsal_status_t FSAL_open(fsal_handle_t * filehandle,     /* IN */
  *        ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_open_by_name(fsal_handle_t * dirhandle,      /* IN */
-                                fsal_name_t * filename, /* IN */
-                                fsal_op_context_t * p_context,  /* IN */
-                                fsal_openflags_t openflags,     /* IN */
-                                fsal_file_t * file_descriptor,  /* OUT */
-                                fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
+fsal_status_t CEPHFSAL_open_by_name(cephfsal_handle_t * dirhandle,      /* IN */
+				    fsal_name_t * filename, /* IN */
+				    cephfsal_op_context_t * p_context,  /* IN */
+				    fsal_openflags_t openflags,     /* IN */
+				    cephfsal_file_t * file_descriptor,  /* OUT */
+				    fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
 {
   fsal_status_t fsal_status;
   fsal_handle_t filehandle;
@@ -199,12 +220,12 @@ fsal_status_t FSAL_open_by_name(fsal_handle_t * dirhandle,      /* IN */
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
-                        fsal_seek_t * seek_descriptor,  /* [IN] */
-                        fsal_size_t buffer_size,        /* IN */
-                        caddr_t buffer, /* OUT */
-                        fsal_size_t * read_amount,      /* OUT */
-                        fsal_boolean_t * end_of_file    /* OUT */
+fsal_status_t CEPHFSAL_read(cephfsal_file_t * file_descriptor,  /* IN */
+			    fsal_seek_t * seek_descriptor,  /* [IN] */
+			    fsal_size_t buffer_size,        /* IN */
+			    caddr_t buffer, /* OUT */
+			    fsal_size_t * read_amount,      /* OUT */
+			    fsal_boolean_t * end_of_file    /* OUT */
     )
 {
   int nb_read=0;
@@ -230,12 +251,12 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
 
   if (seek_descriptor)
     {
-      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
+      offset=ceph_ll_lseek(FH(file_descriptor), seek_descriptor->offset,
 			   whence);
     }
   else
     {
-      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
+      offset=ceph_ll_lseek(FH(file_descriptor), 0, SEEK_CUR);
     }
       
   ReleaseTokenFSCall();
@@ -245,7 +266,7 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
 
   TakeTokenFSCall();
 
-  nb_read=ceph_ll_read(*file_descriptor, offset, buffer_size, buffer);
+  nb_read=ceph_ll_read(FH(file_descriptor), offset, buffer_size, buffer);
 
   ReleaseTokenFSCall();
 
@@ -285,11 +306,11 @@ fsal_status_t FSAL_read(fsal_file_t * file_descriptor,  /* IN */
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ERR_FSAL_NOSPC, ERR_FSAL_DQUOT...
  */
-fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
-                         fsal_seek_t * seek_descriptor, /* IN */
-                         fsal_size_t buffer_size,       /* IN */
-                         caddr_t buffer,        /* IN */
-                         fsal_size_t * write_amount     /* OUT */
+fsal_status_t CEPHFSAL_write(cephfsal_file_t * file_descriptor, /* IN */
+			     fsal_seek_t * seek_descriptor, /* IN */
+			     fsal_size_t buffer_size,       /* IN */
+			     caddr_t buffer,        /* IN */
+			     fsal_size_t * write_amount     /* OUT */
     )
 {
   int nb_written=0;
@@ -314,12 +335,12 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
 
   if (seek_descriptor)
     {
-      offset=ceph_ll_lseek(*file_descriptor, seek_descriptor->offset,
+      offset=ceph_ll_lseek(FH(file_descriptor), seek_descriptor->offset,
 			   whence);
     }
   else
     {
-      offset=ceph_ll_lseek(*file_descriptor, 0, SEEK_CUR);
+      offset=ceph_ll_lseek(FH(file_descriptor), 0, SEEK_CUR);
     }
       
   ReleaseTokenFSCall();
@@ -329,7 +350,7 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
 
   TakeTokenFSCall();
 
-  nb_written=ceph_ll_write(*file_descriptor, offset, buffer_size,
+  nb_written=ceph_ll_write(FH(file_descriptor), offset, buffer_size,
 			   buffer);
   
   ReleaseTokenFSCall();
@@ -357,7 +378,7 @@ fsal_status_t FSAL_write(fsal_file_t * file_descriptor, /* IN */
  *          ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_close(fsal_file_t * file_descriptor  /* IN */
+fsal_status_t CEPHFSAL_close(fsal_file_t * file_descriptor  /* IN */
     )
 {
 
@@ -370,16 +391,16 @@ fsal_status_t FSAL_close(fsal_file_t * file_descriptor  /* IN */
   /* This is because of a bug in the cache layer which must be fixed
      later.  Right now, we work around it. */
   
-  if(!(*file_descriptor))
+  if(!FH(file_descriptor))
     Return(ERR_FSAL_NOT_OPENED, 0, INDEX_FSAL_close);
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_close(*file_descriptor);
+  rc=ceph_ll_close(FH(file_descriptor));
 
   ReleaseTokenFSCall();
 
-  *file_descriptor=NULL;
+  FH(file_descriptor)=NULL;
 
   if (rc != 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_read);
@@ -389,7 +410,7 @@ fsal_status_t FSAL_close(fsal_file_t * file_descriptor  /* IN */
 }
 
 /* Some unsupported calls used in FSAL_PROXY, just for permit the ganeshell to compile */
-fsal_status_t FSAL_open_by_fileid(fsal_handle_t * filehandle,   /* IN */
+fsal_status_t CEPHFSAL_open_by_fileid(fsal_handle_t * filehandle,   /* IN */
                                   fsal_u64_t fileid,    /* IN */
                                   fsal_op_context_t * p_context,        /* IN */
                                   fsal_openflags_t openflags,   /* IN */
@@ -399,8 +420,14 @@ fsal_status_t FSAL_open_by_fileid(fsal_handle_t * filehandle,   /* IN */
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_open_by_fileid);
 }
 
-fsal_status_t FSAL_close_by_fileid(fsal_file_t * file_descriptor /* IN */ ,
+fsal_status_t CEPHFSAL_close_by_fileid(fsal_file_t * file_descriptor /* IN */ ,
                                    fsal_u64_t fileid)
 {
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_open_by_fileid);
+}
+
+unsigned int CEPHFSAL_GetFileno(cephfsal_file_t * pfile)
+{
+  unsigned int mask=0xFFFFFFFF;
+  return (mask & ((uintptr_t) FH(pfile)));
 }

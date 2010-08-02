@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010, The Linux Box Corporation
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Some portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_convert.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/02/08 12:46:59 $
- * \version $Revision: 1.32 $
  * \brief   FS-FSAL type translation functions.
  *
  */
@@ -294,33 +315,6 @@ fsal_status_t posix2fsal_attributes(struct stat_precise * p_buffstat,
 }
 
 /**
- * fsal2posix_testperm:
- * Convert FSAL permission flags to Posix permission flags.
- *
- * \param testperm (input):
- *        The FSAL permission flags to be tested.
- *
- * \return The POSIX permission flags to be tested.
- */
-int fsal2posix_testperm(fsal_accessflags_t testperm)
-{
-
-  int posix_testperm = 0;
-
-  if(testperm & FSAL_R_OK)
-    posix_testperm |= R_OK;
-  if(testperm & FSAL_W_OK)
-    posix_testperm |= W_OK;
-  if(testperm & FSAL_X_OK)
-    posix_testperm |= X_OK;
-  if(testperm & FSAL_F_OK)
-    posix_testperm |= F_OK;
-
-  return posix_testperm;
-
-}
-
-/**
  * fsal2posix_openflags:
  * Convert FSAL open flags to Posix open flags.
  *
@@ -464,164 +458,9 @@ fsal_time_t ceph2fsal_time(time_t tsec, time_t tmicro)
   return fsaltime;
 }
 
-fsal_fsid_t posix2fsal_fsid(dev_t posix_devid)
-{
-
-  fsal_fsid_t fsid;
-
-  fsid.major = (fsal_u64_t) posix_devid;
-  fsid.minor = 0;
-
-  return fsid;
-
-}
-
-fsal_dev_t posix2fsal_devt(dev_t posix_devid)
-{
-
-  fsal_dev_t dev;
-
-  dev.major = posix_devid >> 8;
-  dev.minor = posix_devid & 0xFF;
-
-  return dev;
-}
-
 void stat2fsal_fh(struct stat_precise *st, fsal_handle_t *fh)
 {
-  fh->volid=0;
   fh->vi.ino.val=st->st_ino;
   fh->vi.snapid.val=st->st_dev;
 }
 
-
-/**
- * posix2fsal_type:
- * Convert posix object type to FSAL node type.
- *
- * \param posix_type_in (input):
- *        The POSIX object type.
- *
- * \return - The FSAL node type associated to posix_type_in.
- *         - -1 if the input type is unknown.
- */
-fsal_nodetype_t posix2fsal_type(mode_t posix_type_in)
-{
-
-  switch (posix_type_in & S_IFMT)
-    {
-    case S_IFIFO:
-      return FSAL_TYPE_FIFO;
-
-    case S_IFCHR:
-      return FSAL_TYPE_CHR;
-
-    case S_IFDIR:
-      return FSAL_TYPE_DIR;
-
-    case S_IFBLK:
-      return FSAL_TYPE_BLK;
-
-    case S_IFREG:
-    case S_IFMT:
-      return FSAL_TYPE_FILE;
-
-    case S_IFLNK:
-      return FSAL_TYPE_LNK;
-
-    case S_IFSOCK:
-      return FSAL_TYPE_SOCK;
-
-    default:
-      DisplayLogJdLevel(fsal_log, NIV_EVENT, "Unknown object type: %d", posix_type_in);
-      return -1;
-    }
-
-}
-
-
-/**
- * fsal2unix_mode:
- * Convert FSAL mode to posix mode.
- *
- * \param fsal_mode (input):
- *        The FSAL mode to be translated.
- *
- * \return The posix mode associated to fsal_mode.
- */
-mode_t fsal2unix_mode(fsal_accessmode_t fsal_mode)
-{
-
-  mode_t out_mode = 0;
-
-  if((fsal_mode & FSAL_MODE_SUID))
-    out_mode |= S_ISUID;
-  if((fsal_mode & FSAL_MODE_SGID))
-    out_mode |= S_ISGID;
-
-  if((fsal_mode & FSAL_MODE_RUSR))
-    out_mode |= S_IRUSR;
-  if((fsal_mode & FSAL_MODE_WUSR))
-    out_mode |= S_IWUSR;
-  if((fsal_mode & FSAL_MODE_XUSR))
-    out_mode |= S_IXUSR;
-  if((fsal_mode & FSAL_MODE_RGRP))
-    out_mode |= S_IRGRP;
-  if((fsal_mode & FSAL_MODE_WGRP))
-    out_mode |= S_IWGRP;
-  if((fsal_mode & FSAL_MODE_XGRP))
-    out_mode |= S_IXGRP;
-  if((fsal_mode & FSAL_MODE_ROTH))
-    out_mode |= S_IROTH;
-  if((fsal_mode & FSAL_MODE_WOTH))
-    out_mode |= S_IWOTH;
-  if((fsal_mode & FSAL_MODE_XOTH))
-    out_mode |= S_IXOTH;
-
-  return out_mode;
-
-}
-
-/**
- * unix2fsal_mode:
- * Convert posix mode to FSAL mode.
- *
- * \param unix_mode (input):
- *        The posix mode to be translated.
- *
- * \return The FSAL mode associated to unix_mode.
- */
-fsal_accessmode_t unix2fsal_mode(mode_t unix_mode)
-{
-
-  fsal_accessmode_t fsalmode = 0;
-
-  if(unix_mode & S_ISUID)
-    fsalmode |= FSAL_MODE_SUID;
-  if(unix_mode & S_ISGID)
-    fsalmode |= FSAL_MODE_SGID;
-
-  if(unix_mode & S_IRUSR)
-    fsalmode |= FSAL_MODE_RUSR;
-  if(unix_mode & S_IWUSR)
-    fsalmode |= FSAL_MODE_WUSR;
-  if(unix_mode & S_IXUSR)
-    fsalmode |= FSAL_MODE_XUSR;
-
-  if(unix_mode & S_IRGRP)
-    fsalmode |= FSAL_MODE_RGRP;
-  if(unix_mode & S_IWGRP)
-    fsalmode |= FSAL_MODE_WGRP;
-  if(unix_mode & S_IXGRP)
-    fsalmode |= FSAL_MODE_XGRP;
-
-  if(unix_mode & S_IROTH)
-    fsalmode |= FSAL_MODE_ROTH;
-  if(unix_mode & S_IWOTH)
-    fsalmode |= FSAL_MODE_WOTH;
-  if(unix_mode & S_IXOTH)
-    fsalmode |= FSAL_MODE_XOTH;
-
-  return fsalmode;
-
-}

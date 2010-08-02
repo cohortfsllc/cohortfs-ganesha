@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010, The Linux Box Corporation
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Some portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_attrs.c
- * \author  $Author: leibovic $
- * \date    $Date: 2005/09/09 15:22:49 $
- * \version $Revision: 1.19 $
  * \brief   Attributes functions.
  *
  */
@@ -40,15 +61,15 @@
  *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument) 
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_attrib_list_t * object_attributes      /* IN/OUT */
+fsal_status_t CEPHFSAL_getattrs(cephfsal_handle_t * filehandle, /* IN */
+				cephfsal_op_context_t * p_context,      /* IN */
+				fsal_attrib_list_t * object_attributes      /* IN/OUT */
     )
 {
 
-  int rc;
   fsal_status_t status;
   struct stat_precise st;
+  int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
@@ -60,7 +81,7 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_getattr_precise(filehandle->vi, &st, uid, gid);
+  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -113,22 +134,18 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
  *        the object_attributes->asked_attributes field.
  */
 
-fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_attrib_list_t * attrib_set,    /* IN */
-                            fsal_attrib_list_t * object_attributes      /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_setattrs(cephfsal_handle_t * filehandle, /* IN */
+				cephfsal_op_context_t * p_context,      /* IN */
+				fsal_attrib_list_t * attrib_set,    /* IN */
+				fsal_attrib_list_t * object_attributes      /* [ IN/OUT ] */
     )
 {
 
-  int rc;
-  int mask=0;
   struct stat_precise st;
-  int uid;
-  int gid;
   fsal_attrib_list_t attrs;
-
-  uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int rc, mask=0;
+  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
   /* sanity checks.
    * note : object_attributes is optional.
@@ -200,7 +217,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_setattr_precise(filehandle->vi, &st, mask, uid, gid);
+  rc=ceph_ll_setattr_precise(VINODE(filehandle), &st, mask, uid, gid);
 
   ReleaseTokenFSCall();
 
@@ -210,7 +227,7 @@ fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
   if(object_attributes)
     {
       fsal_status_t status;
-      status = FSAL_getattrs(filehandle, p_context, object_attributes);
+      status = CEPHFSAL_getattrs(filehandle, p_context, object_attributes);
 
       /* on error, we set a special bit in the mask. */
       if(FSAL_IS_ERROR(status))

@@ -45,48 +45,32 @@
 #include <ceph/libceph.h>
 #include <pthread.h>
 
+#include "fsal_glue_const.h"
+
+#define fsal_handle_t cephfsal_handle_t
+#define fsal_op_context_t cephfsal_op_context_t
+#define fsal_file_t cephfsal_file_t
+#define fsal_dir_t cephfsal_dir_t
+#define fsal_export_context_t cephfsal_export_context_t
+#define fsal_lockdesc_t cephfsal_lockdesc_t
+#define fsal_cookie_t cephfsal_cookie_t
+#define fs_specific_initinfo_t xfsfs_specific_initinfo_t
+#define fsal_cred_t cephfsal_cred_t
+
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
    */
-# define FSAL_MAX_NAME_LEN  256
-# define FSAL_MAX_PATH_LEN  1024
 
-/* prefered readdir size */
-#define FSAL_READDIR_SIZE 2048
-
-/** object name.  */
-
-typedef struct fsal_name__
-{
-  char name[FSAL_MAX_NAME_LEN];
-  unsigned int len;
-} fsal_name_t;
-
-/** object path.  */
-
-typedef struct fsal_path__
-{
-  char path[FSAL_MAX_PATH_LEN];
-  unsigned int len;
-} fsal_path_t;
-
-# define FSAL_NAME_INITIALIZER {"",0}
-# define FSAL_PATH_INITIALIZER {"",0}
-
-static fsal_name_t FSAL_DOT = { ".", 1 };
-static fsal_name_t FSAL_DOT_DOT = { "..", 2 };
-
-  /* some void types for this template... */
-
-typedef uint64_t volume_id_t;
-
-typedef struct fsal_handle__
-{
+typedef union {
   vinodeno_t vi;
-  volume_id_t volid;
-} fsal_handle_t;
+#ifdef _BUILD_SHARED_FSAL
+  char pad[FSAL_HANDLE_T_SIZE];
+#endif
+} cephfsal_handle_t;
 
-#define FSAL_NGROUPS_MAX 32
+#define VINODE(fh) (fh->vi)
+
+/* Authentication context. */
 
 typedef struct fsal_cred__
 {
@@ -94,40 +78,51 @@ typedef struct fsal_cred__
   int group;
   int nbgroups;
   int alt_groups[FSAL_NGROUPS_MAX];
-} fsal_cred_t;
+} cephfsal_cred_t;
 
 typedef struct fsal_export_context__
 {
   char mount[FSAL_MAX_PATH_LEN];
-} fsal_export_context_t;
-
-#define FSAL_EXPORT_CONTEXT_SPECIFIC( pexport_context ) (uint64_t)(FSAL_Handle_to_RBTIndex( &(pexport_context->root_handle), 0 ) )
+} cephfsal_export_context_t;
 
 typedef struct fsal_op_context__
 {
   fsal_cred_t credential;
   fsal_export_context_t *export_context;
-} fsal_op_context_t;
+} cephfsal_op_context_t;
 
 #define FSAL_OP_CONTEXT_TO_UID( pcontext ) ( pcontext->credential.user )
 #define FSAL_OP_CONTEXT_TO_GID( pcontext ) ( pcontext->credential.group )
-
-typedef void* fsal_dir_t;
-/* typedef uintptr_t fsal_file_t; */
-
-typedef Fh* fsal_file_t;
-
-# define FSAL_FILENO(_f) fileno(_f)
-
-typedef loff_t fsal_cookie_t;
-
-#define FSAL_READDIR_FROM_BEGINNING 0
 
 typedef struct fs_specific_initinfo__
 {
   char cephserver[FSAL_MAX_NAME_LEN];
 } fs_specific_initinfo_t;
 
-typedef void *fsal_lockdesc_t;
+
+typedef union {
+  loff_t cookie;
+  char pad[FSAL_COOKIE_T_SIZE];
+} cephfsal_cookie_t;
+
+#define COOKIE(c) (c.cookie)
+
+typedef void *cephfsal_lockdesc_t;
+
+typedef struct {
+  DIR* dh;
+  vinodeno_t vi;
+  cephfsal_op_context_t ctx;
+} cephfsal_dir_t;
+
+#define DH(dir) (dir->dh)
+
+typedef struct {
+  Fh* fh;
+  vinodeno_t vi;
+  cephfsal_op_context_t ctx;
+} cephfsal_file_t;
+
+#define FH(file) (file->fh)
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

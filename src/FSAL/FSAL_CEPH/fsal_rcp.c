@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_rcp.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/24 13:45:37 $
- * \version $Revision: 1.7 $
  * \brief   Transfer operations.
  *
  */
@@ -57,17 +78,17 @@
  *        ERR_FSAL_IO, ERR_FSAL_NOSPC, ERR_FSAL_DQUOT...
  */
 
-fsal_status_t FSAL_rcp(fsal_handle_t * filehandle,      /* IN */
-                       fsal_op_context_t * p_context,   /* IN */
-                       fsal_path_t * p_local_path,      /* IN */
-                       fsal_rcpflag_t transfer_opt      /* IN */
+fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
+			   cephfsal_op_context_t * p_context,   /* IN */
+			   fsal_path_t * p_local_path,      /* IN */
+			   fsal_rcpflag_t transfer_opt      /* IN */
     )
 {
 
   int local_fd;
   int local_flags;
 
-  fsal_file_t fs_fd;
+  cephfsal_file_t fs_fd;
   fsal_openflags_t fs_flags;
 
   fsal_status_t st = FSAL_STATUS_NO_ERROR;
@@ -268,7 +289,7 @@ fsal_status_t FSAL_rcp(fsal_handle_t * filehandle,      /* IN */
         }
       else                      /* from FSAL filesystem */
         {
-          st = FSAL_read(&fs_fd, NULL, RCP_BUFFER_SIZE, IObuffer, &fs_size, &eof);
+          CEPHFSAL_read(&fs_fd, NULL, RCP_BUFFER_SIZE, IObuffer, &fs_size, &eof);
 
           if(FSAL_IS_ERROR(st))
             break;              /* exit loop */
@@ -287,7 +308,7 @@ fsal_status_t FSAL_rcp(fsal_handle_t * filehandle,      /* IN */
           if(to_fs)             /* to FSAL filesystem */
             {
 
-              st = FSAL_write(&fs_fd, NULL, local_size, IObuffer, &fs_size);
+              CEPHFSAL_write(&fs_fd, NULL, local_size, IObuffer, &fs_size);
 
               if(FSAL_IS_ERROR(st))
                 break;          /* exit loop */
@@ -319,7 +340,7 @@ fsal_status_t FSAL_rcp(fsal_handle_t * filehandle,      /* IN */
 
   Mem_Free(IObuffer);
   close(local_fd);
-  FSAL_close(&fs_fd);
+  CEPHFSAL_close(&fs_fd);
 
   /* return status. */
 
@@ -327,11 +348,11 @@ fsal_status_t FSAL_rcp(fsal_handle_t * filehandle,      /* IN */
 
 }
 
-fsal_status_t FSAL_rcp_by_fileid(fsal_handle_t * filehandle,    /* IN */
-                                 fsal_u64_t fileid,     /* IN */
-                                 fsal_op_context_t * p_context, /* IN */
-                                 fsal_path_t * p_local_path,    /* IN */
-                                 fsal_rcpflag_t transfer_opt /* IN */ )
+fsal_status_t CEPHFSAL_rcp_by_fileid(cephfsal_handle_t * filehandle,    /* IN */
+				     fsal_u64_t fileid,     /* IN */
+				     cephfsal_op_context_t * p_context, /* IN */
+				     fsal_path_t * p_local_path,    /* IN */
+				     fsal_rcpflag_t transfer_opt /* IN */ )
 {
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_open_by_fileid);
 }

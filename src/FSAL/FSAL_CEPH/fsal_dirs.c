@@ -1,13 +1,34 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010, The Linux Box Corporation
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Some portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  *
  * \file    fsal_dirs.c
- * \author  $Author: leibovic $
- * \date    $Date: 2005/07/29 09:39:04 $
- * \version $Revision: 1.10 $
  * \brief   Directory browsing operations.
  *
  */
@@ -44,19 +65,17 @@
  *        - Other error codes can be returned :
  *          ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_opendir(fsal_handle_t * dir_handle,  /* IN */
-                           fsal_op_context_t * p_context,       /* IN */
-                           fsal_dir_t * dir_descriptor, /* OUT */
-                           fsal_attrib_list_t * dir_attributes  /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_opendir(cephfsal_handle_t * dir_handle,  /* IN */
+			       cephfsal_op_context_t * p_context,       /* IN */
+			       cephfsal_dir_t * dir_descriptor, /* OUT */
+			       fsal_attrib_list_t * dir_attributes  /* [ IN/OUT ] */
     )
 {
-  int rc;
   fsal_status_t status;
-  int uid;
-  int gid;
-  
-  uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int rc;
+  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  void* dh;
 
   /* sanity checks
    * note : dir_attributes is optionnal.
@@ -65,15 +84,20 @@ fsal_status_t FSAL_opendir(fsal_handle_t * dir_handle,  /* IN */
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_opendir);
 
   TakeTokenFSCall();
-  rc=ceph_ll_opendir(dir_handle->vi, (void **)dir_descriptor, uid, gid);
+  rc=ceph_ll_opendir(VINODE(dir_handle), &dh, uid, gid);
   ReleaseTokenFSCall();
 
   if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_getattrs);
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_opendir);
+
+  dir_descriptor->dh=(DIR*) dh;
+  dir_descriptor->vi=VINODE(dir_handle);
+  dir_descriptor->ctx=*p_context;
 
   if(dir_attributes)
     {
-      status=FSAL_getattrs(dir_handle, p_context, dir_attributes);
+      status = CEPHFSAL_getattrs(dir_handle, p_context, dir_attributes);
+
       if(FSAL_IS_ERROR(status))
         {
           FSAL_CLEAR_MASK(dir_attributes->asked_attributes);
@@ -120,21 +144,24 @@ fsal_status_t FSAL_opendir(fsal_handle_t * dir_handle,  /* IN */
  *        - Other error codes can be returned :
  *          ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
-                           fsal_cookie_t start_position,        /* IN */
-                           fsal_attrib_mask_t get_attr_mask,    /* IN */
-                           fsal_mdsize_t buffersize,    /* IN */
-                           fsal_dirent_t * pdirent,     /* OUT */
-                           fsal_cookie_t * end_position,        /* OUT */
-                           fsal_count_t * nb_entries,   /* OUT */
-                           fsal_boolean_t * end_of_dir  /* OUT */
+fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
+			       cephfsal_cookie_t start_position,        /* IN */
+			       fsal_attrib_mask_t get_attr_mask,    /* IN */
+			       fsal_mdsize_t buffersize,    /* IN */
+			       fsal_dirent_t * pdirent,     /* OUT */
+			       cephfsal_cookie_t * end_position,        /* OUT */
+			       fsal_count_t * nb_entries,   /* OUT */
+			       fsal_boolean_t * end_of_dir  /* OUT */
     )
 {
 
-  int rc;
   fsal_status_t status;
   struct dirent de;
+  int rc;
   unsigned int max_entries=buffersize/sizeof(fsal_dirent_t);
+  int uid=dir_descriptor->ctx.credential.user;
+  int gid=dir_descriptor->ctx.credential.group;
+
   /* sanity checks */
 
   if(!dir_descriptor || !pdirent || !end_position || !nb_entries || !end_of_dir)
@@ -145,21 +172,19 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
 
   TakeTokenFSCall();
 
-  ceph_seekdir(*dir_descriptor, start_position);
+  ceph_seekdir(DH(dir_descriptor), COOKIE(start_position));
 
   while ((*nb_entries <= max_entries) && !(*end_of_dir))
     {
-      struct stat_precise st_p;
-      struct stat st; /* No obvious way to make a precise
+      struct stat st; /* No easy way to make a precise
 			 readdirplus_r */
 
       memset(&pdirent[*nb_entries], sizeof(fsal_dirent_t),0);
       memset(&de, sizeof(struct dirent), 0);
       memset(&st, sizeof(struct stat), 0);
-      memset(&st_p, sizeof(struct stat_precise), 0);
 
       TakeTokenFSCall();
-      rc=ceph_readdirplus_r(*dir_descriptor, &de, &st, 0);
+      rc=ceph_readdirplus_r(DH(dir_descriptor), &de, &st, 0);
       if (rc < 0) /* Error */
 	Return(posix2fsal_error(rc), 0, INDEX_FSAL_readdir);
 
@@ -168,40 +193,31 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
           /* skip . and .. */
           if(!strcmp(de.d_name, ".") || !strcmp(de.d_name, ".."))
             continue;
+	  pdirent[*nb_entries].handle.vi.ino.val=st.st_ino;
+	  pdirent[*nb_entries].handle.vi.snapid.val=st.st_dev;
+
 	  status = FSAL_str2name(de.d_name, FSAL_MAX_NAME_LEN,
 				 &(pdirent[*nb_entries].name));
           if(FSAL_IS_ERROR(status))
             ReturnStatus(status, INDEX_FSAL_readdir);
 	    
-	  pdirent[*nb_entries].cookie=ceph_telldir(*dir_descriptor);
+	  COOKIE(pdirent[*nb_entries].cookie)=ceph_telldir(DH(dir_descriptor));
 	  pdirent[*nb_entries].attributes.asked_attributes=get_attr_mask;
 
-	  /* Come back and fix this */
-	  st_p.st_dev=st.st_dev;
-	  st_p.st_ino=st.st_ino;
-	  st_p.st_mode=st.st_mode;
-	  st_p.st_nlink=st.st_nlink;
-	  st_p.st_uid=st.st_uid;
-	  st_p.st_gid=st.st_gid;
-	  st_p.st_rdev=st.st_rdev;
-	  st_p.st_size=st.st_size;
-	  st_p.st_blksize=st.st_blksize;
-	  st_p.st_blocks=st.st_blocks;
-	  st_p.st_atime_sec=st.st_atime;
-	  st_p.st_mtime_sec=st.st_mtime;
-	  st_p.st_ctime_sec=st.st_ctime;
-	  stat2fsal_fh(&st_p,&(pdirent[*nb_entries].handle));
 	  status =
-	    posix2fsal_attributes(&st_p, &(pdirent[*nb_entries].attributes));
+	    CEPHFSAL_getattrs(&(pdirent[*nb_entries].handle),
+			      &(dir_descriptor->ctx),
+			      &(pdirent[*nb_entries].attributes));
 	  if(FSAL_IS_ERROR(status))
 	    {
 	      FSAL_CLEAR_MASK(pdirent[*nb_entries].attributes.asked_attributes);
 	      FSAL_SET_MASK(pdirent[*nb_entries].attributes.asked_attributes,
 			    FSAL_ATTR_RDATTR_ERR); 
-	      ReturnStatus(status, INDEX_FSAL_getattrs);
 	    }
 	  if (*nb_entries != 0)
-	    pdirent[(*nb_entries)-1].nextentry=&(pdirent[*nb_entries]);
+	    {
+	      pdirent[(*nb_entries)-1].nextentry=&(pdirent[*nb_entries]);
+	    }
 	  (*nb_entries)++;
 	}
 
@@ -213,7 +229,7 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
 	  abort();
 	}
     }
-  *end_position=ceph_telldir(*dir_descriptor);
+  end_position->cookie=ceph_telldir(DH(dir_descriptor));
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_readdir);
 }
@@ -231,7 +247,7 @@ fsal_status_t FSAL_readdir(fsal_dir_t * dir_descriptor, /* IN */
  *        - Other error codes can be returned :
  *          ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_closedir(fsal_dir_t * dir_descriptor /* IN */
+fsal_status_t CEPHFSAL_closedir(fsal_dir_t * dir_descriptor /* IN */
     )
 {
 
@@ -242,8 +258,11 @@ fsal_status_t FSAL_closedir(fsal_dir_t * dir_descriptor /* IN */
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_closedir);
 
   TakeTokenFSCall();
-  ceph_ll_releasedir(*dir_descriptor);
+  rc=ceph_ll_releasedir(DH(dir_descriptor));
   ReleaseTokenFSCall();
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_closedir);
   
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_closedir);
 

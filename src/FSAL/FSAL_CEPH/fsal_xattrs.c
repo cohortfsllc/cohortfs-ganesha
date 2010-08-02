@@ -1,9 +1,33 @@
+/*
+ * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
+ */
 /**
  *
  * \file    fsal_xattrs.c
- * \author  $Author: leibovic $
- * \date    $Date: 2007/08/23 $
- * \version $Revision: 1.0 $
  * \brief   Extended attributes functions.
  */
 #ifdef HAVE_CONFIG_H
@@ -26,10 +50,10 @@
  * \param xattr_cookie xattr's cookie (as returned by listxattrs).
  * \param p_attrs xattr's attributes.
  */
-fsal_status_t FSAL_GetXAttrAttrs(fsal_handle_t * p_objecthandle,        /* IN */
-                                 fsal_op_context_t * p_context, /* IN */
-                                 unsigned int xattr_id, /* IN */
-                                 fsal_attrib_list_t * p_attrs
+fsal_status_t CEPHFSAL_GetXAttrAttrs(cephfsal_handle_t * p_objecthandle,        /* IN */
+				     cephfsal_op_context_t * p_context, /* IN */
+				     unsigned int xattr_id, /* IN */
+				     fsal_attrib_list_t * p_attrs
                                           /**< IN/OUT xattr attributes (if supported) */
     )
 {
@@ -64,10 +88,11 @@ fsal_status_t FSAL_GetXAttrAttrs(fsal_handle_t * p_objecthandle,        /* IN */
 
   file_attrs.asked_attributes &= p_attrs->asked_attributes;
 
-  status = FSAL_getattrs(p_objecthandle, p_context, &file_attrs);
+  status = CEPHFSAL_getattrs(p_objecthandle, p_context, p_attrs);
+  
   if(FSAL_IS_ERROR(status))
-    return status;
-
+    ReturnStatus(status, INDEX_FSAL_GetXAttrAttrs);
+  
   /* We support a subset of the attributes of files */
 
   if (p_attrs->asked_attributes & FSAL_ATTR_SUPPATTR)
@@ -87,7 +112,7 @@ fsal_status_t FSAL_GetXAttrAttrs(fsal_handle_t * p_objecthandle,        /* IN */
 
   if (p_attrs->asked_attributes & FSAL_ATTR_SIZE)
     {
-      len=ceph_ll_lenxattr_by_idx(p_objecthandle->vi, xattr_id, uid, gid);
+      len=ceph_ll_lenxattr_by_idx(VINODE(p_objecthandle), xattr_id, uid, gid);
       if (len < 0)
 	Return(ERR_FSAL_INVAL, rc, INDEX_FSAL_GetXAttrAttrs);
       file_attrs.filesize=len;
@@ -110,13 +135,13 @@ fsal_status_t FSAL_GetXAttrAttrs(fsal_handle_t * p_objecthandle,        /* IN */
  * \param p_nb_returned the number of xattr entries actually stored in xattrs_tab.
  * \param end_of_list this boolean indicates that the end of xattrs list has been reached.
  */
-fsal_status_t FSAL_ListXAttrs(fsal_handle_t * p_objecthandle,   /* IN */
-                              unsigned int cookie,      /* IN */
-                              fsal_op_context_t * p_context,    /* IN */
-                              fsal_xattrent_t * xattrs_tab,     /* IN/OUT */
-                              unsigned int xattrs_tabsize,      /* IN */
-                              unsigned int *p_nb_returned,      /* OUT */
-                              int *end_of_list  /* OUT */
+fsal_status_t CEPHFSAL_ListXAttrs(cephfsal_handle_t * p_objecthandle,   /* IN */
+				  unsigned int cookie,      /* IN */
+				  cephfsal_op_context_t * p_context,    /* IN */
+				  fsal_xattrent_t * xattrs_tab,     /* IN/OUT */
+				  unsigned int xattrs_tabsize,      /* IN */
+				  unsigned int *p_nb_returned,      /* OUT */
+				  int *end_of_list  /* OUT */
     )
 {
   fsal_status_t status;
@@ -147,11 +172,9 @@ fsal_status_t FSAL_ListXAttrs(fsal_handle_t * p_objecthandle,   /* IN */
   /* Retrieve attributes that should be inherited from the file */
   
   attr_attrs.asked_attributes=fa_wanted;
-  status=FSAL_getattrs(p_objecthandle, p_context, &attr_attrs);
+  status=CEPHFSAL_getattrs(p_objecthandle, p_context, &attr_attrs);
   if(FSAL_IS_ERROR(status))
-    {
-      return status;
-    }
+    ReturnStatus(status, INDEX_FSAL_GetXAttrAttrs);
 
   /* We support a subset of the attributes of files */
 
@@ -165,7 +188,7 @@ fsal_status_t FSAL_ListXAttrs(fsal_handle_t * p_objecthandle,   /* IN */
 
   attr_attrs.mode = attr_attrs.mode & ~(S_IXUSR | S_IXGRP | S_IXOTH);
 
-  rc=ceph_ll_listxattr_chunks(p_objecthandle->vi, names,
+  rc=ceph_ll_listxattr_chunks(VINODE(p_objecthandle), names,
 			      sizeof(fsal_xattrent_t)*xattrs_tabsize,
 			      &lcookie, end_of_list, uid, gid);
 			      
@@ -197,12 +220,12 @@ fsal_status_t FSAL_ListXAttrs(fsal_handle_t * p_objecthandle,   /* IN */
  * \param buffer_size size of the buffer where the xattr value is to be stored.
  * \param p_output_size size of the data actually stored into the buffer.
  */
-fsal_status_t FSAL_GetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
-                                     unsigned int xattr_id,     /* IN */
-                                     fsal_op_context_t * p_context,     /* IN */
-                                     caddr_t buffer_addr,       /* IN/OUT */
-                                     size_t buffer_size,        /* IN */
-                                     size_t * p_output_size     /* OUT */
+fsal_status_t CEPHFSAL_GetXAttrValueById(cephfsal_handle_t * p_objecthandle,    /* IN */
+					 unsigned int xattr_id,     /* IN */
+					 cephfsal_op_context_t * p_context,     /* IN */
+					 caddr_t buffer_addr,       /* IN/OUT */
+					 size_t buffer_size,        /* IN */
+					 size_t * p_output_size     /* OUT */
     )
 {
   int len;
@@ -213,7 +236,7 @@ fsal_status_t FSAL_GetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
   if(!p_objecthandle || !p_context || !p_output_size || !buffer_addr)
     ReturnCode(ERR_FSAL_FAULT, 0);
   
-  ceph_ll_getxattr_by_idx(p_objecthandle->vi, xattr_id, buffer_addr,
+  ceph_ll_getxattr_by_idx(VINODE(p_objecthandle), xattr_id, buffer_addr,
 			  buffer_size, uid, gid);
 
   if (len < 0)
@@ -233,10 +256,10 @@ fsal_status_t FSAL_GetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
  *   
  *   \return ERR_FSAL_NO_ERROR if xattr_name exists, ERR_FSAL_NOENT otherwise
  */
-fsal_status_t FSAL_GetXAttrIdByName(fsal_handle_t * p_objecthandle,     /* IN */
-                                    const fsal_name_t * xattr_name,     /* IN */
-                                    fsal_op_context_t * p_context,      /* IN */
-                                    unsigned int *pxattr_id     /* OUT */
+fsal_status_t CEPHFSAL_GetXAttrIdByName(cephfsal_handle_t * p_objecthandle,     /* IN */
+					const fsal_name_t * xattr_name,     /* IN */
+					cephfsal_op_context_t * p_context,      /* IN */
+					unsigned int *pxattr_id     /* OUT */
     )
 {
   int index;
@@ -250,8 +273,8 @@ fsal_status_t FSAL_GetXAttrIdByName(fsal_handle_t * p_objecthandle,     /* IN */
   if(!p_objecthandle || !xattr_name)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_GetXAttrValue);
 
-  index=ceph_ll_getxattridx(p_objecthandle->vi, name, uid,
-			    gid);
+  index=ceph_ll_getxattridx(VINODE(p_objecthandle), name,
+			    uid, gid);
   if (index < 0)
     ReturnCode(posix2fsal_error(index), 0);
 
@@ -271,12 +294,12 @@ fsal_status_t FSAL_GetXAttrIdByName(fsal_handle_t * p_objecthandle,     /* IN */
  * \param buffer_size size of the buffer where the xattr value is to be stored.
  * \param p_output_size size of the data actually stored into the buffer.
  */
-fsal_status_t FSAL_GetXAttrValueByName(fsal_handle_t * p_objecthandle,  /* IN */
-                                       const fsal_name_t * xattr_name,  /* IN */
-                                       fsal_op_context_t * p_context,   /* IN */
-                                       caddr_t buffer_addr,     /* IN/OUT */
-                                       size_t buffer_size,      /* IN */
-                                       size_t * p_output_size   /* OUT */
+fsal_status_t CEPHFSAL_GetXAttrValueByName(cephfsal_handle_t * p_objecthandle,  /* IN */
+					   const fsal_name_t * xattr_name,  /* IN */
+					   cephfsal_op_context_t * p_context,   /* IN */
+					   caddr_t buffer_addr,     /* IN/OUT */
+					   size_t buffer_size,      /* IN */
+					   size_t * p_output_size   /* OUT */
     )
 {
   int len;
@@ -290,7 +313,8 @@ fsal_status_t FSAL_GetXAttrValueByName(fsal_handle_t * p_objecthandle,  /* IN */
   if(!p_objecthandle || !p_context || !p_output_size || !buffer_addr || !xattr_name)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_GetXAttrValue);
   
-  len=ceph_ll_getxattr(p_objecthandle->vi, name, buffer_addr, buffer_size,
+  len=ceph_ll_getxattr(VINODE(p_objecthandle), name,
+		       buffer_addr, buffer_size,
 		       uid, gid);
   if (len < 0)
     ReturnCode(posix2fsal_error(len), 0);
@@ -299,12 +323,12 @@ fsal_status_t FSAL_GetXAttrValueByName(fsal_handle_t * p_objecthandle,  /* IN */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_GetXAttrValue);
 }
 
-fsal_status_t FSAL_SetXAttrValue(fsal_handle_t * p_objecthandle,        /* IN */
-                                 const fsal_name_t * xattr_name,        /* IN */
-                                 fsal_op_context_t * p_context, /* IN */
-                                 caddr_t buffer_addr,   /* IN */
-                                 size_t buffer_size,    /* IN */
-                                 int create     /* IN */
+fsal_status_t CEPHFSAL_SetXAttrValue(cephfsal_handle_t * p_objecthandle, /* IN */
+				     const fsal_name_t * xattr_name, /* IN */
+				     cephfsal_op_context_t * p_context, /* IN */
+				     caddr_t buffer_addr, /* IN */
+				     size_t buffer_size, /* IN */
+				     int create /* IN */
     )
 {
   int rc;
@@ -314,9 +338,10 @@ fsal_status_t FSAL_SetXAttrValue(fsal_handle_t * p_objecthandle,        /* IN */
 
   FSAL_name2str((fsal_name_t *) xattr_name, name, FSAL_MAX_NAME_LEN);
 
-  rc=ceph_ll_setxattr(p_objecthandle->vi, name, buffer_addr,
-		     buffer_size, create ? O_CREAT : 0, uid,
-		     gid);
+  rc=ceph_ll_setxattr(VINODE(p_objecthandle), name,
+		      buffer_addr, buffer_size,
+		      create ? O_CREAT : 0,
+		      uid, gid);
   
 
   if (rc < 0)
@@ -325,11 +350,11 @@ fsal_status_t FSAL_SetXAttrValue(fsal_handle_t * p_objecthandle,        /* IN */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_SetXAttrValue);
 }
 
-fsal_status_t FSAL_SetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
-                                     unsigned int xattr_id,     /* IN */
-                                     fsal_op_context_t * p_context,     /* IN */
-                                     caddr_t buffer_addr,       /* IN */
-                                     size_t buffer_size /* IN */
+fsal_status_t CEPHFSAL_SetXAttrValueById(cephfsal_handle_t * p_objecthandle,    /* IN */
+					 unsigned int xattr_id,     /* IN */
+					 cephfsal_op_context_t * p_context,     /* IN */
+					 caddr_t buffer_addr,       /* IN */
+					 size_t buffer_size /* IN */
     )
 {
   int rc;
@@ -339,7 +364,7 @@ fsal_status_t FSAL_SetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
   if (rc < 0)
     ReturnCode(posix2fsal_error(rc), 0);
   
-  rc=ceph_ll_setxattr_by_idx(p_objecthandle->vi, xattr_id,
+  rc=ceph_ll_setxattr_by_idx(VINODE(p_objecthandle), xattr_id,
 			     buffer_addr, buffer_size, 0, uid, gid);
   
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
@@ -352,15 +377,15 @@ fsal_status_t FSAL_SetXAttrValueById(fsal_handle_t * p_objecthandle,    /* IN */
  * \param p_context pointer to the current security context.
  * \param xattr_id xattr's id
  */
-fsal_status_t FSAL_RemoveXAttrById(fsal_handle_t * p_objecthandle,      /* IN */
-                                   fsal_op_context_t * p_context,       /* IN */
-                                   unsigned int xattr_id)       /* IN */
+fsal_status_t CEPHFSAL_RemoveXAttrById(cephfsal_handle_t * p_objecthandle, /* IN */
+				       cephfsal_op_context_t * p_context, /* IN */
+				       unsigned int xattr_id) /* IN */
 {
   int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
-  rc=ceph_ll_removexattr_by_idx(p_objecthandle->vi, xattr_id, uid, gid);
+  rc=ceph_ll_removexattr_by_idx(VINODE(p_objecthandle), xattr_id, uid, gid);
   if(rc < 0)
     ReturnCode(posix2fsal_error(rc), 0);
 
@@ -374,9 +399,9 @@ fsal_status_t FSAL_RemoveXAttrById(fsal_handle_t * p_objecthandle,      /* IN */
  * \param p_context pointer to the current security context.
  * \param xattr_name xattr's name
  */
-fsal_status_t FSAL_RemoveXAttrByName(fsal_handle_t * p_objecthandle,    /* IN */
-                                     fsal_op_context_t * p_context,     /* IN */
-                                     const fsal_name_t * xattr_name)    /* IN */
+fsal_status_t CEPHFSAL_RemoveXAttrByName(cephfsal_handle_t * p_objecthandle, /* IN */
+					 cephfsal_op_context_t * p_context, /* IN */
+					 const fsal_name_t * xattr_name) /* IN */
 {
   int rc;
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
@@ -385,7 +410,7 @@ fsal_status_t FSAL_RemoveXAttrByName(fsal_handle_t * p_objecthandle,    /* IN */
     
   FSAL_name2str((fsal_name_t *)xattr_name, name, FSAL_MAX_NAME_LEN);
     
-  rc=ceph_ll_removexattr(p_objecthandle->vi, name, uid, gid);
+  rc=ceph_ll_removexattr(VINODE(p_objecthandle), name, uid, gid);
 
   if(rc < 0)
     ReturnCode(posix2fsal_error(rc), 0);

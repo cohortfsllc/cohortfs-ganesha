@@ -1,8 +1,12 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright CEA/DAM/DIF  (2008)
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
  * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
  *
  *
  * This program is free software; you can redistribute it and/or
@@ -50,8 +54,10 @@
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occured.
  */
-fsal_status_t FSAL_get_quota(fsal_path_t * pfsal_path,  /* IN */
-                             int quota_type, fsal_uid_t fsal_uid, fsal_quota_t * pquota)        /* OUT */
+fsal_status_t CEPHFSAL_get_quota(fsal_path_t * pfsal_path,  /* IN */
+				 int quota_type,
+				 fsal_uid_t fsal_uid,
+				 fsal_quota_t * pquota)        /* OUT */
 {
   ReturnCode(ERR_FSAL_NO_QUOTA, 0);
 }                               /*  FSAL_get_quota */
@@ -74,10 +80,10 @@ fsal_status_t FSAL_get_quota(fsal_path_t * pfsal_path,  /* IN */
  *        - Another error code if an error occured.
  */
 
-fsal_status_t FSAL_set_quota(fsal_path_t * pfsal_path,  /* IN */
-                             int quota_type, fsal_uid_t fsal_uid,       /* IN */
-                             fsal_quota_t * pquot,      /* IN */
-                             fsal_quota_t * presquot)   /* OUT */
+fsal_status_t CEPHFSAL_set_quota(fsal_path_t * pfsal_path,  /* IN */
+				 int quota_type, fsal_uid_t fsal_uid,       /* IN */
+				 fsal_quota_t * pquot,      /* IN */
+				 fsal_quota_t * presquot)   /* OUT */
 {
   ReturnCode(ERR_FSAL_NO_QUOTA, 0);
 }                               /*  FSAL_set_quota */

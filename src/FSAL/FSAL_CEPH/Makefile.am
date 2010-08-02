@@ -3,17 +3,16 @@ AM_CFLAGS                     = $(FSAL_CFLAGS) $(SEC_CFLAGS)
 
 noinst_LTLIBRARIES          = libfsalceph.la
 
-libfsalceph_la_SOURCES = fsal_access.c \
+libfsalceph_la_SOURCES = fsal_access.c  \
                         fsal_context.c  \
+                        fsal_compat.c   \
                         fsal_dirs.c     \
                         fsal_fsinfo.c   \
                         fsal_lock.c     \
                         fsal_rcp.c      \
-                        fsal_strings.c  \
                         fsal_truncate.c \
 			fsal_attrs.c    \
                         fsal_convert.c  \
-                        fsal_errors.c   \
                         fsal_init.c     \
                         fsal_lookup.c   \
                         fsal_rename.c   \

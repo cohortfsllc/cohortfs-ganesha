@@ -1,12 +1,33 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
+ *
+ * Copyright (C) 2010 The Linux Box, Inc.
+ * Contributor : Adam C. Emerson <aemerson@linuxbox.com>
+ *
+ * Portions copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ *
+ * ------------- 
  */
 
 /**
  * \file    fsal_symlinks.c
- * \author  $Author: leibovic $
- * \date    $Date: 2005/07/29 09:39:04 $
- * \version $Revision: 1.15 $
  * \brief   symlinks operations.
  *
  */
@@ -47,10 +68,10 @@
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  * */
 
-fsal_status_t FSAL_readlink(fsal_handle_t * linkhandle, /* IN */
-                            fsal_op_context_t * p_context,      /* IN */
-                            fsal_path_t * p_link_content,       /* OUT */
-                            fsal_attrib_list_t * link_attributes        /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_readlink(cephfsal_handle_t * linkhandle, /* IN */
+				cephfsal_op_context_t * p_context,      /* IN */
+				fsal_path_t * p_link_content,       /* OUT */
+				fsal_attrib_list_t * link_attributes        /* [ IN/OUT ] */
     )
 {
 
@@ -66,7 +87,7 @@ fsal_status_t FSAL_readlink(fsal_handle_t * linkhandle, /* IN */
   if(!linkhandle || !p_context || !p_link_content)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_readlink);
 
-  rc=ceph_ll_readlink(linkhandle->vi, &link_content_out, uid, gid);
+  rc=ceph_ll_readlink(VINODE(linkhandle), &link_content_out, uid, gid);
 
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
@@ -80,17 +101,15 @@ fsal_status_t FSAL_readlink(fsal_handle_t * linkhandle, /* IN */
 
   if(link_attributes)
     {
-      fsal_status_t status;
-
-      status = FSAL_getattrs(linkhandle, p_context, link_attributes);
-
-      /* On error, we set a flag in the returned attributes */
-
+      fsal_status_t status =
+	CEPHFSAL_getattrs(linkhandle, p_context, link_attributes);
+      
       if(FSAL_IS_ERROR(status))
-        {
-          FSAL_CLEAR_MASK(link_attributes->asked_attributes);
-          FSAL_SET_MASK(link_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-        }
+	{
+	  FSAL_CLEAR_MASK(link_attributes->asked_attributes);
+	  FSAL_SET_MASK(link_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	}
+
     }
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_readlink);
 }
@@ -129,13 +148,13 @@ fsal_status_t FSAL_readlink(fsal_handle_t * linkhandle, /* IN */
  *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
  */
 
-fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
-                           fsal_name_t * p_linkname,    /* IN */
-                           fsal_path_t * p_linkcontent, /* IN */
-                           fsal_op_context_t * p_context,       /* IN */
-                           fsal_accessmode_t accessmode,        /* IN (ignored) */
-                           fsal_handle_t * link_handle, /* OUT */
-                           fsal_attrib_list_t * link_attributes /* [ IN/OUT ] */
+fsal_status_t CEPHFSAL_symlink(cephfsal_handle_t * parent_directory_handle,     /* IN */
+			       fsal_name_t * p_linkname,    /* IN */
+			       fsal_path_t * p_linkcontent, /* IN */
+			       cephfsal_op_context_t * p_context,       /* IN */
+			       fsal_accessmode_t accessmode,        /* IN (ignored) */
+			       fsal_handle_t * link_handle, /* OUT */
+			       fsal_attrib_list_t * link_attributes /* [ IN/OUT ] */
     )
 {
 
@@ -161,7 +180,8 @@ fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
   if(!global_fs_info.symlink_support)
     Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_symlink);
 
-  rc=ceph_ll_symlink_precise(parent_directory_handle->vi, name, path, &st, uid, gid);
+  rc=ceph_ll_symlink_precise(VINODE(parent_directory_handle), name,
+			     path, &st, uid, gid);
   if (rc)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
 
@@ -175,10 +195,11 @@ fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
 	{
 	  FSAL_CLEAR_MASK(link_attributes->asked_attributes);
 	  FSAL_SET_MASK(link_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getattrs);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_symlink);
 	}
     }
   
   /* OK */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_symlink);
 }
+

@@ -1,13 +1,32 @@
 /*
- * vim:expandtab:shiftwidth=8:tabstop=8:
+ * Copyright (C) 2010 The Linx Box Corporation
+ * Contributor : Adam C. Emerson
+ *
+ * Some Portions Copyright CEA/DAM/DIF  (2008)
+ * contributeur : Philippe DENIEL   philippe.deniel@cea.fr
+ *                Thomas LEIBOVICI  thomas.leibovici@cea.fr
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * 
+ * ---------------------------------------
  */
 
 /**
  *
  * \file    fsal_fsinfo.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/02/16 08:20:22 $
- * \version $Revision: 1.12 $
  * \brief   functions for retrieving filesystem info.
  *
  */
@@ -38,9 +57,9 @@
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_static_fsinfo(fsal_handle_t * filehandle,    /* IN */
-                                 fsal_op_context_t * p_context, /* IN */
-                                 fsal_staticfsinfo_t * staticinfo       /* OUT */
+fsal_status_t CEPHFSAL_static_fsinfo(cephfsal_handle_t * filehandle,    /* IN */
+				     fsal_op_context_t * p_context, /* IN */
+				     fsal_staticfsinfo_t * staticinfo       /* OUT */
     )
 {
   /* sanity checks. */
@@ -74,9 +93,9 @@ fsal_status_t FSAL_static_fsinfo(fsal_handle_t * filehandle,    /* IN */
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ...
  */
-fsal_status_t FSAL_dynamic_fsinfo(fsal_handle_t * filehandle,   /* IN */
-                                  fsal_op_context_t * p_context,        /* IN */
-                                  fsal_dynamicfsinfo_t * dynamicinfo    /* OUT */
+fsal_status_t CEPHFSAL_dynamic_fsinfo(cephfsal_handle_t * filehandle,   /* IN */
+				      cephfsal_op_context_t * p_context,        /* IN */
+				      fsal_dynamicfsinfo_t * dynamicinfo    /* OUT */
     )
 {
   int rc;
@@ -93,7 +112,7 @@ fsal_status_t FSAL_dynamic_fsinfo(fsal_handle_t * filehandle,   /* IN */
   ReleaseTokenFSCall();
 
   if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_getattrs);
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_dynamic_fsinfo);
   
   memset(dynamicinfo,sizeof(fsal_dynamicfsinfo_t), 0);
   dynamicinfo->total_bytes=st.f_frsize*st.f_blocks;
