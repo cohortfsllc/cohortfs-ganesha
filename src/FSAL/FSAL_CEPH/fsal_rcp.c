@@ -234,7 +234,7 @@ fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
   }
 #endif
 
-  st = FSAL_open(filehandle, p_context, fs_flags, &fs_fd, NULL);
+  st = CEPHFSAL_open(filehandle, p_context, fs_flags, &fs_fd, NULL);
 
   if(FSAL_IS_ERROR(st))
     {
@@ -256,7 +256,7 @@ fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
     {
       /* clean & return */
       close(local_fd);
-      FSAL_close(&fs_fd);
+      CEPHFSAL_close(&fs_fd);
       Return(ERR_FSAL_NOMEM, Mem_Errno, INDEX_FSAL_rcp);
     }
 
@@ -289,7 +289,7 @@ fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
         }
       else                      /* from FSAL filesystem */
         {
-          CEPHFSAL_read(&fs_fd, NULL, RCP_BUFFER_SIZE, IObuffer, &fs_size, &eof);
+          st=CEPHFSAL_read(&fs_fd, NULL, RCP_BUFFER_SIZE, IObuffer, &fs_size, &eof);
 
           if(FSAL_IS_ERROR(st))
             break;              /* exit loop */
@@ -308,7 +308,7 @@ fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
           if(to_fs)             /* to FSAL filesystem */
             {
 
-              CEPHFSAL_write(&fs_fd, NULL, local_size, IObuffer, &fs_size);
+              st=CEPHFSAL_write(&fs_fd, NULL, local_size, IObuffer, &fs_size);
 
               if(FSAL_IS_ERROR(st))
                 break;          /* exit loop */

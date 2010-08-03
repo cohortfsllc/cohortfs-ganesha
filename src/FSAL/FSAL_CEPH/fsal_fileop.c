@@ -185,11 +185,13 @@ fsal_status_t CEPHFSAL_open_by_name(cephfsal_handle_t * dirhandle,      /* IN */
   if(!dirhandle || !filename || !p_context || !file_descriptor)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open_by_name);
 
-  fsal_status = FSAL_lookup(dirhandle, filename, p_context, &filehandle, file_attributes);
+  fsal_status =
+    CEPHFSAL_lookup(dirhandle, filename, p_context, &filehandle, file_attributes);
+
   if(FSAL_IS_ERROR(fsal_status))
     return fsal_status;
 
-  return FSAL_open(&filehandle, p_context, openflags, file_descriptor, file_attributes);
+  return CEPHFSAL_open(&filehandle, p_context, openflags, file_descriptor, file_attributes);
 }
 
 /**

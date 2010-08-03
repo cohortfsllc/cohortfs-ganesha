@@ -62,8 +62,8 @@
  *        - Another error code if an error occured.
  */
 fsal_status_t CEPHFSAL_getattrs(cephfsal_handle_t * filehandle, /* IN */
-				cephfsal_op_context_t * p_context,      /* IN */
-				fsal_attrib_list_t * object_attributes      /* IN/OUT */
+				cephfsal_op_context_t * p_context, /* IN */
+				fsal_attrib_list_t * object_attributes /* IN/OUT */
     )
 {
 

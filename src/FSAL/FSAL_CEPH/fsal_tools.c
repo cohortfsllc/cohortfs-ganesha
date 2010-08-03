@@ -166,62 +166,39 @@ fsal_status_t CEPHFSAL_DigestHandle(cephfsal_export_context_t * p_expcontext,   
 
   switch (output_type)
     {
-
-      /* NFSV2 handle digest */
+      /* Digested Handles */
     case FSAL_DIGEST_NFSV2:
-
       if (sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV2)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
-      
-      break;
-
-      /* NFSV3 handle digest */
     case FSAL_DIGEST_NFSV3:
-
-      if(sizeof(fsal_handle_t) > FSAL_DIGEST_SIZE_HDLV3)
+      if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV3)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
-
-      memset(out_buff, 0, FSAL_DIGEST_SIZE_HDLV3);
-
-      break;
-
-      /* NFSV4 handle digest */
     case FSAL_DIGEST_NFSV4:
-
-      if(sizeof(fsal_handle_t) > FSAL_DIGEST_SIZE_HDLV4)
+      if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV4)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
-
-
+      memcpy(out_buff, &VINODE(in_fsal_handle),
+	     sizeof(VINODE(in_fsal_handle)));
       break;
 
-      /* FileId digest for NFSv2 */
+      /* Integer IDs */
+      
     case FSAL_DIGEST_FILEID2:
-      ReturnCode(ERR_FSAL_NOTSUPP, 0);
-
-      break;
-
-      /* FileId digest for NFSv3 */
+      if (sizeof(VINODE(in_fsal_handle).ino.val) > FSAL_DIGEST_SIZE_FILEID2)
+	ReturnCode(ERR_FSAL_TOOSMALL, 0);
     case FSAL_DIGEST_FILEID3:
-
-      ReturnCode(ERR_FSAL_NOTSUPP, 0);
-
-      break;
-
-      /* FileId digest for NFSv4 */
-
+      if(sizeof(VINODE(in_fsal_handle).ino.val) > FSAL_DIGEST_SIZE_FILEID3)
+	ReturnCode(ERR_FSAL_TOOSMALL, 0);
     case FSAL_DIGEST_FILEID4:
-
-      memset(out_buff, 0, FSAL_DIGEST_SIZE_FILEID4);
-
+      if(sizeof(VINODE(in_fsal_handle).ino.val) > FSAL_DIGEST_SIZE_FILEID4)
+	ReturnCode(ERR_FSAL_TOOSMALL, 0);
+      *((uint64_t* )out_buff)=VINODE(in_fsal_handle).ino.val;
+	 
       break;
 
     default:
       ReturnCode(ERR_FSAL_SERVERFAULT, 0);
     }
 
-  memset(out_buff, 0, FSAL_DIGEST_SIZE_HDLV2);
-  memcpy(out_buff, &VINODE(in_fsal_handle),
-	 sizeof(VINODE(in_fsal_handle)));
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 
