@@ -412,7 +412,7 @@ int uid2str(uid_t uid, char *str)
   uid_t local_uid = uid;
 
   if(uid2name(buffer, &local_uid) == 0)
-    return sprintf(str, "%u", uid);
+    return -1;
     
 #ifndef _USE_NFSIDMAP
   return sprintf(str, "%s@%s", buffer, nfs_param.nfsv4_param.domainname);
@@ -440,7 +440,7 @@ int gid2str(gid_t gid, char *str)
   gid_t local_gid = gid;
 
   if(gid2name(buffer, &local_gid) == 0)
-    return sprintf(str, "%u", gid);
+    return -1;
 
 #ifndef _USE_NFSIDMAP
   return sprintf(str, "%s@%s", buffer, nfs_param.nfsv4_param.domainname);
