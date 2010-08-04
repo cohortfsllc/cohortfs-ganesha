@@ -168,10 +168,12 @@ int uid2name(char *name, uid_t * puid)
 #ifdef _SOLARIS
       if(getpwuid_r(*puid, &p, buff, MAXPATHLEN) != 0)
 #else
-      if(getpwuid_r(*puid, &p, buff, MAXPATHLEN, &pp) != 0)
+      if((getpwuid_r(*puid, &p, buff, MAXPATHLEN, &pp) != 0) ||
+	 (pp == NULL))
 #endif                          /* _SOLARIS */
         return 0;
 
+      strncpy(name, p.pw_name, MAXNAMLEN);
       if(uidmap_add(name, *puid) != ID_MAPPER_SUCCESS)
         return 0;
 
@@ -318,14 +320,15 @@ int gid2name(char *name, gid_t * pgid)
 #ifdef _SOLARIS
       if(getgrgid_r(*pgid, &g, buff, MAXPATHLEN) != 0)
 #else
-      if(getgrgid_r(*pgid, &g, buff, MAXPATHLEN, &pg) != 0)
+      if((getgrgid_r(*pgid, &g, buff, MAXPATHLEN, &pg) != 0) ||
+	 (pg == NULL))
 #endif                          /* _SOLARIS */
         return 0;
 
+      strncpy(name, g.gr_name, MAXNAMLEN);
       if(gidmap_add(name, *pgid) != ID_MAPPER_SUCCESS)
         return 0;
 
-      strncpy(name, g.gr_name, MAXNAMLEN);
     }
 
   return 1;
@@ -409,7 +412,8 @@ int uid2str(uid_t uid, char *str)
   uid_t local_uid = uid;
 
   if(uid2name(buffer, &local_uid) == 0)
-    return -1;
+    return sprintf(str, "%u", uid);
+    
 #ifndef _USE_NFSIDMAP
   return sprintf(str, "%s@%s", buffer, nfs_param.nfsv4_param.domainname);
 #else
@@ -436,7 +440,7 @@ int gid2str(gid_t gid, char *str)
   gid_t local_gid = gid;
 
   if(gid2name(buffer, &local_gid) == 0)
-    return -1;
+    return sprintf(str, "%u", gid);
 
 #ifndef _USE_NFSIDMAP
   return sprintf(str, "%s@%s", buffer, nfs_param.nfsv4_param.domainname);
