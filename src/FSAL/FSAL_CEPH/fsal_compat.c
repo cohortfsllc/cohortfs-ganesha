@@ -659,6 +659,14 @@ fsal_status_t WRAP_CEPHFSAL_RemoveXAttrById(fsal_handle_t * p_objecthandle,     
                                  (cephfsal_op_context_t *) p_context, xattr_id);
 }
 
+fsal_status_t WRAP_CEPHFSAL_getextattrs(fsal_handle_t * p_filehandle, /* IN */
+                                       fsal_op_context_t * p_context,        /* IN */
+                                       fsal_extattrib_list_t * p_object_attributes /* OUT */)
+{
+  return CEPHFSAL_getextattrs( (cephfsal_handle_t *)p_filehandle,
+                                (cephfsal_op_context_t *) p_context, p_object_attributes ) ;
+}
+
 fsal_status_t WRAP_CEPHFSAL_RemoveXAttrByName(fsal_handle_t * p_objecthandle,    /* IN */
                                              fsal_op_context_t * p_context,     /* IN */
                                              const fsal_name_t * xattr_name)    /* IN */
@@ -741,6 +749,7 @@ fsal_functions_t fsal_ceph_functions = {
   .fsal_setxattrvaluebyid = WRAP_CEPHFSAL_SetXAttrValueById,
   .fsal_removexattrbyid = WRAP_CEPHFSAL_RemoveXAttrById,
   .fsal_removexattrbyname = WRAP_CEPHFSAL_RemoveXAttrByName,
+  .fsal_getextattrs = WRAP_CEPHFSAL_getextattrs,
   .fsal_getfileno = CEPHFSAL_GetFileno
 };
 
