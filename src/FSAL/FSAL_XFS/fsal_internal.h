@@ -124,6 +124,9 @@ fsal_status_t fsal_internal_setattrs_symlink(xfsfsal_handle_t * p_filehandle,   
 
 int fsal_internal_path2fsname(char *rpath, char *fs_spec);
 
+int fsal_internel_get_bulkstat_by_inode(int fd, xfs_ino_t * p_ino, xfs_bstat_t * pxfs_bstat) ;
+
+
 /* All the call to FSAL to be wrapped */
 fsal_status_t XFSFSAL_access(xfsfsal_handle_t * p_object_handle,        /* IN */
                              xfsfsal_op_context_t * p_context,  /* IN */
@@ -459,3 +462,9 @@ fsal_status_t XFSFSAL_RemoveXAttrByName(xfsfsal_handle_t * p_objecthandle,      
                                         const fsal_name_t * xattr_name) /* IN */ ;
 
 unsigned int XFSFSAL_GetFileno(fsal_file_t * pfile);
+
+fsal_status_t XFSFSAL_getextattrs(fsal_handle_t * p_filehandle, /* IN */
+                                  fsal_op_context_t * p_context,        /* IN */
+                                  fsal_extattrib_list_t * p_object_attributes /* OUT */) ;
+
+
