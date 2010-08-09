@@ -100,11 +100,10 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
 
-#ifndef _USE_PNFS
+#if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   res_LAYOUTRETURN4.lorr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTRETURN4.lorr_status;
 #else
-
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -143,10 +142,21 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 
       return res_LAYOUTRETURN4.lorr_status;
     }
+#ifdef _USE_PNFS
+  res_LAYOUTRETURN4.lorr_status = NFS4_OK;
+  return res_LAYOUTRETURN4.lorr_status;
+#else                           /* _USE_PNFS */
+#ifdef _USE_FSALMDS
+  /* For now, we let Ganesha be primarily responsible for managing
+     state.  Rather than passing the arguments through directly, we
+     look through the pstates and find the right ones then call the
+     function. */
+
+  
 
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;
   return res_LAYOUTRETURN4.lorr_status;
-#endif                          /* _USE_PNFS */
+#endif                          /* _USE_FSALMDS */
 }                               /* nfs41_op_layoutreturn */
 
 /**

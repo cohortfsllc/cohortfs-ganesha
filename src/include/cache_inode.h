@@ -328,6 +328,12 @@ typedef struct cache_inode_layout__
   length4 length;
   length4 minlength;
 #else
+#ifdef _USE_FSALMDS
+  layouttype4 layout_type;
+  layoutiomode4 iomode;
+  offset4 offset;
+  length4 length;
+#else
   int nothing;
 #endif
 } cache_inode_layout_t;

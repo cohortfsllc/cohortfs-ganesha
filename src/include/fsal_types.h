@@ -797,4 +797,10 @@ typedef enum fsal_digesttype_t
 #endif
 } fsal_digesttype_t;
 
+#ifdef _USE_FSALMDS
+typedef layouttype4 fsal_layout_type_t;
+typedef layoutiomode4 fsal_layout_io_mode_t;
+typedef layout4 fsal_layout_t;
+#endif                          /* _FSAL_MDS */
+
 #endif                          /* _FSAL_TYPES_H */
