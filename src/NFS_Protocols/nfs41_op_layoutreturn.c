@@ -99,11 +99,21 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
                           struct nfs_resop4 *resp)
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
+  cache_inode_state_t *pstate_exists = NULL;
+  fsal_status_t status;
+  fsal_fsid_t basefsid;
+  fsal_attrib_list_t attr;
+  cache_inode_status_t cache_status;
 
 #if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   res_LAYOUTRETURN4.lorr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTRETURN4.lorr_status;
 #else
+#ifdef _USE_PNFS
+  res_LAYOUTRETURN4.lorr_status = NFS4_OK;
+  return res_LAYOUTRETURN4.lorr_status;
+#else                           /* _USE_PNFS */
+#ifdef _USE_FSALMDS
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -142,18 +152,219 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 
       return res_LAYOUTRETURN4.lorr_status;
     }
-#ifdef _USE_PNFS
-  res_LAYOUTRETURN4.lorr_status = NFS4_OK;
-  return res_LAYOUTRETURN4.lorr_status;
-#else                           /* _USE_PNFS */
-#ifdef _USE_FSALMDS
+  resp->resop = NFS4_OP_LAYOUTRETURN;
   /* For now, we let Ganesha be primarily responsible for managing
      state.  Rather than passing the arguments through directly, we
      look through the pstates and find the right ones then call the
      function. */
 
-  
+  switch (arg_LAYOUTRETURN4.lora_layout_type)
+    {
+    case LAYOUTRETURN4_FILE:
+      /* For now, assume a restart clears out the FSALs. */
+      if (arg_LAYOUTRETURN4.lora_reclaim)
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4_OK;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
 
+      if((rc = nfs4_Check_Stateid(&(arg_LAYOUTRETURN4.lora_layoutreturn
+				    .lr_layout.stateid),
+				  data->current_entry,
+				  data->psession->clientid)) != NFS4_OK)
+	{
+	  res_LAYOUTRETURN4.lorr_status = rc;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+
+      if(cache_inode_get_state((arg_LAYOUTRETURN4.lora_layoutreturn
+				.lr_layout.stateid.other),
+			       &pstate_exists,
+			       data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
+	{
+	  if(cache_status == CACHE_INODE_NOT_FOUND)
+	    res_LAYOUTRETURN4.lorr_status = NFS4ERR_STALE_STATEID;
+	  else
+	    res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
+	  
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+
+      do
+	{
+	  cache_inode_state_t *next = NULL;
+	  cache_inode_status_t *pstatus;
+
+	  
+	  if (pstate_exists.state_type != CACHE_INODE_STATE_LAYOUT)
+	    continue;
+
+	  if (!((arg_LAYOUTRETURN4.lora_iomode == LAYOUTIOMODE4_ANY) ||
+		(arg_LAYOUTRETURN4.lora_iomode ==
+		 pstate_exists->state_data.layout.iomode)))
+	    continue;
+
+	  if (((arg_LAYOUTRETURN4.lora_layoutreturn
+		.lr_layout.lrf_offset) >
+	       pstate_exists->state_data.layout.offset) ||
+	      ((arg_LAYOUTRETURN4.lora_layoutreturn
+		.lr_layout.lrf_length) <
+	       pstate_exists->state_data.layout.length))
+	    continue;
+
+	  status=FSAL_layoutreturn(pstate_exists->state_data.layout.layout_type,
+				   pstate_exists->state_data.layout.iomode,
+				   pstate_exists->state_data.layout.offset,
+				   pstate_exists->state_data.layout.length,
+				   date->pcontext);
+	  if (FSAL_IS_ERROR(status))
+	    {
+	      res_LAYOUTRETURN4.lorr_status = status.major;
+	      return res_LAYOUTRETURN4.lorr_status;
+	    }
+
+	  /* We need a temporary to hold the next pointer, since
+	     delete trashes the pointer */
+	  
+	  next=state_exists->next;
+	  cache_inode_del_state(state_exists,
+				data->pclient,
+				&pstatus);
+
+	  state_exists=next;
+	}
+      while (state_exists);
+
+      break;
+    case LAYOUTRETURN4_FSID:
+      /* If there is no FH */
+      if(nfs4_Is_Fh_Empty(&(data->currentFH)))
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_NOFILEHANDLE;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+      
+      /* If the filehandle is invalid */
+      if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_BADHANDLE;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+      
+      /* Tests if the Filehandle is expired (for volatile filehandle) */
+      if(nfs4_Is_Fh_Expired(&(data->currentFH)))
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_FHEXPIRED;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+      
+      attr.asked_attributes=FSAL_ATTR_FSID;
+      if(cache_inode_getattr(data->current_entry,
+			     &attr,
+			     data->ht,
+			     data->pclient,
+			     data->pcontext, &cache_status)
+	 != CACHE_INODE_SUCCESS)
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_SERVERFAULT;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+
+      basefsid=attr.fsid;
+      
+    case LAYOUTRETURN4_ALL:
+      if (arg_LAYOUTRETURN4.lora_reclaim)
+	{
+	  res_LAYOUTRETURN.lorr_status = NFS4ERR_INVAL;
+	  return res_LAYOUTGET4.logr_status;
+	}
+
+      /* Iterate over the entire state table to search.  There's no
+	 good interface for this, so we use our own */
+
+      for(int i = 0; i < ht->parameter.index_size; i++)
+	{
+	  struct rbt_head head;
+	  struct rbt_node node;
+	  
+	  head = &ht_state_id((->array_rbt)[i]);
+	  RBT_LOOP(head, node)
+	    {
+	      fsal_fsid_t fsid;
+	      hash_data_t pdata;
+	      pdata = (hash_data_t *) node->rbt_opaq;
+	      state_exists = (cache_inode-state_t* )
+		(pdata->buffval->pdate);
+
+	      if (arg_LAYOUTRETURN4.lora_layout_type ==
+		  LAYOUTRETURN4_FSID)
+		{
+		  if(cache_inode_getattr(atate_exists->pentry,
+					 &attr,
+					 data->ht,
+					 data->pclient,
+					 data->pcontext, &cache_status)
+		     != CACHE_INODE_SUCCESS)
+		    {
+		      res_LAYOUTRETURN4.lorr_status = NFS4ERR_SERVERFAULT;
+		      return res_LAYOUTRETURN4.lorr_status;
+		    }
+		  
+		  if (basefsid != attr.fsid)
+		    {
+		      continue;
+		    }
+		}
+
+	      if (state_exists->powner->clientid !=
+		  data->pclient->pclient->pool_open_owner->clientid)
+		continue;
+
+	      do
+		{
+		  cache_inode_state_t *next = NULL;
+		  cache_inode_status_t *pstatus;
+		  
+		  
+		  if (pstate_exists.state_type != CACHE_INODE_STATE_LAYOUT)
+		    continue;
+		  
+		  if (!((arg_LAYOUTRETURN4.lora_iomode == LAYOUTIOMODE4_ANY) ||
+			(arg_LAYOUTRETURN4.lora_iomode ==
+			 pstate_exists->state_data.layout.iomode)))
+		    continue;
+		  
+		  status=FSAL_layoutreturn(pstate_exists->state_data.layout.layout_type,
+					   pstate_exists->state_data.layout.iomode,
+					   pstate_exists->state_data.layout.offset,
+					   pstate_exists->state_data.layout.length,
+					   date->pcontext);
+		  if (FSAL_IS_ERROR(status))
+		    {
+		      res_LAYOUTRETURN4.lorr_status = status.major;
+		      return res_LAYOUTRETURN4.lorr_status;
+		    }
+		  
+		  /* We need a temporary to hold the next pointer, since
+		     delete trashes the pointer */
+		  
+		  next=state_exists->next;
+		  cache_inode_del_state(state_exists,
+					data->pclient,
+					&pstatus);
+		  
+		  state_exists=next;
+		}
+	      while (state_exists);
+	      RBT_INCREMENT(node);
+	    }
+	}
+
+      break;
+    default:
+      res_LAYOUTRETURN.lorr_status = NFS4ERR_INVAL;
+      return res_LAYOUTGET4.logr_status;
+    } 
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;
   return res_LAYOUTRETURN4.lorr_status;
 #endif                          /* _USE_FSALMDS */

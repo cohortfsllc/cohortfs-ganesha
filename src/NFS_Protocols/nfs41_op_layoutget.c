@@ -371,6 +371,8 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
 	      Mem_Free((char *) (resp->LAYOUTGET4res_u.logr_resok4
 				 .logr_layout.logr_layout_val[i]
 				 .lo_content.loc_body.loc_body_val));
+	      (resp->LAYOUTGET4res_u.logr_resok4.logr_layout
+	       .logr_layout_val[i].li_content.loc_body.loc_body_val)=NULL;
 	    }
 	}
     }
