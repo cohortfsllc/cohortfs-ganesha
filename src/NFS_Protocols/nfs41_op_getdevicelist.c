@@ -89,19 +89,60 @@
  * @see nfs4_Compound
  *
  */
+#define arg_GETDEVICELIST4  op->nfs_argop4_u.opgetdevicelist
+#define res_GETDEVICELIST4  resp->nfs_resop4_u.opgetdevicelist
 
 int nfs41_op_getdevicelist(struct nfs_argop4 *op,
                            compound_data_t * data, struct nfs_resop4 *resp)
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_getdevicelist";
-
-#define arg_GETDEVICELIST4  op->nfs_argop4_u.opgetdevicelist
-#define res_GETDEVICELIST4  resp->nfs_resop4_u.opgetdevicelist
+#ifdef _USE_PNFS
 
   resp->resop = NFS4_OP_GETDEVICELIST;
   res_GETDEVICELIST4.gdlr_status = NFS4_OK;
 
   return res_GETDEVICELIST4.gdlr_status;
+
+#else                           /* _USE_PNFS */
+#ifdef _USE_FSALMDS
+  fsal_status_t status;
+  size_t bufflen=10240;
+  char* buff;
+  char* xdrbuff;
+  uint64 cookie;
+  
+  resp->resop = NFS4_OP_GETDEVICELIST;
+
+  /* If there is no FH */
+  if(nfs4_Is_Fh_Empty(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_NOFILEHANDLE;
+      return res_LAYOUTGET4.logr_status;
+    }
+
+  /* If the filehandle is invalid */
+  if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_BADHANDLE;
+      return res_LAYOUTGET4.logr_status;
+    }
+
+  /* Tests if the Filehandle is expired (for volatile filehandle) */
+  if(nfs4_Is_Fh_Expired(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_FHEXPIRED;
+      return res_LAYOUTGET4.logr_status;
+    }
+
+  if ((buff = Mem_Alloc(bufflen))==NULL)
+    {
+      res_GETDEVICELIST4.gdlr_status = status=NFS4ERR_SERVERFAULT;
+      return res_LAYOUTGET4.logr_status;
+    }
+      
+  status = FSAL_getdevicelist(
+  
+#endif                          /* _USE_PNFS */
 }                               /* nfs41_op_exchange_id */
 
 /**

@@ -100,11 +100,11 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   resp->resop = NFS4_OP_GETDEVICEINFO;
 
-#ifndef _USE_PNFS
+#if !(defined(_USE_PNFS) || defined(_USE_FSALMDS))
   res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
   return res_GETDEVICEINFO4.gdir_status;
 #else
-
+#ifdef _USE_PNFS
   char *buff = NULL;
   unsigned int lenbuff = 0;
 
@@ -130,7 +130,56 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
   res_GETDEVICEINFO4.gdir_status = NFS4_OK;
 
   return res_GETDEVICEINFO4.gdir_status;
-#endif                          /* _USE_PNFS */
+#else                           /* _USE_PNFS */
+#ifdef                          /* _USE_FSALMDS */
+  char *buff = NULL;
+  char *xdrbuff = NULL;
+  unsigned int lenbuff = 1024;
+  fsal_status_t status;
+  
+  if((buff = Mem_Alloc(1024)) == NULL)
+    {
+      res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
+      return res_GETDEVICEINFO4.gdir_status;
+    }
+
+  if((xdrbuff = Mem_Alloc(1024)) == NULL)
+    {
+      res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
+      return res_GETDEVICEINFO4.gdir_status;
+    }
+
+  status = FSAL_getdeviceinfo(arg_GETDEVICEINFO4.gdia_layout_type,
+			      arg_GETDEVICEINFO4.gdia_device_id,
+			      buff,
+			      &lenbuff);
+
+  if (FSAL_IS_ERROR(status))
+    {
+      Mem_Free(buff);
+      Mem_Free(xdrbuff);
+      res_GETDEVICEINFO4.gdir_status = status.major;
+      return res_GETDEVICEINFO4.gdir_status;
+    }
+
+  fsalmds_encode_devinceinfo(arg_GETDEVICEINFO4.gdia_layout_type,
+			     xdrbuff, buff, &bufflen);
+
+  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_len = 0;
+  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_val = NULL;
+  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_device_addr.da_addr_body.
+      da_addr_body_len = lenbuff;
+  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_device_addr.da_addr_body.
+      da_addr_body_val = buff;
+
+  Mem_Free(buff);
+  
+  res_GETDEVICEINFO4.gdir_status = NFS4_OK;
+
+  return res_GETDEVICEINFO4.gdir_status;
+      
+#endif
+
 }                               /* nfs41_op_exchange_id */
 
 /**
