@@ -74,6 +74,9 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#ifdef _USE_FSALMDS
+#include "layouttypes/layouts.h"
+#endif                                          /* _USE_FSALMDS */
 
 struct add_state_cookie
 {
@@ -81,7 +84,8 @@ struct add_state_cookie
   cache_inode_open_owner_t* powner;
   cache_inode_client_t* pclient;
   fsal_op_context_t* pcontext;
-}
+  compound_data_t* data;
+};
   
 /**
  * 
@@ -200,7 +204,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTGET4.logr_status;
     }
 
-
   /* Add a pstate */
   candidate_type = CACHE_INODE_STATE_LAYOUT;
   candidate_data.layout.layout_type = arg_LAYOUTGET4.loga_layout_type;
@@ -263,7 +266,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 
   fsal_boolean_t return_on_close;
   fsal_status_t status;
-  layout4 *layouts;
+  fsal_layout_t *layouts;
   int numlayouts;
   layoutiomode4 iomode=arg_LAYOUTGET4.loga_iomode;
   offset4 offset=arg_LAYOUTGET4.loga_offset;
@@ -274,18 +277,19 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   cookie.powner=pstate_exists->powner;
   cookie.pclient=data->pclient;
   cookie.pcontext=data->pcontext;
+  cookie.data=data;
 
-  status=FSAL_layoutgetbyLT(arg_LAYOUTGET4.loga_layout_type,
-			    &iomode,
-			    &offset,
-			    &length,
-			    arg_LAYOUTGET4.loga_minlength,
-			    arg_LAYOUTGET4.loga_stateid.other,
-			    &return_on_close,
-			    &layouts,
-			    &numlayouts,
-			    data->pcontext,
-			    (void *) &cookie);
+  status=FSAL_layoutgetby(arg_LAYOUTGET4.loga_layout_type,
+			  &iomode,
+			  &offset,
+			  &length,
+			  arg_LAYOUTGET4.loga_minlength,
+			  arg_LAYOUTGET4.loga_stateid.other,
+			  &return_on_close,
+			  &layouts,
+			  &numlayouts,
+			  data->pcontext,
+			  (void *) &cookie);
 
   if (FSAL_IS_ERROR(status))
     {
@@ -310,21 +314,29 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   for (int i=0; i < numlayouts; i++)
     {
       res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[i].lo_offset =
-	layoutvec[i].lo_offset;
+	layouts[i].offset;
       res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[i].lo_length =
-	layoutvec[i].lo_length;
+	layouts[i].length;
       res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[0].lo_iomode =
-	layoutvec[i].lo_iomode;
-      if((buff = Mem_Alloc(1024)) == NULL)
+	layouts[i].iomode;
+      if(((res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4
+	   .logr_layout.logr_layout_val[i]
+	   .lo_content.loc_body_val) = Mem_Alloc(1024)) == NULL)
 	{
 	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
 	  return res_LAYOUTGET4.logr_status;
 	}
-      encode_lo_content(&(res_LAYOUTGET4.LAYOUTGET4res_u
-			  .logr_resok4.logr_layout.logr_layout_val[i]
-			  .lo_content),
-			&(layoutvec[i].lo_content),
-			1024);
+      if (!(encode_lo_content(arg_LAYOUTGET4.loga_layout_type,
+			      &(res_LAYOUTGET4.LAYOUTGET4res_u
+				.logr_resok4.logr_layout.logr_layout_val[i]
+				.lo_content),
+			      1024,
+			      layouts[i].content)))
+	{
+	  Mem_Free(buff);
+	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
+	  return res_LAYOUTGET4.logr_status;
+	}
     }
   res_LAYOUTGET4.logr_status = NFS4_OK;
   Mem_Free((char *)layouts);

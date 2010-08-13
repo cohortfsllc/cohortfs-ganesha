@@ -635,7 +635,11 @@ typedef struct fsal_staticfsinfo__
   fsal_accessmode_t xattr_access_rights;  /**< This indicates who is allowed
                                            *   to read/modify xattrs value.
                                            */
-
+#ifdef _USE_FSALMDS
+  fattr4_fs_layout_types fs_layout_types; /**< The supported layout
+					   *   types
+					   */
+#endif                                     /* _USE_FSALMDS */
 } fsal_staticfsinfo_t;
 
 /** File system dynamic info. */
@@ -796,11 +800,5 @@ typedef enum fsal_digesttype_t
       , FSAL_DIGEST_NODETYPE
 #endif
 } fsal_digesttype_t;
-
-#ifdef _USE_FSALMDS
-typedef layouttype4 fsal_layout_type_t;
-typedef layoutiomode4 fsal_layout_io_mode_t;
-typedef layout4 fsal_layout_t;
-#endif                          /* _FSAL_MDS */
 
 #endif                          /* _FSAL_TYPES_H */

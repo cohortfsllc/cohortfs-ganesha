@@ -107,9 +107,11 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
 #ifdef _USE_FSALMDS
   fsal_status_t status;
   size_t bufflen=10240;
-  char* buff;
+  deviceid4* buff;
   char* xdrbuff;
-  uint64 cookie;
+  uint64 cookie=arg_GETDEVICELIST4.gdla_cookie;
+  fsal_boolean_t eof=FALSE;
+  uint32_t count=arg_GETDEVICELIST4.gdla_maxdevices;
   
   resp->resop = NFS4_OP_GETDEVICELIST;
 
@@ -136,12 +138,34 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
 
   if ((buff = Mem_Alloc(bufflen))==NULL)
     {
-      res_GETDEVICELIST4.gdlr_status = status=NFS4ERR_SERVERFAULT;
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_SERVERFAULT;
       return res_LAYOUTGET4.logr_status;
     }
-      
-  status = FSAL_getdevicelist(
+
+  status = FSAL_getdevicelist(data->currentFH,
+			      arg_LAYOUTGET4.gdla_layout_type,
+			      &count,
+			      &cookie,
+			      &eof,
+			      buff,
+			      &bufflen);
+
+  if (FSAL_IS_ERROR(status))
+    {
+      Mem_Free(buff);
+      res_GETDEVICELIST4.gdlr_status = status.major;
+      return res_LAYOUTGET4.logr_status;
+    }
+
+  res_LAYOUTGET4.gdlr_resok4.cookie=cookie;
+  res_LAYOUTGET4.gdlr_resok4.cookieverf=arg_LAYOUTGET4.gdla_cookieverf;
+  res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list_val=buff;
+  res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list_len=bufflen;
+  res_LAYOUTGET4.gdlr_resok4.gdlr_eof=eof;
   
+  res_GETDEVICELIST4.gdlr_status = NFS4_OK;
+  return res_GETDEVICELIST4.gdlr_status;
+			      
 #endif                          /* _USE_PNFS */
 }                               /* nfs41_op_exchange_id */
 
@@ -157,5 +181,9 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
  */
 void nfs41_op_getdevicelist_Free(GETDEVICELIST4res * resp)
 {
+#ifdef _USE_FSALMDS
+  if (resp.gdlr_status == NFS4_OK)
+    Mem_Free(res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list);
+#endif                          /* _USE_FSALMDS */
   return;
 }                               /* nfs41_op_exchange_id_Free */

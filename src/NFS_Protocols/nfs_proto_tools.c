@@ -1527,6 +1527,39 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 
 #ifdef _USE_NFS4_1
         case FATTR4_FS_LAYOUT_TYPES:
+#ifdef _USE_MDSFSAL
+          if(!statfscalled)
+            {
+              if((cache_status = cache_inode_statfs(data->current_entry,
+                                                    &staticinfo,
+                                                    &dynamicinfo,
+                                                    data->pcontext,
+                                                    &cache_status)) !=
+                 CACHE_INODE_SUCCESS)
+                {
+                  op_attr_success = 0;
+                  break;
+                }
+              else
+                statfscalled = 1;
+            }
+	  *((uint32_t*)(attrvalsBuffer+LastOffset))
+	    =htonl(staticinfo.fs_layout_types
+		   .fattr4_layout_types_len);
+
+	  LastOffset+=sizeof(uint32_t);
+	  for (i=0; i <= (staticinfo.fs_layout_types
+			  .fattr4_fs_layout_types_len); i++)
+	    {
+	      ((layouttype4*)(attrvalsBuffer+LastOffset))
+		=(staticinfo.fs_layout_types
+		  .fattr4_fs_layout_types_val[i]);
+	      lastOffset+=sizeof(layouttype4);
+	    }
+
+          op_attr_success = 1;
+#endif                                    /* _USE_MDSFSAL */
+
           layout_types.fattr4_fs_layout_types_len = htonl(1);
           memcpy((char *)(attrvalsBuffer + LastOffset),
                  &layout_types.fattr4_fs_layout_types_len, sizeof(u_int));
@@ -1540,7 +1573,7 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 
           op_attr_success = 1;
           break;
-#endif
+#endif                                    /* _USE_PNFS */
 
         default:
 #ifdef _DEBUG_NFS_V4
