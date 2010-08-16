@@ -103,14 +103,16 @@ int encodefilesdevice(layouttype4 type,
 int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
 			 void* cookie)
 {
+  struct lg_cbc cbc=(struct lg_cbc* cookie);
   nfs_fh4 fhk;
   int rc;
   file_handle_v4_t* fhs;
 
   fhk.nfs_fh4_val=fhout->val;
   
-  rc=nfs4_FSALToFhandle(&fhk, fhin, (compound_data_t*) cookie);
+  rc=nfs4_FSALToFhandle(&fhk, fhin, (compound_data_t*) cbc->data);
   fhout->len=fhk->nfs_fh4_len;
   fhs=fhout->val;
   fhs->ds_flag=1;
+  return rc;
 }

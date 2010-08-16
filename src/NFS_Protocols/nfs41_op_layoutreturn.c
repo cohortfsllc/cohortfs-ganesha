@@ -104,16 +104,17 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
   fsal_fsid_t basefsid;
   fsal_attrib_list_t attr;
   cache_inode_status_t cache_status;
+  int rc;
+  int i;
 
 #if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   res_LAYOUTRETURN4.lorr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTRETURN4.lorr_status;
-#else
-#ifdef _USE_PNFS
+#elsif defined(_USE_PNFS)
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;
   return res_LAYOUTRETURN4.lorr_status;
-#else                           /* _USE_PNFS */
-#ifdef _USE_FSALMDS
+#elsif defined(_USE_FSALMDS)
+  fsal_handle_t fsalh;
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -158,6 +159,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
      look through the pstates and find the right ones then call the
      function. */
 
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
   switch (arg_LAYOUTRETURN4.lora_layout_type)
     {
     case LAYOUTRETURN4_FILE:
@@ -169,7 +171,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	}
 
       if((rc = nfs4_Check_Stateid(&(arg_LAYOUTRETURN4.lora_layoutreturn
-				    .lr_layout.stateid),
+				    .layoutreturn4_u.lr_layout.lrf_stateid),
 				  data->current_entry,
 				  data->psession->clientid)) != NFS4_OK)
 	{
@@ -178,7 +180,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	}
 
       if(cache_inode_get_state((arg_LAYOUTRETURN4.lora_layoutreturn
-				.lr_layout.stateid.other),
+				.layoutreturn4_u.lr_layout.lrf_stateid.other),
 			       &pstate_exists,
 			       data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
 	{
@@ -196,7 +198,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	  cache_inode_status_t *pstatus;
 
 	  
-	  if (pstate_exists.state_type != CACHE_INODE_STATE_LAYOUT)
+	  if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
 	    continue;
 
 	  if (!((arg_LAYOUTRETURN4.lora_iomode == LAYOUTIOMODE4_ANY) ||
@@ -205,18 +207,19 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	    continue;
 
 	  if (((arg_LAYOUTRETURN4.lora_layoutreturn
-		.lr_layout.lrf_offset) >
+		.layoutreturn4_u.lr_layout.lrf_offset) >
 	       pstate_exists->state_data.layout.offset) ||
 	      ((arg_LAYOUTRETURN4.lora_layoutreturn
-		.lr_layout.lrf_length) <
+		.layoutreturn4_u.lr_layout.lrf_length) <
 	       pstate_exists->state_data.layout.length))
 	    continue;
 
-	  status=FSAL_layoutreturn(pstate_exists->state_data.layout.layout_type,
+	  status=FSAL_layoutreturn(&fsalh,
+				   pstate_exists->state_data.layout.layout_type,
 				   pstate_exists->state_data.layout.iomode,
 				   pstate_exists->state_data.layout.offset,
 				   pstate_exists->state_data.layout.length,
-				   date->pcontext);
+				   data->pcontext);
 	  if (FSAL_IS_ERROR(status))
 	    {
 	      res_LAYOUTRETURN4.lorr_status = status.major;
@@ -226,14 +229,14 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	  /* We need a temporary to hold the next pointer, since
 	     delete trashes the pointer */
 	  
-	  next=state_exists->next;
-	  cache_inode_del_state(state_exists,
+	  next=pstate_exists->next;
+	  cache_inode_del_state(pstate_exists,
 				data->pclient,
-				&pstatus);
+				pstatus);
 
-	  state_exists=next;
+	  pstate_exists=next;
 	}
-      while (state_exists);
+      while (pstate_exists);
 
       break;
     case LAYOUTRETURN4_FSID:
@@ -275,31 +278,31 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
     case LAYOUTRETURN4_ALL:
       if (arg_LAYOUTRETURN4.lora_reclaim)
 	{
-	  res_LAYOUTRETURN.lorr_status = NFS4ERR_INVAL;
-	  return res_LAYOUTGET4.logr_status;
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
+	  return res_LAYOUTRETURN4.lorr_status;
 	}
 
       /* Iterate over the entire state table to search.  There's no
 	 good interface for this, so we use our own */
 
-      for(int i = 0; i < ht->parameter.index_size; i++)
+      for(i = 0; i < data->ht->parameter.index_size; i++)
 	{
-	  struct rbt_head head;
-	  struct rbt_node node;
+	  struct rbt_head *head;
+	  struct rbt_node *node;
 	  
-	  head = &ht_state_id((->array_rbt)[i]);
+	  head = &((data->ht->array_rbt)[i]);
 	  RBT_LOOP(head, node)
 	    {
 	      fsal_fsid_t fsid;
-	      hash_data_t pdata;
+	      hash_data_t *pdata;
 	      pdata = (hash_data_t *) node->rbt_opaq;
-	      state_exists = (cache_inode-state_t* )
-		(pdata->buffval->pdate);
+	      pstate_exists = (cache_inode_state_t* )
+		(pdata->buffval.pdata);
 
 	      if (arg_LAYOUTRETURN4.lora_layout_type ==
 		  LAYOUTRETURN4_FSID)
 		{
-		  if(cache_inode_getattr(atate_exists->pentry,
+		  if(cache_inode_getattr(pstate_exists->pentry,
 					 &attr,
 					 data->ht,
 					 data->pclient,
@@ -310,14 +313,15 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 		      return res_LAYOUTRETURN4.lorr_status;
 		    }
 		  
-		  if (basefsid != attr.fsid)
+		  if ((basefsid.major != attr.fsid.major) &&
+		      (basefsid.minor != attr.fsid.minor))
 		    {
 		      continue;
 		    }
 		}
 
-	      if (state_exists->powner->clientid !=
-		  data->pclient->pclient->pool_open_owner->clientid)
+	      if (pstate_exists->powner->clientid !=
+		  data->pclient->pool_open_owner->clientid)
 		continue;
 
 	      do
@@ -326,7 +330,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 		  cache_inode_status_t *pstatus;
 		  
 		  
-		  if (pstate_exists.state_type != CACHE_INODE_STATE_LAYOUT)
+		  if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
 		    continue;
 		  
 		  if (!((arg_LAYOUTRETURN4.lora_iomode == LAYOUTIOMODE4_ANY) ||
@@ -334,11 +338,12 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 			 pstate_exists->state_data.layout.iomode)))
 		    continue;
 		  
-		  status=FSAL_layoutreturn(pstate_exists->state_data.layout.layout_type,
+		  status=FSAL_layoutreturn(&(pstate_exists->pentry->object.file.handle),
+					   pstate_exists->state_data.layout.layout_type,
 					   pstate_exists->state_data.layout.iomode,
 					   pstate_exists->state_data.layout.offset,
 					   pstate_exists->state_data.layout.length,
-					   date->pcontext);
+					   data->pcontext);
 		  if (FSAL_IS_ERROR(status))
 		    {
 		      res_LAYOUTRETURN4.lorr_status = status.major;
@@ -348,22 +353,22 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 		  /* We need a temporary to hold the next pointer, since
 		     delete trashes the pointer */
 		  
-		  next=state_exists->next;
-		  cache_inode_del_state(state_exists,
+		  next=pstate_exists->next;
+		  cache_inode_del_state(pstate_exists,
 					data->pclient,
-					&pstatus);
+					pstatus);
 		  
-		  state_exists=next;
+		  pstate_exists=next;
 		}
-	      while (state_exists);
+	      while (pstate_exists);
 	      RBT_INCREMENT(node);
 	    }
 	}
 
       break;
     default:
-      res_LAYOUTRETURN.lorr_status = NFS4ERR_INVAL;
-      return res_LAYOUTGET4.logr_status;
+      res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
+      return res_LAYOUTRETURN4.lorr_status;
     } 
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;
   return res_LAYOUTRETURN4.lorr_status;

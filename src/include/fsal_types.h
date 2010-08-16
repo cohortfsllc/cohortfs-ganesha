@@ -46,6 +46,10 @@
 #include "config.h"
 #endif
 
+#ifdef _USE_FSALMDS
+#include "nfsv41.h"
+#endif 
+
 #ifdef _SOLARIS
 #ifndef MAXNAMLEN
 #define MAXNAMLEN 512
@@ -68,6 +72,10 @@ typedef unsigned long long int u_int64_t;
 #include <dirent.h>             /* for MAXNAMLEN */
 #include "config_parsing.h"
 #include "err_fsal.h"
+
+#ifdef _USE_FSALMDS
+#include "layouttypes/fsal_layout.h"
+#endif /* _USE_FSALMDS */
 
 /* FSAL function indexes, and names */
 
@@ -123,9 +131,10 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_getlock	        49
 #define INDEX_FSAL_CleanUpExportContext 50
 #define INDEX_FSAL_getextattrs          51
+#define INDEX_FSAL_getlayout            52
 
 /* number of FSAL functions */
-#define FSAL_NB_FUNC  52
+#define FSAL_NB_FUNC  53
 
 static const char *fsal_function_names[] = {
   "FSAL_lookup", "FSAL_access", "FSAL_create", "FSAL_mkdir", "FSAL_truncate",
@@ -436,6 +445,9 @@ typedef fsal_u64_t fsal_attrib_mask_t;
                             FSAL_ATTR_ATIME | FSAL_ATTR_MTIME |   \
                             FSAL_ATTR_CTIME | FSAL_ATTR_SPACEUSED )
 
+
+#ifdef _USE_FSALMDS
+#endif 
 /** A list of FS object's attributes. */
 
 typedef struct fsal_attrib_list__
@@ -636,11 +648,12 @@ typedef struct fsal_staticfsinfo__
                                            *   to read/modify xattrs value.
                                            */
 #ifdef _USE_FSALMDS
-  fattr4_fs_layout_types fs_layout_types; /**< The supported layout
+  fsal_layout_types fs_layout_types;      /**< The supported layout
 					   *   types
 					   */
 #endif                                     /* _USE_FSALMDS */
 } fsal_staticfsinfo_t;
+
 
 /** File system dynamic info. */
 

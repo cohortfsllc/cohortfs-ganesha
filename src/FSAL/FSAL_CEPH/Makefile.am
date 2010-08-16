@@ -36,6 +36,9 @@ libfsalceph_la_SOURCES = fsal_access.c  \
 			fsal_internal.h \
                         fsal_convert.h  \
                         fsal_xattrs.c   \
+IF _USE_FSALMDS
+                        fsal_mds.c \
+ENDIF
                         fsal_quota.c    \
                         ../../include/fsal.h            \
                         ../../include/fsal_types.h      \

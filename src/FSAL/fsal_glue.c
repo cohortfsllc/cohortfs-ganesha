@@ -22,6 +22,9 @@
 
 fsal_functions_t fsal_functions;
 fsal_const_t fsal_consts;
+#ifdef _USE_FSALMDS
+fsal_mdsfunctions_t fsal_mdsfunctions;
+#endif                                          /* _USE_FSALMDS */
 
 #ifdef _USE_SHARED_FSAL
 fsal_functions_t(*getfunctions) (void);
@@ -696,6 +699,76 @@ fsal_status_t FSAL_getextattrs( fsal_handle_t * p_filehandle, /* IN */
 {
    return fsal_functions.fsal_getextattrs( p_filehandle, p_context, p_object_attributes ) ;
 }
+
+#ifdef _USE_FSALMDS
+fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
+			     fsal_layouttype_t type,
+			     fsal_layoutiomode_t iomode,
+			     fsal_off_t offset,
+			     fsal_size_t length,
+			     fsal_size_t minlength,
+			     fsal_layout_t** layouts,
+			     int *numlayouts,
+			     const char* stateid,
+			     fsal_boolean_t *return_on_close,
+			     fsal_op_context_t *context,
+			     void* cbcookie)
+{
+  return fsal_mdsfunctions.fsal_layoutget(filehandle, type, iomode,
+					  offset, length, minlength,
+					  layouts, numlayouts,
+					  stateid, return_on_close,
+					  context, cbcookie);
+}
+
+fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				fsal_layoutiomode_t iomode,
+				fsal_off_t offset, fsal_size_t length,
+				fsal_op_context_t* context)
+{
+  return fsal_mdsfunctions.fsal_layoutreturn(filehandle,
+					     type, iomode, offset, length,
+					     context);
+}
+
+fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				char* layout,
+				size_t layout_length,
+				fsal_off_t offset,
+				fsal_size_t length,
+				fsal_off_t* newoff,
+				fsal_boolean_t* changed,
+				fsal_time_t* newtime)
+{
+  return fsal_mdsfunctions.fsal_layoutcommit(filehandle, type,
+					     layout, layout_length,
+					     offset, length, newoff,
+					     changed, newtime);
+}
+
+fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
+				 fsal_deviceid_t* id,
+				 char* buff,
+				 size_t len)
+{
+  return fsal_mdsfunctions.fsal_getdeviceinfo(type, id, buff, len);
+}
+
+fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
+					  fsal_layouttype_t type,
+					  int *numdevices,
+					  uint64_t *cookie,
+					  fsal_boolean_t* eof,
+					  void* buff,
+					  size_t* len)
+{
+  return fsal_mdsfunctions.fsal_getdevicelist(filehandle, type,
+					      numdevices, cookie, eof,
+					      buff, len);
+}
+#endif                                           /* _USE_FSALMDS */
 
 #ifdef _USE_SHARED_FSAL
 int FSAL_LoadLibrary(char *path)

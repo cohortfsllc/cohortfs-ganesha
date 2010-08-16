@@ -33,28 +33,29 @@
  *
  */
 
-extern layoutfunctions layoutfuncs[];
-
 typedef struct __layoutfuncs
 {
   layouttype4 type;
   int (*encode_layout) (layouttype4, layout_content4,
-			size_t, fsal_layout_content*);
+			size_t, void*);
   int (*encode_device) (layouttype4, device_addr4,
-			size_t, fsal_device_addr_t);
+			size_t, void*);
 			
 } layoutfunctions;
+
+extern layoutfunctions layoutfuncs[];
+
 
 layoutfunctions* layouttypelookup(layouttype4 type);
 
 int encode_lo_content(layouttype4 type,
 		      layout_content4* dest,
 		      size_t size,
-		      fsal_layout_content_t source);
+		      void*);
 		      
 int encode_device(layouttype4 type,
 		  device_addr4* dest,
 		  size_t destsize,
-		  fsal_device_addr_t source);
+		  void* source);
 
-#endif __LAYOUTS_H
+#endif /* __LAYOUTS_H */

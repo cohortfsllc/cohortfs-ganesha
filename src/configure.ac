@@ -6,7 +6,7 @@ AC_INIT( [nfs-ganesha], [1.0.1], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS(alpha)/ZFS(dev)/CEPH(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
+AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS/CEPH(alpha)/ZFS(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
 
 # Init Automake
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
@@ -237,6 +237,14 @@ if test "$enable_pnfs" == "yes"; then
 fi
 AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 
+# FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
+GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
+PNFS_LIB=""
+if test "$enable_fsalmds" == "yes"; then
+	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
+	FSALMDS_LIB="\$(top_builddir)/NFS_Protocols/layouttypes/liblayouttypes.la"
+fi
+AM_CONDITIONAL(USE_FSALMDS, test "$enable_fsalmds" = "yes")
 
 
 # TI-RPC
@@ -341,7 +349,7 @@ if test "${with_extra_includedir+set}" == "set"; then
 fi
 
 # FSAL switch argument (default is PROXY)
-AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|GHOSTFS|FUSE|LUSTRE|XFS|GPFS|ZFS|DLPOEN|CEPH (default=PROXY)],[specify the type of filesystem to be exported] ),
+AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|GHOSTFS|FUSE|LUSTRE|XFS|GPFS|ZFS|CEPH|DLPOEN (default=PROXY)],[specify the type of filesystem to be exported] ),
 	     FSAL="$withval", FSAL="PROXY")
 
 # exporting USE_FSAL_... for conditional compilation
@@ -354,9 +362,9 @@ AM_CONDITIONAL(USE_FSAL_FUSE,     test "$FSAL" = "FUSE")
 AM_CONDITIONAL(USE_FSAL_LUSTRE,   test "$FSAL" = "LUSTRE")
 AM_CONDITIONAL(USE_FSAL_XFS,      test "$FSAL" = "XFS")
 AM_CONDITIONAL(USE_FSAL_GPFS,     test "$FSAL" = "GPFS")
-AM_CONDITIONAL(USE_FSAL_CEPH,     test "$FSAL" = "CEPH")
 AM_CONDITIONAL(USE_FSAL_TEMPLATE, test "$FSAL" = "TEMPLATE")
 AM_CONDITIONAL(SHARED_FSAL,       test "$FSAL" = "DYNFSAL")
+AM_CONDITIONAL(USE_FSAL_CEPH,     test "$FSAL" = "CEPH")
 AM_CONDITIONAL(USE_FSAL_ZFS,      test "$FSAL" = "ZFS")
 
 # NFSv4.0 NFSv4.1 switch
@@ -470,15 +478,6 @@ case $FSAL in
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_LUSTRE/libfsallustre.la"
 		FS_NAME="lustre"
 		;;
-	CEPH)
-		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports Ceph Filesystem])
- 		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing libceph include files)])
-		FSAL_CFLAGS=
-                FSAL_LDFLAGS="-lceph -lssl -lcrush"
-		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
-		FS_NAME="ceph"
-		;;
-
 	XFS)
 		AC_DEFINE([_USE_XFS], 1, [GANESHA exports XFS Filesystem])
  		AC_CHECK_HEADERS([xfs/xfs.h], [], [AC_MSG_ERROR( missing xfs include files)])
@@ -487,6 +486,14 @@ case $FSAL in
                 FSAL_LDFLAGS="-lhandle"
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_XFS/libfsalxfs.la"
 		FS_NAME="xfs"
+		;;
+	CEPH)
+		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports CEPH Filesystem])
+ 		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing ceph include files)])
+		FSAL_CFLAGS=
+                FSAL_LDFLAGS=
+		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
+		FS_NAME="ceph"
 		;;
         DYNFSAL)
                	AC_DEFINE( _USE_SHARED_FSAL, 1, [enable shared FSAL] )
@@ -654,6 +661,7 @@ AC_SUBST(FSAL_LDFLAGS)
 AC_SUBST(FSAL_LIB)
 AC_SUBST(MFSL_LIB)
 AC_SUBST(PNFS_LIB)
+AC_SUBST(FSALMDS_LIB)
 AC_SUBST(FS_NAME)
 AC_SUBST(SHARED_FSAL)
 AC_SUBST(SHARED_FSAL_PKG)
@@ -677,17 +685,18 @@ AC_CONFIG_FILES([include/Makefile
                  include/FSAL/FSAL_FUSELIKE/Makefile
                  include/FSAL/FSAL_LUSTRE/Makefile
                  include/FSAL/FSAL_XFS/Makefile
+                 include/FSAL/FSAL_CEPH/Makefile
                  include/FSAL/FSAL_GPFS/Makefile
                  include/FSAL/FSAL_ZFS/Makefile
                  include/FSAL/FSAL_TEMPLATE/Makefile
                  include/FSAL/FSAL_GHOST_FS/Makefile
-                 include/FSAL/FSAL_CEPH/Makefile
                  include/MFSL/Makefile
                  include/MFSL/MFSL_NULL/Makefile
                  include/MFSL/MFSL_ASYNC/Makefile
                  include/MFSL/MFSL_PROXY_RPCSECGSS/Makefile
                  include/PNFS/Makefile
 		 include/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
+		 include/layouttypes/Makefile
                  BuddyMalloc/Makefile
                  StuffAlloc/Makefile
                  Common/Makefile
@@ -707,6 +716,7 @@ AC_CONFIG_FILES([include/Makefile
 		 NFS_Protocols/Makefile
 		 NFS_Protocols/PNFS/Makefile
 		 NFS_Protocols/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
+		 NFS_Protocols/layouttypes/Makefile
                  XDR/Makefile
 		 FSAL/Makefile
 		 FSAL/FSAL_HPSS/Makefile
@@ -720,7 +730,6 @@ AC_CONFIG_FILES([include/Makefile
 		 FSAL/FSAL_PROXY/Makefile
 		 FSAL/FSAL_PROXY/handle_mapping/Makefile
 		 FSAL/FSAL_SNMP/Makefile
-		 FSAL/FSAL_CEPH/Makefile
 		 FSAL/FSAL_FUSELIKE/Makefile
 		 FSAL/FSAL_LUSTRE/Makefile
 		 FSAL/FSAL_XFS/Makefile

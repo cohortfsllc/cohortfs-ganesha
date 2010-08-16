@@ -321,14 +321,13 @@ typedef struct cache_inode_deleg__
 
 typedef struct cache_inode_layout__
 {
-#ifdef _USE_PNFS
+#if defined(_USE_PNFS)
   layouttype4 layout_type;
   layoutiomode4 iomode;
   offset4 offset;
   length4 length;
   length4 minlength;
-#else
-#ifdef _USE_FSALMDS
+#elif defined(_USE_FSALMDS)
   layouttype4 layout_type;
   layoutiomode4 iomode;
   offset4 offset;

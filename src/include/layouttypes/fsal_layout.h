@@ -22,6 +22,7 @@
  */
 
 #ifndef _FSAL_LAYOUT_H
+#define _FSAL_LAYOUT_H
 #include <nfsv41.h>
 
 /**
@@ -33,13 +34,16 @@
  *
  */
 
-typedef layouttype4 fsal_layout_type_t;
+typedef layouttype4 fsal_layouttype_t;
 typedef offset4 fsal_layoutoffset_t;
 typedef length4 fsal_layoutlength_t;
 typedef layoutiomode4 fsal_layoutiomode_t;
 typedef void *fsal_layoutcontent_t;
 typedef void *fsal_devaaddr_t;
 typedef deviceid4 fsal_deviceid_t;
+typedef fattr4_fs_layout_types fsal_layout_types;
+typedef nfs_fh4 fsal_dsfh_t;
+
 
 typedef struct __fsal_layout {
   fsal_layoutoffset_t offset;
@@ -48,4 +52,4 @@ typedef struct __fsal_layout {
   fsal_layoutcontent_t content;
 } fsal_layout_t;
   
-#endif _FSAL_LAYOUT_H
+#endif /* _FSAL_LAYOUT_H */

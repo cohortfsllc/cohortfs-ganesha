@@ -75,18 +75,10 @@
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
 #ifdef _USE_FSALMDS
+#include "fsal.h"
 #include "layouttypes/layouts.h"
 #endif                                          /* _USE_FSALMDS */
 
-struct add_state_cookie
-{
-  cache_entry_t* current_entry;
-  cache_inode_open_owner_t* powner;
-  cache_inode_client_t* pclient;
-  fsal_op_context_t* pcontext;
-  compound_data_t* data;
-};
-  
 /**
  * 
  * nfs41_op_layoutget: The NFS4_OP_LAYOUTGET operation. 
@@ -260,8 +252,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 
   res_LAYOUTGET4.logr_status = NFS4_OK;
   return res_LAYOUTGET4.logr_status;
-#else                           /* _USE_PNFS */
-#if defined(_USE_FSALMDS)
+#elif defined(_USE_FSALMDS)
   /* set the returned status */
 
   fsal_boolean_t return_on_close;
@@ -271,25 +262,35 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   layoutiomode4 iomode=arg_LAYOUTGET4.loga_iomode;
   offset4 offset=arg_LAYOUTGET4.loga_offset;
   length4 length=arg_LAYOUTGET4.loga_length;
+  fsal_handle_t fsalh;
+  int i;
 
-  struct add_state_cookie cookie;
-  cookie.current_state=data->current_state;
+  /* Manages the stateid */
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
+  memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
+         arg_LAYOUTGET4.loga_stateid.other, 12);
+
+  struct lg_cbc cookie;
+  cookie.current_entry=data->current_entry;
   cookie.powner=pstate_exists->powner;
   cookie.pclient=data->pclient;
   cookie.pcontext=data->pcontext;
   cookie.data=data;
 
-  status=FSAL_layoutgetby(arg_LAYOUTGET4.loga_layout_type,
-			  &iomode,
-			  &offset,
-			  &length,
-			  arg_LAYOUTGET4.loga_minlength,
-			  arg_LAYOUTGET4.loga_stateid.other,
-			  &return_on_close,
-			  &layouts,
-			  &numlayouts,
-			  data->pcontext,
-			  (void *) &cookie);
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+
+  status=FSAL_layoutget(&fsalh,
+			arg_LAYOUTGET4.loga_layout_type,
+			iomode,
+			offset,
+			length,
+			arg_LAYOUTGET4.loga_minlength,
+			&layouts,
+			&numlayouts,
+			arg_LAYOUTGET4.loga_stateid.other,
+			&return_on_close,
+			data->pcontext,
+			(void *) &cookie);
 
   if (FSAL_IS_ERROR(status))
     {
@@ -300,10 +301,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_return_on_close =
     return_on_close;
 
-  /* Manages the stateid */
-  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
-  memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
-         arg_LAYOUTGET4.loga_stateid.other, 12);
 
   /* Now the layout specific information */
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_len
@@ -311,7 +308,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val =
       (layout4 *) Mem_Alloc(sizeof(layout4)*numlayouts);
 
-  for (int i=0; i < numlayouts; i++)
+  for (i=0; i < numlayouts; i++)
     {
       res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[i].lo_offset =
 	layouts[i].offset;
@@ -321,7 +318,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 	layouts[i].iomode;
       if(((res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4
 	   .logr_layout.logr_layout_val[i]
-	   .lo_content.loc_body_val) = Mem_Alloc(1024)) == NULL)
+	   .lo_content.loc_body.loc_body_val) = Mem_Alloc(1024)) == NULL)
 	{
 	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
 	  return res_LAYOUTGET4.logr_status;
@@ -333,7 +330,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 			      1024,
 			      layouts[i].content)))
 	{
-	  Mem_Free(buff);
+	  Mem_Free((char*)layouts);
 	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
 	  return res_LAYOUTGET4.logr_status;
 	}
@@ -342,6 +339,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   Mem_Free((char *)layouts);
   return res_LAYOUTGET4.logr_status;
 #endif                          /* _USE_FSALMDS */
+#endif
 }                               /* nfs41_op_layoutget */
 
 /**
@@ -366,13 +364,13 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
     }
 
   return;
-#else                           /* _USE_PNFS */
-#ifdef _USE_FSALMDS
+#elif defined(_USE_FSALMDS)
   if (resp->logr_status == NFS4_OK)
     {
-      for(int i=0;
+      int i;
+      for(i=0;
 	  i < (resp->LAYOUTGET4res_u.logr_resok4
-	       .logr_layout.log_layout_len);
+	       .logr_layout.logr_layout_len);
 	  i++)
 	{
 	  if ((resp->LAYOUTGET4res_u.logr_resok4
@@ -384,7 +382,7 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
 				 .logr_layout.logr_layout_val[i]
 				 .lo_content.loc_body.loc_body_val));
 	      (resp->LAYOUTGET4res_u.logr_resok4.logr_layout
-	       .logr_layout_val[i].li_content.loc_body.loc_body_val)=NULL;
+	       .logr_layout_val[i].lo_content.loc_body.loc_body_val)=NULL;
 	    }
 	}
     }
@@ -420,14 +418,13 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
  *
  */
 
-int FSALBACK_layout_add_state(fsal_layout_type_t type,
-			      fsal_layout_io_mode_t iomode,
+int FSALBACK_layout_add_state(fsal_layouttype_t type,
+			      fsal_layoutiomode_t iomode,
 			      fsal_off_t offset,
 			      fsal_size_t length,
-			      struct add_state_cookie* opaque,
-			      stateid4* newstate)
-			      
+			      void* opaque)
 {
+  struct lg_cbc* cbc=(struct lg_cbc*) opaque;
   cache_inode_state_type_t candidate_type;
   cache_inode_state_data_t candidate_data;
   cache_inode_state_t *file_state = NULL;
@@ -439,13 +436,14 @@ int FSALBACK_layout_add_state(fsal_layout_type_t type,
   candidate_data.layout.offset = offset;
   candidate_data.layout.length = length;
   
-  return (cache_inode_add_state(opaque->current_entry,
+  return (cache_inode_add_state(cbc->current_entry,
 				candidate_type,
 				&candidate_data,
-				opaque->powner,
-				opaque->pclient,
-				data->pcontext,
-				&file_state, &cache_status)
+				cbc->powner,
+				cbc->pclient,
+				cbc->pcontext,
+				&file_state,
+				&cache_status)
 	  != CACHE_INODE_SUCCESS);
 }
 #endif                          /* _USE_FSALMDS */

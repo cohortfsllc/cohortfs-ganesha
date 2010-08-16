@@ -96,22 +96,22 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
                            compound_data_t * data, struct nfs_resop4 *resp)
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_getdevicelist";
-#ifdef _USE_PNFS
+#if defined(_USE_PNFS)
 
   resp->resop = NFS4_OP_GETDEVICELIST;
   res_GETDEVICELIST4.gdlr_status = NFS4_OK;
 
   return res_GETDEVICELIST4.gdlr_status;
 
-#else                           /* _USE_PNFS */
-#ifdef _USE_FSALMDS
+#elidf defined(_USE_FSALMDS)
   fsal_status_t status;
   size_t bufflen=10240;
   deviceid4* buff;
   char* xdrbuff;
-  uint64 cookie=arg_GETDEVICELIST4.gdla_cookie;
+  uint64_t cookie=arg_GETDEVICELIST4.gdla_cookie;
   fsal_boolean_t eof=FALSE;
   uint32_t count=arg_GETDEVICELIST4.gdla_maxdevices;
+  fsal_handle_t fsalh;
   
   resp->resop = NFS4_OP_GETDEVICELIST;
 
@@ -119,31 +119,33 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
       res_GETDEVICELIST4.gdlr_status = NFS4ERR_NOFILEHANDLE;
-      return res_LAYOUTGET4.logr_status;
+      return res_GETDEVICELIST4.gdlr_status;
     }
 
   /* If the filehandle is invalid */
   if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
     {
       res_GETDEVICELIST4.gdlr_status = NFS4ERR_BADHANDLE;
-      return res_LAYOUTGET4.logr_status;
+      return res_GETDEVICELIST4.gdlr_status;
     }
 
   /* Tests if the Filehandle is expired (for volatile filehandle) */
   if(nfs4_Is_Fh_Expired(&(data->currentFH)))
     {
       res_GETDEVICELIST4.gdlr_status = NFS4ERR_FHEXPIRED;
-      return res_LAYOUTGET4.logr_status;
+      return res_GETDEVICELIST4.gdlr_status;
     }
 
-  if ((buff = Mem_Alloc(bufflen))==NULL)
+  if ((buff = (deviceid4*) Mem_Alloc(bufflen))==NULL)
     {
       res_GETDEVICELIST4.gdlr_status = NFS4ERR_SERVERFAULT;
-      return res_LAYOUTGET4.logr_status;
+      return res_GETDEVICELIST4.gdlr_status;
     }
 
-  status = FSAL_getdevicelist(data->currentFH,
-			      arg_LAYOUTGET4.gdla_layout_type,
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+
+  status = FSAL_getdevicelist(&fsalh,
+			      arg_GETDEVICELIST4.gdla_layout_type,
 			      &count,
 			      &cookie,
 			      &eof,
@@ -154,14 +156,15 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
     {
       Mem_Free(buff);
       res_GETDEVICELIST4.gdlr_status = status.major;
-      return res_LAYOUTGET4.logr_status;
+      return res_GETDEVICELIST4.gdlr_status;
     }
 
-  res_LAYOUTGET4.gdlr_resok4.cookie=cookie;
-  res_LAYOUTGET4.gdlr_resok4.cookieverf=arg_LAYOUTGET4.gdla_cookieverf;
-  res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list_val=buff;
-  res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list_len=bufflen;
-  res_LAYOUTGET4.gdlr_resok4.gdlr_eof=eof;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4.gdlr_cookie=cookie;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4
+    .gdlr_deviceid_list.gdlr_deviceid_list_val=buff;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4
+    .gdlr_deviceid_list.gdlr_deviceid_list_len=bufflen;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4.gdlr_eof=eof;
   
   res_GETDEVICELIST4.gdlr_status = NFS4_OK;
   return res_GETDEVICELIST4.gdlr_status;
@@ -182,8 +185,9 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
 void nfs41_op_getdevicelist_Free(GETDEVICELIST4res * resp)
 {
 #ifdef _USE_FSALMDS
-  if (resp.gdlr_status == NFS4_OK)
-    Mem_Free(res_LAYOUTGET4.gdlr_resok4.gdlr_deviceid_list);
+  if (resp->gdlr_status == NFS4_OK)
+    Mem_Free(resp->GETDEVICELIST4res_u.gdlr_resok4
+	     .gdlr_deviceid_list.gdlr_deviceid_list_val);
 #endif                          /* _USE_FSALMDS */
   return;
 }                               /* nfs41_op_exchange_id_Free */

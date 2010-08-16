@@ -1527,7 +1527,7 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 
 #ifdef _USE_NFS4_1
         case FATTR4_FS_LAYOUT_TYPES:
-#ifdef _USE_MDSFSAL
+#ifdef _USE_FSALMDS
           if(!statfscalled)
             {
               if((cache_status = cache_inode_statfs(data->current_entry,
@@ -1545,20 +1545,20 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
             }
 	  *((uint32_t*)(attrvalsBuffer+LastOffset))
 	    =htonl(staticinfo.fs_layout_types
-		   .fattr4_layout_types_len);
+		   .fattr4_fs_layout_types_len);
 
 	  LastOffset+=sizeof(uint32_t);
 	  for (i=0; i <= (staticinfo.fs_layout_types
 			  .fattr4_fs_layout_types_len); i++)
 	    {
-	      ((layouttype4*)(attrvalsBuffer+LastOffset))
+	      *((layouttype4*)(attrvalsBuffer+LastOffset))
 		=(staticinfo.fs_layout_types
 		  .fattr4_fs_layout_types_val[i]);
-	      lastOffset+=sizeof(layouttype4);
+	      LastOffset+=sizeof(layouttype4);
 	    }
 
           op_attr_success = 1;
-#endif                                    /* _USE_MDSFSAL */
+#endif                                    /* _USE_FSALMDS */
 
           layout_types.fattr4_fs_layout_types_len = htonl(1);
           memcpy((char *)(attrvalsBuffer + LastOffset),

@@ -107,7 +107,7 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 #if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTCOMMIT4.locr_status;
-#else
+#endif
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -166,8 +166,7 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
 
   return res_LAYOUTCOMMIT4.locr_status;
-#else                           /* _USE_PNFS */
-#ifdef _USE_FSALMDS
+#elif defined(_USE_FSALMDS)
   int found=0;
   fsal_status_t status;
   offset4 last_write=(arg_LAYOUTCOMMIT4.loca_last_write_offset
@@ -175,9 +174,10 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
   nfstime4 last_time=(arg_LAYOUTCOMMIT4.loca_time_modify
 		      .newtime4_u.nt_time);
 
-  fsal_boolean_t size_size=(arg_LAYOUTCOMMIT4.loca_last_write_offset
+  fsal_boolean_t size_changed=(arg_LAYOUTCOMMIT4.loca_last_write_offset
 			    .no_newoffset);
-
+  cache_inode_state_t *pstate_exists;
+  fsal_handle_t fsalh;
 
   /* Is the layout actually held? */
 
@@ -187,21 +187,20 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTCOMMIT4.locr_status;
     }
   
-  if(cache_inode_get_state((arg_LAYOUTRETURN4.lora_layoutreturn
-			    .lr_layout.stateid.other),
+  if(cache_inode_get_state(arg_LAYOUTCOMMIT4.loca_stateid.other,
 			   &pstate_exists,
 			   data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
     {
       if(cache_status == CACHE_INODE_NOT_FOUND)
-	res_LAYOUTRETURN4.lorr_status = NFS4ERR_STALE_STATEID;
+	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_STALE_STATEID;
       else
-	res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
+	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_INVAL;
       
-      return res_LAYOUTRETURN4.lorr_status;
+      return res_LAYOUTCOMMIT4.locr_status;
     }
   do
     {
-      if (pstate_exists.state_type != CACHE_INODE_STATE_LAYOUT)
+      if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
 	continue;
       
       if ((arg_LAYOUTCOMMIT4.loca_offset <
@@ -216,34 +215,37 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 	  LAYOUTIOMODE4_RW)
 	continue;
       
-      layoutmatchfound=2;
+      found=2;
 
       break;
     }
-  while (state_exists=state_exists->next);
+  while (pstate_exists=pstate_exists->next);
 
-  if (layoutmatchfound == 0)
+  if (found == 0)
     {
       res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
       return res_LAYOUTCOMMIT4.locr_status;
     }
-  if (layoutmatchfound == 1)
+  if (found == 1)
     {
-      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BAD_IOMODE;
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADIOMODE;
       return res_LAYOUTCOMMIT4.locr_status;
     }
 
-  status=FSAL_layoutcommit(data->currentFH,
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  status=FSAL_layoutcommit(&fsalh,
 			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
 			    .lou_type),
 			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
 			    .lou_body.lou_body_val),
 			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
 			    .lou_body.lou_body_len),
-			   *last_write,
-			   *size_changed,
+			   arg_LAYOUTCOMMIT4.loca_offset,
+			   arg_LAYOUTCOMMIT4.loca_length,
+			   &last_write,
+			   &size_changed,
 			   (arg_LAYOUTCOMMIT4.loca_time_modify
-			    .nt_timechanged) ? *last_time : NULL);
+			    .nt_timechanged) ? &last_time : NULL);
 
   if (FSAL_IS_ERROR(status))
     {
@@ -252,9 +254,9 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
     }
 
   res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
-  (res_LAYOUTCOMMIT4.locr_LAYOUTCOMMIT4res_u.locr_resok4
+  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
    .locr_newsize.ns_sizechanged)=size_changed;
-  (res_LAYOUTCOMMIT4.locr_LAYOUTCOMMIT4res_u.locr_resok4
+  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
    .locr_newsize.newsize4_u.ns_size)=last_write;
 
   return res_LAYOUTCOMMIT4.locr_status;
