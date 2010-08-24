@@ -354,7 +354,18 @@ fsal_status_t CEPHFSAL_write(cephfsal_file_t * file_descriptor, /* IN */
 
   nb_written=ceph_ll_write(FH(file_descriptor), offset, buffer_size,
 			   buffer);
-  
+
+  /* The cache layer queues buffers data in memory and calls the FSAL
+     specifically for writes to stable storage.  The second a rgument
+     to ceph_ll_fsync is a boolean, if it is true than only data is
+     swnc.  The cache layer does not propagate stable_how to the FSAL,
+     however, so we treat everything as if it were FILE_SYNC4 */
+
+  if (ceph_ll_fsync(FH(file_descriptor), 0) < 0)
+    {
+      Return(posix2fsal_error(nb_written), 0, INDEX_FSAL_read);
+    }
+
   ReleaseTokenFSCall();
 
   if (nb_written < 0)
