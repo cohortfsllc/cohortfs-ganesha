@@ -1077,14 +1077,14 @@ int nfs_Init_worker_data(nfs_worker_data_t * pdata)
   if((pdata->pending_request =
       LRU_Init(nfs_param.worker_param.lru_param, &status)) == NULL)
     {
-      DisplayErrorLog(ERR_LRU, ERR_LRU_LIST_INIT, status);
+      LogError(COMPONENT_DISPATCH, ERR_LRU, ERR_LRU_LIST_INIT, status);
       return -1;
     }
 
   if((pdata->duplicate_request =
       LRU_Init(nfs_param.worker_param.lru_dupreq, &status)) == NULL)
     {
-      DisplayErrorLog(ERR_LRU, ERR_LRU_LIST_INIT, status);
+      LogError(COMPONENT_DISPATCH, ERR_LRU, ERR_LRU_LIST_INIT, status);
       return -1;
     }
 
@@ -1354,7 +1354,7 @@ void *worker_thread(void *IndexArg)
                       {
                         gc = (struct rpc_gss_cred *)preq->rq_clntcred;
                         LogPrintf(COMPONENT_DISPATCH,
-                            ("========> no_dispatch=%u gc->gc_proc=%u RPCSEC_GSS_INIT=%u RPCSEC_GSS_CONTINUE_INIT=%u RPCSEC_GSS_DATA=%u RPCSEC_GSS_DESTROY=%u\n",
+                            "========> no_dispatch=%u gc->gc_proc=%u RPCSEC_GSS_INIT=%u RPCSEC_GSS_CONTINUE_INIT=%u RPCSEC_GSS_DATA=%u RPCSEC_GSS_DESTROY=%u\n",
                              no_dispatch, gc->gc_proc, RPCSEC_GSS_INIT,
                              RPCSEC_GSS_CONTINUE_INIT, RPCSEC_GSS_DATA,
                              RPCSEC_GSS_DESTROY);
