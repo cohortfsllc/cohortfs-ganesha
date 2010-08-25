@@ -128,6 +128,14 @@ int nfs4_op_rename(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
       return NFS4ERR_INVAL;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_RENAME4.status = NFS4ERR_NOTSUPP;
+      return res_RENAME4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

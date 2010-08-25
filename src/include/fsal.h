@@ -1441,6 +1441,7 @@ struct lg_cbc
   void* pclient;
   fsal_op_context_t* pcontext;
   void* data;
+  void* created_state;
 };
 
 int FSALBACK_layout_add_state(fsal_layouttype_t type,

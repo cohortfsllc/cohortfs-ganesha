@@ -170,6 +170,14 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
       return res_OPEN4.status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_OPEN4.status = NFS4ERR_NOTSUPP;
+      return res_OPEN4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If Filehandle points to a xattr object, manage it via the xattrs specific functions */
   if(nfs4_Is_Fh_Xattr(&(data->currentFH)))
     return nfs4_op_open_xattr(op, data, resp);

@@ -104,6 +104,14 @@ int nfs4_op_savefh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   resp->resop = NFS4_OP_SAVEFH;
   resp->nfs_resop4_u.opsavefh.status = NFS4_OK;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_SAVEFH4.status = NFS4ERR_NOTSUPP;
+      return res_SAVEFH4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no currentFH, teh  return an error */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

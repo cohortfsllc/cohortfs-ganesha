@@ -109,6 +109,14 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
       return NFS4ERR_NOFILEHANDLE;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_GETATTR4.status = NFS4ERR_NOTSUPP;
+      return res_GETATTR4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If the filehandle is invalid */
   if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
     {

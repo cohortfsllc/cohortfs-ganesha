@@ -126,6 +126,14 @@ int nfs4_op_nverify(struct nfs_argop4 *op,
       return NFS4ERR_FHEXPIRED;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_NVERIFY4.status = NFS4ERR_NOTSUPP;
+      return res_NVERIFY4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* operation is always permitted on pseudofs */
   if(nfs4_Is_Fh_Pseudo(&(data->currentFH)))
     {

@@ -141,6 +141,14 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTGET4.logr_status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_LAYOUTGET4.status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTGET4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* Commit is done only on a file */
   if(data->current_filetype != REGULAR_FILE)
     {
@@ -265,11 +273,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   fsal_handle_t fsalh;
   int i;
 
-  /* Manages the stateid */
-  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
-  memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
-         arg_LAYOUTGET4.loga_stateid.other, 12);
-
   struct lg_cbc cookie;
   cookie.current_entry=data->current_entry;
   cookie.powner=pstate_exists->powner;
@@ -301,6 +304,10 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_return_on_close =
     return_on_close;
 
+  /* Manages the stateid */
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
+  memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
+         cookie.created_state->stateid_other, 12);
 
   /* Now the layout specific information */
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_len
@@ -412,6 +419,8 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
  * @param offset   [IN]    Offset of the layout to add
  * @param length   [IN]    Length of the layout to add
  * @param opaque   [IN]    A pointer, opaque to the FSAL.
+ * @param stateid  [OTHER] The non-sequence portion of the stateid
+ *                         associated with the layout.
  * 
  * @return Zero on success, nonzero on failure.
  *
@@ -422,13 +431,15 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
 			      fsal_layoutiomode_t iomode,
 			      fsal_off_t offset,
 			      fsal_size_t length,
-			      void* opaque)
+			      void* opaque,
+			      char* stateid)
 {
   struct lg_cbc* cbc=(struct lg_cbc*) opaque;
   cache_inode_state_type_t candidate_type;
   cache_inode_state_data_t candidate_data;
   cache_inode_state_t *file_state = NULL;
   cache_inode_status_t cache_status;
+  int rc;
   
   candidate_type = CACHE_INODE_STATE_LAYOUT;
   candidate_data.layout.layout_type = type;
@@ -436,14 +447,16 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
   candidate_data.layout.offset = offset;
   candidate_data.layout.length = length;
   
-  return (cache_inode_add_state(cbc->current_entry,
-				candidate_type,
-				&candidate_data,
-				cbc->powner,
-				cbc->pclient,
-				cbc->pcontext,
-				&file_state,
-				&cache_status)
-	  != CACHE_INODE_SUCCESS);
+  rc = cache_inode_add_state(cbc->current_entry,
+			     candidate_type,
+			     &candidate_data,
+			     cbc->powner,
+			     cbc->pclient,
+			     cbc->pcontext,
+			     &file_state,
+			     &cache_status);
+  stateid=file_state->stateid_other;
+  cbc->created_state=file_state;
+  return (rc != CACHE_INODE_SUCCESS);
 }
 #endif                          /* _USE_FSALMDS */

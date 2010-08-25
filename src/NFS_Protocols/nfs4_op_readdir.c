@@ -116,6 +116,14 @@ int nfs4_op_readdir(struct nfs_argop4 *op,
   entryFH.nfs_fh4_len = 0;
   entryFH.nfs_fh4_val = val_fh;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_READDIR4.status = NFS4ERR_NOTSUPP;
+      return res_READDIR4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

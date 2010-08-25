@@ -113,6 +113,14 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
       return res_GETDEVICEINFO4.gdir_status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_GETDEVICEINFO4.status = NFS4ERR_NOTSUPP;
+      return res_GETDEVICEINFO4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /** @todo handle multiple DS here when this will be implemented (switch on deviceid arg) */
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_len = 0;
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_val = NULL;

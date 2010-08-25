@@ -127,6 +127,14 @@ int nfs4_op_readlink(struct nfs_argop4 *op,
       return NFS4ERR_FHEXPIRED;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_READLINK4.status = NFS4ERR_NOTSUPP;
+      return res_READLINK4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* You can readlink only on a link ... */
   if(data->current_filetype != SYMBOLIC_LINK)
     {

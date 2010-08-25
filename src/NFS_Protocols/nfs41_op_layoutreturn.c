@@ -136,7 +136,14 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTRETURN4.lorr_status;
     }
 
-  /* Commit is done only on a file */
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_LAYOUTRETURN4.status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTRETURN4.status;
+    }
+#endif /* _USE_FSALDS */
+
   if(data->current_filetype != REGULAR_FILE)
     {
       /* Type of the entry is not correct */

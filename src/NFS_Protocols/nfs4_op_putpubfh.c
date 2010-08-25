@@ -95,6 +95,13 @@ int CreatePUBFH4(nfs_fh4 * fh, compound_data_t * data)
   int status = 0;
   char fhstr[LEN_FH_STR];
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_PUTPUBFH4.status = NFS4ERR_NOTSUPP;
+      return res_PUTPUBFH4.status;
+    }
+#endif /* _USE_FSALDS */
 
   psfsentry = *(data->pseudofs->reverse_tab[0]);
 
