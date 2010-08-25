@@ -172,8 +172,8 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
 
       if(cache_status == CACHE_INODE_INVALID_ARGUMENT)
         {
-          res_WRITE4.status = NFS4ERR_INVAL;
-          return res_WRITE4.status;
+          res_COMMIT4.status = NFS4ERR_INVAL;
+          return res_COMMIT4.status;
         }
 
       if((pstate_iterate != NULL) &&
@@ -188,16 +188,24 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
       status = FSAL_mdscommit(&fsalh, arg_COMMIT4.offset, arg_COMMIT4.count);
       if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
 	{
-	  res_WRITE4.status = nfs4_Errno(cache_status);
-	  return res_WRITE4.status;
+	  res_COMMIT4.status = nfs4_Errno(cache_status);
+	  return res_COMMIT4.status;
 	}
       else
 	{
-	  res_WRITE4.status = NFS4_OK;
-	  return res_WRITE4.status;
+	  res_COMMIT4.status = NFS4_OK;
+	  return res_COMMIT4.status;
 	}
     }
 #endif /* _USE_FSALMDS */
+#ifdef _USE_FSALDS
+
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      return(op_dscommit(op, data, resp));
+    }
+
+#endif /* _USE_FSALDS */
   
 
   if(cache_inode_commit(data->current_entry,
@@ -235,3 +243,70 @@ void nfs4_op_commit_Free(COMMIT4res * resp)
   /* Nothing to be done */
   return;
 }                               /* nfs4_op_commit_Free */
+
+#ifdef _USE_FSALDS
+
+int op_dscommit(struct nfs_argop4 *op,
+		compound_data_t * data,
+		struct nfs_resop4 *resp)
+
+{
+  fsal_seek_t seek_descriptor;
+  caddr_t bufferdata;
+  fsal_handle_t fsalh;
+  fsal_boolean_t eof;
+  fsal_size_t amount_read;
+  fsal_status_t status;
+  cache_inode_status_t cache_status;
+
+  /* Special stateids are not permitted, nor is any non-zero seqid, by
+     RFC 5661, 13.9.1, pp. 329-330 */
+
+  if(data->current_filetype != REGULAR_FILE)
+    {
+      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
+      if(data->current_filetype == DIR_BEGINNING
+         || data->current_filetype == DIR_CONTINUE)
+        res_READ4.status = NFS4ERR_ISDIR;
+      else
+        res_READ4.status = NFS4ERR_INVAL;
+
+      return res_READ4.status;
+    }
+
+  /* Get the size and offset of the read operation */
+  offset = arg_COMMIT4.offset;
+  size = arg_COMMIT4.count;
+
+  /* If size == 0 , no I/O is to be made and everything is alright */
+  if(size == 0)
+    {
+      memcpy(res_COMMIT4.COMMIT4res_u.resok4.writeverf, (char *)&NFS4_write_verifier,
+	     NFS4_VERIFIER_SIZE);
+
+      res_COMMIT4.status = NFS4_OK;
+    }
+
+  /* Magical nonexistent state management */
+
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+
+  /* This is subject to change, once the cache happens */
+
+  status=FSAL_ds_commit(&fsalh, offset, length);
+
+  if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
+    {
+      res_COMMIT4.status = nfs4_Errno(cache_status);
+      return res_COMMIT4.status;
+    }
+
+  memcpy(res_COMMIT4.COMMIT4res_u.resok4.writeverf, (char *)&NFS4_write_verifier,
+         NFS4_VERIFIER_SIZE);
+
+  /* If you reach this point, then an error occured */
+  res_COMMIT4.status = NFS4_OK;
+  return res_COMMIT4.status;
+}
+
+#endif /* _USE_FSALDS */

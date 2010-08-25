@@ -25,6 +25,9 @@ fsal_const_t fsal_consts;
 #ifdef _USE_FSALMDS
 fsal_mdsfunctions_t fsal_mdsfunctions;
 #endif                                          /* _USE_FSALMDS */
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t fsal_dsfunctions;
+#endif                                          /* _USE_FSALMDS */
 
 #ifdef _USE_SHARED_FSAL
 fsal_functions_t(*getfunctions) (void);
@@ -770,6 +773,44 @@ fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 }
 #endif                                           /* _USE_FSALMDS */
 
+#ifdef _USE_FSALDS
+
+fsal_status_t FSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+			   fsal_seek_t * seek_descriptor,  /* [IN] */
+			   fsal_size_t buffer_size,        /*  IN  */
+			   caddr_t buffer,                 /* OUT  */
+			   fsal_size_t * read_amount,      /* OUT  */
+			   fsal_boolean_t * end_of_file    /* OUT  */
+    )
+{
+  return fsal_dsfunctions.fsal_ds_read(filehandle, seek_descriptor,
+				       buffer_size, buffer,
+				       read_amount, end_of_file);
+}
+
+fsal_status_t FSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+			    fsal_seek_t * seek_descriptor,   /* IN */
+			    fsal_size_t buffer_size,         /* IN */
+			    caddr_t buffer,                  /* IN */
+			    fsal_size_t * write_amount,      /* OUT */
+			    fsal_boolean_t stable_flag       /* IN */
+    )
+{
+  return fsal_dsfunctions.fsal_ds_write(filehandle, seek_descriptor,
+					buffer_size, buffer,
+					write_amount, stable_flag);
+}
+
+fsal_status_t FSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+			     fsal_off_t offset,
+			     fsal_size_t length)
+{
+  return fsal_dsfunctions.fsal_ds_commit(filehandle, offset, length);
+}
+
+#endif /* _USE_FSALDS */
+
+
 #ifdef _USE_SHARED_FSAL
 int FSAL_LoadLibrary(char *path)
 {
@@ -810,6 +851,20 @@ void FSAL_LoadFunctions(void)
   fsal_functions = (*getfunctions) ();
 }
 
+#ifdef _USE_FSALMDS
+void FSAL_LoadMDSFunctions(void)
+{
+  fsal_mdsfunctions = (*getmdsfunctions) ();
+}
+#endif
+
+#ifdef _USE_FSALDS
+void FSAL_LoadDSFunctions(void)
+{
+  fsal_dsfunctions = (*getdsfunctions) ();
+}
+#endif
+
 void FSAL_LoadConsts(void)
 {
   fsal_consts = (*getconsts) ();
@@ -830,5 +885,26 @@ void FSAL_LoadConsts(void)
 {
   fsal_consts = FSAL_GetConsts();
 }
+
+#ifdef _USE_FSALMDS
+void FSAL_LoadMDSFunctions(void)
+{
+  fsal_mdsfunctions = FSAL_GetMDSFunctions();
+}
+#endif
+
+#ifdef _USE_FSALDS
+void FSAL_LoadDSFunctions(void)
+{
+  fsal_dsfunctions = FSAL_GetDSFunctions();
+}
+#endif
+
+void FSAL_LoadConsts(void)
+{
+  fsal_consts = (*getconsts) ();
+}
+
+#else
 
 #endif

@@ -391,6 +391,13 @@ int main(int argc, char *argv[])
   /* Get the FSAL consts */
   FSAL_LoadConsts();
 
+#ifdef _USE_FSALMDS
+  FSAL_LoadMDSFunctions();
+#endif
+#ifdef _USE_FSALDS
+  FSAL_LoadDSFunctions();
+#endif
+
   LogEvent(COMPONENT_INIT,
 	   ">>>>>>>>>> Starting GANESHA NFS Daemon on FSAL/%s <<<<<<<<<<",
 	   FSAL_GetFSName());

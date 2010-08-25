@@ -745,6 +745,41 @@ fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 }
 #endif /* _USE_FSALMDS */
 
+#ifdef _USE_SALMDS
+fsal_status_t WRAP_CEPHFSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+				    fsal_seek_t * seek_descriptor,  /* [IN] */
+				    fsal_size_t buffer_size,        /*  IN  */
+				    caddr_t buffer,                 /* OUT  */
+				    fsal_size_t * read_amount,      /* OUT  */
+				    fsal_boolean_t * end_of_file    /* OUT  */
+    )
+{
+  return CEPHFSAL_ds_read((cephfsal_handle_t *) filehandle, seek_descriptor,
+			  buffer_size, buffer, read_amount, end_of_file);
+}
+
+fsal_status_t WRAP_CEPHFSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+				     fsal_seek_t * seek_descriptor,   /* IN */
+				     fsal_size_t buffer_size,         /* IN */
+				     caddr_t buffer,                  /* IN */
+				     fsal_size_t * write_amount,      /* OUT */
+				     fsal_boolean_t stable_flag       /* IN */
+    )
+{
+  return CEPHFSAL_ds_write((cephfsal_handle_t *) filehandle,
+			   seek_descriptor, buffer_size, buffer,
+			   write_amount, stable_flag);
+}
+
+fsal_status_t WRAP_CEPHFSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+				      fsal_off_t offset,
+				      fsal_size_t length)
+{
+  return CEPHFSAL_ds_commit((cephfsal_handle_t *) filehandle, offset,
+			    length);
+}
+#endif /* _USE_FSALDS */
+
 fsal_functions_t fsal_ceph_functions = {
   .fsal_access = WRAP_CEPHFSAL_access,
   .fsal_getattrs = WRAP_CEPHFSAL_getattrs,
@@ -844,7 +879,14 @@ fsal_mdsfunctions_t fsal_ceph_mdsfunctions = {
   .fsal_getdevicelist = WRAP_CEPHFSAL_getdevicelist
 };
 
-#endif /* _USE_FSALMDS */
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t fsal_ceph_dsfunctions = {
+  .fsal_ds_read = WRAP_CEPHFSAL_ds_read,
+  .fsal_ds_write = WRAP_CEPHFSAL_ds_write,
+  .fsal_ds_commit = WRAP_CEPHFSAL_ds_commit
+};
+
+#endif /* _USE_FSALDS */
 
 fsal_functions_t FSAL_GetFunctions(void)
 {
@@ -859,4 +901,9 @@ fsal_const_t FSAL_GetConsts(void)
 fsal_mdsfunctions_t FSAL_GetMDSFunctions(void)
 {
   return fsal_ceph_mdsfunctions;
+}
+
+fsal_mdsfunctions_t FSAL_GetDSFunctions(void)
+{
+  return fsal_ceph_dsfunctions;
 }

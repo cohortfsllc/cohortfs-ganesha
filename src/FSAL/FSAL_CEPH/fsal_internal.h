@@ -486,3 +486,27 @@ fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 				     void* buff,
 				     size_t* len);
 #endif /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+
+fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
+			       fsal_seek_t * seek_descriptor,  /* [IN] */
+			       fsal_size_t buffer_size,        /*  IN  */
+			       caddr_t buffer,                 /* OUT  */
+			       fsal_size_t * read_amount,      /* OUT  */
+			       fsal_boolean_t * end_of_file    /* OUT  */
+    );
+
+fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,      /* IN */
+				fsal_seek_t * seek_descriptor,   /* IN */
+				fsal_size_t buffer_size,         /* IN */
+				caddr_t buffer,                  /* IN */
+				fsal_size_t * write_amount,      /* OUT */
+				fsal_boolean_t stable_flag       /* IN */
+    );
+
+fsal_status_t CEPHFSAL_ds_commit(cephfsal_handle_t * filehandle,     /* IN */
+				 fsal_off_t offset,
+				 fsal_size_t length);
+
+#endif /* _USE_FSALDS */

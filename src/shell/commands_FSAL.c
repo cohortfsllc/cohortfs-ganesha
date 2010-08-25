@@ -503,6 +503,13 @@ int fsal_init(char *filename, int flag_v, FILE * output)
   /* Get the FSAL consts */
   FSAL_LoadConsts();
 
+#ifdef _USE_FSALMDS
+  FSAL_LoadMDSFunctions();
+#endif
+#ifdef _USE_FSALDS
+  FSAL_LoadDSFunctions();
+#endif
+
   /* use FSAL error family. */
 
   AddFamilyError(ERR_FSAL, "FSAL related Errors", tab_errstatus_FSAL);

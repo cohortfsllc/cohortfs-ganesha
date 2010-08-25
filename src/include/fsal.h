@@ -878,6 +878,34 @@ fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 #endif
 
 /******************************************************
+ *               FSAL DS related functions.
+ ******************************************************/
+
+#ifdef _USE_FSALDS
+
+fsal_status_t FSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+			   fsal_seek_t * seek_descriptor,  /* [IN] */
+			   fsal_size_t buffer_size,        /*  IN  */
+			   caddr_t buffer,                 /* OUT  */
+			   fsal_size_t * read_amount,      /* OUT  */
+			   fsal_boolean_t * end_of_file    /* OUT  */
+    );
+
+fsal_status_t FSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+			    fsal_seek_t * seek_descriptor,   /* IN */
+			    fsal_size_t buffer_size,         /* IN */
+			    caddr_t buffer,                  /* IN */
+			    fsal_size_t * write_amount,      /* OUT */
+			    fsal_boolean_t stable_flag       /* IN */
+    );
+
+fsal_status_t FSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+			     fsal_off_t offset,
+			     fsal_size_t length);
+
+#endif /* _USE_FSALDS */
+
+/******************************************************
  *                Standard convertion routines.
  ******************************************************/
 
@@ -1401,6 +1429,32 @@ typedef struct __fsal_mdsfunctions
   
 } fsal_mdsfunctions_t;
 #endif /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+typedef struct __fsal_dsfunctions
+{
+  fsal_status_t fsal_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+			     fsal_seek_t * seek_descriptor,  /* [IN] */
+			     fsal_size_t buffer_size,        /*  IN  */
+			     caddr_t buffer,                 /* OUT  */
+			     fsal_size_t * read_amount,      /* OUT  */
+			     fsal_boolean_t * end_of_file    /* OUT  */
+      );
+
+  fsal_status_t FSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+			      fsal_seek_t * seek_descriptor,   /* IN */
+			      fsal_size_t buffer_size,         /* IN */
+			      caddr_t buffer,                  /* IN */
+			      fsal_size_t * write_amount,      /* OUT */
+			      fsal_boolean_t stable_flag       /* IN */
+      );
+
+  fsal_status_t FSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+			       fsal_off_t offset,
+			       fsal_size_t length
+      );
+} fsal_dsfunctions_t;
+#endif /* _USE_FSALDS */
 
 /* Structure allow assignement, char[<n>] do not */
 typedef struct fsal_const__

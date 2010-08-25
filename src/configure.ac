@@ -246,6 +246,13 @@ if test "$enable_fsalmds" == "yes"; then
 fi
 AM_CONDITIONAL(USE_FSALMDS, test "$enable_fsalmds" = "yes")
 
+# FSAL based pNFS DS support (requires NFSv4.1, conflicts with DS)
+GA_ENABLE_AM_CONDITION([fsalds],[enable FSAL-based pNFS DS support (NFSv4.1 support is mandatory)],[USE_FSALDS])
+PNFS_LIB=""
+if test "$enable_fsalmds" == "yes"; then
+	AC_DEFINE(_USE_FSALDS,1,[enable FSAL based pNFS DS support])
+fi
+AM_CONDITIONAL(USE_FSALDS, test "$enable_fsalds" = "yes")
 
 # TI-RPC
 GA_ENABLE_AM_CONDITION([tirpc],[enable TIRPC support],[USE_TIRPC])
