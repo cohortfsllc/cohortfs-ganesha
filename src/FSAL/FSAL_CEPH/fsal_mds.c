@@ -22,12 +22,12 @@
  */
 
 /**
- * \file    mdsf.c
+ * \file    fsal_mds.c
  * \brief   MDS realisation for the filesystem abstraction
  *
- * filelayout.c: MDS realisation for the filesystem abstraction
- *               Obviously, all of these functions should dispatch
- *               on type if more than one layout type is supported.
+ * fsal_mds.c: MDS realisation for the filesystem abstraction
+ *             Obviously, all of these functions should dispatch
+ *             on type if more than one layout type is supported.
  *
  */
 
@@ -38,7 +38,181 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
+#include "nfsv41.h"
+#include <libceph.h>
+#include <fcntl.h>
+#include "HashTable.h"
+#include <pathread.h>
 
+hash_table_t* deviceidtable;
+pthread_mutex_t deviceidtablemutex =
+  PTHREAD_ERRORCHECK_MUTEX_INITIALIZER_NP; 
+
+char tcpmark[]="tcp";
+char nfsport[]=".8.01";
+
+#define ADDRLENGTH=24 /* six groups of at most three digits, five
+			 dots, one null. */
+
+/* Functions for working with the storage of deviceinfo */
+
+/*
+ * thentry->inode must be set when this function is called.  It sets
+ * inode->generation.
+ */
+
+int add_entry(deviceaddrnode* thentry)
+{
+  int rc;
+  hash_buffer_t key, value;
+  deviceaddrnode* cur;
+
+  thentry->next=NULL;
+
+  rc=pthread_mutex_lock(&deviceidtablemutex);
+  if (rc != 0)
+    return rc;
+
+  key->data=&(thentry->inode);
+  rc = HashTable_Get(deviceidtable, &key, &value);
+  if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
+    {
+      /* No entries for this inode, we're the first */
+
+      thentry->generation=0;
+      value->data=thentry;
+      rc = HashTable_Test_And_Set(deviceidtable, key, value,
+				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+      if (rc != HASHTABLE_SUCCESS)
+	{
+	  mutex_unlock(&deviceidtablemutex);
+	  return -1;
+	}
+    }
+  else if (rc != HASHTABLE_SUCCESS)
+    {
+      mutex_unlock(&deviceidtablemutex);
+      return -1;
+    }
+  else
+    {
+      /* Find the last entry and be one after */
+
+      while (cur->next != NULL)
+	cur = cur->next;
+      
+      thentry->generation = cur->generation + 1;
+      cur->next = thentry;
+    }
+  
+  pthread_mutex_unlock(&deviceidtablemutex);
+  return 0;
+}
+
+/*
+ * Unlinks an entry from the table but does not deallocate or modify
+ * it
+ */
+
+int remove_entry(deviceaddrnode* thentry)
+{
+  int rc;
+  hash_buffer_t key, value;
+  deviceaddrnode* cur;
+
+  rc=pthread_mutex_lock(&deviceidtablemutex);
+
+  if (rc != 0)
+    return rc;
+
+  key->data=&(thentry->inode);
+
+  rc = HashTable_Get(deviceidtable, &key, &value);
+  if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
+    {
+      pthread_mutex_unlock(&deviceidtablemutex);
+      return -1;
+    }
+  if (value->data == thentry && thentry->next == NULL)
+    {
+      /* Simple case, we're the only entry, delete it */
+
+      rc = HashTable_Del(deviceidtable, &key, NULL, NULL);
+      if (rc != HASHTABLE_SUCCESS)
+	{
+	  pthread_mutex_unlock(&deviceidtablemutex);
+	  return -1;
+	}
+    }
+  else if (value->data == thentry)
+    {
+      /* Replace the head */
+      value->data=thentry->next;
+      rc = HashTable_Test_And_Set(deviceidtable, key, value,
+				 HASHTABLE_SET_HOW_SET_OVERWRITE);
+      
+      if (rc != HASHTABLE_SUCCESS)
+	{
+	  pthread_mutex_unlock(&deviceidtablemutex);
+	  return -1;
+	}
+    }
+  else
+    {
+      /* Hunt for it */
+
+      cur=value->data;
+
+      while (cur->next != thentry &&
+	     cur->next != NULL)
+	cur = cur->next;
+
+      if (cur->next == NULL)
+	{
+	  pthread_mutex_unlock(&deviceidtablemutex);
+	  return -1;
+	}
+
+      cur->next=thentry->next;
+    }
+  pthread_mutex_unlock(&deviceidtablemutex);
+  return 0;
+}
+
+/*
+ * Returns a pointer to an entry specified by inode and generation
+ * number, NULL on not found.
+ */
+
+deviceaddrnode* get_entry(uint64_t inode, uint64_t generation)
+{
+  int rc;
+  hash_buffer_t key, value;
+  deviceaddrnode* cur;
+
+  rc=pthread_mutex_lock(&deviceidtablemutex);
+
+  if (rc != 0)
+    return rc;
+
+  key->data=&inode;
+  rc = HashTable_Get(deviceidtable, &key, &value);
+
+  if (rc != HASHTABLE_SUCCESS)
+    {
+      pthread_mutex_unlock(&deviceidtablemutex);
+      return NULL;
+    }
+
+  cur=value->data;
+
+  while (cur != NULL && cur->generation != generation)
+    cur = cur->next;
+
+  pthread_mutex_unlock(&deviceidtablemutex);
+  return cur;
+}
+  
 /**
  *
  * FSAL_layoutget: The NFSv4.1 LAYOUTGET operation
@@ -63,13 +237,10 @@
  *        variable-sized structures referenced in the layouts.
  * \param numlayouts (output):
  *        The number of layouts returned
- * \param stateid (input):
- *        The stateid of the open file (perhaps to be communicated to
- *        the DS using some control protocol.)
  * \param return_on_close (output):
  *        Return on close flag.  To make this profitable, FSAL_close
  *        would need a means to trigger a layoutrecall.
- * \param fsal_op_context (input):
+ * \param context (input):
  *        Credential information
  * \param cbcookie (input):
  *        Opaque, passed to callbacks.
@@ -84,35 +255,182 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t filehandle,
 				 fsal_size_t minlength,
 				 fsal_layout_t** layouts,
 				 int *numlayouts,
-				 const char* stateid,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
 				 void* cbcookie)
 {
-  fsal_dsfh_t rethandle;
-
-  /* Determine actual dimensions of layout.  e.g. grant layout to
-     whole file, expand layout to be aligned with OSD block structure,
-     etc. */
-
-  if (FSALBACK_layout_add_state(type, iomode, offset, length,
-				cbcookie) != 0)
-    {
-      Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_getlayout);
-    }
-      
-  /* Do FSAL specific allocation for the layout */
-
-  /* Allocate and populate layout vector */
-
-  /* This function converts an FSAL filehandle that can be included in
-     a layout and that the client can pass to a Ganesha-based DS. */
+  struct stat_precise st;
+  char name[255];
+  int rc;
+  uint32_t su;
+  off_t filesize;
+  deviceaddrinfo* entry;
+  uint64_t stripes;
+  int num_osds=0;
+  uint32_t *stripe_indices;
+  size_t reserved_size;
+  fsal_file_dsaddr_t* deviceaddr;
+  uint64_t i;
+  multipath_list4* hostlists;
+  netaddr4* hosts;
+  char* stringwritepos;
+  fsal_filelayout_t* fileloc;
   
-  FSALBACK_fh2dshandle(filehandle, &rethandle, cbcookie);
+  /* Align the layout to ceph stripe boundaries */
+  
+  su=ceph_ll_stripe_unit;
+
+  if (su==(uint32_t) -ESTALE)
+    {
+      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
+    }
+  
+  *return_on_close = false;
+  offset -= offset % su;
+
+  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+  
+  filesize=st.st_size;
+
+  if (offset+minlength > 2*filesize)
+    Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
+  
+  if (offset+length > 2*filesize)
+    length = 2*filesize - offset;
+
+  length += su - (length % su);
+
+  /* Populate the device info */
+
+  reserved_size = (sizeof(deviceaddrnode) +
+		   sizeof(nfsv4_1_file_layout_ds_addr4) +
+		   (sizeof(uint32_t) * stripes) +
+		   (sizeof(multipath_list4) * num_osds) +
+		   (sizeof(netaddr4) * num_osds) +
+		   ADDRLENGTH * num_osds);
+		      
+  entry = Mem_Alloc(reserved_size);
+  if (entry==NULL)
+    Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
+  
+  entry->inode=VINO(filehandle).ino.val;
+  memset(entry, reserved_size, 0);
+
+  reserved_size -= sizeof(deviceidnode);
+  
+  entry->entry_size = reserved_size;
+  deviceaddr = entry->addrinfo = (entry+sizeof(deviceidnode));
+  deviceaddr->nflda_stripe_indices.nflda_stripe_indices_len=stripes;
+  stripe_indices
+    = deviceaddr->nflda_stripe_indices.nflda_stripe_indices_val
+    = deviceaddr + sizeof(fsal_file_dsaddr_t);
+  
+  for (i=0; i < stripes; i++)
+    {
+      int stripe_osd;
+
+      stripe_osd=ceph_ll_get_stripe_osd(VINODE(filehandle), i);
+
+      if (stripe_osd < 0)
+	{
+	  Mem_Free(entry);
+	  Return(FSAL_ERR_SERVFAULT, 0, INDEX_FSAL_layoutget);
+	}
+      stripe_indices[i]=stripe_osd;
+    }
+
+  deviceaddr->nflda_multipath_ds_list.nflda_multipath_ds_list_len
+    = num_osds;
+  hostlists
+    = deviceaddr->nflda_multipath_ds_list.nflda_multipath_ds_list_val
+    = stripe_indices + sizeof(uint32_t) * stripes;
+
+  hosts = hostlists + num_osds * sizeof(multipath_list4);
+
+  stringwritepos = hosts + num_osds * sizeof(netaddr4);
+
+  for(i = 0; i < num_osds; i++)
+    {
+      hostlists[i].multipath_list4_len=1;
+      hostlists[i].multipath_list4_val=&(hosts[i]);
+      netaddr4[i].na_r_netid=tcpmark;
+      netaddr4[i].na_r_addr=stringwritepos;
+      ceph_ll_osdaddr(i, stringwritepos, ADDRLENGTH);
+      strcat(stringwritepos, nfsport, ADDRLENGTH);
+      stringwritepos += (strlen(stringwritepos)+1);
+    }
+
+  if (add_entry(entry) != 0)
+    {
+      Mem_Free(entry);
+      Return(ERR_FSAL_SERVFAULT, 0, INDEX_FSAL_layoutget);
+    }
+
+  /* Add the layout to the state for the file */
+  
+  if (FSALBACK_layout_add_state(type, iomode, offset, length,
+				entry, *return_on_close, cbcookie) != 0)
+    {
+      remove_entry(entry);
+      Mem_Free(entry);
+      Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
+    }
+
+  num_osds=ceph_ll_get_num_osds();
+  stripes=(length-offset)/su;
+  
+  
+  /* Build the layout to return to the client */
+
+  reserved_space=(sizeof(fsal_layout_t) +
+		  sizeof(fsal_filelayout_t) +
+		  sizeof(fsal_dsfh_t));
+
+  if ((*layouts=Mem_Alloc(reserved_space)) == NULL)
+    Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
+    
+
+  (*layouts)->offset=offset;
+  (*layouts)->length=length;
+  (*layouts)->iomode=iomode;
+  fileloc
+    = (*layouts)->content
+    = *layouts+sizeof(fsal_layout_t);
+  
+  memcpy(fileloc->deviceid,
+	 &(entry->inode),
+	 sizeof(uint64_t));
+  memcpy((fileloc->deviceid)+sizeof(unint64_t),
+	 &(entry->generation)
+	 sizeof(uint64_t));
+
+  /* We are returning sparse layouts with commit-through-DS */
+  
+  fileloc->util=su;
+
+  /* The zeroeth stripe represents first block at the given offset. */
+
+  fileloc->first_stripe_index=0;
+
+  fileloc->pattern_offset=offset;
+
+  /* We return exactly one filehandle */
+
+  fileloc->fhn = 1;
+
+  fileloc->fhs = fileloc+sizeof(fsal_filelayout_t);
+
+  /* Give the client a filehandle that may be sent to the DS */
+  
+  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, cbcookie);
+
 
   /* Obviously, change this when real code is added */
 
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_getlayout);
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
 
 /**
@@ -127,31 +445,54 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t filehandle,
  *        The handle upon which the layout was granted
  * \param type (input):
  *        The layout type
- * \param iomode (input):
- *        The iomode granted
- * \param offset (input):
- *        The offset
- * \param length (input):
- *        The length
- * \param context (input)
+ * \param passed_iomode (input):
+ *        The iomode passed by the client (in case it's ANY)
+ * \param passed_offset (input):
+ *        The offset (specified by the client)
+ * \param passed_length (input):
+ *        The length (specified by the client)
+ * \param found_iomode (input):
+ *        The iomode (of the layout found in the state table)
+ * \param found_offset (input):
+ *        The offset (of the layout found in the state table)
+ * \param found_length (input):
+ *        The length (of the layout found in the state table)
+ * \param ldata (input):
+ *        FSAL-specific layout data
+ * \param context (input):
  *        The authentication context
+ * \param cbcookie (input):
+ *        Opaque to be passed to callbacks
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
  */
 
-fsal_status_t CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
+fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t iomode,
-				    fsal_off_t offset,
-				    fsal_size_t length,
-				    fsal_op_context_t* context)
+				    fsal_layoutiomode_t passed_iomode,
+				    fsal_off_t passed_offset,
+				    fsal_size_t passed_length,
+				    fsal_size_t found_iomode,
+				    fsal_off_t found_offset,
+				    fsal_size_t found_length,
+				    cephfsal_layoutdata_t ldata,
+				    fsal_op_context_t* context,
+				    void* cbcookie)
 {
   /* Perform FSAL specific tasks to release the layout */
 
-  /* Obviously, change this when real code is added */
+  if ((passed_offset > found_offset) ||
+      (passed_length < found_length))
+    Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
+    
+  if (remove_entry(ldata) != 0)
+    Return(ERR_FSAL_SERVFAULT, 0, INDEX_FSAL_layoutreturn);
 
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_getlayout);
+  if (FSALBACK_layout_remove_state(cbcookie) != 0)
+    Return(ERR_FSAL_SERVFAULT, 0, INDEX_FSAL_layoutreturn);
+  
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
 }
 
 /**
@@ -219,7 +560,7 @@ fsal_status_t CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
 
   /* Obviously, change this when real code is added */
 
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_getlayout);
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
 }
 
 /**
@@ -244,15 +585,26 @@ fsal_status_t CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t* type,
 				     fsal_deviceid_t* deviceid,
-				     char* buff,
+				     void** buff,
 				     size_t* len)
 {
-  /* Look up the data and fill the buffer.  Cast to the appropriate
-     address type. */
+  uint64_t inode, generation;
+  deviceaddrnode* entry;
 
-  /* Obviously, change this when real code is added */
+  /* Deconstruct the device ID then look it up in the table */
 
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_getlayout);
+  memcpy(&inode, deviceid, sizeof(uint64_t));
+  memcpy(&generation, deviceid+sizeof(uint64_t), sizeof(uint64_t));
+
+  if ((entry=get_entry(inode, generation))==NULL)
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
+
+  if ((*buff=Mem_Alloc(entry->entry_size)) == NULL)
+    Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdeviceinfo);
+
+  memcpy(*buff, entry->addrinfo, entry->entry_size);
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
 }
 
 /**
@@ -291,7 +643,8 @@ fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 {
   /* Populate buff with devices */
 
-  /* Obviously, change this when real code is added */
-
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_getlayout);
+  *numdevices=0;
+  *eof=true;
+  
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
 }

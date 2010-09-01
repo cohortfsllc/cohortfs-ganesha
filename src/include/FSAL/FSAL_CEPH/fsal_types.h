@@ -56,6 +56,7 @@
 #define fsal_cookie_t cephfsal_cookie_t
 #define fs_specific_initinfo_t xfsfs_specific_initinfo_t
 #define fsal_cred_t cephfsal_cred_t
+#define fsal_layoutdata_t cephfsal_layoutdata_t
 
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
@@ -124,5 +125,18 @@ typedef struct {
 } cephfsal_file_t;
 
 #define FH(file) (file->fh)
+
+#ifdef _USE_FSALMDS
+
+typedef struct __deviceaddrlink {
+  uint64_t inode;
+  uint64_t generation;
+  fsal_file_dsaddr_t* addrinfo;
+  size_t entry_size;
+} deviceaddrinfo;
+
+typedef deviceaddr* cephfsal_layoutdata_t;
+
+#endif _USE_FSALMDS
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

@@ -332,6 +332,8 @@ typedef struct cache_inode_layout__
   layoutiomode4 iomode;
   offset4 offset;
   length4 length;
+  fsal_layoutdata_t fsaldata;
+  int return_on_close;
 #else
   int nothing;
 #endif

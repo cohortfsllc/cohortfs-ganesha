@@ -290,7 +290,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 			arg_LAYOUTGET4.loga_minlength,
 			&layouts,
 			&numlayouts,
-			arg_LAYOUTGET4.loga_stateid.other,
 			&return_on_close,
 			data->pcontext,
 			(void *) &cookie);
@@ -419,8 +418,6 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
  * @param offset   [IN]    Offset of the layout to add
  * @param length   [IN]    Length of the layout to add
  * @param opaque   [IN]    A pointer, opaque to the FSAL.
- * @param stateid  [OTHER] The non-sequence portion of the stateid
- *                         associated with the layout.
  * 
  * @return Zero on success, nonzero on failure.
  *
@@ -431,8 +428,9 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
 			      fsal_layoutiomode_t iomode,
 			      fsal_off_t offset,
 			      fsal_size_t length,
-			      void* opaque,
-			      char* stateid)
+			      fsal_layoutdata_t fsaldata,
+			      int return_on_close,
+			      void* opaque)
 {
   struct lg_cbc* cbc=(struct lg_cbc*) opaque;
   cache_inode_state_type_t candidate_type;
@@ -446,6 +444,8 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
   candidate_data.layout.iomode = iomode;
   candidate_data.layout.offset = offset;
   candidate_data.layout.length = length;
+  candidate_data.layout.fsaldata = fsaldata;
+  candidate_data.layout.return_on_close = return_on_close;
   
   rc = cache_inode_add_state(cbc->current_entry,
 			     candidate_type,
@@ -455,7 +455,6 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
 			     cbc->pcontext,
 			     &file_state,
 			     &cache_status);
-  stateid=file_state->stateid_other;
   cbc->created_state=file_state;
   return (rc != CACHE_INODE_SUCCESS);
 }

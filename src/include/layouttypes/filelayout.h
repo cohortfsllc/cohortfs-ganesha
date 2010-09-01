@@ -43,7 +43,7 @@ typedef struct _fsal_dsfh
   char val[128];
 } fsal_dsfh_t;
 
-typedef struct __fiellayout
+typedef struct __filelayout
 {
   fsal_deviceid_t deviceid;
   uint32_t util;
