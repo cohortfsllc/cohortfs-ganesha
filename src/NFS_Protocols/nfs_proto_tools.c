@@ -1544,17 +1544,16 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 		   .fattr4_fs_layout_types_len);
 
 	  LastOffset+=sizeof(uint32_t);
-	  for (i=0; i <= (staticinfo.fs_layout_types
+	  for (i=0; i < (staticinfo.fs_layout_types
 			  .fattr4_fs_layout_types_len); i++)
 	    {
 	      *((layouttype4*)(attrvalsBuffer+LastOffset))
-		=(staticinfo.fs_layout_types
-		  .fattr4_fs_layout_types_val[i]);
+		=htonl((staticinfo.fs_layout_types
+			.fattr4_fs_layout_types_val[i]));
 	      LastOffset+=sizeof(layouttype4);
 	    }
 
-          op_attr_success = 1;
-#endif                                    /* _USE_FSALMDS */
+#else                                        /* _USE_FSALMDS */
 
           layout_types.fattr4_fs_layout_types_len = htonl(1);
           memcpy((char *)(attrvalsBuffer + LastOffset),
@@ -1567,10 +1566,10 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
                  layout_types.fattr4_fs_layout_types_val, sizeof(layouttype4));
           LastOffset += sizeof(layouttype4);
 
+#endif                                    /* _USE_PNFS */
           op_attr_success = 1;
           break;
-#endif                                    /* _USE_PNFS */
-
+#endif
         default:
           LogFullDebug(COMPONENT_NFS_V4, " unsupported value for attributes bitmap = %u\n", attribute_to_set);
 

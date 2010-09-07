@@ -98,10 +98,10 @@ layoutfunctions* layouttypelookup(layouttype4 type)
  *
  */
 
-int encode_lo_device(layouttype4 type,
-		     layout_content4* dest,
-		     size_t size,
-		     void* source)
+int encode_lo_content(layouttype4 type,
+		      layout_content4* dest,
+		      size_t size,
+		      void* source)
 {
   return
     ((layouttypelookup(type)->encode_layout)(type, dest, size, source));

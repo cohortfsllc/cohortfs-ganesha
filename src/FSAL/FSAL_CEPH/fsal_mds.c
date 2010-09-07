@@ -278,6 +278,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   netaddr4* hosts;
   char* stringwritepos;
   fsal_filelayout_t* fileloc;
+  off_t biggest;
   
   /* Align the layout to ceph stripe boundaries */
   
@@ -298,11 +299,17 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   
   filesize=st.st_size;
 
-  if (offset+minlength > 2*filesize)
+  /* With the address hack we're using now, we want to put a brake on
+     how large a layout someone can request */
+
+  biggest = ((2 * filesize) > (2 << 0x1e) ?
+	     (2 * filesize) : (2 << 0x1e));
+
+  if (minlength > biggest)
     Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
   
-  if (offset+length > 2*filesize)
-    length = 2*filesize - offset;
+  if (length > biggest) 
+    length = biggest;
 
   length += su - (length % su);
 

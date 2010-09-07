@@ -184,7 +184,7 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
 
   if (pstate_iterate != NULL)
     {
-      nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+      nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
       /* status = FSAL_mdscommit(&fsalh, arg_COMMIT4.offset,
 	 arg_COMMIT4.count); */
       if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)

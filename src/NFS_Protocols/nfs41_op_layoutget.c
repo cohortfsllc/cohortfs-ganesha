@@ -280,7 +280,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   cookie.pcontext=data->pcontext;
   cookie.data=data;
 
-  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
 
   status=FSAL_layoutget(&fsalh,
 			arg_LAYOUTGET4.loga_layout_type,

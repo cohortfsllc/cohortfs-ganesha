@@ -24,13 +24,13 @@ SUBDIRS = include             \
           snmp_adm            \
           MainNFSD            \
           cmdline_tools       \
-          shell               \
           cmdline_tools       \
           Docs                \
           tools               \
           config_samples      \
           check               \
 	  debian
+#          shell
 
 if USE_FSAL_FUSE
 SUBDIRS += example-fuse

@@ -40,6 +40,7 @@
 #include "fsal_internal.h"
 #include "stuff_alloc.h"
 #include "SemN.h"
+#include "nfsv41.h"
 
 #include <pthread.h>
 
@@ -85,8 +86,10 @@ static fsal_staticfsinfo_t default_hpss_info = {
   (4096 * 1024),                /* maxwrite size */
   0,                            /* default umask */
   0,                            /* don't allow cross fileset export path */
-  0400                          /* default access rights for xattrs: root=RW, owner=R */
+  0400                         /* default access rights for xattrs: root=RW, owner=R */
 };
+
+layouttype4 supportedlayouttypes[]={LAYOUT4_NFSV4_1_FILES};
 
 /*
  *  Log Descriptor
@@ -360,6 +363,8 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
 
   /* setting default values. */
   global_fs_info = default_hpss_info;
+  global_fs_info.fs_layout_types.fattr4_fs_layout_types_len=1;
+  global_fs_info.fs_layout_types.fattr4_fs_layout_types_val=supportedlayouttypes;
 
   /* Analyzing fs_common_info struct */
 
