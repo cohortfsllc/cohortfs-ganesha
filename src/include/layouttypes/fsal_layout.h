@@ -39,7 +39,7 @@ typedef offset4 fsal_layoutoffset_t;
 typedef length4 fsal_layoutlength_t;
 typedef layoutiomode4 fsal_layoutiomode_t;
 typedef void *fsal_layoutcontent_t;
-typedef void *fsal_devaaddr_t;
+typedef void *fsal_devaddr_t;
 typedef deviceid4 fsal_deviceid_t;
 typedef fattr4_fs_layout_types fsal_layout_types;
 typedef nfs_fh4 fsal_dsfh_t;

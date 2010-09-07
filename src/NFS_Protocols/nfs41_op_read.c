@@ -317,7 +317,7 @@ int nfs41_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   seek_descriptor.offset = offset;
 
 
-  if(cache_inode0_rdwr(entry,
+  if(cache_inode_rdwr(entry,
                       CACHE_CONTENT_READ,
                       &seek_descriptor,
                       size,

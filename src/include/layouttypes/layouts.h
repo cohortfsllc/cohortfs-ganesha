@@ -23,6 +23,7 @@
 
 #ifndef _LAYOUTS_H
 #include <nfsv41.h>
+#include "layouttypes/fsal_layout.h"
 
 /**
  * \file    layouts.h
@@ -36,11 +37,8 @@
 typedef struct __layoutfuncs
 {
   layouttype4 type;
-  int (*encode_layout) (layouttype4, layout_content4,
-			size_t, void*);
-  int (*encode_device) (layouttype4, device_addr4,
-			size_t, void*);
-			
+  int (*encode_layout) (layouttype4, layout_content4*, size_t, void*);
+  int (*encode_device) (layouttype4, device_addr4*, size_t, void*);
 } layoutfunctions;
 
 extern layoutfunctions layoutfuncs[];
@@ -56,6 +54,6 @@ int encode_lo_content(layouttype4 type,
 int encode_device(layouttype4 type,
 		  device_addr4* dest,
 		  size_t destsize,
-		  void* source);
+		  fsal_devaddr_t* source);
 
 #endif /* __LAYOUTS_H */

@@ -128,15 +128,8 @@ typedef struct {
 
 #ifdef _USE_FSALMDS
 
-typedef struct __deviceaddrlink {
-  uint64_t inode;
-  uint64_t generation;
-  fsal_file_dsaddr_t* addrinfo;
-  size_t entry_size;
-} deviceaddrinfo;
+typedef void* cephfsal_layoutdata_t;
 
-typedef deviceaddr* cephfsal_layoutdata_t;
-
-#endif _USE_FSALMDS
+#endif /* _USE_FSALMDS */
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

@@ -306,7 +306,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   /* Manages the stateid */
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
   memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
-         cookie.created_state->stateid_other, 12);
+         ((cache_inode_state_t*)cookie.created_state)->stateid_other, 12);
 
   /* Now the layout specific information */
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_len
@@ -413,11 +413,13 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
  * if this function fails, FSAL_layoutget is responsible for returning
  * NFS4ERR_LAYOUTTRYLATER or retrying with different parameters.
  *
- * @param type     [IN]    The layout type being added
- * @param iomode   [IN]    The IO mode for the layout
- * @param offset   [IN]    Offset of the layout to add
- * @param length   [IN]    Length of the layout to add
- * @param opaque   [IN]    A pointer, opaque to the FSAL.
+ * @param type            [IN]    The layout type being added
+ * @param iomode          [IN]    The IO mode for the layout
+ * @param offset          [IN]    Offset of the layout to add
+ * @param length          [IN]    Length of the layout to add
+ * @param fsaldata        [IN]    FSAL-specific data
+ * @param return_on_close [IN]    Return on close flag
+ * @param opaque          [IN]    A pointer, opaque to the FSAL.
  * 
  * @return Zero on success, nonzero on failure.
  *

@@ -683,7 +683,6 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 				      fsal_size_t minlength,
 				      fsal_layout_t** layouts,
 				      int *numlayouts,
-				      const char* stateid,
 				      fsal_boolean_t *return_on_close,
 				      fsal_op_context_t *context,
 				      void* cbcookie)
@@ -691,7 +690,7 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
   return CEPHFSAL_layoutget((cephfsal_handle_t *) filehandle,
 			    type, iomode, offset, length,
 			    minlength, layouts,
-			    numlayouts, stateid,
+			    numlayouts,
 			    return_on_close,
 			    (cephfsal_op_context_t *) context,
 			    cbcookie);
@@ -699,13 +698,24 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 
 fsal_status_t WRAP_CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
 					 fsal_layouttype_t type,
-					 fsal_layoutiomode_t iomode,
-					 fsal_off_t offset, fsal_size_t length,
-					 fsal_op_context_t* context)
+					 fsal_layoutiomode_t passed_iomode,
+					 fsal_off_t passed_offset,
+					 fsal_size_t passed_length,
+					 fsal_layoutiomode_t found_iomode,
+					 fsal_off_t found_offset,
+					 fsal_size_t found_length,
+					 fsal_layoutdata_t ldata,
+					 fsal_op_context_t* context,
+					 void* cbcookie)
 {
   return CEPHFSAL_layoutreturn((cephfsal_handle_t* )filehandle,
-			       type, iomode, offset, length,
-			       (cephfsal_op_context_t* )context);
+			       type, passed_iomode, passed_offset,
+			       passed_length, found_iomode,
+			       found_offset,
+			       found_length,
+			       (cephfsal_layoutdata_t) ldata,
+			       (cephfsal_op_context_t* )context,
+			       cbcookie);
 }
 
 fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
@@ -725,10 +735,9 @@ fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t WRAP_CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 					  fsal_deviceid_t id,
-					  char* buff,
-					  size_t len)
+					  char** buff)
 {
-  return CEPHFSAL_getdeviceinfo(type, id, buff, len);
+  return CEPHFSAL_getdeviceinfo(type, id, buff);
 }
 
 fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
@@ -878,6 +887,7 @@ fsal_mdsfunctions_t fsal_ceph_mdsfunctions = {
   .fsal_getdeviceinfo = WRAP_CEPHFSAL_getdeviceinfo,
   .fsal_getdevicelist = WRAP_CEPHFSAL_getdevicelist
 };
+#endif
 
 #ifdef _USE_FSALDS
 fsal_dsfunctions_t fsal_ceph_dsfunctions = {
@@ -898,12 +908,16 @@ fsal_const_t FSAL_GetConsts(void)
   return fsal_ceph_consts;
 }                               /* FSAL_GetConsts */
 
+#ifdef _USE_FSALMDS
 fsal_mdsfunctions_t FSAL_GetMDSFunctions(void)
 {
   return fsal_ceph_mdsfunctions;
 }
+#endif /* _USE_FSALMDS */
 
-fsal_mdsfunctions_t FSAL_GetDSFunctions(void)
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t FSAL_GetDSFunctions(void)
 {
   return fsal_ceph_dsfunctions;
 }
+#endif /* _USE_FSALDS */

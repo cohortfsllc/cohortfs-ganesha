@@ -239,20 +239,19 @@ AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 
 # FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
 GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
-PNFS_LIB=""
 if test "$enable_fsalmds" == "yes"; then
 	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
 	FSALMDS_LIB="\$(top_builddir)/NFS_Protocols/layouttypes/liblayouttypes.la"
 fi
-AM_CONDITIONAL(USE_FSALMDS, test "$enable_fsalmds" = "yes")
+AM_CONDITIONAL(USE_FSALMDS, test "x$enable_fsalmds" = "xyes")
 
 # FSAL based pNFS DS support (requires NFSv4.1, conflicts with DS)
 GA_ENABLE_AM_CONDITION([fsalds],[enable FSAL-based pNFS DS support (NFSv4.1 support is mandatory)],[USE_FSALDS])
 PNFS_LIB=""
-if test "$enable_fsalmds" == "yes"; then
+if test "$enable_fsalds" == "yes"; then
 	AC_DEFINE(_USE_FSALDS,1,[enable FSAL based pNFS DS support])
 fi
-AM_CONDITIONAL(USE_FSALDS, test "$enable_fsalds" = "yes")
+AM_CONDITIONAL(USE_FSALDS, test "x$enable_fsalds" = "xyes")
 
 # TI-RPC
 GA_ENABLE_AM_CONDITION([tirpc],[enable TIRPC support],[USE_TIRPC])
@@ -507,7 +506,7 @@ case $FSAL in
 		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports CEPH Filesystem])
  		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing ceph include files)])
 		FSAL_CFLAGS=
-                FSAL_LDFLAGS=
+                FSAL_LDFLAGS=-lceph
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
 		FS_NAME="ceph"
 		;;
@@ -749,6 +748,7 @@ AC_CONFIG_FILES([include/Makefile
 		 FSAL/FSAL_FUSELIKE/Makefile
 		 FSAL/FSAL_LUSTRE/Makefile
 		 FSAL/FSAL_XFS/Makefile
+		 FSAL/FSAL_CEPH/Makefile
 		 FSAL/FSAL_GPFS/Makefile
                  FSAL/FSAL_ZFS/Makefile
 		 FSAL/FSAL_TEMPLATE/Makefile

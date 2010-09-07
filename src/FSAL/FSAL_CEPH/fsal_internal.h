@@ -449,7 +449,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 fsal_size_t minlength,
 				 fsal_layout_t** layouts,
 				 int *numlayouts,
-				 const char* stateid,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
 				 void* cbcookie);
@@ -457,10 +456,15 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t iomode,
-				    fsal_off_t offset, fsal_size_t length,
-				    cephfsal_op_context_t* context);
-
+				    fsal_layoutiomode_t passed_iomode,
+				    fsal_off_t passed_offset,
+				    fsal_size_t passed_length,
+				    fsal_size_t found_iomode,
+				    fsal_off_t found_offset,
+				    fsal_size_t found_length,
+				    cephfsal_layoutdata_t ldata,
+				    fsal_op_context_t* context,
+				    void* cbcookie);
 
 fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
@@ -475,8 +479,7 @@ fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 				     fsal_deviceid_t id,
-				     char* buff,
-				     size_t len);
+				     char** buff);
 
 fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,

@@ -840,17 +840,21 @@ fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_size_t minlength,
 			     fsal_layout_t** layouts,
 			     int* numlayouts,
-			     const char* stateid,
 			     fsal_boolean_t* return_on_close,
 			     fsal_op_context_t* context,
 			     void* cbcookie);
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
-				fsal_layoutiomode_t iomode,
-				fsal_off_t offset,
-				fsal_size_t length,
-				fsal_op_context_t* context);
+				fsal_layoutiomode_t passed_iomode,
+				fsal_off_t passed_offset,
+				fsal_size_t passed_length,
+				fsal_layoutiomode_t found_iomode,
+				fsal_off_t found_offset,
+				fsal_size_t found_length,
+				fsal_layoutdata_t ldata,
+				fsal_op_context_t* context,
+				void* cbcookie);
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
@@ -865,8 +869,7 @@ fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
 				 fsal_deviceid_t deviceid,
-				 char* buff,
-				 size_t len);
+				 char** buff);
 
 fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 				 fsal_layouttype_t type,
@@ -1388,24 +1391,28 @@ typedef struct fsal_functions__
 #ifdef _USE_FSALMDS
 typedef struct __fsal_mdsfunctions
 {
-  fsal_status_t (*fsal_layoutget)(fsal_handle_t*,
-				  fsal_layouttype_t,
-				  fsal_layoutiomode_t,
-				  fsal_off_t,
-				  fsal_size_t,
-				  fsal_size_t,
-				  fsal_layout_t**,
-				  int*,
-				  const char*,
-				  fsal_boolean_t*,
-				  fsal_op_context_t*,
-				  void*);
+  fsal_status_t (*fsal_layoutget)(fsal_handle_t* filehandle,
+				  fsal_layouttype_t type,
+				  fsal_layoutiomode_t iomode,
+				  fsal_off_t offset,
+				  fsal_size_t length,
+				  fsal_size_t minlength,
+				  fsal_layout_t** layouts,
+				  int* numlayouts,
+				  fsal_boolean_t* return_on_close,
+				  fsal_op_context_t* context,
+				  void* cbcookie);
   fsal_status_t (*fsal_layoutreturn)(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,
-				     fsal_layoutiomode_t iomode,
-				     fsal_off_t offset,
-				     fsal_size_t length,
-				     fsal_op_context_t* context);
+				     fsal_layoutiomode_t passed_iomode,
+				     fsal_off_t passed_offset,
+				     fsal_size_t passed_length,
+				     fsal_layoutiomode_t found_iomode,
+				     fsal_off_t found_offset,
+				     fsal_size_t found_length,
+				     fsal_layoutdata_t ldata,
+				     fsal_op_context_t* context,
+				     void* cbcookie);
   fsal_status_t (*fsal_layoutcommit)(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,
 				     char* layout,
@@ -1415,44 +1422,43 @@ typedef struct __fsal_mdsfunctions
 				     fsal_off_t* newoff,
 				     fsal_boolean_t* changed,
 				     fsal_time_t* newtime);
-  fsal_status_t (*fsal_getdeviceinfo)(fsal_layouttype_t,
-				      fsal_deviceid_t,
-				      char*,
-				      size_t);
-  fsal_status_t (*fsal_getdevicelist)(fsal_handle_t*,
-				      fsal_layouttype_t,
-				      int*,
-				      uint64_t*,
-				      fsal_boolean_t*,
-				      void*,
-				      size_t*);
-  
+  fsal_status_t (*fsal_getdeviceinfo)(fsal_layouttype_t layouttype, 
+				      fsal_deviceid_t deviceid,
+				      char** buff);
+  fsal_status_t (*fsal_getdevicelist)(fsal_handle_t* filehandle,
+				      fsal_layouttype_t type,
+				      int* numdevices,
+				      uint64_t* cookie,
+				      fsal_boolean_t* eof,
+				      void* buff,
+				      size_t* bufflen);
 } fsal_mdsfunctions_t;
 #endif /* _USE_FSALMDS */
 
 #ifdef _USE_FSALDS
 typedef struct __fsal_dsfunctions
 {
-  fsal_status_t fsal_ds_read(fsal_handle_t * filehandle,     /*  IN  */
-			     fsal_seek_t * seek_descriptor,  /* [IN] */
-			     fsal_size_t buffer_size,        /*  IN  */
-			     caddr_t buffer,                 /* OUT  */
-			     fsal_size_t * read_amount,      /* OUT  */
-			     fsal_boolean_t * end_of_file    /* OUT  */
+  fsal_status_t (*fsal_ds_read)(fsal_handle_t * filehandle,     /*  IN  */
+				fsal_seek_t * seek_descriptor,  /* [IN] */
+				fsal_size_t buffer_size,        /*  IN  */
+				caddr_t buffer,                 /* OUT  */
+				fsal_size_t * read_amount,      /* OUT  */
+				fsal_boolean_t * end_of_file    /* OUT  */
       );
 
-  fsal_status_t FSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
-			      fsal_seek_t * seek_descriptor,   /* IN */
-			      fsal_size_t buffer_size,         /* IN */
-			      caddr_t buffer,                  /* IN */
-			      fsal_size_t * write_amount,      /* OUT */
-			      fsal_boolean_t stable_flag       /* IN */
+  fsal_status_t (*fsal_ds_write)(fsal_handle_t * filehandle,      /* IN */
+				 fsal_seek_t * seek_descriptor,   /* IN */
+				 fsal_size_t buffer_size,         /* IN */
+				 caddr_t buffer,                  /* IN */
+				 fsal_size_t * write_amount,      /* OUT */
+				 fsal_boolean_t stable_flag       /* IN */
       );
 
-  fsal_status_t FSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
-			       fsal_off_t offset,
-			       fsal_size_t length
+  fsal_status_t (*fsal_ds_commit)(fsal_handle_t * filehandle,     /* IN */
+				  fsal_off_t offset,              /* IN */
+				  fsal_size_t length              /* IN */
       );
+
 } fsal_dsfunctions_t;
 #endif /* _USE_FSALDS */
 
@@ -1477,6 +1483,16 @@ void FSAL_LoadFunctions(void);
 
 fsal_const_t FSAL_GetConsts(void);
 void FSAL_LoadConsts(void);
+
+#ifdef _USE_FSALMDS
+fsal_mdsfunctions_t FSAL_GetMDSFunctions(void);
+void FSAL_LoadMDSFunctions(void);
+#endif
+
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t FSAL_GetDSFunctions();
+void FSAL_LoadDSFunctions(void);
+#endif
 
 #endif                          /* ! _USE_SWIG */
 
@@ -1503,12 +1519,14 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
 			      fsal_layoutiomode_t iomode,
 			      fsal_off_t offset,
 			      fsal_size_t length,
+			      fsal_layoutdata_t fsaldata,
+			      int return_on_close,
 			      void* opaque);
 			      
 
 
 int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
 			 void* cookie);
-int FSALBACK_layout_remove_state(void* opaque)
+int FSALBACK_layout_remove_state(void* opaque);
 
 #endif                          /* _FSAL_H */

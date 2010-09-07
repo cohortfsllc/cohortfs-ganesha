@@ -30,37 +30,44 @@
  *
  */
 
+#include "nfsv41.h"
+#include "nfs23.h"
+#include "fsal_types.h"
+#include "nfs_exports.h"
+#include "nfs_file_handle.h"
 #include <rpc/xdr.h>
+#include "fsal.h"
 #include "layouttypes/fsal_layout.h"
 #include "layouttypes/filelayout.h"
 
 bool_t xdr_fsal_dsfh_t(XDR* xdrs, fsal_dsfh_t* fh)
 {
-  return (xdr_opaque(xdrs, fh->len, fh->val));
+  return (xdr_opaque(xdrs, (caddr_t) fh->nfs_fh4_val,
+		     fh->nfs_fh4_len));
 }
 
 int encodefileslayout(layouttype4 type,
 		      layout_content4* dest,
 		      size_t size,
-		      fsal_layout_content* source)
+		      fsal_layoutcontent_t* source)
 {
-  fsal_file_layout_t* lsrc=(fsal_file_layout_t*)source;
+  fsal_filelayout_t* lsrc=(fsal_filelayout_t*)source;
   XDR xdrs;
   unsigned int beginning;
   
   dest->loc_type=type;
   xdrmem_create(&xdrs, dest->loc_body.loc_body_val, size, XDR_ENCODE);
   beginning=xdr_getpos(&xdrs);
-  if (!xdr_deviceid4(&xdrs, &lsrc->deviceid))
+  if (!xdr_deviceid4(&xdrs, lsrc->deviceid))
     return FALSE;
-  if (!(xdr_u_long(&xdrs, &lsrc->util)))
+  if (!(xdr_u_long(&xdrs, (u_long*) &lsrc->util)))
     return FALSE;
-  if (!(xdr_u_long(&xdrs, &lsrc->first_strike_index)))
+  if (!(xdr_u_long(&xdrs, (u_long*) &(lsrc->first_stripe_index))))
     return FALSE;
   if (!(xdr_offset4(&xdrs, &lsrc->pattern_offset)))
     return FALSE;
-  if (!(xdr_array(&xdrs, &lsrc->fhs, &lsrc->fhn, UINT32_MAX,
-		  sizeof(fsal_dsfh_t), xdr_fsal_dsfh_t)))
+  if (!(xdr_array(&xdrs, (char**) &lsrc->fhs, &lsrc->fhn, UINT32_MAX,
+		  sizeof(fsal_dsfh_t), (xdrproc_t) xdr_fsal_dsfh_t)))
     return FALSE;
   dest->loc_body.loc_body_len=beginning-xdr_getpos(&xdrs);
   xdr_destroy(&xdrs);
@@ -70,14 +77,14 @@ int encodefileslayout(layouttype4 type,
 int encodefilesdevice(layouttype4 type,
 		      device_addr4* dest,
 		      size_t destsize,
-		      fsal_device_addr_t source)
+		      fsal_devaddr_t source)
 {
-  fsal_file_dsaddr_t* lsrc=(fsal_file_dsaddr_t*)source;
+  fsal_file_dsaddr_t* lsrc=(fsal_file_dsaddr_t*) source;
   XDR xdrs;
   unsigned int beginning;
 
   dest->da_layout_type=type;
-  xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, size, XDR_ENCODE);
+  xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, destsize, XDR_ENCODE);
   beginning=xdr_getpos(&xdrs);
   if (!(xdr_nfsv4_1_file_layout_ds_addr4(&xdrs, lsrc)))
     return FALSE;
@@ -86,33 +93,3 @@ int encodefilesdevice(layouttype4 type,
   return TRUE;
 }
 
-/**
- *
- * FSALBACK_fh2dshandle: converts an FSAL file handle to a DS handle
- *
- * Converts an FSAL file handle to a DS handle
- *
- * @param fhin   [IN]  pointer to FSAL file handle
- * @param fhout  [OUT] pointer to DS filehandle to write
- * @param cookie [IN]  cookie passed to layoutget
- *
- * @return 1 if successful, 0 otherwise
- *
- */
-
-int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
-			 void* cookie)
-{
-  struct lg_cbc cbc=(struct lg_cbc* cookie);
-  nfs_fh4 fhk;
-  int rc;
-  file_handle_v4_t* fhs;
-
-  fhk.nfs_fh4_val=fhout->val;
-  
-  rc=nfs4_FSALToFhandle(&fhk, fhin, (compound_data_t*) cbc->data);
-  fhout->len=fhk->nfs_fh4_len;
-  fhs=fhout->val;
-  fhs->ds_flag=1;
-  return rc;
-}

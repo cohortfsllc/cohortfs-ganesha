@@ -240,7 +240,8 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTCOMMIT4.locr_status;
     }
 
-  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
+
   status=FSAL_layoutcommit(&fsalh,
 			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
 			    .lou_type),
@@ -252,8 +253,9 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 			   arg_LAYOUTCOMMIT4.loca_length,
 			   &last_write,
 			   &size_changed,
-			   (arg_LAYOUTCOMMIT4.loca_time_modify
-			    .nt_timechanged) ? &last_time : NULL);
+			   (struct fsal_time_t*)
+			   ((arg_LAYOUTCOMMIT4.loca_time_modify
+			     .nt_timechanged) ? &last_time : NULL));
 
   if (FSAL_IS_ERROR(status))
     {

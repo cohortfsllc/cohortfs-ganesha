@@ -101,12 +101,12 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
   fsal_attrib_list_t attr;
   cache_inode_status_t cache_status;
 
-#ifdef _FSAL_USEMDS
+#ifdef _USE_FSALMDS
   cache_inode_state_t *pstate_iterate;
   cache_inode_state_t *pstate_previous_iterate;
   fsal_status_t status;
   fsal_handle_t fsalh;
-#endif _FSAL_USEMDS
+#endif /* _USE_FSALMDS */
 
   /* for the moment, read/write are not done asynchronously, no commit is necessary */
   resp->resop = NFS4_OP_COMMIT;
@@ -185,7 +185,8 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
   if (pstate_iterate != NULL)
     {
       nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
-      status = FSAL_mdscommit(&fsalh, arg_COMMIT4.offset, arg_COMMIT4.count);
+      /* status = FSAL_mdscommit(&fsalh, arg_COMMIT4.offset,
+	 arg_COMMIT4.count); */
       if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
 	{
 	  res_COMMIT4.status = nfs4_Errno(cache_status);
@@ -229,7 +230,7 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
 }                               /* nfs4_op_commit */
 
 /**
- * nfs4_op_commit_Free: frees what was allocared to handle nfs4_op_commit.
+ * nfs41_op_commit_Free: frees what was allocared to handle nfs4_op_commit.
  * 
  * Frees what was allocared to handle nfs4_op_commit.
  *
@@ -238,7 +239,7 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
  * @return nothing (void function )
  * 
  */
-void nfs4_op_commit_Free(COMMIT4res * resp)
+void nfs41_op_commit_Free(COMMIT4res * resp)
 {
   /* Nothing to be done */
   return;

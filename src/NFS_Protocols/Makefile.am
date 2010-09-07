@@ -1,6 +1,7 @@
 AM_CFLAGS                     = $(FSAL_CFLAGS) $(SEC_CFLAGS)
 
-SUBDIRS = PNFS
+SUBDIRS = PNFS \
+          layouttypes
 
 noinst_LTLIBRARIES            = libnfsproto.la
 

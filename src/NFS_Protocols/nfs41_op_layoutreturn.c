@@ -432,14 +432,13 @@ int FSALBACK_layout_remove_state(void* opaque)
 {
   struct lg_cbc* cbc=(struct lg_cbc*) opaque;
 
-  cache_inode_state_t state = cbc->passed_state;
+  cache_inode_state_t* state = cbc->passed_state;
   cache_inode_status_t status;
-  int rc;
 
-  rc = cache_inode_del_state(cbc->passed_state,
+  cache_inode_del_state(cbc->passed_state,
 			     cbc->pclient,
-			     &pstatus);
+			     &status);
   
-  return (rc != CACHE_INODE_SUCCESS);
+  return (status != CACHE_INODE_SUCCESS);
 }
 #endif                          /* _USE_FSALMDS */

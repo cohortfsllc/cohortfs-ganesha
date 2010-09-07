@@ -712,7 +712,6 @@ fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_size_t minlength,
 			     fsal_layout_t** layouts,
 			     int *numlayouts,
-			     const char* stateid,
 			     fsal_boolean_t *return_on_close,
 			     fsal_op_context_t *context,
 			     void* cbcookie)
@@ -720,19 +719,31 @@ fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
   return fsal_mdsfunctions.fsal_layoutget(filehandle, type, iomode,
 					  offset, length, minlength,
 					  layouts, numlayouts,
-					  stateid, return_on_close,
+					  return_on_close,
 					  context, cbcookie);
 }
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
-				fsal_layoutiomode_t iomode,
-				fsal_off_t offset, fsal_size_t length,
-				fsal_op_context_t* context)
+				fsal_layoutiomode_t passed_iomode,
+				fsal_off_t passed_offset,
+				fsal_size_t passed_length,
+				fsal_layoutiomode_t found_iomode,
+				fsal_off_t found_offset,
+				fsal_size_t found_length,
+				fsal_layoutdata_t ldata,
+				fsal_op_context_t* context,
+				void* cbcookie)
 {
   return fsal_mdsfunctions.fsal_layoutreturn(filehandle,
-					     type, iomode, offset, length,
-					     context);
+					     type, passed_iomode,
+					     passed_offset,
+					     passed_length,
+					     found_iomode,
+					     found_offset,
+					     found_length,
+					     ldata, context,
+					     cbcookie);
 }
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
@@ -752,14 +763,13 @@ fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 }
 
 fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
-				 fsal_deviceid_t* id,
-				 char* buff,
-				 size_t len)
+				 fsal_deviceid_t id,
+				 char** buff)
 {
-  return fsal_mdsfunctions.fsal_getdeviceinfo(type, id, buff, len);
+  return fsal_mdsfunctions.fsal_getdeviceinfo(type, id, buff);
 }
 
-fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
+fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 					  fsal_layouttype_t type,
 					  int *numdevices,
 					  uint64_t *cookie,
@@ -899,12 +909,5 @@ void FSAL_LoadDSFunctions(void)
   fsal_dsfunctions = FSAL_GetDSFunctions();
 }
 #endif
-
-void FSAL_LoadConsts(void)
-{
-  fsal_consts = (*getconsts) ();
-}
-
-#else
 
 #endif

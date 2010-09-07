@@ -37,11 +37,14 @@
 
 typedef nfsv4_1_file_layout_ds_addr4 fsal_file_dsaddr_t;
 
-typedef struct _fsal_dsfh
-{
-  uint32_t len;
-  char val[128];
-} fsal_dsfh_t;
+typedef struct __deviceaddrlink {
+  uint64_t inode;
+  uint64_t generation;
+  fsal_file_dsaddr_t* addrinfo;
+  size_t entry_size;
+  struct __deviceaddrlink* next;
+} deviceaddrinfo;
+
 
 typedef struct __filelayout
 {
@@ -53,7 +56,4 @@ typedef struct __filelayout
   fsal_dsfh_t* fhs;
 } fsal_filelayout_t;
 
-void FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsaldsfh_t fhout,
-			  void* cookie);
-  
 #endif /* __FILELAYOUT_H */

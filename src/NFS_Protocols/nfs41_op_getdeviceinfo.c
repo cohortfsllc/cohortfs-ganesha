@@ -100,6 +100,14 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   resp->resop = NFS4_OP_GETDEVICEINFO;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+    {
+      res_GETDEVICEINFO4.status = NFS4ERR_NOTSUPP;
+      return res_GETDEVICEINFO4.status;
+    }
+#endif /* _USE_FSALDS */
+
 #if !(defined(_USE_PNFS) || defined(_USE_FSALMDS))
   res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
   return res_GETDEVICEINFO4.gdir_status;
@@ -112,14 +120,6 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
       res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
       return res_GETDEVICEINFO4.gdir_status;
     }
-
-#ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
-    {
-      res_GETDEVICEINFO4.status = NFS4ERR_NOTSUPP;
-      return res_GETDEVICEINFO4.status;
-    }
-#endif /* _USE_FSALDS */
 
   /** @todo handle multiple DS here when this will be implemented (switch on deviceid arg) */
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_len = 0;
@@ -146,12 +146,6 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   memcpy(deviceid, arg_GETDEVICEINFO4.gdia_device_id, 16);
 
-  if((buff = Mem_Alloc(1024)) == NULL)
-    {
-      res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
-      return res_GETDEVICEINFO4.gdir_status;
-    }
-
   if((xdrbuff = Mem_Alloc(1024)) == NULL)
     {
       res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
@@ -160,8 +154,7 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   status = FSAL_getdeviceinfo(arg_GETDEVICEINFO4.gdia_layout_type,
 			      deviceid,
-			      buff,
-			      lenbuff);
+			      &buff);
 
   if (FSAL_IS_ERROR(status))
     {
@@ -171,8 +164,8 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
       return res_GETDEVICEINFO4.gdir_status;
     }
 
-  fsalmds_encode_devinceinfo(arg_GETDEVICEINFO4.gdia_layout_type,
-			     xdrbuff, buff, &lenbuff);
+  encode_device(arg_GETDEVICEINFO4.gdia_layout_type,
+		xdrbuff, buff, &lenbuff);
 
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_len = 0;
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_val = NULL;

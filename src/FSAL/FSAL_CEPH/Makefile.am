@@ -36,17 +36,18 @@ libfsalceph_la_SOURCES = fsal_access.c  \
 			fsal_internal.h \
                         fsal_convert.h  \
                         fsal_xattrs.c   \
-IF _USE_FSALMDS
-                        fsal_mds.c      \
-ENDIF
-IF _USE_FSALDS
-                        fsal_ds.c       \
-ENDIF
                         fsal_quota.c    \
                         ../../include/fsal.h            \
                         ../../include/fsal_types.h      \
                         ../../include/err_fsal.h        \
                         ../../include/FSAL/FSAL_CEPH/fsal_types.h
+if USE_FSALMDS
+libfsalceph_la_SOURCES += fsal_mds.c
+endif
+
+if USE_FSALDS
+libfsalceph_la_SOURCES += fsal_ds.c
+endif
 
 new: clean all
 

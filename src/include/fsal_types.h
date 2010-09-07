@@ -131,10 +131,14 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_getlock	        49
 #define INDEX_FSAL_CleanUpExportContext 50
 #define INDEX_FSAL_getextattrs          51
-#define INDEX_FSAL_getlayout            52
+#define INDEX_FSAL_layoutget            52
+#define INDEX_FSAL_layoutreturn         53
+#define INDEX_FSAL_layoutcommit         54
+#define INDEX_FSAL_getdeviceinfo        55
+#define INDEX_FSAL_getdevicelist        56
 
 /* number of FSAL functions */
-#define FSAL_NB_FUNC  53
+#define FSAL_NB_FUNC  57
 
 static const char *fsal_function_names[] = {
   "FSAL_lookup", "FSAL_access", "FSAL_create", "FSAL_mkdir", "FSAL_truncate",

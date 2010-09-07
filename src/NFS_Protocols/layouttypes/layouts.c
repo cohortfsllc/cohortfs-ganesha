@@ -30,6 +30,9 @@
  *
  */
 
+#include "layouttypes/layouts.h"
+#include "layouttypes/fsal_layout.h"
+
 /**
  *
  * layoutfuncs: Array of layoutfunctions structures, providing
@@ -38,8 +41,20 @@
  *
  */
 
+int encodefileslayout(layouttype4 type,
+		      layout_content4* dest,
+		      size_t size,
+		      void* source);
+
+int encodefilesdevice(layouttype4 type,
+		      device_addr4* dest,
+		      size_t destsize,
+		      void* source);
+
 layoutfunctions layoutfuncs[]={
-  {LAYOUT4_NFSV4_1_FILES, encodefileslayout, encodefilesdevice},
+  {LAYOUT4_NFSV4_1_FILES,
+   encodefileslayout,
+   encodefilesdevice},
   {0, NULL, NULL}};
 
 /**
@@ -62,7 +77,7 @@ layoutfunctions* layouttypelookup(layouttype4 type)
       if (index->type == type)
 	{
 	  result=index;
-	  break
+	  break;
 	}
     }
   return result;
@@ -86,10 +101,10 @@ layoutfunctions* layouttypelookup(layouttype4 type)
 int encode_lo_device(layouttype4 type,
 		     layout_content4* dest,
 		     size_t size,
-		     fsal_layout_content* source)
+		     void* source)
 {
   return
-    (*(layouttypelookup(type)->encode_layout)(type, dest, size, source));
+    ((layouttypelookup(type)->encode_layout)(type, dest, size, source));
 }
 
 /**
@@ -112,9 +127,7 @@ int encode_lo_device(layouttype4 type,
 int encode_device(layouttype4 type,
 		  device_addr4* dest,
 		  size_t destsize,
-		  fsal_device_addr_t* source,
-		  size_t srcsize)
+		  fsal_devaddr_t* source)
 {
-  return (*(layouttypelookup(type)
-	    ->encode_device)(type, dest, destsize, source));
+  return ((layouttypelookup(type)->encode_device)(type, dest, destsize, source));
 }
