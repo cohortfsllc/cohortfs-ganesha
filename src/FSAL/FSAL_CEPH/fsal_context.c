@@ -60,6 +60,12 @@ fsal_status_t CEPHFSAL_BuildExportContext(cephfsal_export_context_t * p_export_c
 					  char *fs_specific_options /* IN */
     )
 {
+  char *argv[2];
+  int argc=1;
+  int rc;
+
+  char procname[]="FSAL_CEPH";
+
   if((fs_specific_options != NULL) && (fs_specific_options[0] != '\0'))
     {
       DisplayLog
@@ -76,8 +82,21 @@ fsal_status_t CEPHFSAL_BuildExportContext(cephfsal_export_context_t * p_export_c
     Return(ERR_FSAL_NAMETOOLONG, 0, INDEX_FSAL_BuildExportContext);
   }
 
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_BuildExportContext);
+  /* This sucks, do something better */
 
+  argv[0]=procname;
+  argv[1]=p_export_context->mount;
+
+  if (rc=ceph_initialize(argc, (const char **)argv)) {
+    Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_InitClientContext);
+  }
+
+  if (ceph_mount()) {
+    Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_InitClientContext);
+  }
+
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_BuildExportContext);
 }
 
 /**
@@ -90,6 +109,13 @@ fsal_status_t CEPHFSAL_BuildExportContext(cephfsal_export_context_t * p_export_c
 
 fsal_status_t CEPHFSAL_CleanUpExportContext(cephfsal_export_context_t * p_export_context) 
 {
+  if (ceph_umount()) {
+    Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_InitClientContext);
+  }
+
+
+  ceph_deinitialize();
+
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_CleanUpExportContext);
 }
 
@@ -144,11 +170,6 @@ fsal_status_t CEPHFSAL_GetClientContext(cephfsal_op_context_t * p_thr_context,  
   fsal_status_t st;
   fsal_count_t ng = nb_alt_groups;
   unsigned int i;
-  int rc;
-  char *argv[2];
-  int argc=1;
-
-  char procname[]="FSAL_CEPH";
 
   /* sanity check */
   if(!p_thr_context || !p_export_context)
@@ -179,19 +200,6 @@ fsal_status_t CEPHFSAL_GetClientContext(cephfsal_op_context_t * p_thr_context,  
     DisplayLogJdLevel(fsal_log, NIV_FULL_DEBUG, "\tAlt grp: %d",
                       p_thr_context->credential.alt_groups[i]);
 #endif
-
-  /* This sucks, do something better */
-
-  argv[0]=procname;
-  argv[1]=p_export_context->mount;
-
-  if (rc=ceph_initialize(argc, (const char **)argv)) {
-    Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_InitClientContext);
-  }
-
-  if (ceph_mount()) {
-    Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_InitClientContext);
-  }
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_GetClientContext);
 
