@@ -142,10 +142,10 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
-      res_LAYOUTGET4.status = NFS4ERR_NOTSUPP;
-      return res_LAYOUTGET4.status;
+      res_LAYOUTGET4.logr_status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTGET4.logr_status;
     }
 #endif /* _USE_FSALDS */
 
@@ -311,38 +311,10 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   /* Now the layout specific information */
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_len
     = numlayouts;
-  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val =
-      (layout4 *) Mem_Alloc(sizeof(layout4)*numlayouts);
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val
+    = layouts;
 
-  for (i=0; i < numlayouts; i++)
-    {
-      res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[i].lo_offset =
-	layouts[i].offset;
-      res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[i].lo_length =
-	layouts[i].length;
-      res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[0].lo_iomode =
-	layouts[i].iomode;
-      if(((res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4
-	   .logr_layout.logr_layout_val[i]
-	   .lo_content.loc_body.loc_body_val) = Mem_Alloc(1024)) == NULL)
-	{
-	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
-	  return res_LAYOUTGET4.logr_status;
-	}
-      if (!(encode_lo_content(arg_LAYOUTGET4.loga_layout_type,
-			      &(res_LAYOUTGET4.LAYOUTGET4res_u
-				.logr_resok4.logr_layout.logr_layout_val[i]
-				.lo_content),
-			      1024,
-			      layouts[i].content)))
-	{
-	  Mem_Free((char*)layouts);
-	  res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
-	  return res_LAYOUTGET4.logr_status;
-	}
-    }
   res_LAYOUTGET4.logr_status = NFS4_OK;
-  Mem_Free((char *)layouts);
   return res_LAYOUTGET4.logr_status;
 #endif                          /* _USE_FSALMDS */
 #endif
@@ -372,26 +344,7 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
   return;
 #elif defined(_USE_FSALMDS)
   if (resp->logr_status == NFS4_OK)
-    {
-      int i;
-      for(i=0;
-	  i < (resp->LAYOUTGET4res_u.logr_resok4
-	       .logr_layout.logr_layout_len);
-	  i++)
-	{
-	  if ((resp->LAYOUTGET4res_u.logr_resok4
-	       .logr_layout.logr_layout_val[i]
-	       .lo_content.loc_body.loc_body_val)
-	      != NULL)
-	    {
-	      Mem_Free((char *) (resp->LAYOUTGET4res_u.logr_resok4
-				 .logr_layout.logr_layout_val[i]
-				 .lo_content.loc_body.loc_body_val));
-	      (resp->LAYOUTGET4res_u.logr_resok4.logr_layout
-	       .logr_layout_val[i].lo_content.loc_body.loc_body_val)=NULL;
-	    }
-	}
-    }
+    Mem_Free(resp->LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val);
 #endif                          /* _USE_FSALMDS */
 }                               /* nfs41_op_layoutget_Free */
 

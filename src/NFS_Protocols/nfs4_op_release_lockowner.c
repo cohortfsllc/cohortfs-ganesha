@@ -95,7 +95,7 @@ int nfs4_op_release_lockowner(struct nfs_argop4 *op,
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_lock";
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_RELEASE_LOCKOWNER4.status = NFS4ERR_NOTSUPP;
       return res_RELEASE_LOCKOWNER4.status;

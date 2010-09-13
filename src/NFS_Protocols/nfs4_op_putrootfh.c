@@ -98,14 +98,6 @@ int CreateROOTFH4(nfs_fh4 * fh, compound_data_t * data)
 
   psfsentry = *(data->pseudofs->reverse_tab[0]);
 
-#ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
-    {
-      res_PUTROOTFH4.status = NFS4ERR_NOTSUPP;
-      return res_PUTROOTFH4.status;
-    }
-#endif /* _USE_FSALDS */
-
   if((status = nfs4_AllocateFH(&(data->rootFH))) != NFS4_OK)
     return status;
 
@@ -155,6 +147,7 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op,
 
   resp->resop = NFS4_OP_PUTROOTFH;
   resp->nfs_resop4_u.opputrootfh.status = NFS4_OK;
+
 
   if((error = CreateROOTFH4(&(data->rootFH), data)) != NFS4_OK)
     {

@@ -754,7 +754,7 @@ fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 }
 #endif /* _USE_FSALMDS */
 
-#ifdef _USE_SALMDS
+#ifdef _USE_FSALDS
 fsal_status_t WRAP_CEPHFSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
 				    fsal_seek_t * seek_descriptor,  /* [IN] */
 				    fsal_size_t buffer_size,        /*  IN  */

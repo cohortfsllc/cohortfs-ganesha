@@ -136,9 +136,12 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_layoutcommit         54
 #define INDEX_FSAL_getdeviceinfo        55
 #define INDEX_FSAL_getdevicelist        56
+#define INDEX_FSAL_ds_read              57
+#define INDEX_FSAL_ds_write             58
+#define INDEX_FSAL_ds_commit            59
 
 /* number of FSAL functions */
-#define FSAL_NB_FUNC  57
+#define FSAL_NB_FUNC  60
 
 static const char *fsal_function_names[] = {
   "FSAL_lookup", "FSAL_access", "FSAL_create", "FSAL_mkdir", "FSAL_truncate",
@@ -152,8 +155,11 @@ static const char *fsal_function_names[] = {
   "FSAL_rmdir", "FSAL_CleanObjectResources", "FSAL_open_by_name", "FSAL_open_by_fileid",
   "FSAL_ListXAttrs", "FSAL_GetXAttrValue", "FSAL_SetXAttrValue", "FSAL_GetXAttrAttrs",
   "FSAL_close_by_fileid", "FSAL_setattr_access", "FSAL_merge_attrs", "FSAL_rename_access",
-  "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access", "FSAL_getlock", "FSAL_CleanUpExportContext",
-  "FSAL_getextattrs"
+  "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access",
+  "FSAL_getlock", "FSAL_CleanUpExportContext", "FSAL_getextattrs",
+  "FSAL_layoutget", "FSAL_layoutreturn", "FSAL_layoutcommit", "FSAL_getdeviceinfo",
+  "FSAL_getdevicelist", "FSAL_ds_read", "FSAL_ds_write",
+  "FSAL_ds_commit"
 };
 
 typedef unsigned long long fsal_u64_t;    /**< 64 bit unsigned integer.     */

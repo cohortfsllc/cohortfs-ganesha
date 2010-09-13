@@ -162,7 +162,7 @@ int nfs41_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
 #ifdef _USE_FSALDS
 
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       return(op_dswrite(op, data, resp));
     }
@@ -382,12 +382,14 @@ void nfs41_op_write_Free(WRITE4res * resp)
 
 #ifdef _USE_FSALDS
 
-int op_dsread(struct nfs_argop4 *op,
-	      compound_data_t * data,
-	      struct nfs_resop4 *resp)
+int op_dswrite(struct nfs_argop4 *op,
+	       compound_data_t * data,
+	       struct nfs_resop4 *resp)
 
 {
   fsal_seek_t seek_descriptor;
+  fsal_off_t offset;
+  fsal_size_t length;
   caddr_t bufferdata;
   fsal_handle_t fsalh;
   fsal_size_t write_amount;
@@ -398,7 +400,7 @@ int op_dsread(struct nfs_argop4 *op,
   /* Special stateids are not permitted, nor is any non-zero seqid, by
      RFC 5661, 13.9.1, pp. 329-330 */
 
-  if ((arg_WRITE4.stateid.sequid != 0) ||
+  if ((arg_WRITE4.stateid.seqid != 0) ||
       (memcmp((char *)all_zero, arg_WRITE4.stateid.other, 12) == 0) ||
       (memcmp((char *)all_one, arg_WRITE4.stateid.other, 12) == 0))
     {
@@ -431,11 +433,11 @@ int op_dsread(struct nfs_argop4 *op,
 
   /* Get the size and offset of the read operation */
   offset = arg_WRITE4.offset;
-  size = arg_WRITE4.count;
+  length = arg_WRITE4.data.data_len;
 
   if((data->pexport->options & EXPORT_OPTION_MAXOFFSETWRITE) ==
      EXPORT_OPTION_MAXOFFSETWRITE)
-    if((fsal_off_t) (offset + size) > data->pexport->MaxOffsetWrite)
+    if((fsal_off_t) (offset + length) > data->pexport->MaxOffsetWrite)
       {
         res_WRITE4.status = NFS4ERR_DQUOT;
         return res_WRITE4.status;
@@ -444,20 +446,20 @@ int op_dsread(struct nfs_argop4 *op,
   /* The size to be written should not be greater than FATTR4_MAXWRITESIZE because this value is asked 
    * by the client at mount time, but we check this by security */
   if((data->pexport->options & EXPORT_OPTION_MAXWRITE == EXPORT_OPTION_MAXWRITE) &&
-     size > data->pexport->MaxWrite)
+     length > data->pexport->MaxWrite)
     {
       /*
        * The client asked for too much data, we
        * must restrict him 
        */
-      size = data->pexport->MaxWrite;
+      length = data->pexport->MaxWrite;
     }
 
   /* Where are the data ? */
-  buffer = arg_WRITE4.data.data_val;
+  bufferdata = arg_WRITE4.data.data_val;
 
   /* if size == 0 , no I/O) are actually made and everything is alright */
-  if(size == 0)
+  if(length == 0)
     {
       res_WRITE4.WRITE4res_u.resok4.count = 0;
       res_WRITE4.WRITE4res_u.resok4.committed = FILE_SYNC4;
@@ -475,12 +477,12 @@ int op_dsread(struct nfs_argop4 *op,
 
   /* Magical nonexistent state management */
 
-  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
 
   /* This is subject to change, once the cache happens */
 
-  status=FSAL_ds_write(&fsalh, &seek_descriptor, buffer_size,        /* IN */
-		       buffer, &write_amount, stable_flag);
+  status=FSAL_ds_write(&fsalh, &seek_descriptor, length,        /* IN */
+		       bufferdata, &write_amount, stable_flag);
 
   if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
     {
@@ -494,7 +496,7 @@ int op_dsread(struct nfs_argop4 *op,
   else
     res_WRITE4.WRITE4res_u.resok4.committed = UNSTABLE4;
 
-  res_WRITE4.WRITE4res_u.resok4.count = written_size;
+  res_WRITE4.WRITE4res_u.resok4.count = write_amount;
   memcpy(res_WRITE4.WRITE4res_u.resok4.writeverf, NFS4_write_verifier, sizeof(verifier4));
 
   res_WRITE4.status = NFS4_OK;

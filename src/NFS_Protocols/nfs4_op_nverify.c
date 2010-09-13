@@ -127,7 +127,7 @@ int nfs4_op_nverify(struct nfs_argop4 *op,
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_NVERIFY4.status = NFS4ERR_NOTSUPP;
       return res_NVERIFY4.status;

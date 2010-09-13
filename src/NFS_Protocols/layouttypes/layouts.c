@@ -89,7 +89,8 @@ layoutfunctions* layouttypelookup(layouttype4 type)
  *
  * @param type   [IN]  The layout type
  * @param dest   [OUT] The lo_content to fill
- * @param source [IN] The layout provided by the FSAL
+ * @param size   [IN]  The space available
+ * @param source [IN]  The layout provided by the FSAL
  *
  * @return 0 on success, otherwise not.
  *
@@ -117,7 +118,7 @@ int encode_lo_content(layouttype4 type,
  * @param source   [IN]  The device address returned by the FSAL
  * @param srcsize  [IN]  Total size of the source data
  *
- * @return 0 on success, otherwise not.
+ * @return TRUE on success, otherwise not.
  *
  * @see layouttypelookup
  * @see nfs41_op_layoutget

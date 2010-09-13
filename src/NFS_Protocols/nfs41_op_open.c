@@ -171,7 +171,7 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_OPEN4.status = NFS4ERR_NOTSUPP;
       return res_OPEN4.status;

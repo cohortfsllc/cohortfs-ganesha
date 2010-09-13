@@ -43,13 +43,6 @@ typedef void *fsal_devaddr_t;
 typedef deviceid4 fsal_deviceid_t;
 typedef fattr4_fs_layout_types fsal_layout_types;
 typedef nfs_fh4 fsal_dsfh_t;
-
-
-typedef struct __fsal_layout {
-  fsal_layoutoffset_t offset;
-  fsal_layoutlength_t length;
-  fsal_layoutiomode_t iomode;
-  fsal_layoutcontent_t content;
-} fsal_layout_t;
+typedef layout4 fsal_layout_t;
   
 #endif /* _FSAL_LAYOUT_H */

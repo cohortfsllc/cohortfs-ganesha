@@ -151,7 +151,7 @@ int nfs41_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
 #ifdef _USE_FSALDS
 
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       return(op_dsread(op, data, resp));
     }
@@ -384,6 +384,8 @@ int op_dsread(struct nfs_argop4 *op,
   caddr_t bufferdata;
   fsal_handle_t fsalh;
   fsal_boolean_t eof;
+  fsal_off_t offset;
+  fsal_size_t size;
   fsal_size_t amount_read;
   fsal_status_t status;
   cache_inode_status_t cache_status;
@@ -391,7 +393,7 @@ int op_dsread(struct nfs_argop4 *op,
   /* Special stateids are not permitted, nor is any non-zero seqid, by
      RFC 5661, 13.9.1, pp. 329-330 */
 
-  if ((arg_READ4.stateid.sequid != 0) ||
+  if ((arg_READ4.stateid.seqid != 0) ||
       (memcmp((char *)all_zero, arg_READ4.stateid.other, 12) == 0) ||
       (memcmp((char *)all_one, arg_READ4.stateid.other, 12) == 0))
     {
@@ -459,12 +461,12 @@ int op_dsread(struct nfs_argop4 *op,
 
   /* Magical nonexistent state management */
 
-  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
 
   /* This is subject to change, once the cache happens */
 
-  status=FSAL_ds_read(&fsalh, &seek_descriptor, buffer_size,        /* IN */
-		      buffer, &amount_read, &eof);
+  status=FSAL_ds_read(&fsalh, &seek_descriptor, size,        /* IN */
+		      bufferdata, &amount_read, &eof);
 
   if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
     {
@@ -472,9 +474,9 @@ int op_dsread(struct nfs_argop4 *op,
       return res_READ4.status;
     }
 
-  res_READ4.READ4res_u.resok4.data.data_len = read_size;
+  res_READ4.READ4res_u.resok4.data.data_len = amount_read;
   res_READ4.READ4res_u.resok4.data.data_val = bufferdata;
-  res_READ4.READ4res_u.resok4.eof = *eof;
+  res_READ4.READ4res_u.resok4.eof = eof;
 
   res_READ4.status = NFS4_OK;
 

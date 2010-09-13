@@ -101,10 +101,10 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
   resp->resop = NFS4_OP_GETDEVICEINFO;
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
-      res_GETDEVICEINFO4.status = NFS4ERR_NOTSUPP;
-      return res_GETDEVICEINFO4.status;
+      res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
+      return res_GETDEVICEINFO4.gdir_status;
     }
 #endif /* _USE_FSALDS */
 

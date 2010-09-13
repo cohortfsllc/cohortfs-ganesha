@@ -105,10 +105,10 @@ int nfs4_op_savefh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   resp->nfs_resop4_u.opsavefh.status = NFS4_OK;
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
-      res_SAVEFH4.status = NFS4ERR_NOTSUPP;
-      return res_SAVEFH4.status;
+      resp->nfs_resop4_u.opsavefh.status = NFS4ERR_NOTSUPP;
+      return resp->nfs_resop4_u.opsavefh.status;
     }
 #endif /* _USE_FSALDS */
 

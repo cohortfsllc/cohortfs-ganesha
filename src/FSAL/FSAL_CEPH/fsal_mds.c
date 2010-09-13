@@ -43,9 +43,16 @@
 #include <fcntl.h>
 #include "HashTable.h"
 #include <pthread.h>
+#include "layouttypes/layouts.h"
 #include "layouttypes/filelayout.h"
 #include "stuff_alloc.h"
 #include "fsal_types.h"
+
+#define max(a,b)	  \
+  ({ typeof (a) _a = (a); \
+    typeof (b) _b = (b);  \
+    _a > _b ? _a : _b; })
+
 
 hash_table_t* deviceidtable;
 pthread_mutex_t deviceidtablemutex =
@@ -77,6 +84,7 @@ int add_entry(deviceaddrinfo* thentry)
     return rc;
 
   key.pdata=(caddr_t) &(thentry->inode);
+  key.len=sizeof(uint64_t);
   rc = HashTable_Get(deviceidtable, &key, &value);
   if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
     {
@@ -84,6 +92,7 @@ int add_entry(deviceaddrinfo* thentry)
 
       thentry->generation=0;
       value.pdata=(caddr_t) thentry;
+      value.len=thentry->entry_size=sizeof(deviceaddrinfo);
       rc = HashTable_Test_And_Set(deviceidtable, &key, &value,
 				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
       if (rc != HASHTABLE_SUCCESS)
@@ -269,7 +278,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   off_t filesize;
   deviceaddrinfo* entry;
   uint64_t stripes;
-  int num_osds=0;
+  int num_osds;
   uint32_t *stripe_indices;
   size_t reserved_size;
   fsal_file_dsaddr_t* deviceaddr;
@@ -278,7 +287,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   netaddr4* hosts;
   char* stringwritepos;
   fsal_filelayout_t* fileloc;
-  off_t biggest;
+  fsal_size_t biggest;
   
   /* Align the layout to ceph stripe boundaries */
   
@@ -289,6 +298,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
     }
   
+  *numlayouts=1;
   *return_on_close = false;
   offset -= offset % su;
 
@@ -302,8 +312,8 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   /* With the address hack we're using now, we want to put a brake on
      how large a layout someone can request */
 
-  biggest = ((2 * filesize) > (2 << 0x1e) ?
-	     (2 * filesize) : (2 << 0x1e));
+  biggest = max((2 * filesize),
+		((fsal_size_t) 1 << 0x1e));
 
   if (minlength > biggest)
     Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
@@ -311,7 +321,13 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   if (length > biggest) 
     length = biggest;
 
-  length += su - (length % su);
+  length -= (length % su);
+
+  /* Constants needed to populate anything */
+  
+  num_osds=ceph_ll_num_osds();
+  stripes=(length-offset)/su;
+  
 
   /* Populate the device info */
 
@@ -391,27 +407,27 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
     }
 
-  num_osds=ceph_ll_num_osds();
-  stripes=(length-offset)/su;
-  
   
   /* Build the layout to return to the client */
 
   reserved_size=(sizeof(fsal_layout_t) +
-		 sizeof(fsal_filelayout_t) +
-		 sizeof(fsal_dsfh_t));
+		 sizeof(layout_content4) +
+		 sizeof(fsal_dsfh_t) +
+		 NFS4_FHSIZE +
+		 64);
 
   if ((*layouts=(fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
-    
 
-  (*layouts)->offset=offset;
-  (*layouts)->length=length;
-  (*layouts)->iomode=iomode;
-  fileloc
-    = (*layouts)->content
-    = *layouts+sizeof(fsal_layout_t);
-  
+  (*layouts)->lo_offset=offset;
+  (*layouts)->lo_length=length;
+  (*layouts)->lo_iomode=iomode;
+  (*layouts)->lo_content.loc_body.loc_body_val
+    = (char*) *layouts+sizeof(fsal_layout_t);
+
+  reserved_size -=(sizeof(fsal_layout_t) +
+		   sizeof(layout_content4));
+
   memcpy(fileloc->deviceid,
 	 &(entry->inode),
 	 sizeof(uint64_t));
@@ -435,10 +451,23 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   fileloc->fhs = (fsal_dsfh_t*) (fileloc+sizeof(fsal_filelayout_t));
 
+  fileloc->fhs->nfs_fh4_val=
+    (char*) (fileloc->fhs+sizeof(fsal_dsfh_t));
+
   /* Give the client a filehandle that may be sent to the DS */
   
   FSALBACK_fh2dshandle(filehandle, fileloc->fhs, cbcookie);
 
+  if (!(encode_lo_content(LAYOUT4_NFSV4_1_FILES,
+			  &((*layouts)->lo_content),
+			  reserved_size, fileloc)))
+    {
+      Mem_Free(*layouts);
+      remove_entry(entry);
+      Mem_Free(entry);
+      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+    }
+			
 
   /* Obviously, change this when real code is added */
 

@@ -109,7 +109,7 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   res_REMOVE4.status = NFS4_OK;
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_REMOVE4.status = NFS4ERR_NOTSUPP;
       return res_REMOVE4.status;

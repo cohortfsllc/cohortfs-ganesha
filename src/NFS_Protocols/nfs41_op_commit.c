@@ -201,7 +201,7 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
 #endif /* _USE_FSALMDS */
 #ifdef _USE_FSALDS
 
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       return(op_dscommit(op, data, resp));
     }
@@ -252,11 +252,9 @@ int op_dscommit(struct nfs_argop4 *op,
 		struct nfs_resop4 *resp)
 
 {
-  fsal_seek_t seek_descriptor;
-  caddr_t bufferdata;
+  fsal_off_t offset;
   fsal_handle_t fsalh;
-  fsal_boolean_t eof;
-  fsal_size_t amount_read;
+  fsal_size_t length;
   fsal_status_t status;
   cache_inode_status_t cache_status;
 
@@ -268,19 +266,19 @@ int op_dscommit(struct nfs_argop4 *op,
       /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
       if(data->current_filetype == DIR_BEGINNING
          || data->current_filetype == DIR_CONTINUE)
-        res_READ4.status = NFS4ERR_ISDIR;
+        res_COMMIT4.status = NFS4ERR_ISDIR;
       else
-        res_READ4.status = NFS4ERR_INVAL;
+        res_COMMIT4.status = NFS4ERR_INVAL;
 
-      return res_READ4.status;
+      return res_COMMIT4.status;
     }
 
   /* Get the size and offset of the read operation */
   offset = arg_COMMIT4.offset;
-  size = arg_COMMIT4.count;
+  length = arg_COMMIT4.count;
 
   /* If size == 0 , no I/O is to be made and everything is alright */
-  if(size == 0)
+  if(length == 0)
     {
       memcpy(res_COMMIT4.COMMIT4res_u.resok4.writeverf, (char *)&NFS4_write_verifier,
 	     NFS4_VERIFIER_SIZE);
@@ -290,7 +288,7 @@ int op_dscommit(struct nfs_argop4 *op,
 
   /* Magical nonexistent state management */
 
-  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
 
   /* This is subject to change, once the cache happens */
 

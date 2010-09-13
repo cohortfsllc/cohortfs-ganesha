@@ -110,7 +110,7 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_GETATTR4.status = NFS4ERR_NOTSUPP;
       return res_GETATTR4.status;

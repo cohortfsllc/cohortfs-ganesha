@@ -41,6 +41,7 @@
 #include "stuff_alloc.h"
 #include "SemN.h"
 #include "nfsv41.h"
+#include "HashTable.h"
 
 #include <pthread.h>
 
@@ -50,6 +51,7 @@
  */
 fsal_staticfsinfo_t global_fs_info;
 fs_specific_initinfo_t global_spec_info;
+extern hash_table_t* deviceidtable;
 
 #define POSIX_SUPPORTED_ATTRIBUTES (                                       \
           FSAL_ATTR_SUPPATTR | FSAL_ATTR_TYPE     | FSAL_ATTR_SIZE      | \
@@ -324,6 +326,44 @@ void ReleaseTokenFSCall()
     /* In the other cases, we keep the default value. */          \
     }
 
+
+unsigned long hash_inode_rbt(p_hash_parameter_t params,
+			     hash_buffer_t* keybuff)
+{
+  uint64_t inode=*((uint64_t* )keybuff->pdata);
+
+  return (unsigned long) (((0xaaaaaaaa00000000 & inode) >> 0x20) |
+			  ((0x0000000055555555 & inode)));
+}
+
+int compare_inode_key(hash_buffer_t* keybuff1,
+		      hash_buffer_t* keybuff2)
+{
+  uint64_t inode1=*((uint64_t* )keybuff1->pdata);
+  uint64_t inode2=*((uint64_t* )keybuff2->pdata);
+
+  return !(inode1 == inode2);
+}
+
+int dummy2str(hash_buffer_t* buff, char* string)
+{
+  strcpy(string, "dummy");
+}
+
+unsigned long simple_hash_func(hash_parameter_t * p_hparam,
+			       hash_buffer_t * buffclef);
+
+hash_parameter_t hashparams = {
+  .index_size=17,
+  .alphabet_length=8,
+  .nb_node_prealloc=100,
+  .hash_func_key=simple_hash_func,
+  .hash_func_rbt=hash_inode_rbt,
+  .compare_key=compare_inode_key,
+  .key_to_str=dummy2str,
+  .val_to_str=dummy2str
+};
+
 /*
  *  This function initializes shared variables of the fsal.
  */
@@ -331,6 +371,7 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
                                         fs_common_initinfo_t * fs_common_info)
 {
 
+  deviceidtable=HashTable_Init(hashparams);
   /* sanity check */
   if(!fsal_info || !fs_common_info)
     ReturnCode(ERR_FSAL_FAULT, 0);

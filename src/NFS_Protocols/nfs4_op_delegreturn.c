@@ -95,7 +95,7 @@ int nfs4_op_delegreturn(struct nfs_argop4 *op,
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_delegreturn";
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
       res_DELEGRETURN4.status = NFS4ERR_NOTSUPP;
       return res_DELEGRETURN4.status;

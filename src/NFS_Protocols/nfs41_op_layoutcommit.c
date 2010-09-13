@@ -130,10 +130,10 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
-      res_LAYOUTCOMMIT4.status = NFS4ERR_NOTSUPP;
-      return res_LAYOUTCOMMIT4.status;
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTCOMMIT4.locr_status;
     }
 #endif /* _USE_FSALDS */
 
