@@ -122,11 +122,9 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
           arg_EXCHANGE_ID4.eia_clientowner.co_ownerid.co_ownerid_len);
   str_client[arg_EXCHANGE_ID4.eia_clientowner.co_ownerid.co_ownerid_len] = '\0';
 
-#if 0
   LogDebug(COMPONENT_NFSV4, "EXCHANGE_ID Client id len = %u",
                   arg_EXCHANGE_ID4.eia_clientowner.co_ownerid.co_ownerid_len);
   LogDebug(COMPONENT_NFSV4, "EXCHANGE_ID Client name = #%s#", str_client);
-#endif
   //DisplayLogLevel( NIV_DEBUG, "EXCHANGE_ID Verifier = #%s#", str_verifier ) ; 
 
   /* There was no pb, returns the clientid */
@@ -139,10 +137,8 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
       res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
       return res_EXCHANGE_ID4.eir_status;
     }
-#if 0
   LogDebug(COMPONENT_NFSV4, "EXCHANGE_ID computed clientid4=%llx for name='%s'",
                   clientid, str_client);
-#endif
 
   /* Check flags value (test EID4) */
   if(arg_EXCHANGE_ID4.eia_flags & all_eia_flags != arg_EXCHANGE_ID4.eia_flags)
@@ -155,12 +151,10 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
   if(nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS)
     {
       /* Client id already in use */
-#if 0
       LogDebug(COMPONENT_NFSV4,
                       "EXCHANGE_ID ClientId %llx already in use for client '%s', check if same",
                       clientid, nfs_clientid.client_name);
 
-#endif
       /* Principals are the same, check content of the setclientid request */
       if(nfs_clientid.confirmed == CONFIRMED_CLIENT_ID)
         {
@@ -194,17 +188,14 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
 #endif
 
           /* Ask for a different client with the same client id... returns an error if different client */
-#if 0
           LogDebug(COMPONENT_NFSV4,
                           "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s'",
                           clientid, nfs_clientid.client_name);
-#endif
 
           if(strncmp
              (nfs_clientid.incoming_verifier,
               arg_EXCHANGE_ID4.eia_clientowner.co_verifier, NFS4_VERIFIER_SIZE))
             {
-#if 0
               LogDebug(COMPONENT_NFSV4,
                               "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s', verifier do not match...",
                               clientid, nfs_clientid.client_name);
@@ -213,7 +204,6 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
               LogDebug(COMPONENT_NFSV4,
                               "Probably something to be done here: a client has rebooted and try recovering its state. Update the record for this client");
 
-#endif
               /* Update the record, but set it as REBOOTED */
               strncpy(nfs_clientid.client_name,
                       arg_EXCHANGE_ID4.eia_clientowner.co_ownerid.co_ownerid_val,
@@ -239,16 +229,13 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
             }
           else
             {
-#if 0
               LogDebug(COMPONENT_NFSV4,
                               "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s', verifier matches. Now check callback",
                               clientid, nfs_clientid.client_name);
-#endif
             }
         }
       else
         {
-#if 0
           LogDebug(COMPONENT_NFSV4,
                           "EXCHANGE_ID ClientId %llx already in use for client '%s', but unconfirmed",
                           clientid, nfs_clientid.client_name);
@@ -342,10 +329,8 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
   res_EXCHANGE_ID4.EXCHANGE_ID4res_u.eir_resok4.eir_server_impl_id.
       eir_server_impl_id_val = NULL;
 
-#if 0
   LogDebug(COMPONENT_NFSV4, "EXCHANGE_ID reply :ClientId=%llx",
                   res_EXCHANGE_ID4.EXCHANGE_ID4res_u.eir_resok4.eir_clientid);
-#endif
 
   res_EXCHANGE_ID4.eir_status = NFS4_OK;
   return res_EXCHANGE_ID4.eir_status;
