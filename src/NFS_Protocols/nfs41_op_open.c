@@ -292,14 +292,19 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
       /* What kind of open is it ? */
 
+<<<<<<< HEAD
       /* LogFullDebug(COMPONENT_NFSV4,
           ("     OPEN: Claim type = %d   Open Type = %d  Share Deny = %d   Share Access = %d \n",
+=======
+      LogFullDebug(COMPONENT_NFS_V4,
+           "     OPEN: Claim type = %d   Open Type = %d  Share Deny = %d   Share Access = %d \n",
+>>>>>>> 98c3253fc768da649927ee21d155cdd6a8286d5c
            arg_OPEN4.claim.claim, arg_OPEN4.openhow.opentype, arg_OPEN4.share_deny,
            arg_OPEN4.share_access)); */
 
 
       /* It this a known client id ? */
-      LogDebug(COMPONENT_NFSV4, "OPEN Client id = %llx", arg_OPEN4.owner.clientid);
+      LogDebug(COMPONENT_NFS_V4, "OPEN Client id = %llx", arg_OPEN4.owner.clientid);
 
       /* Is this open_owner known ? */
       if(!nfs_convert_open_owner(&arg_OPEN4.owner, &owner_name))
@@ -552,8 +557,6 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type =
                       OPEN_DELEGATE_NONE;
                   res_OPEN4.OPEN4res_u.resok4.rflags = OPEN4_RESULT_LOCKTYPE_POSIX;
-
-                  nfs_State_PrintAll();
 
                   /* Now produce the filehandle to this file */
                   if((pnewfsal_handle =
@@ -1166,8 +1169,6 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
 
   res_OPEN4.OPEN4res_u.resok4.rflags = OPEN4_RESULT_LOCKTYPE_POSIX;
-
-  nfs_State_PrintAll();
 
   /* regular exit */
   res_OPEN4.status = NFS4_OK;

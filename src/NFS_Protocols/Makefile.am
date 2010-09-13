@@ -110,7 +110,12 @@ libnfsproto_la_SOURCES += nlm_Unlock.c	  	\
                           nlm_Cancel_Message.c	\
                           nlm_Lock_Message.c	\
                           nlm_Unlock_Message.c  \
-                          nlm_Granted_Res.c
+                          nlm_Granted_Res.c \
+			../include/nlm4.h  \
+			../include/nlm_async.h \
+			../include/nlm_list.h \
+			../include/nlm_send_reply.h \
+			../include/nlm_util.h
 endif
 
 if USE_QUOTA
@@ -149,6 +154,7 @@ endif
 test_mnt_proto_SOURCES       = test_mnt_proto.c
 
 test_mnt_proto_LDADD = libnfsproto.la ../BuddyMalloc/libBuddyMalloc.la ../Log/liblog.la
+
 new: clean all
 
 doc:
