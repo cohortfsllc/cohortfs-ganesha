@@ -690,7 +690,6 @@ AC_CONFIG_FILES([include/Makefile
 		 include/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
 		 include/layouttypes/Makefile
                  BuddyMalloc/Makefile
-                 StuffAlloc/Makefile
                  Common/Makefile
                  support/Makefile
                  Log/Makefile
