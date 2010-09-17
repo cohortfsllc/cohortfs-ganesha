@@ -128,7 +128,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
   pos = read_start;
   read = -1;
 
-  while (left != 0 || pos <= filesize || read != 0)
+  while ((left != 0) && (pos <= filesize) && (read != 0))
     {
       if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle), stripe))
 	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_read);
@@ -137,7 +137,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
 			internal_offset, buffer,
 				min((su - internal_offset),
 				    (left - internal_offset)));
-      if (read < 00)
+      if (read < 0)
 	  Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
 
       internal_offset=0;
