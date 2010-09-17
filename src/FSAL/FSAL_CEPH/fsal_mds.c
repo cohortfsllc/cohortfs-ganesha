@@ -47,6 +47,7 @@
 #include "layouttypes/filelayout.h"
 #include "stuff_alloc.h"
 #include "fsal_types.h"
+#include <alloca.h>
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
@@ -337,8 +338,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   num_osds=ceph_ll_num_osds();
   stripes=(length-offset)/su;
 
-  fprintf(stderr, "num_osds: %d\n", num_osds);
-  
   /* Populate the device info */
 
   reserved_size = (sizeof(deviceaddrinfo) +
@@ -352,19 +351,20 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   if (entry==NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
   
-  entry->inode=VINODE(filehandle).ino.val;
   memset(entry, reserved_size, 0);
+
+  entry->inode=VINODE(filehandle).ino.val;
 
   reserved_size -= sizeof(deviceaddrinfo);
   
   entry->entry_size = reserved_size;
   deviceaddr
     = entry->addrinfo
-    = (fsal_file_dsaddr_t*) (entry+sizeof(deviceaddrinfo));
+    = (fsal_file_dsaddr_t*) (((void*)entry)+sizeof(deviceaddrinfo));
   deviceaddr->nflda_stripe_indices.nflda_stripe_indices_len=stripes;
   stripe_indices
     = deviceaddr->nflda_stripe_indices.nflda_stripe_indices_val
-    = (int*) (deviceaddr + sizeof(fsal_file_dsaddr_t));
+    = (int*) (((void*)deviceaddr) + sizeof(fsal_file_dsaddr_t));
   
   for (i=0; i < stripes; i++)
     {
@@ -384,11 +384,11 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     = num_osds;
   hostlists
     = deviceaddr->nflda_multipath_ds_list.nflda_multipath_ds_list_val
-    = (multipath_list4*) (stripe_indices + sizeof(uint32_t) * stripes);
+    = (multipath_list4*) (((void*)stripe_indices) + sizeof(uint32_t) * stripes);
 
-  hosts = (netaddr4*) (hostlists + num_osds * sizeof(multipath_list4));
+  hosts = (netaddr4*) (((void*)hostlists) + num_osds * sizeof(multipath_list4));
 
-  stringwritepos = (char*) (hosts + num_osds * sizeof(netaddr4));
+  stringwritepos = (char*) (((void*)hosts) + num_osds * sizeof(netaddr4));
 
   for(i = 0; i < num_osds; i++)
     {
@@ -398,7 +398,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       hosts[i].na_r_addr=stringwritepos;
       ceph_ll_osdaddr(i, stringwritepos, ADDRLENGTH);
       strcat(stringwritepos, nfsport);
-      fprintf(stderr, "found: %s\n", stringwritepos);
       stringwritepos += (strlen(stringwritepos)+1);
     }
 
@@ -409,11 +408,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     }
 
   savedptr=entry;
-
-  fprintf(stderr, "entry_size: %d\n", entry->entry_size);
-
-  fprintf(stderr, "multipath_list length: %d\n",
-	  entry->addrinfo->nflda_multipath_ds_list.nflda_multipath_ds_list_len);
 
   /* Add the layout to the state for the file */
   
@@ -441,15 +435,19 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   (*layouts)->lo_length=length;
   (*layouts)->lo_iomode=iomode;
   (*layouts)->lo_content.loc_body.loc_body_val
-    = (char*) *layouts+sizeof(fsal_layout_t);
+    = (char*) ((void*)*layouts)+sizeof(fsal_layout_t);
 
   reserved_size -=(sizeof(fsal_layout_t) +
 		   sizeof(layout_content4));
 
+  fileloc=alloca(sizeof(fsal_filelayout_t) +
+		 sizeof(fsal_dsfh_t) +
+		 NFS4_FHSIZE);
+
   memcpy(fileloc->deviceid,
 	 &(entry->inode),
 	 sizeof(uint64_t));
-  memcpy((fileloc->deviceid)+sizeof(uint64_t),
+  memcpy(((void*)(fileloc->deviceid))+sizeof(uint64_t),
 	 &(entry->generation),
 	 sizeof(uint64_t));
 
@@ -467,10 +465,10 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   fileloc->fhn = 1;
 
-  fileloc->fhs = (fsal_dsfh_t*) (fileloc+sizeof(fsal_filelayout_t));
+  fileloc->fhs = (fsal_dsfh_t*) (((void*)fileloc)+sizeof(fsal_filelayout_t));
 
-  fileloc->fhs->nfs_fh4_val=
-    (char*) (fileloc->fhs+sizeof(fsal_dsfh_t));
+  fileloc->fhs->nfs_fh4_val= (char*)
+    (((void*)fileloc->fhs) + sizeof(fsal_dsfh_t));
 
   /* Give the client a filehandle that may be sent to the DS */
   
@@ -486,8 +484,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
 			
-
-  /* Obviously, change this when real code is added */
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
@@ -654,11 +650,6 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 
   if ((entry=get_entry(inode, generation))==NULL)
     Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
-
-  fprintf(stderr, "entry_size: %d\n", entry->entry_size);
-
-  fprintf(stderr, "multipath_list length: %d\n",
-	  entry->addrinfo->nflda_multipath_ds_list.nflda_multipath_ds_list_len);
 
   if ((xdrbuff=Mem_Alloc(entry->entry_size+64)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdeviceinfo);
