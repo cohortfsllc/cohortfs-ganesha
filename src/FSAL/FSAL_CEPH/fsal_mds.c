@@ -64,6 +64,8 @@ char nfsport[]=".8.01";
 #define ADDRLENGTH 24 /* six groups of at most three digits, five
 			 dots, one null. */
 
+deviceaddrinfo* savedptr=0;
+
 /* Functions for working with the storage of deviceinfo */
 
 /*
@@ -83,18 +85,22 @@ int add_entry(deviceaddrinfo* thentry)
   if (rc != 0)
     return rc;
 
-  key.pdata=(caddr_t) &(thentry->inode);
-  key.len=sizeof(uint64_t);
+  key.pdata = (caddr_t) &(thentry->inode);
+  key.len = sizeof(uint64_t);
+
   rc = HashTable_Get(deviceidtable, &key, &value);
   if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
     {
       /* No entries for this inode, we're the first */
 
       thentry->generation=0;
+      thentry->next=NULL;
       value.pdata=(caddr_t) thentry;
-      value.len=thentry->entry_size=sizeof(deviceaddrinfo);
+      value.len=thentry->entry_size + sizeof(deviceaddrinfo);
+
       rc = HashTable_Test_And_Set(deviceidtable, &key, &value,
 				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+
       if (rc != HASHTABLE_SUCCESS)
 	{
 	  pthread_mutex_unlock(&deviceidtablemutex);
@@ -137,7 +143,8 @@ int remove_entry(deviceaddrinfo* thentry)
   if (rc != 0)
     return rc;
 
-  key.pdata=(caddr_t) &(thentry->inode);
+  key.pdata = (caddr_t) &(thentry->inode);
+  key.len = sizeof(uint64_t);
 
   rc = HashTable_Get(deviceidtable, &key, &value);
   if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
@@ -207,7 +214,9 @@ deviceaddrinfo* get_entry(uint64_t inode, uint64_t generation)
   if (rc != 0)
     return NULL;
 
-  key.pdata=(caddr_t) &inode;
+  key.pdata = (caddr_t) &inode;
+  key.len = sizeof(uint64_t);
+  
   rc = HashTable_Get(deviceidtable, &key, &value);
 
   if (rc != HASHTABLE_SUCCESS)
@@ -327,8 +336,9 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   
   num_osds=ceph_ll_num_osds();
   stripes=(length-offset)/su;
-  
 
+  fprintf(stderr, "num_osds: %d\n", num_osds);
+  
   /* Populate the device info */
 
   reserved_size = (sizeof(deviceaddrinfo) +
@@ -388,6 +398,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       hosts[i].na_r_addr=stringwritepos;
       ceph_ll_osdaddr(i, stringwritepos, ADDRLENGTH);
       strcat(stringwritepos, nfsport);
+      fprintf(stderr, "found: %s\n", stringwritepos);
       stringwritepos += (strlen(stringwritepos)+1);
     }
 
@@ -396,6 +407,13 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       Mem_Free(entry);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
+
+  savedptr=entry;
+
+  fprintf(stderr, "entry_size: %d\n", entry->entry_size);
+
+  fprintf(stderr, "multipath_list length: %d\n",
+	  entry->addrinfo->nflda_multipath_ds_list.nflda_multipath_ds_list_len);
 
   /* Add the layout to the state for the file */
   
@@ -614,8 +632,8 @@ fsal_status_t CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
  *        The layout type
  * \param deviceid (input):
  *        The device ID to look up
- * \param buff (output):
- *        Address of buffer allocated by the FSAL.
+ * \param devaddr (input/output):
+ *        Address of device_addr4, body allocated by FSAL
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
@@ -623,10 +641,11 @@ fsal_status_t CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 				     fsal_deviceid_t deviceid,
-				     char** buff)
+				     device_addr4* devaddr)
 {
   uint64_t inode, generation;
   deviceaddrinfo* entry;
+  char* xdrbuff;
 
   /* Deconstruct the device ID then look it up in the table */
 
@@ -636,11 +655,23 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
   if ((entry=get_entry(inode, generation))==NULL)
     Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
 
-  if ((*buff=Mem_Alloc(entry->entry_size)) == NULL)
+  fprintf(stderr, "entry_size: %d\n", entry->entry_size);
+
+  fprintf(stderr, "multipath_list length: %d\n",
+	  entry->addrinfo->nflda_multipath_ds_list.nflda_multipath_ds_list_len);
+
+  if ((xdrbuff=Mem_Alloc(entry->entry_size+64)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdeviceinfo);
 
-  memcpy(*buff, entry->addrinfo, entry->entry_size);
-
+  devaddr->da_addr_body.da_addr_body_val=xdrbuff;
+  
+  if (!(encodefilesdevice(type, devaddr, entry->entry_size+64,
+			  entry->addrinfo)))
+    {
+      Mem_Free(xdrbuff);
+      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
+    }
+	
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
 }
 

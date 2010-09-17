@@ -43,7 +43,7 @@
 int encodefileslayout(layouttype4 type,
 		      layout_content4* dest,
 		      size_t size,
-		      fsal_layoutcontent_t* source)
+		      void* source)
 {
   fsal_filelayout_t* lsrc=(fsal_filelayout_t*)source;
   XDR xdrs;
@@ -76,19 +76,20 @@ int encodefileslayout(layouttype4 type,
 
 int encodefilesdevice(layouttype4 type,
 		      device_addr4* dest,
-		      size_t destsize,
-		      fsal_devaddr_t source)
+		      size_t length,
+		      void* source)
 {
-  fsal_file_dsaddr_t* lsrc=(fsal_file_dsaddr_t*) source;
+  nfsv4_1_file_layout_ds_addr4* lsrc=(nfsv4_1_file_layout_ds_addr4*) source;
   XDR xdrs;
+
   unsigned int beginning;
 
   dest->da_layout_type=type;
-  xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, destsize, XDR_ENCODE);
+  xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, length, XDR_ENCODE);
   beginning=xdr_getpos(&xdrs);
   if (!(xdr_nfsv4_1_file_layout_ds_addr4(&xdrs, lsrc)))
     return FALSE;
-  dest->da_addr_body.da_addr_body_len=beginning-xdr_getpos(&xdrs);
+  dest->da_addr_body.da_addr_body_len=xdr_getpos(&xdrs)-beginning;
   xdr_destroy(&xdrs);
   return TRUE;
 }

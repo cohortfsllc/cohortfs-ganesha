@@ -134,13 +134,6 @@ fsal_status_t CEPHFSAL_Init(fsal_parameter_t * init_info    /* IN */
 
   /* >> You can check args bellow << */
 
-  if(init_info->fsal_info.log_outputs.liste_voies == NULL)
-    {
-      /* issue a warning on stderr */
-      DisplayLog
-          ("FSAL INIT: *** WARNING: No logging file specified for FileSystem Abstraction Layer.");
-    }
-
   /* proceeds FSAL internal status initialization */
 
   status = fsal_internal_init_global(&(init_info->fsal_info),

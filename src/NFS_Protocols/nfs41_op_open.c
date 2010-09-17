@@ -292,13 +292,8 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
       /* What kind of open is it ? */
 
-<<<<<<< HEAD
       /* LogFullDebug(COMPONENT_NFSV4,
           ("     OPEN: Claim type = %d   Open Type = %d  Share Deny = %d   Share Access = %d \n",
-=======
-      LogFullDebug(COMPONENT_NFS_V4,
-           "     OPEN: Claim type = %d   Open Type = %d  Share Deny = %d   Share Access = %d \n",
->>>>>>> 98c3253fc768da649927ee21d155cdd6a8286d5c
            arg_OPEN4.claim.claim, arg_OPEN4.openhow.opentype, arg_OPEN4.share_deny,
            arg_OPEN4.share_access)); */
 

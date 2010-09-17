@@ -735,9 +735,9 @@ fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t WRAP_CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 					  fsal_deviceid_t id,
-					  char** buff)
+					  device_addr4* devaddr)
 {
-  return CEPHFSAL_getdeviceinfo(type, id, buff);
+  return CEPHFSAL_getdeviceinfo(type, id, devaddr);
 }
 
 fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,

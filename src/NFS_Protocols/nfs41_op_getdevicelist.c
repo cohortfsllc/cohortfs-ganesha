@@ -136,14 +136,6 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
       return res_GETDEVICELIST4.gdlr_status;
     }
 
-#ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
-    {
-      res_GETDEVICELIST4.status = NFS4ERR_NOTSUPP;
-      return res_GETDEVICELIST4.status;
-    }
-#endif /* _USE_FSALDS */
-
   if ((buff = (deviceid4*) Mem_Alloc(bufflen))==NULL)
     {
       res_GETDEVICELIST4.gdlr_status = NFS4ERR_SERVERFAULT;

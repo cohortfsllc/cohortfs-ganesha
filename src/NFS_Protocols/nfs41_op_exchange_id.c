@@ -239,14 +239,8 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
           LogDebug(COMPONENT_NFS_V4,
                           "EXCHANGE_ID ClientId %llx already in use for client '%s', but unconfirmed",
                           clientid, nfs_clientid.client_name);
-<<<<<<< HEAD
-          LogCrit(COMPONENT_NFSV4,
-	    ("Reuse of a formerly obtained clientid that is not yet confirmed."); // Code needs to be improved here.
-#endif
-=======
           LogCrit(COMPONENT_NFS_V4,
-	     "Reuse of a formerly obtained clientid that is not yet confirmed."); // Code needs to be improved here.
->>>>>>> 98c3253fc768da649927ee21d155cdd6a8286d5c
+	    "Reuse of a formerly obtained clientid that is not yet confirmed."); // Code needs to be improved here.
         }
     }
   else

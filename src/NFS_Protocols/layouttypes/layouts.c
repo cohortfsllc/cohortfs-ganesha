@@ -48,7 +48,7 @@ int encodefileslayout(layouttype4 type,
 
 int encodefilesdevice(layouttype4 type,
 		      device_addr4* dest,
-		      size_t destsize,
+		      size_t length,
 		      void* source);
 
 layoutfunctions layoutfuncs[]={
@@ -116,7 +116,6 @@ int encode_lo_content(layouttype4 type,
  * @param dest     [OUT] Pointer to the device_addr4 to fill
  * @param destsize [IN]  Size allocate for destination
  * @param source   [IN]  The device address returned by the FSAL
- * @param srcsize  [IN]  Total size of the source data
  *
  * @return TRUE on success, otherwise not.
  *
@@ -128,7 +127,7 @@ int encode_lo_content(layouttype4 type,
 int encode_device(layouttype4 type,
 		  device_addr4* dest,
 		  size_t destsize,
-		  fsal_devaddr_t* source)
+		  void* source)
 {
   return ((layouttypelookup(type)->encode_device)(type, dest, destsize, source));
 }

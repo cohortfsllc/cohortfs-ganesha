@@ -100,14 +100,6 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   resp->resop = NFS4_OP_GETDEVICEINFO;
 
-#ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
-    {
-      res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
-      return res_GETDEVICEINFO4.gdir_status;
-    }
-#endif /* _USE_FSALDS */
-
 #if !(defined(_USE_PNFS) || defined(_USE_FSALMDS))
   res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
   return res_GETDEVICEINFO4.gdir_status;
@@ -138,44 +130,24 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 
   return res_GETDEVICEINFO4.gdir_status;
 #elif defined(_USE_FSALMDS)
-  char *buff = NULL;
-  char *xdrbuff = NULL;
-  unsigned int lenbuff = 1024;
   fsal_status_t status;
   fsal_deviceid_t deviceid;
 
   memcpy(deviceid, arg_GETDEVICEINFO4.gdia_device_id, 16);
 
-  if((xdrbuff = Mem_Alloc(1024)) == NULL)
-    {
-      res_GETDEVICEINFO4.gdir_status = NFS4ERR_SERVERFAULT;
-      return res_GETDEVICEINFO4.gdir_status;
-    }
-
   status = FSAL_getdeviceinfo(arg_GETDEVICEINFO4.gdia_layout_type,
 			      deviceid,
-			      &buff);
-
+			      &(res_GETDEVICEINFO4.GETDEVICEINFO4res_u
+				.gdir_resok4.gdir_device_addr));
   if (FSAL_IS_ERROR(status))
     {
-      Mem_Free(buff);
-      Mem_Free(xdrbuff);
       res_GETDEVICEINFO4.gdir_status = status.major;
       return res_GETDEVICEINFO4.gdir_status;
     }
 
-  encode_device(arg_GETDEVICEINFO4.gdia_layout_type,
-		xdrbuff, buff, &lenbuff);
-
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_len = 0;
   res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_notification.bitmap4_val = NULL;
-  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_device_addr.da_addr_body.
-      da_addr_body_len = lenbuff;
-  res_GETDEVICEINFO4.GETDEVICEINFO4res_u.gdir_resok4.gdir_device_addr.da_addr_body.
-      da_addr_body_val = buff;
 
-  Mem_Free(buff);
-  
   res_GETDEVICEINFO4.gdir_status = NFS4_OK;
 
   return res_GETDEVICEINFO4.gdir_status;
@@ -183,6 +155,8 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 #endif
 
 }                               /* nfs41_op_exchange_id */
+
+#if defined(_USE_FSALMDS)
 
 /**
  * nfs4_op_getdeviceinfo_Free: frees what was allocared to handle nfs4_op_getdeviceinfo.
@@ -203,4 +177,6 @@ void nfs41_op_getdeviceinfo_Free(GETDEVICEINFO4res * resp)
                da_addr_body_val);
 
   return;
-}                               /* nfs41_op_exchange_id_Free */
+}                               /* nfs41_op_getdeviceinfo_Free */
+
+#endif /* _USE_FSALMDS */

@@ -872,7 +872,7 @@ fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
 				 fsal_deviceid_t deviceid,
-				 char** buff);
+				 device_addr4* devaddr);
 
 fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 				 fsal_layouttype_t type,
@@ -1427,7 +1427,7 @@ typedef struct __fsal_mdsfunctions
 				     fsal_time_t* newtime);
   fsal_status_t (*fsal_getdeviceinfo)(fsal_layouttype_t layouttype, 
 				      fsal_deviceid_t deviceid,
-				      char** buff);
+				      device_addr4* devaddr);
   fsal_status_t (*fsal_getdevicelist)(fsal_handle_t* filehandle,
 				      fsal_layouttype_t type,
 				      int* numdevices,

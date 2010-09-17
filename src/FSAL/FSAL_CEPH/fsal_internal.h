@@ -52,9 +52,6 @@ extern fsal_staticfsinfo_t global_fs_info;
 /* Everybody gets to know the server. */
 extern fs_specific_initinfo_t global_spec_info;
 
-/* log descriptor */
-extern log_t fsal_log;
-
 #endif
 
 /**
@@ -479,7 +476,7 @@ fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 				     fsal_deviceid_t id,
-				     char** buff);
+				     device_addr4* devaddr);
 
 fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,

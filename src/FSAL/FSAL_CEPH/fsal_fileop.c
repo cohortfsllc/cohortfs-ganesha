@@ -98,11 +98,7 @@ fsal_status_t CEPHFSAL_open(cephfsal_handle_t * filehandle,     /* IN */
 
   /* flags conflicts. */
   if(rc)
-    {
-      DisplayLogJdLevel(fsal_log, NIV_EVENT, "Invalid/conflicting flags : %#X",
-                        openflags);
-      Return(rc, 0, INDEX_FSAL_open);
-    }
+    Return(rc, 0, INDEX_FSAL_open);
 
   TakeTokenFSCall();
 

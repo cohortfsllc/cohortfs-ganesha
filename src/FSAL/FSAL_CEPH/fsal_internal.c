@@ -96,7 +96,6 @@ layouttype4 supportedlayouttypes[]={LAYOUT4_NFSV4_1_FILES};
 /*
  *  Log Descriptor
  */
-log_t fsal_log;
 
 /* variables for limiting the calls to the filesystem */
 static int limit_calls = FALSE;
@@ -109,8 +108,6 @@ static pthread_once_t once_key = PTHREAD_ONCE_INIT;
 /* init keys */
 static void init_keys(void)
 {
-  if(pthread_key_create(&key_stats, NULL) == -1)
-    DisplayErrorJd(fsal_log, ERR_SYS, ERR_PTHREAD_KEY_CREATE, errno);
 
   return;
 }                               /* init_keys */
@@ -128,69 +125,6 @@ static void init_keys(void)
  */
 void fsal_increment_nbcall(int function_index, fsal_status_t status)
 {
-
-  fsal_statistics_t *bythread_stat = NULL;
-
-  /* verify index */
-
-  if(function_index >= FSAL_NB_FUNC)
-    return;
-
-  /* first, we init the keys if this is the first time */
-
-  if(pthread_once(&once_key, init_keys) != 0)
-    {
-      DisplayErrorJd(fsal_log, ERR_SYS, ERR_PTHREAD_ONCE, errno);
-      return;
-    }
-
-  /* we get the specific value */
-
-  bythread_stat = (fsal_statistics_t *) pthread_getspecific(key_stats);
-
-  /* we allocate stats if this is the first time */
-
-  if(bythread_stat == NULL)
-    {
-      int i;
-
-      bythread_stat = (fsal_statistics_t *) Mem_Alloc(sizeof(fsal_statistics_t));
-
-      if(bythread_stat == NULL)
-        {
-          DisplayErrorJd(fsal_log, ERR_SYS, ERR_MALLOC, Mem_Errno);
-        }
-
-      /* inits the struct */
-
-      for(i = 0; i < FSAL_NB_FUNC; i++)
-        {
-          bythread_stat->func_stats.nb_call[i] = 0;
-          bythread_stat->func_stats.nb_success[i] = 0;
-          bythread_stat->func_stats.nb_err_retryable[i] = 0;
-          bythread_stat->func_stats.nb_err_unrecover[i] = 0;
-        }
-
-      /* set the specific value */
-      pthread_setspecific(key_stats, (void *)bythread_stat);
-
-    }
-
-  /* we increment the values */
-
-  if(bythread_stat)
-    {
-      bythread_stat->func_stats.nb_call[function_index]++;
-
-      if(!FSAL_IS_ERROR(status))
-        bythread_stat->func_stats.nb_success[function_index]++;
-      else if(fsal_is_retryable(status))
-        bythread_stat->func_stats.nb_err_retryable[function_index]++;
-      else
-        bythread_stat->func_stats.nb_err_unrecover[function_index]++;
-    }
-
-  return;
 }
 
 /**
@@ -205,47 +139,6 @@ void fsal_increment_nbcall(int function_index, fsal_status_t status)
  */
 void fsal_internal_getstats(fsal_statistics_t * output_stats)
 {
-
-  fsal_statistics_t *bythread_stat = NULL;
-
-  /* first, we init the keys if this is the first time */
-  if(pthread_once(&once_key, init_keys) != 0)
-    {
-      DisplayErrorJd(fsal_log, ERR_SYS, ERR_PTHREAD_ONCE, errno);
-      return;
-    }
-
-  /* we get the specific value */
-  bythread_stat = (fsal_statistics_t *) pthread_getspecific(key_stats);
-
-  /* we allocate stats if this is the first time */
-  if(bythread_stat == NULL)
-    {
-      int i;
-
-      if((bythread_stat =
-          (fsal_statistics_t *) Mem_Alloc(sizeof(fsal_statistics_t))) == NULL)
-        DisplayErrorJd(fsal_log, ERR_SYS, ERR_MALLOC, Mem_Errno);
-
-      /* inits the struct */
-      for(i = 0; i < FSAL_NB_FUNC; i++)
-        {
-          bythread_stat->func_stats.nb_call[i] = 0;
-          bythread_stat->func_stats.nb_success[i] = 0;
-          bythread_stat->func_stats.nb_err_retryable[i] = 0;
-          bythread_stat->func_stats.nb_err_unrecover[i] = 0;
-        }
-
-      /* set the specific value */
-      pthread_setspecific(key_stats, (void *)bythread_stat);
-
-    }
-
-  if(output_stats)
-    (*output_stats) = (*bythread_stat);
-
-  return;
-
 }
 
 /**
@@ -376,9 +269,6 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
   if(!fsal_info || !fs_common_info)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
-  /* Setting log info */
-  fsal_log = fsal_info->log_outputs;
-
   /* inits FS call semaphore */
   if(fsal_info->max_fs_calls > 0)
     {
@@ -391,15 +281,7 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
       if(rc != 0)
         ReturnCode(ERR_FSAL_SERVERFAULT, rc);
 
-      DisplayLogJdLevel(fsal_log, NIV_DEBUG,
-                        "FSAL INIT: Max simultaneous calls to filesystem is limited to %u.",
-                        fsal_info->max_fs_calls);
 
-    }
-  else
-    {
-      DisplayLogJdLevel(fsal_log, NIV_DEBUG,
-                        "FSAL INIT: Max simultaneous calls to filesystem is unlimited.");
     }
 
   /* setting default values. */
@@ -435,96 +317,6 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
 
   SET_BITMAP_PARAM(global_fs_info, fs_common_info, xattr_access_rights);
 
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "FileSystem info :");
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxfilesize  = %llX    ",
-                    global_fs_info.maxfilesize);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxlink  = %lu   ", global_fs_info.maxlink);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxnamelen  = %lu  ",
-                    global_fs_info.maxnamelen);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxpathlen  = %lu  ",
-                    global_fs_info.maxpathlen);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  no_trunc  = %d ", global_fs_info.no_trunc);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  chown_restricted  = %d ",
-                    global_fs_info.chown_restricted);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  case_insensitive  = %d ",
-                    global_fs_info.case_insensitive);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  case_preserving  = %d ",
-                    global_fs_info.case_preserving);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  fh_expire_type  = %hu ",
-                    global_fs_info.fh_expire_type);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  link_support  = %d  ",
-                    global_fs_info.link_support);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  symlink_support  = %d  ",
-                    global_fs_info.symlink_support);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  lock_support  = %d  ",
-                    global_fs_info.lock_support);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  named_attr  = %d  ",
-                    global_fs_info.named_attr);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  unique_handles  = %d  ",
-                    global_fs_info.unique_handles);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  lease_time  = %u.%u     ",
-                    global_fs_info.lease_time.seconds,
-                    global_fs_info.lease_time.nseconds);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  acl_support  = %hu  ",
-                    global_fs_info.acl_support);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  cansettime  = %d  ",
-                    global_fs_info.cansettime);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  homogenous  = %d  ",
-                    global_fs_info.homogenous);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  supported_attrs  = %llX  ",
-                    global_fs_info.supported_attrs);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxread  = %llX     ",
-                    global_fs_info.maxread);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  maxwrite  = %llX     ",
-                    global_fs_info.maxwrite);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  umask  = %#o ", global_fs_info.umask);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  auth_exportpath_xdev  = %d  ",
-                    global_fs_info.auth_exportpath_xdev);
-  DisplayLogJdLevel(fsal_log, NIV_DEBUG, "  xattr_access_rights = %#o ",
-                    global_fs_info.xattr_access_rights);
-
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }
 
-/**
- * fsal_do_log:
- * Indicates if an FSAL error has to be traced
- * into its log file in the NIV_EVENT level.
- * (in the other cases, return codes are only logged
- * in the NIV_FULL_DEBUG logging lovel).
- *
- * \param status(input): The fsal status that is to be tested.
- *
- * \return - TRUE if the error is to be traced.
- *         - FALSE if the error must not be traced except
- *          in NIV_FULL_DEBUG level.
- */
-fsal_boolean_t fsal_do_log(fsal_status_t status)
-{
-
-  switch (status.major)
-    {
-
-      /* here are the code, we want to trace */
-    case ERR_FSAL_DELAY:
-    case ERR_FSAL_PERM:
-    case ERR_FSAL_IO:
-    case ERR_FSAL_NXIO:
-    case ERR_FSAL_NOT_OPENED:
-    case ERR_FSAL_NOMEM:
-    case ERR_FSAL_FAULT:
-    case ERR_FSAL_XDEV:
-    case ERR_FSAL_INVAL:
-    case ERR_FSAL_FBIG:
-    case ERR_FSAL_NOSPC:
-    case ERR_FSAL_MLINK:
-    case ERR_FSAL_NAMETOOLONG:
-    case ERR_FSAL_SEC:
-    case ERR_FSAL_SERVERFAULT:
-      return TRUE;
-
-    default:
-      return FALSE;
-    }
-
-}

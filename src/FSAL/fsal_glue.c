@@ -764,7 +764,7 @@ fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 
 fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
 				 fsal_deviceid_t id,
-				 char** buff)
+				 device_addr4* buff)
 {
   return fsal_mdsfunctions.fsal_getdeviceinfo(type, id, buff);
 }
