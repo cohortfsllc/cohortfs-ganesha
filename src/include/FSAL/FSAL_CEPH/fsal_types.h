@@ -54,7 +54,7 @@
 #define fsal_export_context_t cephfsal_export_context_t
 #define fsal_lockdesc_t cephfsal_lockdesc_t
 #define fsal_cookie_t cephfsal_cookie_t
-#define fs_specific_initinfo_t xfsfs_specific_initinfo_t
+#define fs_specific_initinfo_t cephfsal_specific_initinfo_t
 #define fsal_cred_t cephfsal_cred_t
 #define fsal_layoutdata_t cephfsal_layoutdata_t
 
@@ -98,7 +98,7 @@ typedef struct fsal_op_context__
 typedef struct fs_specific_initinfo__
 {
   char cephserver[FSAL_MAX_NAME_LEN];
-} fs_specific_initinfo_t;
+} cephfsal_specific_initinfo_t;
 
 
 typedef union {

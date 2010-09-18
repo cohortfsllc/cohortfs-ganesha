@@ -381,12 +381,12 @@ int op_dsread(struct nfs_argop4 *op,
 
 {
   fsal_seek_t seek_descriptor;
-  caddr_t bufferdata;
+  caddr_t bufferdata=0;
   fsal_handle_t fsalh;
-  fsal_boolean_t eof;
-  fsal_off_t offset;
+  fsal_boolean_t eof=0;
+  fsal_off_t offset=0;
   fsal_size_t size;
-  fsal_size_t amount_read;
+  fsal_size_t amount_read=0;
   fsal_status_t status;
   cache_inode_status_t cache_status;
 

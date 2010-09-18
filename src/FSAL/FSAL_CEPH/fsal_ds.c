@@ -134,7 +134,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
 	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_read);
 
       read = ceph_ll_read_block(VINODE(filehandle), stripe,
-			internal_offset, buffer,
+				buffer, internal_offset,
 				min((su - internal_offset),
 				    (left - internal_offset)));
       if (read < 0)
@@ -147,7 +147,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
       ++stripe;
     }
 
-  if (read == 0 || pos == filesize)
+  if (pos == filesize)
     *end_of_file=true;
   else
     *end_of_file=false;

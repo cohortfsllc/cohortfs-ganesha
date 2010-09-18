@@ -875,7 +875,7 @@ fsal_const_t fsal_ceph_consts = {
   .fsal_cookie_t_size = sizeof(cephfsal_cookie_t),
   .fsal_lockdesc_t_size = sizeof(cephfsal_lockdesc_t),
   .fsal_cred_t_size = sizeof(cephfsal_cred_t),
-  .fs_specific_initinfo_t_size = sizeof(xfsfs_specific_initinfo_t),
+  .fs_specific_initinfo_t_size = sizeof(cephfsal_specific_initinfo_t),
   .fsal_dir_t_size = sizeof(cephfsal_dir_t)
 };
 
