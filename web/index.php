@@ -70,9 +70,6 @@
     <td height="40"><table width="70%" border="0" cellspacing="0" cellpadding="0">
       <tr>
         <td><a href="index.php?page=overview" class="toplinks">Overview</a></td>
-        <td><a href="index.php?page=doc" class="toplinks">Documentation</a></td>
-        <td><a href="index.php?page=downloads" class="toplinks">Downloads</a></td>
-        <td><a href="index.php?page=features_to_be_added" class="toplinks">Features Roadmap</a></td>
         <td><a href="index.php?page=contacts" class="toplinks">Contacts</a></td>
         <td><a href="index.php?page=links" class="toplinks">Links</a></td>
       </tr>
@@ -98,10 +95,10 @@
                 <td>
 		<table width="80%" border="0" align="center" cellpadding="0" cellspacing="0">
 		  <tr>
-                    <td class="date">Jun 25, 2010</td>
+                    <td class="date">Sep 17, 2010</td>
               	  </tr>
                   <tr>
-                    <td height="50"><a href="http://sourceforge.net/projects/nfs-ganesha/files/" class="smallred">v 0.99.66 is available</a></td>
+                    <td height="50"><a href="http://sourceforge.net/projects/nfs-ganesha/files/" class="smallred">v 1.0.1 is available</a></td>
                   </tr>
 		  <tr>
                     <td class="date">January 2006</td>

@@ -183,7 +183,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
  *      - Other error codes can be returned :
  *        ERR_FSAL_IO, ERR_FSAL_NOSPC, ERR_FSAL_DQUOT...
  */
-fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,      /* IN */
+fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
 				fsal_seek_t * seek_descriptor,   /* IN */
 				fsal_size_t buffer_size,         /* IN */
 				caddr_t buffer,                  /* IN */
@@ -191,7 +191,75 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,      /* IN */
 				fsal_boolean_t stable_flag       /* IN */
     )
 {
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_ds_write);
+  int me_the_OSD;
+  struct stat_precise st;
+  int rc;
+  uint32_t su;
+  off_t filesize;
+  fsal_off_t write_start;
+  fsal_off_t block_start;
+  fsal_size_t length = buffer_size;
+  uint32_t stripe;
+  uint64_t internal_offset;
+  uint64_t left, pos, written;
+
+  me_the_OSD=ceph_get_local_osd();
+  
+  /* Find the stripe being read */
+
+  write_start = seek_descriptor->offset;
+  
+  su=ceph_ll_stripe_unit(VINODE(filehandle));
+
+  if (su==(uint32_t) -ESTALE)
+    {
+      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
+    }
+  
+  block_start = read_start - read_start % su;
+  stripe = block_start/su;
+
+  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+  
+  filesize=st.st_size;
+
+  internal_offset=block_start - read_start;
+
+  if (internal_offset==(uint32_t) -ESTALE)
+    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_read);
+
+  left = length;
+  pos = read_start;
+  read = -1;
+
+  while ((left != 0) && (pos <= filesize) && (read != 0))
+    {
+      if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle), stripe))
+	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_read);
+
+      read = ceph_ll_read_block(VINODE(filehandle), stripe,
+				buffer, internal_offset,
+				min((su - internal_offset),
+				    (left - internal_offset)));
+      if (read < 0)
+	  Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
+
+      internal_offset=0;
+      left -= read;
+      pos += read;
+      *read_amount += read;
+      ++stripe;
+    }
+
+  if (pos == filesize)
+    *end_of_file=true;
+  else
+    *end_of_file=false;
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_ds_read);
 }
 
 /**
