@@ -106,7 +106,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
 
   if (su==(uint32_t) -ESTALE)
     {
-      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
+      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_read);
     }
   
   block_start = read_start - read_start % su;
@@ -115,7 +115,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
   rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
 
   if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
   
   filesize=st.st_size;
 
@@ -192,16 +192,14 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
     )
 {
   int me_the_OSD;
-  struct stat_precise st;
   int rc;
   uint32_t su;
-  off_t filesize;
   fsal_off_t write_start;
   fsal_off_t block_start;
   fsal_size_t length = buffer_size;
   uint32_t stripe;
   uint64_t internal_offset;
-  uint64_t left, pos, written;
+  uint64_t left, pos, written, resp;
 
   me_the_OSD=ceph_get_local_osd();
   
@@ -212,52 +210,63 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
   su=ceph_ll_stripe_unit(VINODE(filehandle));
 
   if (su==(uint32_t) -ESTALE)
-    {
-      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
-    }
+    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_write);
   
-  block_start = read_start - read_start % su;
+  block_start = write_start - write_start % su;
   stripe = block_start/su;
 
-  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
-
-  if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
-  
-  filesize=st.st_size;
-
-  internal_offset=block_start - read_start;
+  internal_offset=block_start - write_start;
 
   if (internal_offset==(uint32_t) -ESTALE)
-    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_read);
+    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_write);
 
   left = length;
-  pos = read_start;
-  read = -1;
+  pos = write_start;
+  resp = 0;
+  written = 0;
 
-  while ((left != 0) && (pos <= filesize) && (read != 0))
+  while ((left != 0)  && (resp == 0))
     {
+      off_t filesize;
+      struct stat_precise st;
+      rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
+      filesize=st.st_size;
+      if (rc < 0)
+	Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_write);
+
+      uint64_t towrite=min((su - internal_offset),
+			   (left - internal_offset));
+      
       if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle), stripe))
-	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_read);
+	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_write);
 
-      read = ceph_ll_read_block(VINODE(filehandle), stripe,
-				buffer, internal_offset,
-				min((su - internal_offset),
-				    (left - internal_offset)));
-      if (read < 0)
-	  Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
-
-      internal_offset=0;
-      left -= read;
-      pos += read;
-      *read_amount += read;
-      ++stripe;
+      resp = ceph_ll_write_block(VINODE(filehandle), stripe,
+				 buffer, internal_offset,
+				 towrite);
+      if (resp == 0)
+	{
+	  written += towrite;
+	  internal_offset=0;
+	  left -= written;
+	  pos += written;
+	  ++stripe;
+	  if (pos > filesize)
+	    {
+	      st.st_size = pos;
+	      rc = ceph_ll_setattr_precise(VINODE(filehandle),
+					   &st,
+					   CEPH_SETATTR_SIZE,
+					   -1,
+					   -1);
+	      if (rc < 0)
+		Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_write);
+	    }
+	}
+      *write_amount=written;
     }
-
-  if (pos == filesize)
-    *end_of_file=true;
-  else
-    *end_of_file=false;
+  
+  if (resp)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_write);
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_ds_read);
 }
@@ -285,5 +294,8 @@ fsal_status_t CEPHFSAL_ds_commit(cephfsal_handle_t * filehandle,     /* IN */
 				 fsal_off_t offset,
 				 fsal_size_t length)
 {
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_ds_commit);
+  /* We are writing everything synchronously on the assumption that
+     we'll be moved uner Cache_Inode, so this is a no-op. */
+  
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_ds_commit);
 }
