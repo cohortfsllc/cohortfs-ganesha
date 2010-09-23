@@ -145,7 +145,6 @@ LRU_list_t *LRU_Init(LRU_parameter_t lru_param, LRU_status_t * pstatus)
   BuddySetDebugLabel("LRU_entry_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   /* Pre allocate entries */
   STUFF_PREALLOC(plru->entry_prealloc, lru_param.nb_entry_prealloc, LRU_entry_t, next);
   if(plru->entry_prealloc == NULL)
@@ -153,7 +152,6 @@ LRU_list_t *LRU_Init(LRU_parameter_t lru_param, LRU_status_t * pstatus)
       *pstatus = LRU_LIST_MALLOC_ERROR;
       return NULL;
     }
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
@@ -206,7 +204,7 @@ LRU_entry_t *LRU_new_entry(LRU_list_t * plru, LRU_status_t * pstatus)
 {
   LRU_entry_t *new_entry = NULL;
 
-  LogDebug(COMPONENT_LRU, "==> LRU_new_entry: nb_entry = %d nb_entry_prealloc = %d\n", plru->nb_entry,
+  LogDebug(COMPONENT_LRU, "==> LRU_new_entry: nb_entry = %d nb_entry_prealloc = %d", plru->nb_entry,
          plru->parameter.nb_entry_prealloc);
 
 #ifdef _DEBUG_MEMLEAKS
@@ -292,7 +290,7 @@ int LRU_gc_invalid(LRU_list_t * plru, void *cleanparam)
         {
           if(plru->parameter.clean_entry(pentry, cleanparam) != 0)
             {
-              LogDebug(COMPONENT_LRU, "Error cleaning pentry %p\n", pentry);
+              LogDebug(COMPONENT_LRU, "Error cleaning pentry %p", pentry);
               rc = LRU_LIST_BAD_RELEASE_ENTRY;
             }
 
@@ -304,7 +302,7 @@ int LRU_gc_invalid(LRU_list_t * plru, void *cleanparam)
           if(pentry->next != NULL)
             pentry->next->prev = pentry->prev;
           else
-            LogDebug(COMPONENT_LRU, "SHOULD Never appear  !!!! line %d file %s\n", __LINE__, __FILE__);
+            LogDebug(COMPONENT_LRU, "SHOULD Never appear  !!!! line %d file %s", __LINE__, __FILE__);
           plru->nb_entry -= 1;
           plru->nb_invalid -= 1;
 
@@ -444,9 +442,9 @@ void LRU_Print(LRU_list_t * plru)
   for(pentry = plru->LRU; pentry != NULL; pentry = pentry->next)
     {
       plru->parameter.entry_to_str(pentry->buffdata, dispdata);
-      LogFullDebug(COMPONENT_LRU, "Entry value = %s, valid_state = %d\n", dispdata, pentry->valid_state);
+      LogFullDebug(COMPONENT_LRU, "Entry value = %s, valid_state = %d", dispdata, pentry->valid_state);
     }
-  LogFullDebug(COMPONENT_LRU, "-----------------------------------------\n");
+  LogFullDebug(COMPONENT_LRU, "-----------------------------------------");
 }                               /* LRU_Print */
 
 /* @} */

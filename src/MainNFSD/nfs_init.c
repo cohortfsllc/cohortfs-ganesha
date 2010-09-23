@@ -1238,6 +1238,13 @@ static void nfs_Start_threads(nfs_parameter_t * pnfs_param)
   if(pthread_attr_setstacksize(&attr_thr, THREAD_STACK_SIZE) != 0)
     LogDebug(COMPONENT_INIT, "can't set pthread's stack size");
 
+  /* Initialisation of Threads's fridge */
+  if( fridgethr_init() != 0 )
+   {
+     LogCrit( COMPONENT_INIT, "can't run fridgethr_init... exiting");
+     exit( 1 ) ;
+   }
+
   /* Starting all of the worker thread */
   for(i = 0; i < pnfs_param->core_param.nb_worker; i++)
     {
@@ -1502,14 +1509,12 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                                nfs_request_data_t,
                                next_alloc, constructor_nfs_request_data_t);
 
-#ifndef _NO_BLOCK_PREALLOC
       if(reqpool == NULL)
         {
           LogCrit(COMPONENT_INIT, "NFS_INIT: Error while allocating request data pool #%d", i);
           LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
           exit(1);
         }
-#endif
       workers_data[i].request_pool = reqpool;
 
 #ifdef _DEBUG_MEMLEAKS
@@ -1523,14 +1528,12 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                      nfs_param.worker_param.nb_dupreq_prealloc,
                      dupreq_entry_t, next_alloc);
 
-#ifndef _NO_BLOCK_PREALLOC
       if(dupreq_pool == NULL)
         {
           LogCrit(COMPONENT_INIT, "NFS_INIT: Error while allocating duplicate request pool #%d", i);
           LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
           exit(1);
         }
-#endif
       workers_data[i].dupreq_pool = dupreq_pool;
 
 #ifdef _DEBUG_MEMLEAKS
@@ -1548,14 +1551,12 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                      nfs_param.worker_param.nb_ip_stats_prealloc,
                      nfs_ip_stats_t, next_alloc);
 
-#ifndef _NO_BLOCK_PREALLOC
       if(ip_stats_pool == NULL)
         {
           LogCrit(COMPONENT_INIT, "NFS_INIT: Error while allocating IP stats cache pool #%d", i);
           LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
           exit(1);
         }
-#endif
 
       workers_data[i].ip_stats_pool = ip_stats_pool;
 

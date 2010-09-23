@@ -305,9 +305,8 @@ fi
 AC_SUBST(EFENCE)
 
 # Debugging options
-GA_DISABLE_FLAG( [concurrent-memalloc],  [a thread is not allowed to free a block allocated by another thread], [-D_MONOTHREAD_MEMALLOC] )
+#GA_DISABLE_FLAG( [concurrent-memalloc],  [a thread is not allowed to free a block allocated by another thread], [-D_MONOTHREAD_MEMALLOC] )
 GA_DISABLE_FLAG( [buddy-malloc],         [disable GANESHA's memory allocator, for debug purpose only],   [-D_NO_BUDDY_SYSTEM] )
-GA_DISABLE_FLAG( [block-prealloc],       [disable GANESHA's memory chunks allocator, for debug purpose only],   [-D_NO_BLOCK_PREALLOC] )
 GA_DISABLE_FLAG( [tcp-register], 	 [disable registration of tcp services on portmapper], 		 [-D_NO_TCP_REGISTER] )
 GA_DISABLE_FLAG( [portmapper], 	         [disable registration on portmapper], 				 [-D_NO_PORTMAPPER] )
 GA_DISABLE_FLAG( [xattr-directory],      [disable ghost xattr directory and files support],              [-D_NO_XATTRD])
@@ -440,6 +439,7 @@ case $FSAL in
                 ;;
 	SNMP)
 		AC_DEFINE([_USE_SNMP], 1, [GANESHA is compiled with SNMP FSAL])
+                AC_CHECK_HEADERS([net-snmp/net-snmp-config.h], [], [AC_MSG_ERROR(missing libsnmp include files)])
                 case "$MYOS" in 
 			FREEBSD) 
 				FSAL_CFLAGS=`$NETSNMP_CONFIG --cflags`
@@ -744,7 +744,7 @@ AC_CONFIG_FILES([include/Makefile
 		 check/layers/Makefile
 		 check/layers/maketest.conf
 		 debian/Makefile
-		 debian/control
+		 debian/rules.auto
                  rpm/Makefile
                  Makefile
                  libganeshaNFS.pc
