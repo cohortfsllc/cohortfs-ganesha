@@ -270,8 +270,8 @@ fsal_status_t CEPHFSAL_read(cephfsal_file_t * file_descriptor,  /* IN */
 
   if (nb_read < 0)
     Return(posix2fsal_error(nb_read), 0, INDEX_FSAL_read);
-  else if ((buffer_size != 0) &&
-	   (nb_read == 0))
+
+  if (nb_read < buffer_size)
     *end_of_file=TRUE;
 
   *read_amount=nb_read;
