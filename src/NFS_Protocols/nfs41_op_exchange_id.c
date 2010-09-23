@@ -140,12 +140,30 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
   LogDebug(COMPONENT_NFS_V4, "EXCHANGE_ID computed clientid4=%llx for name='%s'",
                   clientid, str_client);
 
+#if 0 /* XXXX perhaps we wished to mask all supported flags, and
+       * test for the complement? */
   /* Check flags value (test EID4) */
   if(arg_EXCHANGE_ID4.eia_flags & all_eia_flags != arg_EXCHANGE_ID4.eia_flags)
     {
       res_EXCHANGE_ID4.eir_status = NFS4ERR_INVAL;
       return res_EXCHANGE_ID4.eir_status;
     }
+#else
+#ifdef DEBUG_NFSV4
+  { /* XXX move */
+      uint32_t flags = arg_EXCHANGE_ID4.eia_flags;
+      LogDebug(COMPONENT_NFS_V4, "EXCHANGE_ID flags %s%s%s%s%s%s%s%s%s",
+               (flags & EXCHGID4_FLAG_SUPP_MOVED_REFER) ? " EXCHGID4_FLAG_SUPP_MOVED_REFER" : "",
+               (flags & EXCHGID4_FLAG_SUPP_MOVED_MIGR) ? " EXCHGID4_FLAG_SUPP_MOVED_MIGR" : "",
+               (flags & EXCHGID4_FLAG_BIND_PRINC_STATEID) ? " EXCHGID4_FLAG_BIND_PRINC_STATEID" : "",
+               (flags & EXCHGID4_FLAG_USE_NON_PNFS) ? " EXCHGID4_FLAG_USE_NON_PNFS" : "",
+               (flags & EXCHGID4_FLAG_USE_PNFS_MDS) ? " EXCHGID4_FLAG_USE_PNFS_MDS" : "",
+               (flags & EXCHGID4_FLAG_USE_PNFS_DS) ? " EXCHGID4_FLAG_USE_PNFS_DS" : "",
+               (flags & EXCHGID4_FLAG_MASK_PNFS) ? " EXCHGID4_FLAG_MASK_PNFS" : "",
+               (flags & EXCHGID4_FLAG_UPD_CONFIRMED_REC_A) ? " EXCHGID4_FLAG_SUPP_MOVED_REFER" : "",
+               (flags & EXCHGID4_FLAG_CONFIRMED_R) ? " EXCHGID4_FLAG_UPD_CONFIRMED_REC_A" : "");
+#endif
+#endif
 
   /* Does this id already exists ? */
   if(nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS)
