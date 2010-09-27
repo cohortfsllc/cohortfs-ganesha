@@ -130,7 +130,6 @@ int cache_content_client_init(cache_content_client_t * pclient,
 {
   LRU_status_t lru_status;
 
-  pclient->log_outputs = param.log_outputs;
   pclient->nb_prealloc = param.nb_prealloc_entry;
   pclient->flush_force_fsal = param.flush_force_fsal;
   pclient->max_fd_per_thread = param.max_fd_per_thread;
@@ -143,7 +142,6 @@ int cache_content_client_init(cache_content_client_t * pclient,
   BuddySetDebugLabel("cache_content_entry_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_entry,
                  pclient->nb_prealloc, cache_content_entry_t, next_alloc);
 
@@ -154,11 +152,10 @@ int cache_content_client_init(cache_content_client_t * pclient,
 
   if(pclient->pool_entry == NULL)
     {
-      DisplayLogJd(pclient->log_outputs,
+      LogCrit(COMPONENT_CACHE_CONTENT, 
                    "Error : can't init data_cache client entry pool");
       return 1;
     }
-#endif
 
   /* Successfull exit */
   return 0;

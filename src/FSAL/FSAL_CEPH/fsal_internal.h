@@ -35,7 +35,9 @@
 #include  "fsal.h"
 #include  <ceph/libceph.h>
 #include  <string.h>
-
+#ifdef _USE_FSAL_MDS
+#include "layouttypes/fsal_layout.h"
+#endif /* _USE_FSAL_MDS
 
 /* the following variables must not be defined in fsal_internal.c */
 #ifndef FSAL_INTERNAL_C
@@ -49,9 +51,6 @@ extern fsal_staticfsinfo_t global_fs_info;
 
 /* Everybody gets to know the server. */
 extern fs_specific_initinfo_t global_spec_info;
-
-/* log descriptor */
-extern log_t fsal_log;
 
 #endif
 
@@ -438,3 +437,76 @@ unsigned int CEPHFSAL_GetFileno(fsal_file_t * pfile);
 fsal_status_t CEPHFSAL_getextattrs(cephfsal_handle_t * p_filehandle, /* IN */
 				   cephfsal_op_context_t * p_context,        /* IN */
 				   fsal_extattrib_list_t * p_object_attributes /* OUT */) ;
+
+#ifdef _USE_FSALMDS
+fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
+				 fsal_layouttype_t type,
+				 fsal_layoutiomode_t iomode,
+				 fsal_off_t offset, fsal_size_t length,
+				 fsal_size_t minlength,
+				 fsal_layout_t** layouts,
+				 int *numlayouts,
+				 fsal_boolean_t *return_on_close,
+				 cephfsal_op_context_t *context,
+				 void* cbcookie);
+
+
+fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
+				    fsal_layouttype_t type,
+				    fsal_layoutiomode_t passed_iomode,
+				    fsal_off_t passed_offset,
+				    fsal_size_t passed_length,
+				    fsal_size_t found_iomode,
+				    fsal_off_t found_offset,
+				    fsal_size_t found_length,
+				    cephfsal_layoutdata_t ldata,
+				    fsal_op_context_t* context,
+				    void* cbcookie);
+
+fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
+				    fsal_layouttype_t type,
+				    char* layout,
+				    size_t layout_length,
+				    fsal_off_t offset,
+				    fsal_size_t length,
+				    fsal_off_t* newoff,
+				    fsal_boolean_t* changed,
+				    fsal_time_t* newtime);
+  
+
+fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
+				     fsal_deviceid_t id,
+				     device_addr4* devaddr);
+
+fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
+				     fsal_layouttype_t type,
+				     int *numdevices,
+				     uint64_t *cookie,
+				     fsal_boolean_t* eof,
+				     void* buff,
+				     size_t* len);
+#endif /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+
+fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
+			       fsal_seek_t * seek_descriptor,  /* [IN] */
+			       fsal_size_t buffer_size,        /*  IN  */
+			       caddr_t buffer,                 /* OUT  */
+			       fsal_size_t * read_amount,      /* OUT  */
+			       fsal_boolean_t * end_of_file    /* OUT  */
+    );
+
+fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,      /* IN */
+				fsal_seek_t * seek_descriptor,   /* IN */
+				fsal_size_t buffer_size,         /* IN */
+				caddr_t buffer,                  /* IN */
+				fsal_size_t * write_amount,      /* OUT */
+				fsal_boolean_t stable_flag       /* IN */
+    );
+
+fsal_status_t CEPHFSAL_ds_commit(cephfsal_handle_t * filehandle,     /* IN */
+				 fsal_off_t offset,
+				 fsal_size_t length);
+
+#endif /* _USE_FSALDS */

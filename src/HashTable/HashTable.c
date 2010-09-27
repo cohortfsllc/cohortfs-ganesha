@@ -178,6 +178,7 @@
 #include "BuddyMalloc.h"
 #include "HashTable.h"
 #include "stuff_alloc.h"
+#include "log_macros.h"
 
 #ifndef TRUE
 #define TRUE 1
@@ -315,11 +316,9 @@ static hash_data_t *PreAllocPdata(int nb_alloc)
   BuddySetDebugLabel("hash_data_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pdata, (unsigned int)nb_alloc, hash_data_t, next_alloc);
   if(pdata == NULL)
     return NULL;
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
@@ -345,20 +344,16 @@ static struct rbt_node *PreAllocNode(int nb_alloc)
 {
   struct rbt_node *pnode = NULL;
 
-#ifdef _DEBUG_HASHTABLE
-  printf("HASH TABLE PREALLOC: Allocating %d new nodes\n", nb_alloc);
-#endif
+  LogFullDebug(COMPONENT_HASHTABLE, "HASH TABLE PREALLOC: Allocating %d new nodes", nb_alloc);
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
   BuddySetDebugLabel("rbt_node_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pnode, (unsigned int)nb_alloc, rbt_node_t, next);
   if(pnode == NULL)
     return NULL;
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
@@ -501,16 +496,11 @@ hash_table_t *HashTable_Init(hash_parameter_t hparam)
 
   for(i = 0; i < hparam.index_size; i++)
     {
-#ifndef _NO_BLOCK_PREALLOC
       if((ht->node_prealloc[i] = PreAllocNode(hparam.nb_node_prealloc)) == NULL)
         return NULL;
 
       if((ht->pdata_prealloc[i] = PreAllocPdata(hparam.nb_node_prealloc)) == NULL)
         return NULL;
-#else
-      ht->node_prealloc[i] = PreAllocNode(hparam.nb_node_prealloc);
-      ht->pdata_prealloc[i] = PreAllocPdata(hparam.nb_node_prealloc);
-#endif
     }
 
   /* Initialize each of the RB-Tree, mutexes and stats */
@@ -586,10 +576,9 @@ int HashTable_Test_And_Set(hash_table_t * ht, hash_buffer_t * buffkey,
   hashval = (*(ht->parameter.hash_func_key)) (&ht->parameter, buffkey);
   tete_rbt = &(ht->array_rbt[hashval]);
   rbt_value = (*(ht->parameter.hash_func_rbt)) (&ht->parameter, buffkey);
-#ifdef _DEBUG_HASHTABLE
-  printf("Key = %p   Value = %p  hashval = %u  rbt_value = %x\n", buffkey->pdata,
+
+  LogFullDebug(COMPONENT_HASHTABLE,"Key = %p   Value = %p  hashval = %u  rbt_value = %x", buffkey->pdata,
          buffval->pdata, hashval, rbt_value);
-#endif
 
   /* acquire mutex for protection */
   P_w(&(ht->array_lock[hashval]));
@@ -612,10 +601,10 @@ int HashTable_Test_And_Set(hash_table_t * ht, hash_buffer_t * buffkey,
         }
       qn = pn;
       pdata = RBT_OPAQ(qn);
-#ifdef _DEBUG_HASHTABLE
-      printf("Ecrasement d'une ancienne entree (k=%p,v=%p)\n", buffkey->pdata,
+
+      LogFullDebug(COMPONENT_HASHTABLE,"Ecrasement d'une ancienne entree (k=%p,v=%p)", buffkey->pdata,
              buffval->pdata);
-#endif
+
     }
   else
     {
@@ -664,10 +653,8 @@ int HashTable_Test_And_Set(hash_table_t * ht, hash_buffer_t * buffkey,
       RBT_VALUE(qn) = rbt_value;
       RBT_INSERT(tete_rbt, qn, pn);
 
-#ifdef _DEBUG_HASHTABLE
-      printf("Creation d'une nouvelle entree (k=%p,v=%p), qn=%p, pdata=%p\n",
+      LogFullDebug(COMPONENT_HASHTABLE,"Creation d'une nouvelle entree (k=%p,v=%p), qn=%p, pdata=%p",
              buffkey->pdata, buffval->pdata, qn, RBT_OPAQ(qn));
-#endif
     }
 
   pdata->buffval.pdata = buffval->pdata;
@@ -941,15 +928,15 @@ unsigned int HashTable_GetSize(hash_table_t * ht)
  *
  * Print information about the hashtable (mostly for debugging purpose).
  *
+ * @param component the component debugging config to use.
  * @param ht the hashtable to be used.
- *
  * @return none (returns void).
  *
  * @see HashTable_Set
  * @see HashTable_Init
  * @see HashTable_Get
  */
-void HashTable_Print(hash_table_t * ht)
+void HashTable_Log(log_components_t component, hash_table_t * ht)
 {
   struct rbt_node *it;
   struct rbt_head *tete_rbt;
@@ -966,26 +953,20 @@ void HashTable_Print(hash_table_t * ht)
   if(ht == NULL)
     return;
 
-#ifdef _DEBUG_HASHTABLE
-  printf
-      ("The hash has %d nodes (this number MUST be a prime integer for performance's issues)\n",
+  LogFullDebug(COMPONENT_HASHTABLE,
+      "The hash has %d nodes (this number MUST be a prime integer for performance's issues)",
        ht->parameter.index_size);
-#endif
 
   for(i = 0; i < ht->parameter.index_size; i++)
     nb_entries += ht->stat_dynamic[i].nb_entries;
 
-#ifndef _DEBUG_HASHTABLE
-  printf("The hash contains %d entries\n", nb_entries);
-#endif
+  LogFullDebug(COMPONENT_HASHTABLE,"The hash contains %d entries", nb_entries);
 
   for(i = 0; i < ht->parameter.index_size; i++)
     {
       tete_rbt = &((ht->array_rbt)[i]);
-#ifdef _DEBUG_HASHTABLE
-      printf("The node in position %d contains:  %d entries \n", i,
+      LogFullDebug(COMPONENT_HASHTABLE,"The node in position %d contains:  %d entries ", i,
              tete_rbt->rbt_num_node);
-#endif
       RBT_LOOP(tete_rbt, it)
       {
         pdata = (hash_data_t *) it->rbt_opaq;
@@ -996,11 +977,26 @@ void HashTable_Print(hash_table_t * ht)
         hashval = (*(ht->parameter.hash_func_key)) (&ht->parameter, &(pdata->buffkey));
         rbtval = (*(ht->parameter.hash_func_rbt)) (&ht->parameter, &(pdata->buffkey));
 
-        printf("%s => %s; hashval=%lu rbtval=%lu\n ", dispkey, dispval, hashval, rbtval);
+        LogFullDebug(component, "%s => %s; hashval=%lu rbtval=%lu\n ", dispkey, dispval, hashval, rbtval);
         RBT_INCREMENT(it);
       }
     }
   printf("\n");
+}                               /* HashTable_Print */
+
+/**
+ * 
+ * HashTable_Print: Print information about the hashtable (mostly for debugging purpose).
+ *
+ * Print information about the hashtable (mostly for debugging purpose).
+ *
+ * @param ht the hashtable to be used.
+ * @return none (returns void).
+ *
+ */
+void HashTable_Print(hash_table_t * ht)
+{
+  HashTable_Log(COMPONENT_STDOUT, ht);
 }                               /* HashTable_Print */
 
 /* @} */

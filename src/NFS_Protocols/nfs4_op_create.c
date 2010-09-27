@@ -144,6 +144,14 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
       return res_CREATE4.status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&(data->currentFH)))
+    {
+      res_CREATE4.status = NFS4ERR_NOTSUPP;
+      return res_CREATE4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* Ask only for supported attributes */
   if(!nfs4_Fattr_Supported(&arg_CREATE4.createattrs))
     {
@@ -523,7 +531,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* Operation is supposed to be atomic .... */
   res_CREATE4.CREATE4res_u.resok4.cinfo.atomic = TRUE;
 
-  LogFullDebug(COMPONENT_NFS_V4, "           CREATE CINFO before = %llu  after = %llu  atomic = %d\n",
+  LogFullDebug(COMPONENT_NFS_V4, "           CREATE CINFO before = %llu  after = %llu  atomic = %d",
          res_CREATE4.CREATE4res_u.resok4.cinfo.before,
          res_CREATE4.CREATE4res_u.resok4.cinfo.after,
          res_CREATE4.CREATE4res_u.resok4.cinfo.atomic);

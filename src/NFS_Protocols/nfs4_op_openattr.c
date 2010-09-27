@@ -96,6 +96,14 @@ int nfs4_op_openattr(struct nfs_argop4 *op,
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_openattr";
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_OPENATTR4.status = NFS4ERR_NOTSUPP;
+      return res_OPENATTR4.status;
+    }
+#endif /* _USE_FSALDS */
+
   resp->resop = NFS4_OP_OPENATTR;
   res_OPENATTR4.status = NFS4_OK;
 

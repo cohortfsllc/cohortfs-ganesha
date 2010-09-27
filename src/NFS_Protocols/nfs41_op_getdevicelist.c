@@ -89,19 +89,87 @@
  * @see nfs4_Compound
  *
  */
+#define arg_GETDEVICELIST4  op->nfs_argop4_u.opgetdevicelist
+#define res_GETDEVICELIST4  resp->nfs_resop4_u.opgetdevicelist
 
 int nfs41_op_getdevicelist(struct nfs_argop4 *op,
                            compound_data_t * data, struct nfs_resop4 *resp)
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_getdevicelist";
-
-#define arg_GETDEVICELIST4  op->nfs_argop4_u.opgetdevicelist
-#define res_GETDEVICELIST4  resp->nfs_resop4_u.opgetdevicelist
+#if defined(_USE_PNFS)
 
   resp->resop = NFS4_OP_GETDEVICELIST;
   res_GETDEVICELIST4.gdlr_status = NFS4_OK;
 
   return res_GETDEVICELIST4.gdlr_status;
+
+#elidf defined(_USE_FSALMDS)
+  fsal_status_t status;
+  size_t bufflen=10240;
+  deviceid4* buff;
+  char* xdrbuff;
+  uint64_t cookie=arg_GETDEVICELIST4.gdla_cookie;
+  fsal_boolean_t eof=FALSE;
+  uint32_t count=arg_GETDEVICELIST4.gdla_maxdevices;
+  fsal_handle_t fsalh;
+  
+  resp->resop = NFS4_OP_GETDEVICELIST;
+
+  /* If there is no FH */
+  if(nfs4_Is_Fh_Empty(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_NOFILEHANDLE;
+      return res_GETDEVICELIST4.gdlr_status;
+    }
+
+  /* If the filehandle is invalid */
+  if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_BADHANDLE;
+      return res_GETDEVICELIST4.gdlr_status;
+    }
+
+  /* Tests if the Filehandle is expired (for volatile filehandle) */
+  if(nfs4_Is_Fh_Expired(&(data->currentFH)))
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_FHEXPIRED;
+      return res_GETDEVICELIST4.gdlr_status;
+    }
+
+  if ((buff = (deviceid4*) Mem_Alloc(bufflen))==NULL)
+    {
+      res_GETDEVICELIST4.gdlr_status = NFS4ERR_SERVERFAULT;
+      return res_GETDEVICELIST4.gdlr_status;
+    }
+
+  nfs4_FhandletoFSAL(data->currentFH, &fsalh, data->pcontext);
+
+  status = FSAL_getdevicelist(&fsalh,
+			      arg_GETDEVICELIST4.gdla_layout_type,
+			      &count,
+			      &cookie,
+			      &eof,
+			      buff,
+			      &bufflen);
+
+  if (FSAL_IS_ERROR(status))
+    {
+      Mem_Free(buff);
+      res_GETDEVICELIST4.gdlr_status = status.major;
+      return res_GETDEVICELIST4.gdlr_status;
+    }
+
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4.gdlr_cookie=cookie;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4
+    .gdlr_deviceid_list.gdlr_deviceid_list_val=buff;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4
+    .gdlr_deviceid_list.gdlr_deviceid_list_len=bufflen;
+  res_GETDEVICELIST4.GETDEVICELIST4res_u.gdlr_resok4.gdlr_eof=eof;
+  
+  res_GETDEVICELIST4.gdlr_status = NFS4_OK;
+  return res_GETDEVICELIST4.gdlr_status;
+			      
+#endif                          /* _USE_PNFS */
 }                               /* nfs41_op_exchange_id */
 
 /**
@@ -116,5 +184,10 @@ int nfs41_op_getdevicelist(struct nfs_argop4 *op,
  */
 void nfs41_op_getdevicelist_Free(GETDEVICELIST4res * resp)
 {
+#ifdef _USE_FSALMDS
+  if (resp->gdlr_status == NFS4_OK)
+    Mem_Free(resp->GETDEVICELIST4res_u.gdlr_resok4
+	     .gdlr_deviceid_list.gdlr_deviceid_list_val);
+#endif                          /* _USE_FSALMDS */
   return;
 }                               /* nfs41_op_exchange_id_Free */

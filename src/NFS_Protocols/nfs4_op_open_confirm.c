@@ -101,6 +101,14 @@ int nfs4_op_open_confirm(struct nfs_argop4 *op,
   resp->resop = NFS4_OP_OPEN_CONFIRM;
   res_OPEN_CONFIRM4.status = NFS4_OK;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_OPEN_CONFIRM4.status = NFS4ERR_NOTSUPP;
+      return res_OPEN_CONFIRM4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

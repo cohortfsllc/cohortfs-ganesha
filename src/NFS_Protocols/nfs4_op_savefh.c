@@ -104,6 +104,14 @@ int nfs4_op_savefh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   resp->resop = NFS4_OP_SAVEFH;
   resp->nfs_resop4_u.opsavefh.status = NFS4_OK;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      resp->nfs_resop4_u.opsavefh.status = NFS4ERR_NOTSUPP;
+      return resp->nfs_resop4_u.opsavefh.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no currentFH, teh  return an error */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -147,7 +155,7 @@ int nfs4_op_savefh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   LogFullDebug(COMPONENT_NFS_V4, "SAVEDFH: File handle = { Length = %d  Val = ", data->savedFH.nfs_fh4_len);
   for(i = 0; i < data->savedFH.nfs_fh4_len; i++)
     LogFullDebug(COMPONENT_NFS_V4, "%02X", data->savedFH.nfs_fh4_val[i]);
-  LogFullDebug(COMPONENT_NFS_V4, " }\n");
+  LogFullDebug(COMPONENT_NFS_V4, " }");
 
   return NFS4_OK;
 }                               /* nfs4_op_savefh */

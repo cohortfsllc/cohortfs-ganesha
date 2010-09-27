@@ -110,6 +110,14 @@ int nfs4_op_setattr(struct nfs_argop4 *op,
       return res_SETATTR4.status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_SETATTR4.status = NFS4ERR_NOTSUPP;
+      return res_SETATTR4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If the filehandle is invalid */
   if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
     {

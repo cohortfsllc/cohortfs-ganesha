@@ -6,7 +6,7 @@ AC_INIT( [nfs-ganesha], [1.0.1], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS(alpha)/ZFS(dev)/CEPH(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
+AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS/CEPH(alpha)/ZFS(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
 
 # Init Automake
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
@@ -237,7 +237,21 @@ if test "$enable_pnfs" == "yes"; then
 fi
 AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 
+# FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
+GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
+if test "$enable_fsalmds" == "yes"; then
+	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
+	FSALMDS_LIB="\$(top_builddir)/NFS_Protocols/layouttypes/liblayouttypes.la"
+fi
+AM_CONDITIONAL(USE_FSALMDS, test "x$enable_fsalmds" = "xyes")
 
+# FSAL based pNFS DS support (requires NFSv4.1, conflicts with DS)
+GA_ENABLE_AM_CONDITION([fsalds],[enable FSAL-based pNFS DS support (NFSv4.1 support is mandatory)],[USE_FSALDS])
+PNFS_LIB=""
+if test "$enable_fsalds" == "yes"; then
+	AC_DEFINE(_USE_FSALDS,1,[enable FSAL based pNFS DS support])
+fi
+AM_CONDITIONAL(USE_FSALDS, test "x$enable_fsalds" = "xyes")
 
 # TI-RPC
 GA_ENABLE_AM_CONDITION([tirpc],[enable TIRPC support],[USE_TIRPC])
@@ -291,41 +305,17 @@ fi
 AC_SUBST(EFENCE)
 
 # Debugging options
-GA_DISABLE_FLAG( [concurrent-memalloc],  [a thread is not allowed to free a block allocated by another thread], [-D_MONOTHREAD_MEMALLOC] )
+#GA_DISABLE_FLAG( [concurrent-memalloc],  [a thread is not allowed to free a block allocated by another thread], [-D_MONOTHREAD_MEMALLOC] )
 GA_DISABLE_FLAG( [buddy-malloc],         [disable GANESHA's memory allocator, for debug purpose only],   [-D_NO_BUDDY_SYSTEM] )
-GA_DISABLE_FLAG( [block-prealloc],       [disable GANESHA's memory chunks allocator, for debug purpose only],   [-D_NO_BLOCK_PREALLOC] )
 GA_DISABLE_FLAG( [tcp-register], 	 [disable registration of tcp services on portmapper], 		 [-D_NO_TCP_REGISTER] )
 GA_DISABLE_FLAG( [portmapper], 	         [disable registration on portmapper], 				 [-D_NO_PORTMAPPER] )
 GA_DISABLE_FLAG( [xattr-directory],      [disable ghost xattr directory and files support],              [-D_NO_XATTRD])
 
-GA_ENABLE_FLAG(  [memcorrupt-check],     [enable allocator features for tracking memory corruption],     [-D_DETECT_MEMCORRUPT] )
-GA_ENABLE_FLAG(  [debug-memalloc],       [enable debug traces in memory allocator],                      [-D_DEBUG_MEMALLOC] )
-GA_ENABLE_FLAG(  [debug-states],         [enable debug traces for nfsv4 states],                         [-D_DEBUG_STATES] )
-GA_ENABLE_FLAG(  [debug-memleaks],       [enable allocator features for tracking memory usage],          [-D_DEBUG_MEMLEAKS] )
-GA_ENABLE_FLAG(  [debug-fsal],		 [enable debug traces in FileSystem Abstraction Layer],          [-D_DEBUG_FSAL] )
-GA_ENABLE_FLAG(  [debug-nfsproto],       [enable extended debug traces for NFS/MOUNT protocols],         [-D_DEBUG_NFSPROTO] )
-GA_ENABLE_FLAG(  [debug-nfsv4],		 [enable debug traces related to NFSv4 protocol],                [-D_DEBUG_NFS_V4] )
-GA_ENABLE_FLAG(  [debug-nfsv4-pseudo],   [enable debug traces for NFSv4 pseudofs],                       [-D_DEBUG_NFS_V4_PSEUDO] )
-GA_ENABLE_FLAG(  [debug-filehandle],     [enable debug traces related to NFS File handle],               [-D_DEBUG_FILEHANDLE] )
-
-GA_ENABLE_FLAG(  [debug-nfs-readdir],    [enable debug traces related to the NFS READDIR command],       [-D_DEBUG_NFS_READDIR] )
-GA_ENABLE_FLAG(  [debug-nfsv4-lock],     [enable debug traces related to NFS locking],                   [-D_DEBUG_NFS_V4_LOCK] )
-GA_ENABLE_FLAG(  [debug-nfsv4-xattr],    [enable debug traces related to NFS extended attributes],       [-D_DEBUG_NFS_V4_XATTR] )
-GA_ENABLE_FLAG(  [debug-nfsv4-referral], [enable debug traces related to NFS referrals],                 [-D_DEBUG_NFS_V4_REFERRAL] )
 GA_ENABLE_FLAG(  [debug-memcorrupt],     [enable debugging for memory corruption],                       [-D_DEBUG_MEMCORRUPT] )
-GA_ENABLE_FLAG(  [debug-idmapper],     	 [enable debug traces related to ID Mappper],               	 [-D_DEBUG_IDMAPPER] )
-
+GA_ENABLE_FLAG(  [debug-memalloc],       [enable debug traces in memory allocator],                      [-D_DEBUG_MEMALLOC] )
+GA_ENABLE_FLAG(  [debug-memleaks],       [enable allocator features for tracking memory usage],          [-D_DEBUG_MEMLEAKS] )
 GA_ENABLE_FLAG(  [debug-nfsshell],       [enable extended debug traces for ganeshell utility],           [-D_DEBUG_NFS_SHELL] )
-GA_ENABLE_FLAG(  [debug-dispatch],       [enable extended debug traces about RPC dispatch],              [-D_DEBUG_DISPATCH] )
-GA_ENABLE_FLAG(  [debug-data-cache],     [enable extended debug traces about internal datacache],        [-D_DEBUG_CACHE_CONTENT] )
-GA_ENABLE_FLAG(  [debug-metadata-cache], [enable extended debug traces for internal metadata cache],     [-D_DEBUG_CACHE_INODE] )
-GA_ENABLE_FLAG(  [debug-mdcache-gc],     [enable extened debug traces for md cache garbagge collection], [-D_DEBUG_CACHE_INODE_GC] )
-GA_ENABLE_FLAG(  [debug-hashtable],      [enable extended debug traces about the hash tables],           [-D_DEBUG_HASHTABLE] )
-GA_ENABLE_FLAG(  [debug-lru],            [enable extended debug traces on LRU lists],                    [-D_DEBUG_LRU] )
-GA_ENABLE_FLAG(  [debug-dupreq],         [enable extended debug traces on Duplicate Request Cache],      [-D_DEBUG_DUPREQ] )
-GA_ENABLE_FLAG(  [debug-log],            [enable extended debug traces about the logging module],        [-D_LOG_DEBUG] )
-GA_ENABLE_FLAG(  [debug-rpcsecgss],      [enable extended debug traces about RPCSEC_GSS],                [-D_DEBUG_RPCSEC_GSS] )
-GA_ENABLE_FLAG(  [full-debug],           [enable FULL_DEBUG logging level (very verbose)],               [-D_FULL_DEBUG] )
+
 GA_ENABLE_FLAG(  [pl-pgsql],		 [enable PGSQL stored procedures (POSIX FSAL)],		         [-D_WITH_PLPGSQL])
 GA_ENABLE_FLAG(  [cache-path],		 [Enable entry path caching in POSIX FSAL],	                 [-D_ENABLE_CACHE_PATH])
 GA_ENABLE_FLAG(  [handle-mapping],	 [enable NFSv2/3 handle mapping for PROXY FSAL],	         [-D_HANDLE_MAPPING])
@@ -350,7 +340,7 @@ if test "${with_extra_includedir+set}" == "set"; then
 fi
 
 # FSAL switch argument (default is PROXY)
-AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|GHOSTFS|FUSE|LUSTRE|XFS|GPFS|ZFS|DLPOEN|CEPH (default=PROXY)],[specify the type of filesystem to be exported] ),
+AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|GHOSTFS|FUSE|LUSTRE|XFS|GPFS|ZFS|CEPH|DYNFSAL (default=PROXY)],[specify the type of filesystem to be exported] ),
 	     FSAL="$withval", FSAL="PROXY")
 
 # exporting USE_FSAL_... for conditional compilation
@@ -363,9 +353,9 @@ AM_CONDITIONAL(USE_FSAL_FUSE,     test "$FSAL" = "FUSE")
 AM_CONDITIONAL(USE_FSAL_LUSTRE,   test "$FSAL" = "LUSTRE")
 AM_CONDITIONAL(USE_FSAL_XFS,      test "$FSAL" = "XFS")
 AM_CONDITIONAL(USE_FSAL_GPFS,     test "$FSAL" = "GPFS")
-AM_CONDITIONAL(USE_FSAL_CEPH,     test "$FSAL" = "CEPH")
 AM_CONDITIONAL(USE_FSAL_TEMPLATE, test "$FSAL" = "TEMPLATE")
 AM_CONDITIONAL(SHARED_FSAL,       test "$FSAL" = "DYNFSAL")
+AM_CONDITIONAL(USE_FSAL_CEPH,     test "$FSAL" = "CEPH")
 AM_CONDITIONAL(USE_FSAL_ZFS,      test "$FSAL" = "ZFS")
 
 # NFSv4.0 NFSv4.1 switch
@@ -449,6 +439,7 @@ case $FSAL in
                 ;;
 	SNMP)
 		AC_DEFINE([_USE_SNMP], 1, [GANESHA is compiled with SNMP FSAL])
+                AC_CHECK_HEADERS([net-snmp/net-snmp-config.h], [], [AC_MSG_ERROR(missing libsnmp include files)])
                 case "$MYOS" in 
 			FREEBSD) 
 				FSAL_CFLAGS=`$NETSNMP_CONFIG --cflags`
@@ -479,15 +470,6 @@ case $FSAL in
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_LUSTRE/libfsallustre.la"
 		FS_NAME="lustre"
 		;;
-	CEPH)
-		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports Ceph Filesystem])
- 		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing libceph include files)])
-		FSAL_CFLAGS=
-                FSAL_LDFLAGS="-lceph -lssl -lcrush"
-		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
-		FS_NAME="ceph"
-		;;
-
 	XFS)
 		AC_DEFINE([_USE_XFS], 1, [GANESHA exports XFS Filesystem])
  		AC_CHECK_HEADERS([xfs/xfs.h], [], [AC_MSG_ERROR( missing xfs include files)])
@@ -496,6 +478,14 @@ case $FSAL in
                 FSAL_LDFLAGS="-lhandle"
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_XFS/libfsalxfs.la"
 		FS_NAME="xfs"
+		;;
+	CEPH)
+		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports CEPH Filesystem])
+ 		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing ceph include files)])
+		FSAL_CFLAGS=
+                FSAL_LDFLAGS=-lceph
+		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
+		FS_NAME="ceph"
 		;;
         DYNFSAL)
                	AC_DEFINE( _USE_SHARED_FSAL, 1, [enable shared FSAL] )
@@ -663,6 +653,7 @@ AC_SUBST(FSAL_LDFLAGS)
 AC_SUBST(FSAL_LIB)
 AC_SUBST(MFSL_LIB)
 AC_SUBST(PNFS_LIB)
+AC_SUBST(FSALMDS_LIB)
 AC_SUBST(FS_NAME)
 AC_SUBST(SHARED_FSAL)
 AC_SUBST(SHARED_FSAL_PKG)
@@ -686,19 +677,19 @@ AC_CONFIG_FILES([include/Makefile
                  include/FSAL/FSAL_FUSELIKE/Makefile
                  include/FSAL/FSAL_LUSTRE/Makefile
                  include/FSAL/FSAL_XFS/Makefile
+                 include/FSAL/FSAL_CEPH/Makefile
                  include/FSAL/FSAL_GPFS/Makefile
                  include/FSAL/FSAL_ZFS/Makefile
                  include/FSAL/FSAL_TEMPLATE/Makefile
                  include/FSAL/FSAL_GHOST_FS/Makefile
-                 include/FSAL/FSAL_CEPH/Makefile
                  include/MFSL/Makefile
                  include/MFSL/MFSL_NULL/Makefile
                  include/MFSL/MFSL_ASYNC/Makefile
                  include/MFSL/MFSL_PROXY_RPCSECGSS/Makefile
                  include/PNFS/Makefile
 		 include/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
+		 include/layouttypes/Makefile
                  BuddyMalloc/Makefile
-                 StuffAlloc/Makefile
                  Common/Makefile
                  support/Makefile
                  Log/Makefile
@@ -716,6 +707,7 @@ AC_CONFIG_FILES([include/Makefile
 		 NFS_Protocols/Makefile
 		 NFS_Protocols/PNFS/Makefile
 		 NFS_Protocols/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
+		 NFS_Protocols/layouttypes/Makefile
                  XDR/Makefile
 		 FSAL/Makefile
 		 FSAL/FSAL_HPSS/Makefile
@@ -729,10 +721,10 @@ AC_CONFIG_FILES([include/Makefile
 		 FSAL/FSAL_PROXY/Makefile
 		 FSAL/FSAL_PROXY/handle_mapping/Makefile
 		 FSAL/FSAL_SNMP/Makefile
-		 FSAL/FSAL_CEPH/Makefile
 		 FSAL/FSAL_FUSELIKE/Makefile
 		 FSAL/FSAL_LUSTRE/Makefile
 		 FSAL/FSAL_XFS/Makefile
+		 FSAL/FSAL_CEPH/Makefile
 		 FSAL/FSAL_GPFS/Makefile
                  FSAL/FSAL_ZFS/Makefile
 		 FSAL/FSAL_TEMPLATE/Makefile
@@ -752,7 +744,7 @@ AC_CONFIG_FILES([include/Makefile
 		 check/layers/Makefile
 		 check/layers/maketest.conf
 		 debian/Makefile
-		 debian/control
+		 debian/rules.auto
                  rpm/Makefile
                  Makefile
                  libganeshaNFS.pc

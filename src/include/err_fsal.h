@@ -134,6 +134,9 @@ static family_error_t __attribute__ ((__unused__)) tab_errstatus_FSAL[] =
 #define ERR_FSAL_ATTRNOTSUPP      10032
   {
   ERR_FSAL_ATTRNOTSUPP, "ERR_FSAL_ATTRNOTSUPP", "Attribute not supported"},
+#define ERR_FSAL_PNFS_IO_HOLE   10075
+  {
+  ERR_FSAL_PNFS_IO_HOLE, "ERR_FSAL_PNFS_IO_HOLE", "pNFS read of IO hole in sparse layout"},
 #define ERR_FSAL_NOT_INIT       20001
   {
   ERR_FSAL_NOT_INIT, "ERR_FSAL_NOT_INIT", "Filesystem not initialized"},

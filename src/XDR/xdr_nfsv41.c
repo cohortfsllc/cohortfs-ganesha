@@ -4159,7 +4159,7 @@ bool_t xdr_LAYOUTRETURN4args(XDR * xdrs, LAYOUTRETURN4args * objp)
 
   if(!xdr_bool(xdrs, &objp->lora_reclaim))
     return FALSE;
-  if(!xdr_layouttype4(xdrs, &objp->lora_layout_type))
+  if(!xdr_layouttype4(xdrs, (enum layouttype4*) &objp->lora_layout_type))
     return FALSE;
   if(!xdr_layoutiomode4(xdrs, &objp->lora_iomode))
     return FALSE;

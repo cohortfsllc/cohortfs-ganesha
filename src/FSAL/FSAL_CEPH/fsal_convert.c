@@ -198,11 +198,7 @@ fsal_status_t posix2fsal_attributes(struct stat_precise * p_buffstat,
 
   unsupp_attr = (p_fsalattr_out->asked_attributes) & (~supp_attr);
   if(unsupp_attr)
-    {
-      DisplayLogJdLevel(fsal_log, NIV_FULL_DEBUG,
-                        "Unsupported attributes: %#llX", unsupp_attr);
-      ReturnCode(ERR_FSAL_ATTRNOTSUPP, 0);
-    }
+    ReturnCode(ERR_FSAL_ATTRNOTSUPP, 0);
 
   /* Fills the output struct */
   if(FSAL_TEST_MASK(p_fsalattr_out->asked_attributes, FSAL_ATTR_SUPPATTR))

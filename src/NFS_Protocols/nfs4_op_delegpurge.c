@@ -94,6 +94,15 @@ int nfs4_op_delegpurge(struct nfs_argop4 *op,
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_delegpurge";
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      resp->resop = NFS4_OP_DELEGPURGE;
+      res_DELEGPURGE4.status = NFS4ERR_NOTSUPP;
+      return res_DELEGPURGE4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* Lock are not supported */
   resp->resop = NFS4_OP_DELEGPURGE;
   res_DELEGPURGE4.status = NFS4_OK;

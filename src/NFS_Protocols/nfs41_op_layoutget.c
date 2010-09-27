@@ -74,6 +74,10 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#ifdef _USE_FSALMDS
+#include "fsal.h"
+#include "layouttypes/layouts.h"
+#endif                                          /* _USE_FSALMDS */
 
 /**
  * 
@@ -98,31 +102,23 @@
 int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
                        struct nfs_resop4 *resp)
 {
-  cache_inode_state_data_t candidate_data;
-  cache_inode_state_type_t candidate_type;
-  cache_inode_state_t *file_state = NULL;
-  cache_inode_status_t cache_status;
   cache_inode_state_t *pstate_exists = NULL;
   int rc;
 
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutget";
 
-#ifndef _USE_PNFS
+#if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   resp->resop = NFS4_OP_LAYOUTGET;
   res_LAYOUTGET4.logr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTGET4.logr_status;
 #else
-  char *buff = NULL;
-  unsigned int lenbuff = 0;
+  cache_inode_state_t *file_state = NULL;
+  cache_inode_state_data_t candidate_data;
+  cache_inode_state_type_t candidate_type;
+  cache_inode_status_t cache_status;
 
   /* Lock are not supported */
   resp->resop = NFS4_OP_LAYOUTGET;
-
-  if((buff = Mem_Alloc(1024)) == NULL)
-    {
-      res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
-      return res_LAYOUTGET4.logr_status;
-    }
 
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -144,6 +140,14 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       res_LAYOUTGET4.logr_status = NFS4ERR_FHEXPIRED;
       return res_LAYOUTGET4.logr_status;
     }
+
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_LAYOUTGET4.logr_status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTGET4.logr_status;
+    }
+#endif /* _USE_FSALDS */
 
   /* Commit is done only on a file */
   if(data->current_filetype != REGULAR_FILE)
@@ -178,19 +182,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTGET4.logr_status;
     }
 
-  /* For the moment, only LAYOUT4_FILE is supported */
-  switch (arg_LAYOUTGET4.loga_layout_type)
-    {
-    case LAYOUT4_NFSV4_1_FILES:
-      /* Continue on proceeding the request */
-      break;
-
-    default:
-      res_LAYOUTGET4.logr_status = NFS4ERR_NOTSUPP;
-      return res_LAYOUTGET4.logr_status;
-      break;
-    }                           /* switch( arg_LAYOUTGET4.loga_layout_type ) */
-
   /* Get the related powner (from a previously made call to OPEN) */
   if(cache_inode_get_state(arg_LAYOUTGET4.loga_stateid.other,
                            &pstate_exists,
@@ -201,6 +192,15 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       else
         res_LAYOUTGET4.logr_status = NFS4ERR_INVAL;
 
+      return res_LAYOUTGET4.logr_status;
+    }
+#if defined(_USE_PNFS)
+  char *buff = NULL;
+  unsigned int lenbuff = 0;
+
+  if((buff = Mem_Alloc(1024)) == NULL)
+    {
+      res_LAYOUTGET4.logr_status = NFS4ERR_SERVERFAULT;
       return res_LAYOUTGET4.logr_status;
     }
 
@@ -260,7 +260,64 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 
   res_LAYOUTGET4.logr_status = NFS4_OK;
   return res_LAYOUTGET4.logr_status;
-#endif                          /* _USE_PNFS */
+#elif defined(_USE_FSALMDS)
+  /* set the returned status */
+
+  fsal_boolean_t return_on_close;
+  fsal_status_t status;
+  fsal_layout_t *layouts;
+  int numlayouts;
+  layoutiomode4 iomode=arg_LAYOUTGET4.loga_iomode;
+  offset4 offset=arg_LAYOUTGET4.loga_offset;
+  length4 length=arg_LAYOUTGET4.loga_length;
+  fsal_handle_t fsalh;
+  int i;
+
+  struct lg_cbc cookie;
+  cookie.current_entry=data->current_entry;
+  cookie.powner=pstate_exists->powner;
+  cookie.pclient=data->pclient;
+  cookie.pcontext=data->pcontext;
+  cookie.data=data;
+
+  nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
+
+  status=FSAL_layoutget(&fsalh,
+			arg_LAYOUTGET4.loga_layout_type,
+			iomode,
+			offset,
+			length,
+			arg_LAYOUTGET4.loga_minlength,
+			&layouts,
+			&numlayouts,
+			&return_on_close,
+			data->pcontext,
+			(void *) &cookie);
+
+  if (FSAL_IS_ERROR(status))
+    {
+      res_LAYOUTGET4.logr_status = status.major;
+      return res_LAYOUTGET4.logr_status;
+    }
+
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_return_on_close =
+    return_on_close;
+
+  /* Manages the stateid */
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.seqid = 1;
+  memcpy(res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_stateid.other,
+         ((cache_inode_state_t*)cookie.created_state)->stateid_other, 12);
+
+  /* Now the layout specific information */
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_len
+    = numlayouts;
+  res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val
+    = layouts;
+
+  res_LAYOUTGET4.logr_status = NFS4_OK;
+  return res_LAYOUTGET4.logr_status;
+#endif                          /* _USE_FSALMDS */
+#endif
 }                               /* nfs41_op_layoutget */
 
 /**
@@ -275,6 +332,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
  */
 void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
 {
+#ifdef _USE_PNFS 
   if(resp->logr_status == NFS4_OK)
     {
       if(resp->LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val[0].lo_content.
@@ -284,4 +342,75 @@ void nfs41_op_layoutget_Free(LAYOUTGET4res * resp)
     }
 
   return;
+#elif defined(_USE_FSALMDS)
+  if (resp->logr_status == NFS4_OK)
+    Mem_Free(resp->LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val);
+#endif                          /* _USE_FSALMDS */
 }                               /* nfs41_op_layoutget_Free */
+
+#ifdef _USE_FSALMDS
+
+/**
+ * 
+ * FSALBACK_layout_add_state:
+ * Callback from FSAL_layoutget to attempt to add layout state
+ * with FSAL determined boundaries.  
+ *
+ * Ideally this function would be called before any allocations were
+ * performed or messages were sent related to setting up the layout.
+ *
+ * Even if resources have been allocated, they can be immediately
+ * freed rather than calling back into a cleanup function or
+ * FSAL_layoutreturn on error.
+ *
+ * if this function fails, FSAL_layoutget is responsible for returning
+ * NFS4ERR_LAYOUTTRYLATER or retrying with different parameters.
+ *
+ * @param type            [IN]    The layout type being added
+ * @param iomode          [IN]    The IO mode for the layout
+ * @param offset          [IN]    Offset of the layout to add
+ * @param length          [IN]    Length of the layout to add
+ * @param fsaldata        [IN]    FSAL-specific data
+ * @param return_on_close [IN]    Return on close flag
+ * @param opaque          [IN]    A pointer, opaque to the FSAL.
+ * 
+ * @return Zero on success, nonzero on failure.
+ *
+ *
+ */
+
+int FSALBACK_layout_add_state(fsal_layouttype_t type,
+			      fsal_layoutiomode_t iomode,
+			      fsal_off_t offset,
+			      fsal_size_t length,
+			      fsal_layoutdata_t fsaldata,
+			      int return_on_close,
+			      void* opaque)
+{
+  struct lg_cbc* cbc=(struct lg_cbc*) opaque;
+  cache_inode_state_type_t candidate_type;
+  cache_inode_state_data_t candidate_data;
+  cache_inode_state_t *file_state = NULL;
+  cache_inode_status_t cache_status;
+  int rc;
+  
+  candidate_type = CACHE_INODE_STATE_LAYOUT;
+  candidate_data.layout.layout_type = type;
+  candidate_data.layout.iomode = iomode;
+  candidate_data.layout.offset = offset;
+  candidate_data.layout.length = length;
+  candidate_data.layout.fsaldata = fsaldata;
+  candidate_data.layout.return_on_close = return_on_close;
+  
+  rc = cache_inode_add_state(cbc->current_entry,
+			     candidate_type,
+			     &candidate_data,
+			     cbc->powner,
+			     cbc->pclient,
+			     cbc->pcontext,
+			     &file_state,
+			     &cache_status);
+  cbc->created_state=file_state;
+  return (rc != CACHE_INODE_SUCCESS);
+}
+#endif                          /* _USE_FSALMDS */

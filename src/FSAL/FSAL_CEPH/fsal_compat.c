@@ -675,6 +675,120 @@ fsal_status_t WRAP_CEPHFSAL_RemoveXAttrByName(fsal_handle_t * p_objecthandle,   
                                    (cephfsal_op_context_t *) p_context, xattr_name);
 }
 
+#ifdef _USE_FSALMDS
+fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
+				      fsal_layouttype_t type,
+				      fsal_layoutiomode_t iomode,
+				      fsal_off_t offset, fsal_size_t length,
+				      fsal_size_t minlength,
+				      fsal_layout_t** layouts,
+				      int *numlayouts,
+				      fsal_boolean_t *return_on_close,
+				      fsal_op_context_t *context,
+				      void* cbcookie)
+{
+  return CEPHFSAL_layoutget((cephfsal_handle_t *) filehandle,
+			    type, iomode, offset, length,
+			    minlength, layouts,
+			    numlayouts,
+			    return_on_close,
+			    (cephfsal_op_context_t *) context,
+			    cbcookie);
+}
+
+fsal_status_t WRAP_CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
+					 fsal_layouttype_t type,
+					 fsal_layoutiomode_t passed_iomode,
+					 fsal_off_t passed_offset,
+					 fsal_size_t passed_length,
+					 fsal_layoutiomode_t found_iomode,
+					 fsal_off_t found_offset,
+					 fsal_size_t found_length,
+					 fsal_layoutdata_t ldata,
+					 fsal_op_context_t* context,
+					 void* cbcookie)
+{
+  return CEPHFSAL_layoutreturn((cephfsal_handle_t* )filehandle,
+			       type, passed_iomode, passed_offset,
+			       passed_length, found_iomode,
+			       found_offset,
+			       found_length,
+			       (cephfsal_layoutdata_t) ldata,
+			       (cephfsal_op_context_t* )context,
+			       cbcookie);
+}
+
+fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
+					 fsal_layouttype_t type,
+					 char* layout,
+					 size_t layout_length,
+					 fsal_off_t offset,
+					 fsal_size_t length,
+					 fsal_off_t* newoff,
+					 fsal_boolean_t* changed,
+					 fsal_time_t* newtime)
+{
+  return CEPHFSAL_layoutcommit((cephfsal_handle_t* )filehandle,
+			       type, layout, layout_length, offset,
+			       length, newoff, changed, newtime);
+}
+
+fsal_status_t WRAP_CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
+					  fsal_deviceid_t id,
+					  device_addr4* devaddr)
+{
+  return CEPHFSAL_getdeviceinfo(type, id, devaddr);
+}
+
+fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
+					  fsal_layouttype_t type,
+					  int *numdevices,
+					  uint64_t *cookie,
+					  fsal_boolean_t* eof,
+					  void* buff,
+					  size_t* len)
+{
+  return CEPHFSAL_getdevicelist((cephfsal_handle_t*) filehandle,
+				type, numdevices, cookie, eof, buff,
+				len);
+}
+#endif /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+fsal_status_t WRAP_CEPHFSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+				    fsal_seek_t * seek_descriptor,  /* [IN] */
+				    fsal_size_t buffer_size,        /*  IN  */
+				    caddr_t buffer,                 /* OUT  */
+				    fsal_size_t * read_amount,      /* OUT  */
+				    fsal_boolean_t * end_of_file    /* OUT  */
+    )
+{
+  return CEPHFSAL_ds_read((cephfsal_handle_t *) filehandle, seek_descriptor,
+			  buffer_size, buffer, read_amount, end_of_file);
+}
+
+fsal_status_t WRAP_CEPHFSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+				     fsal_seek_t * seek_descriptor,   /* IN */
+				     fsal_size_t buffer_size,         /* IN */
+				     caddr_t buffer,                  /* IN */
+				     fsal_size_t * write_amount,      /* OUT */
+				     fsal_boolean_t stable_flag       /* IN */
+    )
+{
+  return CEPHFSAL_ds_write((cephfsal_handle_t *) filehandle,
+			   seek_descriptor, buffer_size, buffer,
+			   write_amount, stable_flag);
+}
+
+fsal_status_t WRAP_CEPHFSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+				      fsal_off_t offset,
+				      fsal_size_t length)
+{
+  return CEPHFSAL_ds_commit((cephfsal_handle_t *) filehandle, offset,
+			    length);
+}
+#endif /* _USE_FSALDS */
+
 fsal_functions_t fsal_ceph_functions = {
   .fsal_access = WRAP_CEPHFSAL_access,
   .fsal_getattrs = WRAP_CEPHFSAL_getattrs,
@@ -761,9 +875,28 @@ fsal_const_t fsal_ceph_consts = {
   .fsal_cookie_t_size = sizeof(cephfsal_cookie_t),
   .fsal_lockdesc_t_size = sizeof(cephfsal_lockdesc_t),
   .fsal_cred_t_size = sizeof(cephfsal_cred_t),
-  .fs_specific_initinfo_t_size = sizeof(xfsfs_specific_initinfo_t),
+  .fs_specific_initinfo_t_size = sizeof(cephfsal_specific_initinfo_t),
   .fsal_dir_t_size = sizeof(cephfsal_dir_t)
 };
+
+#ifdef _USE_FSALMDS
+fsal_mdsfunctions_t fsal_ceph_mdsfunctions = {
+  .fsal_layoutget = WRAP_CEPHFSAL_layoutget,
+  .fsal_layoutreturn = WRAP_CEPHFSAL_layoutreturn,
+  .fsal_layoutcommit = WRAP_CEPHFSAL_layoutcommit,
+  .fsal_getdeviceinfo = WRAP_CEPHFSAL_getdeviceinfo,
+  .fsal_getdevicelist = WRAP_CEPHFSAL_getdevicelist
+};
+#endif
+
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t fsal_ceph_dsfunctions = {
+  .fsal_ds_read = WRAP_CEPHFSAL_ds_read,
+  .fsal_ds_write = WRAP_CEPHFSAL_ds_write,
+  .fsal_ds_commit = WRAP_CEPHFSAL_ds_commit
+};
+
+#endif /* _USE_FSALDS */
 
 fsal_functions_t FSAL_GetFunctions(void)
 {
@@ -774,3 +907,17 @@ fsal_const_t FSAL_GetConsts(void)
 {
   return fsal_ceph_consts;
 }                               /* FSAL_GetConsts */
+
+#ifdef _USE_FSALMDS
+fsal_mdsfunctions_t FSAL_GetMDSFunctions(void)
+{
+  return fsal_ceph_mdsfunctions;
+}
+#endif /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t FSAL_GetDSFunctions(void)
+{
+  return fsal_ceph_dsfunctions;
+}
+#endif /* _USE_FSALDS */

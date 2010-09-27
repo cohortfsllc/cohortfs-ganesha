@@ -1,6 +1,7 @@
 AM_CFLAGS                     = $(FSAL_CFLAGS) $(SEC_CFLAGS)
 
-SUBDIRS = PNFS
+SUBDIRS = PNFS \
+          layouttypes
 
 noinst_LTLIBRARIES            = libnfsproto.la
 
@@ -109,7 +110,12 @@ libnfsproto_la_SOURCES += nlm_Unlock.c	  	\
                           nlm_Cancel_Message.c	\
                           nlm_Lock_Message.c	\
                           nlm_Unlock_Message.c  \
-                          nlm_Granted_Res.c
+                          nlm_Granted_Res.c \
+			../include/nlm4.h  \
+			../include/nlm_async.h \
+			../include/nlm_list.h \
+			../include/nlm_send_reply.h \
+			../include/nlm_util.h
 endif
 
 if USE_QUOTA
@@ -125,6 +131,7 @@ endif
 if USE_NFS4_1
 libnfsproto_la_SOURCES += nfs41_op_exchange_id.c      \
                           nfs41_op_close.c            \
+			  nfs41_op_commit.c           \
                           nfs41_op_getdevicelist.c    \
                           nfs41_op_getdeviceinfo.c    \
                           nfs41_op_create_session.c   \
@@ -147,6 +154,7 @@ endif
 test_mnt_proto_SOURCES       = test_mnt_proto.c
 
 test_mnt_proto_LDADD = libnfsproto.la ../BuddyMalloc/libBuddyMalloc.la ../Log/liblog.la
+
 new: clean all
 
 doc:

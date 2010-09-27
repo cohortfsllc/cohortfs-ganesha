@@ -148,6 +148,7 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op,
   resp->resop = NFS4_OP_PUTROOTFH;
   resp->nfs_resop4_u.opputrootfh.status = NFS4_OK;
 
+
   if((error = CreateROOTFH4(&(data->rootFH), data)) != NFS4_OK)
     {
       res_PUTROOTFH4.status = error;

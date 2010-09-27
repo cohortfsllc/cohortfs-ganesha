@@ -22,6 +22,12 @@
 
 fsal_functions_t fsal_functions;
 fsal_const_t fsal_consts;
+#ifdef _USE_FSALMDS
+fsal_mdsfunctions_t fsal_mdsfunctions;
+#endif                                          /* _USE_FSALMDS */
+#ifdef _USE_FSALDS
+fsal_dsfunctions_t fsal_dsfunctions;
+#endif                                          /* _USE_FSALMDS */
 
 #ifdef _USE_SHARED_FSAL
 fsal_functions_t(*getfunctions) (void);
@@ -697,6 +703,124 @@ fsal_status_t FSAL_getextattrs( fsal_handle_t * p_filehandle, /* IN */
    return fsal_functions.fsal_getextattrs( p_filehandle, p_context, p_object_attributes ) ;
 }
 
+#ifdef _USE_FSALMDS
+fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
+			     fsal_layouttype_t type,
+			     fsal_layoutiomode_t iomode,
+			     fsal_off_t offset,
+			     fsal_size_t length,
+			     fsal_size_t minlength,
+			     fsal_layout_t** layouts,
+			     int *numlayouts,
+			     fsal_boolean_t *return_on_close,
+			     fsal_op_context_t *context,
+			     void* cbcookie)
+{
+  return fsal_mdsfunctions.fsal_layoutget(filehandle, type, iomode,
+					  offset, length, minlength,
+					  layouts, numlayouts,
+					  return_on_close,
+					  context, cbcookie);
+}
+
+fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				fsal_layoutiomode_t passed_iomode,
+				fsal_off_t passed_offset,
+				fsal_size_t passed_length,
+				fsal_layoutiomode_t found_iomode,
+				fsal_off_t found_offset,
+				fsal_size_t found_length,
+				fsal_layoutdata_t ldata,
+				fsal_op_context_t* context,
+				void* cbcookie)
+{
+  return fsal_mdsfunctions.fsal_layoutreturn(filehandle,
+					     type, passed_iomode,
+					     passed_offset,
+					     passed_length,
+					     found_iomode,
+					     found_offset,
+					     found_length,
+					     ldata, context,
+					     cbcookie);
+}
+
+fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				char* layout,
+				size_t layout_length,
+				fsal_off_t offset,
+				fsal_size_t length,
+				fsal_off_t* newoff,
+				fsal_boolean_t* changed,
+				fsal_time_t* newtime)
+{
+  return fsal_mdsfunctions.fsal_layoutcommit(filehandle, type,
+					     layout, layout_length,
+					     offset, length, newoff,
+					     changed, newtime);
+}
+
+fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
+				 fsal_deviceid_t id,
+				 device_addr4* buff)
+{
+  return fsal_mdsfunctions.fsal_getdeviceinfo(type, id, buff);
+}
+
+fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
+					  fsal_layouttype_t type,
+					  int *numdevices,
+					  uint64_t *cookie,
+					  fsal_boolean_t* eof,
+					  void* buff,
+					  size_t* len)
+{
+  return fsal_mdsfunctions.fsal_getdevicelist(filehandle, type,
+					      numdevices, cookie, eof,
+					      buff, len);
+}
+#endif                                           /* _USE_FSALMDS */
+
+#ifdef _USE_FSALDS
+
+fsal_status_t FSAL_ds_read(fsal_handle_t * filehandle,     /*  IN  */
+			   fsal_seek_t * seek_descriptor,  /* [IN] */
+			   fsal_size_t buffer_size,        /*  IN  */
+			   caddr_t buffer,                 /* OUT  */
+			   fsal_size_t * read_amount,      /* OUT  */
+			   fsal_boolean_t * end_of_file    /* OUT  */
+    )
+{
+  return fsal_dsfunctions.fsal_ds_read(filehandle, seek_descriptor,
+				       buffer_size, buffer,
+				       read_amount, end_of_file);
+}
+
+fsal_status_t FSAL_ds_write(fsal_handle_t * filehandle,      /* IN */
+			    fsal_seek_t * seek_descriptor,   /* IN */
+			    fsal_size_t buffer_size,         /* IN */
+			    caddr_t buffer,                  /* IN */
+			    fsal_size_t * write_amount,      /* OUT */
+			    fsal_boolean_t stable_flag       /* IN */
+    )
+{
+  return fsal_dsfunctions.fsal_ds_write(filehandle, seek_descriptor,
+					buffer_size, buffer,
+					write_amount, stable_flag);
+}
+
+fsal_status_t FSAL_ds_commit(fsal_handle_t * filehandle,     /* IN */
+			     fsal_off_t offset,
+			     fsal_size_t length)
+{
+  return fsal_dsfunctions.fsal_ds_commit(filehandle, offset, length);
+}
+
+#endif /* _USE_FSALDS */
+
+
 #ifdef _USE_SHARED_FSAL
 int FSAL_LoadLibrary(char *path)
 {
@@ -737,6 +861,20 @@ void FSAL_LoadFunctions(void)
   fsal_functions = (*getfunctions) ();
 }
 
+#ifdef _USE_FSALMDS
+void FSAL_LoadMDSFunctions(void)
+{
+  fsal_mdsfunctions = (*getmdsfunctions) ();
+}
+#endif
+
+#ifdef _USE_FSALDS
+void FSAL_LoadDSFunctions(void)
+{
+  fsal_dsfunctions = (*getdsfunctions) ();
+}
+#endif
+
 void FSAL_LoadConsts(void)
 {
   fsal_consts = (*getconsts) ();
@@ -757,5 +895,19 @@ void FSAL_LoadConsts(void)
 {
   fsal_consts = FSAL_GetConsts();
 }
+
+#ifdef _USE_FSALMDS
+void FSAL_LoadMDSFunctions(void)
+{
+  fsal_mdsfunctions = FSAL_GetMDSFunctions();
+}
+#endif
+
+#ifdef _USE_FSALDS
+void FSAL_LoadDSFunctions(void)
+{
+  fsal_dsfunctions = FSAL_GetDSFunctions();
+}
+#endif
 
 #endif

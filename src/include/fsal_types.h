@@ -46,6 +46,10 @@
 #include "config.h"
 #endif
 
+#ifdef _USE_FSALMDS
+#include "nfsv41.h"
+#endif 
+
 #ifdef _SOLARIS
 #ifndef MAXNAMLEN
 #define MAXNAMLEN 512
@@ -68,6 +72,10 @@ typedef unsigned long long int u_int64_t;
 #include <dirent.h>             /* for MAXNAMLEN */
 #include "config_parsing.h"
 #include "err_fsal.h"
+
+#ifdef _USE_FSALMDS
+#include "layouttypes/fsal_layout.h"
+#endif /* _USE_FSALMDS */
 
 /* FSAL function indexes, and names */
 
@@ -123,9 +131,17 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_getlock	        49
 #define INDEX_FSAL_CleanUpExportContext 50
 #define INDEX_FSAL_getextattrs          51
+#define INDEX_FSAL_layoutget            52
+#define INDEX_FSAL_layoutreturn         53
+#define INDEX_FSAL_layoutcommit         54
+#define INDEX_FSAL_getdeviceinfo        55
+#define INDEX_FSAL_getdevicelist        56
+#define INDEX_FSAL_ds_read              57
+#define INDEX_FSAL_ds_write             58
+#define INDEX_FSAL_ds_commit            59
 
 /* number of FSAL functions */
-#define FSAL_NB_FUNC  52
+#define FSAL_NB_FUNC  60
 
 static const char *fsal_function_names[] = {
   "FSAL_lookup", "FSAL_access", "FSAL_create", "FSAL_mkdir", "FSAL_truncate",
@@ -139,8 +155,11 @@ static const char *fsal_function_names[] = {
   "FSAL_rmdir", "FSAL_CleanObjectResources", "FSAL_open_by_name", "FSAL_open_by_fileid",
   "FSAL_ListXAttrs", "FSAL_GetXAttrValue", "FSAL_SetXAttrValue", "FSAL_GetXAttrAttrs",
   "FSAL_close_by_fileid", "FSAL_setattr_access", "FSAL_merge_attrs", "FSAL_rename_access",
-  "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access", "FSAL_getlock", "FSAL_CleanUpExportContext",
-  "FSAL_getextattrs"
+  "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access",
+  "FSAL_getlock", "FSAL_CleanUpExportContext", "FSAL_getextattrs",
+  "FSAL_layoutget", "FSAL_layoutreturn", "FSAL_layoutcommit", "FSAL_getdeviceinfo",
+  "FSAL_getdevicelist", "FSAL_ds_read", "FSAL_ds_write",
+  "FSAL_ds_commit"
 };
 
 typedef unsigned long long fsal_u64_t;    /**< 64 bit unsigned integer.     */
@@ -436,6 +455,9 @@ typedef fsal_u64_t fsal_attrib_mask_t;
                             FSAL_ATTR_ATIME | FSAL_ATTR_MTIME |   \
                             FSAL_ATTR_CTIME | FSAL_ATTR_SPACEUSED )
 
+
+#ifdef _USE_FSALMDS
+#endif 
 /** A list of FS object's attributes. */
 
 typedef struct fsal_attrib_list__
@@ -635,8 +657,13 @@ typedef struct fsal_staticfsinfo__
   fsal_accessmode_t xattr_access_rights;  /**< This indicates who is allowed
                                            *   to read/modify xattrs value.
                                            */
-
+#ifdef _USE_FSALMDS
+  fsal_layout_types fs_layout_types;      /**< The supported layout
+					   *   types
+					   */
+#endif                                     /* _USE_FSALMDS */
 } fsal_staticfsinfo_t;
+
 
 /** File system dynamic info. */
 
@@ -695,7 +722,6 @@ typedef struct fs_common_initinfo__
 
 typedef struct fsal_init_info__
 {
-  log_t log_outputs;          /**< outputs for logging. */
   unsigned int max_fs_calls;  /**< max number of FS calls. 0 = infinite */
 } fsal_init_info_t;
 

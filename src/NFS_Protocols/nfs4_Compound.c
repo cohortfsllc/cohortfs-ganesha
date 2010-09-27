@@ -145,7 +145,7 @@ static const nfs4_op_desc_t optab4v0[] = {
 static const nfs4_op_desc_t optab4v1[] = {
   {"OP_ACCESS", NFS4_OP_ACCESS, nfs4_op_access},
   {"OP_CLOSE", NFS4_OP_CLOSE, nfs41_op_close},
-  {"OP_COMMIT", NFS4_OP_COMMIT, nfs4_op_commit},
+  {"OP_COMMIT", NFS4_OP_COMMIT, nfs41_op_commit},
   {"OP_CREATE", NFS4_OP_CREATE, nfs4_op_create},
   {"OP_DELEGPURGE", NFS4_OP_DELEGPURGE, nfs4_op_delegpurge},
   {"OP_DELEGRETURN", NFS4_OP_DELEGRETURN, nfs4_op_delegreturn},
@@ -423,7 +423,7 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
       memcpy(&(pres->res_compound4.resarray.resarray_val[i]), &res, sizeof(res));
 
       utf82str(tmpstr, &(pres->res_compound4.tag));
-      LogDebug(COMPONENT_NFS_V4, "--> COMPOUND REQUEST TAG is #%s#\n", tmpstr);
+      LogDebug(COMPONENT_NFS_V4, "--> COMPOUND REQUEST TAG is #%s#", tmpstr);
 
       // print_compound_fh(&data);    Very very very verbose if NFSv4 is used.... 
 
@@ -520,12 +520,12 @@ void nfs4_Compound_Free(nfs_res_t * pres)
 {
   unsigned int i = 0;
 
-  LogFullDebug(COMPONENT_NFS_V4, "nfs4_Compound_Free de %p (resarraylen : %i)\n", pres,
+  LogFullDebug(COMPONENT_NFS_V4, "nfs4_Compound_Free de %p (resarraylen : %i)", pres,
           pres->res_compound4.resarray.resarray_len);
 
   for(i = 0; i < pres->res_compound4.resarray.resarray_len; i++)
     {
-      /*      LogFullDebug(COMPONENT_NFS_V4, "nfs4_Compound_Free sur op=%s\n",
+      /*      LogFullDebug(COMPONENT_NFS_V4, "nfs4_Compound_Free sur op=%s",
               optabvers[parg->arg_compound4.
                         minorversion][optab4index[pres->res_compound4.resarray.
                                                   resarray_val[i].resop]].name);

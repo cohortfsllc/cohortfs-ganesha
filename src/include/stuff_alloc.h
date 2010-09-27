@@ -73,8 +73,6 @@
 
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
-
 /**
  *
  * STUFF_PREALLOC: Allocates a pool of pre-allocated entries.
@@ -276,45 +274,5 @@ do                                                                        \
   entry->name_next = pool ;                                               \
   pool = entry ;                                                          \
 } while( 0 )
-
-#else                           /* no block preallocation */
-
-#define STUFF_PREALLOC( pool, nb, type, name_next )                       \
-              do {                                                        \
-                /* No pool management in this mode */                     \
-                pool = NULL;                                              \
-              } while(0)
-
-#define GET_PREALLOC( entry, pool, nb, type, name_next )                  \
-do                                                                        \
-{                                                                         \
-  entry = (type *)Mem_Alloc( sizeof( type ));                             \
-  entry->name_next = NULL;                                                \
-} while( 0 )
-
-#define RELEASE_PREALLOC( entry, pool, name_next )     Mem_Free( entry )
-
-#define STUFF_PREALLOC_CONSTRUCT( pool, nb, type, name_next, construct )   \
-              do {                                                        \
-                /* No pool management in this mode */                     \
-                pool = NULL;                                              \
-              } while(0)
-
-#define GET_PREALLOC_CONSTRUCT( entry, pool, nb, type, name_next, construct ) \
-do                                                                        \
-{                                                                         \
-  entry = (type *)Mem_Alloc( sizeof( type ));                             \
-  construct( (void *)(entry) );                                           \
-  entry->name_next = NULL;                                                \
-} while( 0 )
-
-#define RELEASE_PREALLOC_DESTRUCT( entry, pool, name_next, destruct )     \
-do                                                                        \
-{                                                                         \
-  destruct( (void *)(entry) ) ;                                           \
-  Mem_Free( entry );                                                      \
-} while( 0 )
-
-#endif                          /* no block preallocation */
 
 #endif                          /* _STUFF_ALLOC_H */

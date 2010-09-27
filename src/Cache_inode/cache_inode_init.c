@@ -10,16 +10,16 @@
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 3 of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
+ *
  * ---------------------------------------
  */
 
@@ -59,10 +59,10 @@
 /**
  *
  * cache_inode_init: Init the ressource necessary for the cache inode management.
- * 
+ *
  * Init the ressource necessary for the cache inode management.
- * 
- * @param param [IN] the parameter for this cache. 
+ *
+ * @param param [IN] the parameter for this cache.
  * @param pstatus [OUT] pointer to buffer used to store the status for the operation.
  *
  * @return NULL if operation failed, other value is a pointer to the hash table used for the cache.
@@ -88,14 +88,14 @@ hash_table_t *cache_inode_init(cache_inode_parameter_t param,
 /**
  *
  * cache_inode_client_init: Init the ressource necessary for the cache inode management on the client handside.
- * 
- * Init the ressource necessary for the cache inode management on the client handside.
- * 
- * @param pclient      [OUT] the pointer to the client to be initiated.
- * @param param        [IN]  the parameter for this cache client. 
- * @param thread_index [IN]  an integer related to the 'position' of the thread, from 0 to Nb_Workers -1 
  *
- * @return 0 if successful, 1 if failed. 
+ * Init the ressource necessary for the cache inode management on the client handside.
+ *
+ * @param pclient      [OUT] the pointer to the client to be initiated.
+ * @param param        [IN]  the parameter for this cache client.
+ * @param thread_index [IN]  an integer related to the 'position' of the thread, from 0 to Nb_Workers -1
+ *
+ * @return 0 if successful, 1 if failed.
  *
  */
 int cache_inode_client_init(cache_inode_client_t * pclient,
@@ -104,7 +104,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
 {
   LRU_status_t lru_status;
 
-  pclient->log_outputs = param.log_outputs;
   pclient->attrmask = param.attrmask;
   pclient->nb_prealloc = param.nb_prealloc_entry;
   pclient->nb_pre_dir_data = param.nb_pre_dir_data;
@@ -131,7 +130,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
   BuddySetDebugLabel("cache_entry_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_entry, pclient->nb_prealloc, cache_entry_t, next_alloc);
   if(pclient->pool_entry == NULL)
     {
@@ -139,14 +137,12 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client entry pool");
       return 1;
     }
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
   BuddySetDebugLabel("cache_inode_dir_data_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_dir_data,
                  pclient->nb_pre_dir_data, cache_inode_dir_data_t, next_alloc);
   if(pclient->pool_dir_data == NULL)
@@ -155,14 +151,12 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client dir data pool");
       return 1;
     }
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
   BuddySetDebugLabel("cache_inode_parent_entry_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_parent,
                  pclient->nb_pre_parent, cache_inode_parent_entry_t, next_alloc);
   if(pclient->pool_parent == NULL)
@@ -171,14 +165,12 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client parent link pool");
       return 1;
     }
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
   BuddySetDebugLabel("cache_inode_state_t");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_state_v4,
                  pclient->nb_pre_state_v4, cache_inode_state_t, next);
   if(pclient->pool_state_v4 == NULL)
@@ -217,14 +209,12 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
     }
 #endif                          /* _USE_NFS4_1 */
 
-#endif
 
 #ifdef _DEBUG_MEMLEAKS
   /* For debugging memory leaks */
   BuddySetDebugLabel("cache_inode_fsal_data_t:init");
 #endif
 
-#ifndef _NO_BLOCK_PREALLOC
   STUFF_PREALLOC(pclient->pool_key,
                  pclient->nb_prealloc, cache_inode_fsal_data_t, next_alloc);
 
@@ -239,7 +229,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client key pool");
       return 1;
     }
-#endif
 
   if((pclient->lru_gc = LRU_Init(param.lru_param, &lru_status)) == NULL)
     {

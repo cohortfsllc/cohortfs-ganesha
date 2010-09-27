@@ -109,6 +109,14 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
       return NFS4ERR_NOFILEHANDLE;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_GETATTR4.status = NFS4ERR_NOTSUPP;
+      return res_GETATTR4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If the filehandle is invalid */
   if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
     {
@@ -135,7 +143,7 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
          data->currentFH.nfs_fh4_len);
   for(cpt = 0; cpt < data->currentFH.nfs_fh4_len; cpt++)
     LogFullDebug(COMPONENT_NFS_V4, "%02X", data->currentFH.nfs_fh4_val[cpt]);
-  LogFullDebug(COMPONENT_NFS_V4, " } \n");
+  LogFullDebug(COMPONENT_NFS_V4, " } ");
 
   /* Sanity check: if no attributes are wanted, nothing is to be done.
    * In this case NFS4_OK is to be returned */

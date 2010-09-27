@@ -104,6 +104,14 @@ int nfs4_op_restorefh(struct nfs_argop4 *op,
   resp->resop = NFS4_OP_RESTOREFH;
   resp->nfs_resop4_u.oprestorefh.status = NFS4_OK;
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      resp->nfs_resop4_u.oprestorefh.status = NFS4ERR_NOTSUPP;
+      return resp->nfs_resop4_u.oprestorefh.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* If there is no currentFH, teh  return an error */
   if(nfs4_Is_Fh_Empty(&(data->savedFH)))
     {
@@ -131,7 +139,7 @@ int nfs4_op_restorefh(struct nfs_argop4 *op,
     {
       if((error = nfs4_SetCompoundExport(data)) != NFS4_OK)
         {
-          LogCrit(COMPONENT_NFS_V4, "Erreur %d dans nfs4_SetCompoundExport\n", error);
+          LogCrit(COMPONENT_NFS_V4, "Erreur %d dans nfs4_SetCompoundExport", error);
           resp->nfs_resop4_u.opgetfh.status = error;
           return resp->nfs_resop4_u.opgetfh.status;
         }
@@ -147,7 +155,7 @@ int nfs4_op_restorefh(struct nfs_argop4 *op,
   LogFullDebug(COMPONENT_NFS_V4, "CURRENTFH: File handle = { Length = %d  Val = ", data->currentFH.nfs_fh4_len);
   for(i = 0; i < data->currentFH.nfs_fh4_len; i++)
     LogFullDebug(COMPONENT_NFS_V4, "%02X", data->currentFH.nfs_fh4_val[i]);
-  LogFullDebug(COMPONENT_NFS_V4, " }\n");
+  LogFullDebug(COMPONENT_NFS_V4, " }");
 
   return NFS4_OK;
 }                               /* nfs4_op_restorefh */

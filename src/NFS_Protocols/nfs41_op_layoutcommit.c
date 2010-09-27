@@ -102,14 +102,12 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
   fsal_attrib_list_t fsal_attr;
 
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutcommit";
-  /* Lock are not supported */
   resp->resop = NFS4_OP_LAYOUTCOMMIT;
 
-#ifndef _USE_PNFS
+#if !defined(_USE_PNFS) && !defined(_USE_FSALMDS)
   res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NOTSUPP;
   return res_LAYOUTCOMMIT4.locr_status;
-#else
-
+#endif
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
@@ -131,6 +129,14 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTCOMMIT4.locr_status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NOTSUPP;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+#endif /* _USE_FSALDS */
+
   /* Commit is done only on a file */
   if(data->current_filetype != REGULAR_FILE)
     {
@@ -149,6 +155,7 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTCOMMIT4.locr_status;
     }
 
+#ifdef _USE_PNFS
   /* Update the mds */
   if(cache_inode_truncate(data->current_entry,
                           (fsal_size_t) arg_LAYOUTCOMMIT4.loca_length,
@@ -167,7 +174,103 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
 
   return res_LAYOUTCOMMIT4.locr_status;
-#endif                          /* _USE_PNFS */
+#elif defined(_USE_FSALMDS)
+  int found=0;
+  fsal_status_t status;
+  offset4 last_write=(arg_LAYOUTCOMMIT4.loca_last_write_offset
+		      .newoffset4_u.no_offset);
+  nfstime4 last_time=(arg_LAYOUTCOMMIT4.loca_time_modify
+		      .newtime4_u.nt_time);
+
+  fsal_boolean_t size_changed=(arg_LAYOUTCOMMIT4.loca_last_write_offset
+			    .no_newoffset);
+  cache_inode_state_t *pstate_exists;
+  fsal_handle_t fsalh;
+
+  /* Is the layout actually held? */
+
+  if (arg_LAYOUTCOMMIT4.loca_reclaim)
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NO_GRACE;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+  
+  if(cache_inode_get_state(arg_LAYOUTCOMMIT4.loca_stateid.other,
+			   &pstate_exists,
+			   data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
+    {
+      if(cache_status == CACHE_INODE_NOT_FOUND)
+	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_STALE_STATEID;
+      else
+	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_INVAL;
+      
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+  do
+    {
+      if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
+	continue;
+      
+      if ((arg_LAYOUTCOMMIT4.loca_offset <
+	   pstate_exists->state_data.layout.offset) ||
+	  (arg_LAYOUTCOMMIT4.loca_length >
+	   pstate_exists->state_data.layout.length))
+	continue;
+
+      found=1; /* Found a layout, right IO mode? */
+      
+      if (pstate_exists->state_data.layout.iomode !=
+	  LAYOUTIOMODE4_RW)
+	continue;
+      
+      found=2;
+
+      break;
+    }
+  while (pstate_exists=pstate_exists->next);
+
+  if (found == 0)
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+  if (found == 1)
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADIOMODE;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+
+  nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
+
+  status=FSAL_layoutcommit(&fsalh,
+			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
+			    .lou_type),
+			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
+			    .lou_body.lou_body_val),
+			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
+			    .lou_body.lou_body_len),
+			   arg_LAYOUTCOMMIT4.loca_offset,
+			   arg_LAYOUTCOMMIT4.loca_length,
+			   &last_write,
+			   &size_changed,
+			   (struct fsal_time_t*)
+			   ((arg_LAYOUTCOMMIT4.loca_time_modify
+			     .nt_timechanged) ? &last_time : NULL));
+
+  if (FSAL_IS_ERROR(status))
+    {
+      res_LAYOUTCOMMIT4.locr_status = status.major;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+
+  res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
+  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
+   .locr_newsize.ns_sizechanged)=size_changed;
+  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
+   .locr_newsize.newsize4_u.ns_size)=last_write;
+
+  return res_LAYOUTCOMMIT4.locr_status;
+#endif                          /* _USE_FSALMDS */
 }                               /* nfs41_op_layoutcommit */
 
 /**

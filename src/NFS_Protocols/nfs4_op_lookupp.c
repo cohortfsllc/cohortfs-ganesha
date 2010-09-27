@@ -156,6 +156,14 @@ int nfs4_op_lookupp(struct nfs_argop4 *op,
       return res_LOOKUPP4.status;
     }
 
+#ifdef _USE_FSALDS
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      res_LOOKUPP4.status = NFS4ERR_NOTSUPP;
+      return res_LOOKUPP4.status;
+    }
+#endif /* _USE_FSALDS */
+
   /* looking up for parent directory from ROOTFH return NFS4ERR_NOENT (RFC3530, page 166) */
   if(data->currentFH.nfs_fh4_len == data->rootFH.nfs_fh4_len
      && memcmp(data->currentFH.nfs_fh4_val, data->rootFH.nfs_fh4_val,

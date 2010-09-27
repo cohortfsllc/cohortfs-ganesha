@@ -35,6 +35,8 @@ typedef unsigned int u_int32_t;
 #include   <errno.h>
 #include   <pthread.h>
 
+#include   "log_macros.h"
+
 #ifndef MAX
 #define MAX(a, b)     ((a > b) ? a : b)
 #endif
@@ -44,6 +46,7 @@ void Xprt_unregister(SVCXPRT * xprt);
 
 void socket_setoptions(int socketFd);
 
+int fridgethr_get( pthread_t * pthrid, void *(*thrfunc)(void*), void * thrarg ) ;
 bool_t svcauth_wrap_dummy(XDR * xdrs, xdrproc_t xdr_func, caddr_t xdr_ptr);
 
 pthread_mutex_t mutex_cond_xprt[FD_SETSIZE];
@@ -71,8 +74,6 @@ static struct xp_ops Svctcp_op = {
   Svctcp_freeargs,
   Svctcp_destroy
 };
-
-void print_xdrrec_fbtbc(char *tag, SVCXPRT * xprt);
 
 /*
  * Ops vector for TCP/IP rendezvous handler
@@ -266,7 +267,7 @@ void print_xdrrec_fbtbc(char *tag, SVCXPRT * xprt)
 
   cd = (struct tcp_conn *)xprt->xp_p1;
   rstrm = (RECSTREAM_local *) & (cd->xdrs.x_private);
-  printf("=====> tag=%s xprt=%p  fbtbc=%ld \n", tag, xprt, rstrm->fbtbc);
+  LogFullDebug(COMPONENT_DISPATCH, "=====> tag=%s xprt=%p  fbtbc=%ld", tag, xprt, rstrm->fbtbc);
 }
 
 void *rpc_tcp_socket_manager_thread(void *Arg);
@@ -279,7 +280,6 @@ static bool_t Rendezvous_request(register SVCXPRT * xprt)
   struct sockaddr_in addr;
   unsigned long len;
 
-  pthread_attr_t attr_thr;
   pthread_t sockmgr_thrid;
   int rc = 0;
 
@@ -307,11 +307,6 @@ static bool_t Rendezvous_request(register SVCXPRT * xprt)
   memcpy(&(xprt->xp_raddr), &addr, sizeof(addr));
   xprt->xp_addrlen = len;
 
-  /* Spawns a new thread to handle the connection */
-  pthread_attr_init(&attr_thr);
-  pthread_attr_setscope(&attr_thr, PTHREAD_SCOPE_SYSTEM);
-  pthread_attr_setdetachstate(&attr_thr, PTHREAD_CREATE_DETACHED);      /* If not, the conn mgr will be "defunct" threads */
-
 #ifdef _FREEBSD
   FD_CLR(xprt->xp_fd, &Svc_fdset);
   if(pthread_cond_init(&condvar_xprt[xprt->xp_fd], NULL) != 0)
@@ -322,8 +317,8 @@ static bool_t Rendezvous_request(register SVCXPRT * xprt)
   etat_xprt[xprt->xp_fd] = 0;
 
   if((rc =
-      pthread_create(&sockmgr_thrid, &attr_thr, rpc_tcp_socket_manager_thread,
-                     (void *)((unsigned long)xprt->xp_fd))) != 0)
+	fridgethr_get( &sockmgr_thrid, rpc_tcp_socket_manager_thread,
+                     (void *)((unsigned long)xprt->xp_fd))) != 0 )
     return FALSE;
 #else
   FD_CLR(xprt->xp_sock, &Svc_fdset);
@@ -335,8 +330,8 @@ static bool_t Rendezvous_request(register SVCXPRT * xprt)
   etat_xprt[xprt->xp_sock] = 0;
 
   if((rc =
-      pthread_create(&sockmgr_thrid, &attr_thr, rpc_tcp_socket_manager_thread,
-                     (void *)((unsigned long)xprt->xp_sock))) != 0)
+	fridgethr_get( &sockmgr_thrid, rpc_tcp_socket_manager_thread,
+                     (void *)((unsigned long)xprt->xp_sock))) != 0 )
     return FALSE;
 
 #endif
@@ -384,7 +379,7 @@ static void Svctcp_destroy(register SVCXPRT * xprt)
  */
 int Readtcp(register SVCXPRT * xprt, caddr_t buf, register int len)
 {
-  /* printf( "Readtcp: xprt=%p len=%d\n", xprt, len ) ; */
+  /* LogFullDebug(COMPONENT_DISPATCH, "Readtcp: xprt=%p len=%d", xprt, len ) ; */
   /* print_xdrrec_fbtbc( "Readtcp",  xprt ) ;           */
 
 #ifdef _FREEBSD
@@ -421,7 +416,7 @@ int Readtcp(register SVCXPRT * xprt, caddr_t buf, register int len)
 
   if(len > 0)
     {
-      /* printf( "Readtcp (end): xprt=%p len=%d\n", xprt, len ) ; */
+      /* LogFullDebug(COMPONENT_DISPATCH, "Readtcp (end): xprt=%p len=%d", xprt, len ) ; */
       /* print_xdrrec_fbtbc( "Readtcp (end)",  xprt ) ;           */
 
       return (len);
@@ -449,7 +444,7 @@ int Writetcp(register SVCXPRT * xprt, caddr_t buf, int len)
 {
   register int i, cnt;
 
-  /* printf( "Writetcp: xprt=%p len=%d\n", xprt, len ) ; */
+  /* LogFullDebug(COMPONENT_DISPATCH, "Writetcp: xprt=%p len=%d", xprt, len ) ; */
   /* print_xdrrec_fbtbc( "WriteTcp", xprt ) ; */
 
   for(cnt = len; cnt > 0; cnt -= i, buf += i)

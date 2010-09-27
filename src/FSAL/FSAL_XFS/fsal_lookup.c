@@ -160,11 +160,8 @@ fsal_status_t XFSFSAL_lookup(xfsfsal_handle_t * p_parent_directory_handle,      
       Return(ERR_FSAL_SERVERFAULT, 0, INDEX_FSAL_lookup);
     }
 
-#ifdef _DEBUG_FSAL
-  fprintf(stderr, "lookup of %#llx:%#x:%#x/%s\n", p_parent_directory_handle->seq,
-          p_parent_directory_handle->oid, p_parent_directory_handle->ver,
+  LogFullDebug(COMPONENT_FSAL, "lookup of inode=%u/%s", buffstat.st_ino,
           p_filename->name);
-#endif
 
   /* check rights to enter into the directory */
   status = fsal_internal_testAccess(p_context, FSAL_X_OK, &buffstat, NULL);
