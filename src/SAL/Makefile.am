@@ -1,4 +1,4 @@
-AM_CFLAGS                     = $(FSAL_CFLAGS) $(SEC_CFLAGS)
+AM_CFLAGS                     = $(SAL_CFLAGS) $(SEC_CFLAGS)
 
 
 noinst_LTLIBRARIES            = libsal.la
@@ -7,6 +7,10 @@ noinst_LTLIBRARIES            = libsal.la
 #                                test_cache_inode_readdir test_cache_inode_lookup 
 
 libsal_la_SOURCES = sal_glue.c
+
+if USE_FSAL_LOCAL
+SUBDIRS = SAL_LOCAL
+endif
 
 new: clean all
 

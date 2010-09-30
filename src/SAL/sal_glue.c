@@ -48,7 +48,7 @@ sal_functions_t(*getfunctions) (void);
 
 
 
-int state_create_share(nfs_fh4 filehandle, open_owner4 open_owner,
+int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 		       clientid4 clientid, uint32_t share_access,
 		       uint32_t share_deny, stateid4* stateid)
 {
@@ -69,14 +69,14 @@ int state_delete_share(stateid4* stateid);
   return sal_functions.state_delete_share(stateid);
 }
 
-int state_query_share(nfs_fh4 filehandle, clientid4 clientid,
+int state_query_share(cache_entry_t *entry, clientid4 clientid,
 		      open_owner4 open_owner, sharestate* state)
 {
   return sal_functions.state_query_share(filehandle, clientid,
 					 open_owner, state);
 }
 
-int state_create_delegation(nfs_fh4 filehandle, clientid4 clientid,
+int state_create_delegation(cache_entry_t *entry, clientid4 clientid,
 			    open_delegation_type4 type,
 			    nfs_space_limit4 limit, stateid4* stateid)
 {
@@ -89,20 +89,20 @@ int state_delete_delegation(stateid4* stateid)
   return sal_functions.state_delete_delegation(stateid);
 }
 
-int state_query_delegation(nfs_fh4 filehandle, clientid4 clientid,
+int state_query_delegation(cache_entry_t *entry, clientid4 clientid,
 			   delegationstate* state)
 {
   return sal_functions.state_query_delegation(filehandle, clientid,
 					      state);
 }
 
-int state_check_delegation(nfs_fh4 filehandle,
+int state_check_delegation(cache_entry_t *entry,
 			   open_delegation_type4 type);
 {
   return sal_functions.state_check_delegation(filehandle, type);
 }
 
-int state_create_dir_delegation(nfs_fh4 filehandle, clientid4 clientid,
+int state_create_dir_delegation(cache_entry_t *entry, clientid4 clientid,
 				bitmap4 notification_types,
 				attr_notice4 child_attr_delay,
 				attr_notice4 dir_attr_delay,
@@ -124,7 +124,7 @@ int state_delete_dir_delegation(stateid4* stateid)
   return sal_functions.state_delete_dir_delegation(stateid);
 }
 
-int state_query_dir_delegation(nfs_fh4 filehandle,
+int state_query_dir_delegation(cache_entry_t *entry,
 			       clientid4 clientid,
 			       dir_delegationstate* state)
 {
@@ -133,12 +133,12 @@ int state_query_dir_delegation(nfs_fh4 filehandle,
 				    state);
 }
 
-int state_check_dir_delegation(nfs_fh4 filehandle)
+int state_check_dir_delegation(cache_entry_t *entry)
 {
   return sal_functions.state_check_dir_delegation(filehandle);
 }
 
-int state_create_lock_state(nfs_fh4 filehandle,
+int state_create_lock_state(cache_entry_t *entry,
 			    open_stateid4 open_stateid,
 			    lock_owner4 lock_owner,
 			    nfs_lock_type4 locktype,
@@ -199,14 +199,14 @@ int state_iter_lock_ranges(stateid4* stateid, uint64_t* cookie,
 }
 
 
-int state_test_lock_range(nfs_fh4 filehandle, offset4 offset,
+int state_test_lock_range(cache_entry_t *entry, offset4 offset,
 			  length4 length, nfs_lock_type4 type)
 {
   return sal_functions.state_test_lock_range(filehandle, offset,
 					     length, type);
 }
 
-int state_query_lock_range(nfs_fh4 filehandle, offset4 offset,
+int state_query_lock_range(cache_entry_t *entry, offset4 offset,
 			   length4 length, nfs_lock_type4 type,
 			   lockstate* state)
 {
@@ -215,7 +215,7 @@ int state_query_lock_range(nfs_fh4 filehandle, offset4 offset,
 					      lockstate* state);
 }
 
-int state_create_layout_state(nfs_fh4 filehandle,
+int state_create_layout_state(cache_entry_t *entry,
 			      layouttype4 type,
 			      layoutiomode4 iomode,
 			      offset4 offset,
@@ -288,17 +288,17 @@ int state_iter_layouts(stateid4* stateid,
 					  finished, state);
 }
 
-int state_lock_filehandle(nfs_fh4 filehandle, statelocktype rw)
+int state_lock_filehandle(cache_entry_t *entry, statelocktype rw)
 {
   return sal_functions.state_lock_filehandle(filehandle, rw);
 }
 
-int state_unlock_filehandle(nfs_fh4 filehandle, statelocktype rw)
+int state_unlock_filehandle(cache_entry_t *entry, statelocktype rw)
 {
   return sal_functions.state_unlock_filehandle(filehandle, rw);
 }
 
-int state_iterate_by_filehandle(nfs_fh4 filehandle, statetype type,
+int state_iterate_by_filehandle(cache_entry_t *entry, statetype type,
 				uint64_t* cookie, boolean* finished,
 				state* state)
 {
@@ -339,11 +339,11 @@ int state_loadlibrary(char *path)
   void *handle;
   char *error;
 
-  LogEvent(COMPONENT_STATE, "Load shared SAL: %s", path);
+  LogEvent(COMPONENT_STATES, "Load shared SAL: %s", path);
 
   if((handle = dlopen(path, RTLD_LAZY)) == NULL)
     {
-      LogMajor(COMPONENT_STATE, "state_loadlibrary: could not load sal: %s", dlerror());
+      LogMajor(COMPONENT_STATES, "state_loadlibrary: could not load sal: %s", dlerror());
       return 0;
     }
 
@@ -354,7 +354,7 @@ int state_loadlibrary(char *path)
   *(void **)(&getfunctions) = dlsym(handle, "state_getfuctions");
   if((error = dlerror()) != NULL)
     {
-      LogMajor(COMPONENT_STATE, "state_loadlibrary: Could not map symbol state_getfunctions:%s", error);
+      LogMajor(COMPONENT_STATES, "state_loadlibrary: Could not map symbol state_getfunctions:%s", error);
       return 0;
     }
 
