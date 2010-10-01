@@ -57,6 +57,12 @@ int state_init(void)
 		     "state_init: could not initialise concatenated entry/clientid table.");
 	    return ERR_STATE_FAIL;
 	}
+    if (!init_ownertable())
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not initialise state_owner table.");
+	    return ERR_STATE_FAIL;
+	}
 
     STUFF_PREALLOC(lockentrypool, 100, locallockentry, next_alloc);
     if (!lockentrypool)

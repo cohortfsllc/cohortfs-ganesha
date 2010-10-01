@@ -37,9 +37,36 @@
 
 /* Make sure the maximum share/deny values are correct */
 
-void updatemax(entryheader* header, localstate* state)
+void updatemax(entryheader* entry)
 {
-    
+    state* state = NULL;
+
+    entry->max_share = 0;
+    entry->max_deny = 0;
+
+    while (next_entry_state(entry, &state))
+	{
+	    if (state->type != share)
+		continue;
+	    
+	    entry->max_share |= state->assoc.owned.share.share_access;
+	    entry->max_deny |= state->assoc.owned.share.share_deny;
+	}
+}
+
+int share_conflict(uint32_t share_access, uint32_t share_deny,
+		   entryheader* entry)
+{
+    if((share_access && entry->max_deny) ||
+       (share_deny && entry->max_share) ||
+       ((share_access & OPEN4_SHARE_ACCESS_READ) &&
+	entry->read_delegations) ||
+       ((share_deny & OPEN4_SHARE_DENY_READ) &&
+	entry->read_delegations) ||
+       entry->write_delegations)
+	return 1;
+    else
+	return 0;
 }
 
 int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
@@ -47,9 +74,14 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 		       uint32_t share_deny, stateid4* stateid)
 {
     entryheader* header;
-    concatstates* concat;
-    localstate* state;
+    state* state;
     
+    if (share_access == 0)
+	{
+	    LogDebug(COMPONENT_STATES,
+		     "state_create_share: rejecting invalid share mode.");
+	    return ERR_STATE_INVAL;
+	}
     if (!(entryisfile(entry)))
 	{
 	    LogEror(COMPONENT_STATES,
@@ -66,28 +98,7 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 	    return ERR_STATE_FAIL;
 	}
 
-    /* Create or retrieve per-file/client record.  Ensure no
-     * pre-existing share state exists
-     */
-
-    if (!(concat = get_concat(entry, clientid, true)))
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    LogMajor(COMPONENT_STATES,
-		     "state_create_share: could not find/create file/clientid entry.");
-	    return ERR_STATE_FAIL;
-	}
-    if (concat->share)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    LogDebug(COMPONENT_STATES,
-		     "state_create_share: share already exists.");
-	    return ERR_STATE_PREEXISTS;
-	}
-
-    /* Check for potential conflicts */
-
-    if (share_conflict(share_access, share_deny, concat))
+    if (share_conflict(share_access, share_deny, header))
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
@@ -97,27 +108,25 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 
     /* Create and fill in new entry */
 
-    if (!(state = newstate(clientid4)))
+    rc = newownedstate(clientid4, open_owner, lock_owner, state);
+
+    if (rc != ERR_STATE_NO_ERROR)
 	{
 	    pthread_rwlock_unlock(&(header->lock));
-	    LogDebug(COMPONENT_STATES,
+	    LogError(COMPONENT_STATES,
 		     "state_create_share: Unable to create new state.");
-	    return ERR_STATE_FAIL;
+	    return rc;
 	}
 
-    state->header = header;
-    state->concats = concat;
-    state->clientid = clientid;
+
     state->stateid.seqid = 1;
     state->type = share;
-    state->u.share.open_owner = open_owner;
-    state->u.share_access = share_access;
-    state->u.share.share_deny = share_deny;
+    state->assoc.owned.state.share.share_access = share_access;
+    state->assoc.owned.state.share.share_deny = share_deny;
 
     /* Link it in */
 
     chain(state, header);
-    concats->share = state;
 
     /* Update maxima for quick lookups */
 
@@ -125,5 +134,97 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 
     pthread_rwlock_unlock(&(header->lock));
     return(ERR_STATE_NO_ERROR);
+}
+
+int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
+			stateid4 stateid)
+{
+    entryheader* header;
+    state* state;
+    int rc = 0
     
+    if (share_access == 0)
+	{
+	    LogDebug(COMPONENT_STATES,
+		     "state_upgrade_share: rejecting invalid share mode.");
+	    return ERR_STATE_INVAL;
+	}
+
+    rc = getstate(stateid, &state);
+    if (rc != ERR_STATE_NO_ERROR)
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_upgrade_share: unable to retrieve state.");
+	    return rc;
+	}
+    pthread_rwlock_wrlock(state->header->lock);
+    
+    if (share_conflict(share_access &~
+		       state->assoc.owner.state.share.share_access,
+		       share_deny &~
+		       state->assoc.owner.state.share.share_access,
+		       header))
+	{
+	    pthread_rwlock_unlock(&(state->header->lock));
+	    LogDebug(COMPONENT_STATES,
+		     "state_upgrade_share: share conflict.");
+	    return ERR_STATE_CONFLICT;
+	}
+
+    state->assoc.owner.state.share.share_access |= share_access;
+    state->assoc.owner.state.share.share_deny |= share_deny;
+
+    ++state->stateid.seqid;
+    
+    /* Update maxima for quick lookups */
+
+    updatemax(state->header);
+
+    pthread_rwlock_unlock(&(state->header->lock));
+
+    return ERR_STATE_NO_ERROR;
+}
+
+int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
+			  stateid4 stateid)
+{
+    entryheader* header;
+    state* state;
+    int rc = 0
+    
+    if (share_access == 0)
+	{
+	    LogDebug(COMPONENT_STATES,
+		     "state_downgrade_share: rejecting invalid share mode.");
+	    return ERR_STATE_INVAL;
+	}
+
+    rc = getstate(stateid, &state);
+    if (rc != ERR_STATE_NO_ERROR)
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_downgrade_share: unable to retrieve state.");
+	    return rc;
+	}
+
+    pthread_rwlock_wrlock(state->header->lock);
+
+    if ((share_access & ~state.assoc.owned.state.share.share_access)
+	(share_deny & ~state.assoc.owned.state.share.share_deny))
+	{
+	    pthread_rwlock_unlock(&(state->header->lock));
+	    LogError(COMPONENT_STATES,
+		     "state_downgrade_share: Cannot downgrade whaty ou don't have.");
+	    return ERR_STATE_INVAL;
+	}
+    
+    ++state->stateid.seqid;
+    
+    /* Update maxima for quick lookups */
+
+    updatemax(state->header);
+
+    pthread_rwlock_unlock(&(state->header->lock));
+
+    return ERR_STATE_NO_ERROR;
 }

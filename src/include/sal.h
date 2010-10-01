@@ -164,16 +164,28 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 		       clientid4 clientid, uint32_t share_access,
 		       uint32_t share_deny, stateid4* stateid);
 /*
- * This function changes the share/deny flags associated with the file
- * to the flags provided.  If the stateid is not a valid stateid from a
+ * This function increases the share/deny levels associated with a
+ * previous share.  If the stateid is not a valid stateid from a
  * previous open, an error is returned.  if the updated flags would
  * conflict with other shares, an error is returned.  If the seqid is
  * invalid, an error is returned.  If the call succeeds, the seqid is
  * incremented.
  */   
 
-int state_update_share(uint32_t share_access, uint32_t share_deny,
+int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
 		       stateid4* stateid);
+
+/*
+ * This function decreases the share/deny levels associated with a
+ * previous share.  If the stateid is not a valid stateid from a
+ * previous open, an error is returned.  if the updated flags would
+ * conflict with other shares, an error is returned.  If the seqid is
+ * invalid, an error is returned.  If the call succeeds, the seqid is
+ * incremented.
+ */   
+
+int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
+			  stateid4* stateid);
 
 /*
  * Deletes the given share.  An error is returned if a lock state
@@ -486,41 +498,31 @@ int state_loadlibrary(char* path);
 static family_error_t __attribute__ ((__unused__)) tab_errstatus_SAL[] =
 {
 #define ERR_STATE_NO_ERROR 0
-  {
-  ERR_STATE_NO_ERROR, "ERR_STATE_NO_ERROR", "No error"},
+  {ERR_STATE_NO_ERROR, "ERR_STATE_NO_ERROR", "No error"},
 #define ERR_STATE_CONFLICT 1
-  {
-  ERR_STATE_CONFLICT, "ERR_STATE_CONFLICT", "Attempt to insert conflicting state"},
+  {ERR_STATE_CONFLICT, "ERR_STATE_CONFLICT", "Attempt to insert conflicting state"},
 #define ERR_STATE_LOCKSHELD 2
-  {
-  ERR_STATE_LOCKSHELD, "ERR_STATE_LOCKSHELD", "Attempt to close file while locks held"},
+  {ERR_STATE_LOCKSHELD, "ERR_STATE_LOCKSHELD", "Attempt to close file while locks held"},
 #define ERR_STATE_OLDSEQ 3
-  {
-  ERR_STATE_OLDSEQ, "ERR_STATE_OLDSEQ", "Supplied seqid out of date."},
+  {ERR_STATE_OLDSEQ, "ERR_STATE_OLDSEQ", "Supplied seqid out of date."},
 #define ERR_STATE_BADSEQ 4
-  {
-  ERR_STATE_BADSEQ, "ERR_STATE_BADSEQ", "Supplied seqid too high."},
+  {ERR_STATE_BADSEQ, "ERR_STATE_BADSEQ", "Supplied seqid too high."},
 #define ERR_STATE_STALE 5
-  {
-  ERR_STATE_STALE, "ERR_STATE_STALE", "Stale stateid."},
+  {ERR_STATE_STALE, "ERR_STATE_STALE", "Stale stateid."},
 #define ERR_STATE_BAD 6
-  {
-  ERR_STATE_STALE, "ERR_STATE_BAD", "Bad stateid."},
+  {ERR_STATE_STALE, "ERR_STATE_BAD", "Bad stateid."},
 #define ERR_STATE_NOENT 7
-  {
-  ERR_STATE_NOENT, "ERR_STATE_NOENT", "No such stateid."},
+  {ERR_STATE_NOENT, "ERR_STATE_NOENT", "No such stateid."},
 #define ERR_STATE_NOMUTATE 8
-  {
-  ERR_STATE_NOTSUPP, "ERR_STATE_NOMUTATE", "The current state realisation does not support mutation."},
+  {ERR_STATE_NOTSUPP, "ERR_STATE_NOMUTATE", "The current state realisation does not support mutation."},
 #define ERR_STATE_PREEXISTS 9
-  {
-  ERR_STATE_PREEXISTS, "ERR_STATE_PREEXISTS", "Attempt to create a state of a type that already exists."},
+  {ERR_STATE_PREEXISTS, "ERR_STATE_PREEXISTS", "Attempt to create a state of a type that already exists for the given identifying information."},
 #define ERR_STATE_FAIL 10
-  {
-  ERR_STATE_FAIL, "ERR_STATE_FAIL", "Unspecified, internal error."}
+  {ERR_STATE_FAIL, "ERR_STATE_FAIL", "Unspecified, internal error."},
 #define ERR_STATE_OBJTYPE 11
-  {
-  ERR_STATE_OBJTYPE, "ERR_STATE_OBJTYPE", "Operation is undefined or not permitted for the type of object specified."}
+  {ERR_STATE_OBJTYPE, "ERR_STATE_OBJTYPE", "Operation is undefined or not permitted for the type of object specified."},
+#define ERR_STATE_INVAL 12
+  {ERR_STATE_INVAL, "ERR_STATE_INVAL", "Invalid operation."}
 };
 
 /* Function pointer structures */

@@ -40,9 +40,9 @@
 
 typedef struct __localshare
 {
-    open_owner4 open_owner;
     uint32_t share_access;
     uint32_t share_deny;
+    state* locks;
 } localshare;
 
 typedef struct __localdeleg
@@ -62,8 +62,10 @@ typedef struct __localdir_deleg
 
 typedef struct __locallockstate
 {
-    lock_owner4 lock_owner;
-    locallockentry* lockentries;
+    state* sharestate;
+    locallockentry* locks;
+    state* prev;
+    state* next; /* For multiple lock_owners */
 } locallockstate;
 
 typedef struct __locallockentry
@@ -95,25 +97,46 @@ typedef struct __locallayoutentry
     struct __locallayoutentry* next_alloc;
 } locallayoutentry;
 
-typedef struct __localstate
+typedef struct __state
 {
     entryheader* header;
-    clientid4 clientid;
     stateid4 stateid;
-    concatstates* concats;
     statetype type;
-    union __actualstate
+    union __assocstate
     {
-	localshare share;
-	localdeleg deleg;
-	localdir_deleg dir_deleg;
-	locallockstate loclstate;
-	locallayoutstate layoutstate;
-    } u;
-    __localstate* next;
-    __localstate* nextfh;
-    __localstate* next_alloc;
-} localstate;
+	struct __ownedstate
+	{
+	    void* chunk;
+	    char* open_owner;
+	    size_t oolen;
+	    char* lock_owner;
+	    size_t lolen;
+	    size_t keylen;
+	    
+	    union __actualstate
+	    {
+		localshare share;
+		locallockstate lock;
+	    } state;
+	} owned;
+
+	struct __clientstate
+	{
+	    concatstates* concats;
+	    union __actualstate
+	    {
+		localdeleg deleg;
+		localdir_deleg dir_deleg;
+		locallayoutstate layoutstate;
+	    } state;
+	} client;
+    } assoc;
+    __state* prev;
+    __state* next;
+    __state* prevfh;
+    __state* nextfh;
+    __state* next_alloc;
+} state;
 
 /* We put this here so we can store our keys in our concatstates. */
 
@@ -129,12 +152,9 @@ typedef struct __concatstates
 {
     struct concatkey key;
     entryheader* header;
-    clientid4 clientid;
-    localstate* share;
-    localstate* deleg;
-    localstate* dir_deleg;
-    localstate* loclstate;
-    localstate* layoutstate;
+    state* deleg;
+    state* dir_deleg;
+    state* layout;
     __concatstates* next_alloc;
 } concatstates;
 
@@ -146,12 +166,14 @@ typedef struct __entryheader
     pthread_rwlock_t lock; /* Per-filehandle read/write lock */
     uint32_t max_share; /* Most expansive share */
     uint32_t max_deny; /* Most restrictive deny */
-    uint32_t nfs23readers; /* Number of readers using NFSv2 and NFSv3 */
-    uint32_t nfs23writers; /* Number of writers using NFSv2 and NFSv3 */
+    uint32_t anonreaders; /* Number of anonymous readers (old NFS or
+			     all-zeroes) */
+    uint32_t anonwriters; /* Number of anonymous writers (old NFS or
+			     all-zeroes) */
     boolean read_delegations; /* if any read delegations exist */
     boolean write_delegation; /* If any write delegations exist */
     boolean dir_delegations; /* If any directory delegations exist */
-    localstate* states;
+    state* states;
     __entryheader* next_alloc;
 } entryheader;
 
@@ -166,12 +188,15 @@ extern pthread_mutex_t entrymutex;
 extern locallockentry* lockentrypool;
 extern locallayoutentry* layoutentrypool;
 extern entryheader* entryheaderpool;
-extern localstate* localstatepool;
+extern state* statepool;
 extern concatstates* concatstatepool;
 
 extern hash_table_t* stateidtable;
 extern hash_table_t* entrytable;
 extern hash_table_t* concattable;
+extern hash_table_t* ownertable;
+
+extern loclastate* statechain;
 
 
 /************************************************************************
@@ -185,6 +210,11 @@ int entryisfile(cache_entry_t* entry);
 int header_for_writing(cache_entry_t entry, entryheader** header);
 concatstates* get_concat(entryheader* header, clientid4 clientid,
 			 bool create);
-localstate* newstate(clientid4 clientid);
+int newclientstate(clientid4 clientid, state** newstate);
+int newownedstate(clientid4 clientid, open_owner4* open_owner,
+		  lock_owner4* lock_owner, state** newstate);
+int chain(state* state, entryheader* header, state* share);
+int unchain(state* state);
+int next_entry_state(entryheader* entry, state** state)
 
 #endif                                                /* _SAL_INTERNAL */
