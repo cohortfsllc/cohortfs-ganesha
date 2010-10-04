@@ -144,6 +144,7 @@ typedef struct __entryheader
 {
     cache_inode_fsal_data_t fsaldata; /* Filehandle */
     pthread_rwlock_t lock; /* Per-filehandle read/write lock */
+    bool valid;         /* A check */
     uint32_t max_share; /* Most expansive share */
     uint32_t max_deny; /* Most restrictive deny */
     uint32_t nfs23readers; /* Number of readers using NFSv2 and NFSv3 */

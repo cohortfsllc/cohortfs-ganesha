@@ -36,6 +36,10 @@
 #include "log_macros.h"
 #include "fsal_types.h"
 
+#if defined(_USE_SAL_LOCAL)
+#include "SAL/LOCAL/sal_types.h"
+#endif
+
 /************************************************************************
  * Data structures filled in by the State Realisitaion * Functions
  *

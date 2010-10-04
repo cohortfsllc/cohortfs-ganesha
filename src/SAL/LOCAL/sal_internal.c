@@ -358,7 +358,7 @@ int header_for_write(cache_entry_t* entry)
 	    if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
 		{
 		    /* Really should be impossible */
-		    pthread_mutex_unloci(&entrymutex);
+		    pthread_mutex_unlock(&entrymutex);
 		    return NULL;
 		}
 
@@ -381,8 +381,11 @@ int header_for_write(cache_entry_t* entry)
 	    newheader.fsaldata = fsaldata;
 	    key.pdata = &(newheader.fsaldata);
 
+	    header->lock = PTHREAD_RWLOCK_INITIALIZER;
+
 	    pthread_rwlock_wrlock(&(header->lock));
 
+	    header->valid = 1;
 	    val.pdata = newheader;
 	    val.len = sizeof(entryheader);
 	    
