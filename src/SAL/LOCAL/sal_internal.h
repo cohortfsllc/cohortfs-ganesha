@@ -43,13 +43,13 @@ typedef struct __localshare
     open_owner4 open_owner;
     uint32_t share_access;
     uint32_t share_deny;
-} localshare;
+} share;
 
 typedef struct __localdeleg
 {
     open_delegation_type4 type;
     nfs_space_limit4 limit;
-} localdeleg;
+} deleg;
 
 typedef struct __localdir_deleg
 {
@@ -58,29 +58,20 @@ typedef struct __localdir_deleg
     attr_notice4 dir_attr_delay;
     bitmap4 child_attributes;
     bitmap4 dir_attributes;
-} localdir_deleg;
+} dir_deleg;
 
 typedef struct __locallockstate
 {
+    state* openstate;
     lock_owner4 lock_owner;
     locallockentry* lockentries;
-} locallockstate;
-
-typedef struct __locallockentry
-{
-    nfs_lock_type4 locktype;
-    offset4 offset;
-    length4 length;
-    fsal_lock_t lockdata;
-    struct __locallockentry* prev;
-    struct __locallockentry* next;
-    struct __locallockentry* next_alloc;
-} locallockentry;
+    fsal_lock_t* lockinfo;
+} lock;
 
 typedef struct __locallayoutstate
 {
     locallayoutentry* layoutentries;
-} locallayoutstate;
+} layout;
 
 typedef struct __locallayoutentry
 {
@@ -93,56 +84,32 @@ typedef struct __locallayoutentry
     struct __locallayoutentry* next;
     struct __locallayoutentry* prev;
     struct __locallayoutentry* next_alloc;
-} locallayoutentry;
+} layoutentry;
 
-typedef struct __localstate
+typedef struct __state
 {
     entryheader* header;
     clientid4 clientid;
     stateid4 stateid;
-    concatstates* concats;
     statetype type;
     union __actualstate
     {
-	localshare share;
-	localdeleg deleg;
-	localdir_deleg dir_deleg;
-	locallockstate loclstate;
-	locallayoutstate layoutstate;
+	share share;
+	deleg deleg;
+	dir_deleg dir_deleg;
+	locks lock;
+	layout layout;
     } u;
-    __localstate* next;
-    __localstate* nextfh;
-    __localstate* next_alloc;
-} localstate;
-
-/* We put this here so we can store our keys in our concatstates. */
-
-struct concatkey
-{
-    cache_inode_fsal_data_t* pfsdata;
-    clientid4 clientid;
-};
-
-
-
-typedef struct __concatstates
-{
-    struct concatkey key;
-    entryheader* header;
-    clientid4 clientid;
-    localstate* share;
-    localstate* deleg;
-    localstate* dir_deleg;
-    localstate* loclstate;
-    localstate* layoutstate;
-    __concatstates* next_alloc;
-} concatstates;
-
-/* Likely add bitmap etc. to this later on */
+    __state* next;
+    __state* prev;
+    __state* nextfh;
+    __state* prevfh;
+    __state* next_alloc;
+} state;
 
 typedef struct __entryheader
 {
-    cache_inode_fsal_data_t fsaldata; /* Filehandle */
+    fsal_handle_t handle; /* Filehandle */
     pthread_rwlock_t lock; /* Per-filehandle read/write lock */
     bool valid;         /* A check */
     uint32_t max_share; /* Most expansive share */
@@ -152,7 +119,7 @@ typedef struct __entryheader
     boolean read_delegations; /* if any read delegations exist */
     boolean write_delegation; /* If any write delegations exist */
     boolean dir_delegations; /* If any directory delegations exist */
-    localstate* states;
+    state* states;
     __entryheader* next_alloc;
 } entryheader;
 
