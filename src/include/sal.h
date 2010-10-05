@@ -282,7 +282,7 @@ int state_check_dir_delegation(fsal_handle_t *handle);
 int state_create_lock_state(fsal_handle_t *handle,
 			    stateid4 open_stateid,
 			    lock_owner4 lock_owner,
-			    fsal_lock_t lockdata,
+			    fsal_lock_t* lockdata,
 			    stateid4* stateid);
 
 /*
@@ -296,8 +296,7 @@ int state_delete_lock_state(stateid4* stateid);
 int state_query_lock_state(fsal_handle_t *handle,
 			   stateid4 open_stateid,
 			   lock_owner4 lock_owner,
-			   fsal_lock_t lockdata,
-			   stateid4* stateid);
+			   lockstate* lockstateout);
 
 /*
  * Creates a new layout state for an open file with no existing
@@ -307,11 +306,7 @@ int state_query_lock_state(fsal_handle_t *handle,
 
 int state_create_layout_state(fsal_handle_t *handle,
 			      layouttype4 type,
-			      layoutiomode4 iomode,
-			      offset4 offset,
-			      length4 length,
-			      boolean return_on_close,
-			      fsal_layout_t layoutdata);
+			      stateid4* stateid);
 
 /*
  * Adds a new layout to the layout state for the file.  As the semantics
@@ -319,42 +314,50 @@ int state_create_layout_state(fsal_handle_t *handle,
  * check for conflicts.
  */
 
-int state_add_layout(layouttype4 type,
-		     layoutimode4 iomode,
-		     offset4 offset,
-		     length4 length,
-		     boolean return_on_close,
-		     fsal_layout_t layoutdata,
-		     stateid4* stateid);
+int state_add_layout_segment(layouttype4 type,
+			     layoutimode4 iomode,
+			     offset4 offset,
+			     length4 length,
+			     boolean return_on_close,
+			     fsal_layout_t layoutdata,
+			     stateid4* stateid);
 /*
  * Adds a new layout to the layout state for the file.  If a layout of
- * the same type and iomode adjoins or overlaps, they are merged.  The
+ * the same type and iomode adjoins or overlaps, they may be merged.  The
  * provided layoutdata replaces those of pre-existing merged ranges.
+ * (This and the above are offered for FSALs that cannot handle
+ * merge.)
  */
 
-int state_add_layout_merge(layouttype4 type,
-			   layoutimode4 iomode,
-			   offset4 offset,
-			   length4 length,
-			   boolean return_on_close,
-			   fsal_layout_t layoutdata,
-			   stateid4* stateid);
+int state_add_layout_merge_segment(layouttype4 type,
+				   layoutimode4 iomode,
+				   offset4 offset,
+				   length4 length,
+				   boolean return_on_close,
+				   fsal_layout_t layoutdata,
+				   stateid4* stateid);
 /*
  * Frees a layout or sublayout.  Should be called after whatever call is
  * necessary to free resources.
  */
 
-int state_free_layout(layouttype4 type,
-		      layoutimode4 iomode,
-		      offset4 offset,
-		      length4 length,
-		      stateid4* stateid);
+int state_free_layout_segment(layouttype4 type,
+			      layoutimode4 iomode,
+			      offset4 offset,
+			      length4 length,
+			      stateid4* stateid);
 /*
  * Deletes the entire layout state.
  */
 
 int state_delete_layout_state(stateid* stateid);
 
+/* Retrieves the layout state associated with the
+   client/filehandle/type */
+
+int state_create_layout_state(fsal_handle_t handle,
+			      layouttype4 type,
+			      layoutstate* outlayoutstate);
 
 /*
  * Iterates through the layouts on a file.  &stateid may be an open
@@ -363,11 +366,10 @@ int state_delete_layout_state(stateid* stateid);
  * updated on success so a subsequent call retrieves the next value.
  */
 
-int state_iter_layouts(stateid4* stateid,
+int state_iter_layouts(stateid4 stateid,
 		       uint64_t* cookie,
 		       boolean* finished,
-		       layoutstate* state);
-
+		       layoutsegment* state);
 
 /* General Use */
 

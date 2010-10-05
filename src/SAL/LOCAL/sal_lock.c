@@ -30,39 +30,20 @@
 #include "sal_internal.h"
 
 /************************************************************************
- * Delegation Functions
+ * Lock Functions
  *
- * These functions realise delegation state functionality.
+ * These functions realise lock state functionality.
  ***********************************************************************/
 
-void update_dir_delegations(entryheader* entry)
-{
-    state* cur = NULL;
-    
-    entry->dir_delegations = 0;
-
-    while (iterate_entry(entry, &cur))
-	{
-	    if (cur->type != dir_delegation)
-		continue;
-	    else
-		{
-		    entry->dir_delegations = 1;
-		    break;
-		}
-	}
-}
-
-int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-				bitmap4 notification_types,
-				attr_notice4 child_attr_delay,
-				attr_notice4 dir_attr_delay,
-				bitmap4 child_attributes,
-				bitmap4 dir_attributes,
-				stateid4* stateid);
+int state_create_lock_state(fsal_handle_t *handle,
+			    stateid4 open_stateid,
+			    lock_owner4 lock_owner,
+			    fsal_lock_t* lockdata,
+			    stateid4* stateid)
 {
     entryheader* header;
     state* state;
+    state* openstate = NULL;
     int rc = 0;
 
     /* Retrieve or create header for per-filehandle chain */
@@ -70,7 +51,17 @@ int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     if (!(header = header_for_write(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_create_dir_delegation: could not find/create header entry.");
+		     "state_create_lock_state: could not find/create header entry.");
+	    return ERR_STATE_FAIL;
+	}
+
+    rc = lookup_state(open_stateid, &openstate);
+
+    if (rc != ERR_STATE_NO_ERROR)
+	{
+	    pthread_rwlock_unlock(&(header->lock));
+	    LogError(COMPONENT_STATES,
+		     "state_create_lock_state: could not find open state.");
 	    return ERR_STATE_FAIL;
 	}
 
@@ -80,43 +71,57 @@ int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
-		     "state_create_dir_delegation: Unable to create new state.");
+		     "state_create_lock_state: Unable to create new state.");
 	    return ERR_STATE_FAIL;
 	}
 
-    state->type = dir_delegation;
-    state->u.dir_delegation.notification_types = notification_types;
-    state->u.dir_delegation.child_attr_delay = child_attr_delay;
-    state->u.dir_delegation.dir_attr_delay = dir_attr_delay;
-    state->u.dir_delegation.child_attributes = child_attributes;
-    state->u.dir_delegation.dir_attributes = dir_attributes;
+    openstate->u.share.locks = 1;
+
+    state->type = lock;
+    state->u.lock.openstate = openstate;
+    memcpy(state->u.lock.lock_owner,
+	   lock_owner.owner.owner_val,
+	   lock_owner.owner.owner_len);
+    state->u.lock.lock_owner_len = lock_owner.owner.owner_len;
+    state->u.lock.lockdata = lockdata;
     
     *stateid = header->stateid;
     pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_dir_delegation(stateid4 stateid);
+int state_delete_lock_state(stateid4 stateid);
 {
     state* state;
+    state* cur = NULL;
     entryheader* header;
     int rc;
 
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
 	{
 	    LogError(COMPONENT_STATES,
-		     "state_delete_dir_delegation: could not find state.");
+		     "state_lock_state: could not find state.");
 	}
 
     state->type = any;
-    update_dir_delegations(entry);
-    rc = killstate(state);
+    openstate->u.share.locks = 0;
+    while (iterate_entry(entry, &cur))
+	{
+	    if (!((cur->type == lock)
+		  (cur->u.lock.openstate == state->u.lock.openstate)))
+		continue;
+	    
+	    openstate->u.share.locks = 1;
+	}
+    killstate(state);
     
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-			       dir_delegationstate* outdir_delegation)
+int state_query_lock_state(fsal_handle_t *handle,
+			   stateid4 open_stateid,
+			   lock_owner4 lock_owner,
+			   lockstate* outlockstate)
 {
     entryheader* header;
     state* cur = NULL;
@@ -133,8 +138,12 @@ int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     while (iterate_entry(header, &cur))
 	{
-	    if ((cur->type = dir_delegation) &&
-		(cur->clientid == clientid))
+	    if ((cur->type == lock) &&
+		(cur->clientid == clientid) &&
+		(cur->u.lock.lock_owner_len ==
+		 lock_owner.owner.owner_len)
+		(memcmp(cur->u.lock_owner, lock_owner.owner.owner_val,
+			lock_owner.owner.owner_len) == 0))
 		break;
 	    else
 		continue;
@@ -146,31 +155,19 @@ int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 	    return ERR_STATE_NOENT;
 	}
 
-    memset(outdir_delegation, 0, sizeof(dir_delegationstate));
+    memset(outlockstate, 0, sizeof(dir_delegationstate));
 
-    outdir_delegation->handle = header->handle;
-    outdir_delegation->clientid = cur->clientid;
-    outdir_delegation->stateid = cur->stateid;
-    outdir_delegation->notification_types = cur->notification_types;
-    outdir_delegation->child_attr_delay = cur->child_attr_delay;
-    outdir_delegation->dir_attr_delay = cur->dir_attr_delay;
+    outlockstate->handle = header->handle;
+    outlockstate->clientid = cur->clientid;
+    outlockstate->stateid = cur->stateid;
+    outlockstate->lock_owner.clientid = cur->clientid;
+    outlockstate->lock_owner.owner.owner_len = cur->u.lock.lock_owner_len;
+    memcpy(outlockstate->lock_owner.owner.owner_val,
+	   cur->u.lock.lock_owner,
+	   cur->u.lock.lock_owner_len);
+    outlockstate->lockdata = cur->u.lock.lockdata;
     
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
-}
-
-int state_check_delegation(fsal_handle_t *handle)
-{
-    entryheader* header;
-
-    if (!(header = header_for_read(handle)))
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_check_dir_delegation: could not find header entry.");
-	    return 0;
-	}
-
-    unlock(&(header->lock));
-    return header->write_delegations;
 }

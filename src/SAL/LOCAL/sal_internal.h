@@ -65,9 +65,9 @@ typedef struct __localdir_deleg
 typedef struct __locallockstate
 {
     state* openstate;
-    lock_owner4 lock_owner;
-    locallockentry* lockentries;
-    fsal_lock_t* lockinfo;
+    char lock_owner[NFS4_OPAQUE_LIMIT];
+    size_t lock_owner_len;
+    fsal_lock_t* lockdata;
 } lock;
 
 typedef struct __locallayoutstate
@@ -154,6 +154,7 @@ void chain(localstate* state, entryheader* header);
 state* iterate_entry(entryheader* entry, state** state);
 int lookup_state_and_lock(stateid4 stateid, state** state,
 			  entryheader** header, boolean write);
+int lookup_state(stateid4 stateid, state** state);
 void killstate(state* state);
 
 #endif                                                /* _SAL_INTERNAL */

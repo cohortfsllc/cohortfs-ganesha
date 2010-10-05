@@ -459,8 +459,29 @@ int lookup_state_and_lock(stateid4 stateid, state** state,
 			  entryheader** header, boolean write)
 {
     int rc = 0;
+    
+    rc = lookup_state(stateid, state);
+    if (rc != ERR_STATE_NO_ERROR)
+	return rc;
+	
+    rc = 0;
+    if (write)
+	rc = pthread_rwlock_wrlock(&(state->header->lock));
+    else
+	rc = pthread_rwlock_rdlock(&(state->header->lock));
+
+    *header = (*state)->header;
+
+    if (rd || !(state->header->valid))
+	return ERR_STATE_NOENT;
+
+    return ERR_STATE_NO_ERROR;
+}
+
+int lookup_state(stateid4 stateid, state** state)
+{
+    int rc = 0;
     hash_buffer_t key, val;
-    state* state;
     
     key.pdata = stateid.other;
     key.len = 12;
@@ -472,18 +493,20 @@ int lookup_state_and_lock(stateid4 stateid, state** state,
     else if (rc != HASHTABLE_SUCCESS)
 	return ERR_STATE_FAIL;
 
-    state = val.pdata;
+    *state = val.pdata;
 
-    rc = 0;
-    if (write)
-	rc = pthread_rwlock_wrlock(&(state->header->lock));
+    /* TODO Update this to handle wraparound once we figure out how to
+       quickly count the number of slots total associated with a
+       client */
+
+    if (stateid.seqid == 0)
+	return ERR_STATE_NO_ERROR;
+    else if (stateid.seqid < state->stateid.seqid)
+	return ERR_STATE_OLDSEQ;
+    else if (stateid.seqid > state->stateid.seqid)
+	return ERR_STATE_BADSEQ;
     else
-	rc = pthread_rwlock_rdlock(&(state->header->lock));
-
-    if (rd || !(state->header->valid))
-	return ERR_STATE_NOENT;
-
-    return ERR_STATE_NO_ERROR;
+	return ERR_STATE_NO_ERROR;
 }
 
 void unchain(state* state)
