@@ -35,70 +35,43 @@
  * These functions realise delegation state functionality.
  ***********************************************************************/
 
-void update_delegations(entryheader* entry)
+void update_dir_delegations(entryheader* entry)
 {
     state* cur = NULL;
     
-    entry->read_delegations = 0;
-    entry->write_delegations = 0;
+    entry->dir_delegations = 0;
 
     while (iterate_entry(entry, &cur))
 	{
-	    if (cur->type != delegation)
+	    if (cur->type != dir_delegation)
 		continue;
-	    if (cur->u.delegation.type == OPEN_DELEGATE_READ)
+	    else
 		{
-		    header->read_delegations = 1;
-		    break;
-		}
-	    else if (cur->u.delegation.type == OPEN_DELEGATE_WRITE)
-		{
-		    header->write_delegations = 1;
+		    entry->dir_delegations = 1;
 		    break;
 		}
 	}
 }
 
-int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
-			    open_delegation_type4 type,
-			    nfs_space_limit4 limit, stateid4* stateid)
+int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+				bitmap4 notification_types,
+				attr_notice4 child_attr_delay,
+				attr_notice4 dir_attr_delay,
+				bitmap4 child_attributes,
+				bitmap4 dir_attributes,
+				stateid4* stateid);
 {
     entryheader* header;
     state* state;
     int rc = 0;
 
-    if ((type != OPEN_DELEGATE_READ) &&
-	(type != OPEN_DELEGATE_WRITE))
-      {
-	LogDebug(COMPONENT_STATES,
-		 "state_create_delegation: attempt to create delegation of invalid type.");
-	return ERR_STATE_INVAL;
-      }
-    
     /* Retrieve or create header for per-filehandle chain */
 
     if (!(header = header_for_write(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_create_delegation: could not find/create header entry.");
+		     "state_create_dir_delegation: could not find/create header entry.");
 	    return ERR_STATE_FAIL;
-	}
-
-    /* Check for potential conflicts */
-
-    if ((header->max_share & OPEN4_SHARE_ACCESS_WRITE) ||
-	(header->nfs23writers) ||
-	(header->max_deny & OPEN4_SHARE_DENY_READ) ||
-	(header->write_delegations) ||
-	(type == OPEN_DELEGATE_WRITE &&
-	 (header->max_share ||
-	  header->nfs23writers ||
-	  header->read_delegations)))
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    LogDebug(COMPONENT_STATES,
-		     "state_create_delegation: share conflict.");
-	    return rc;
 	}
 
     /* Create and fill in new entry */
@@ -107,20 +80,23 @@ int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
-		     "state_create_share: Unable to create new state.");
+		     "state_create_dir_delegation: Unable to create new state.");
 	    return ERR_STATE_FAIL;
 	}
 
-    state->type = delegation;
-    state->u.delegation.type =  type;
-    state->u.delegation.limit = limit;
-
+    state->type = dir_delegation;
+    state->u.dir_delegation.notification_types = notification_types;
+    state->u.dir_delegation.child_attr_delay = child_attr_delay;
+    state->u.dir_delegation.dir_attr_delay = dir_attr_delay;
+    state->u.dir_delegation.child_attributes = child_attributes;
+    state->u.dir_delegation.dir_attributes = dir_attributes;
+    
     *stateid = header->stateid;
     pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_delegation(stateid4 stateid);
+int state_delete_dir_delegation(stateid4 stateid);
 {
     state* state;
     entryheader* header;
@@ -129,18 +105,18 @@ int state_delete_delegation(stateid4 stateid);
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
 	{
 	    LogError(COMPONENT_STATES,
-		     "state_delete_delegation: could not find state.");
+		     "state_delete_dir_delegation: could not find state.");
 	}
 
-    state->u.delegation.type = 0;
-    update_delegations(entry);
+    state->type = any;
+    update_dir_delegations(entry);
     rc = killstate(state);
     
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
-			   delegationstate* outdelegation)
+int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+			       dir_delegationstate* outdir_delegation)
 {
     entryheader* header;
     state* cur = NULL;
@@ -151,7 +127,7 @@ int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
     if (!(header = header_for_read(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_query_delegation: could not find header entry.");
+		     "state_query_dir_delegation: could not find header entry.");
 	    return ERR_STATE_FAIL;
 	}
 
@@ -170,43 +146,31 @@ int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 	    return ERR_STATE_NOENT;
 	}
 
-    memset(outdelegation, 0, sizeof(delegationstate));
+    memset(outdir_delegation, 0, sizeof(dir_delegationstate));
 
-    outdelegation->handle = header->handle;
-    outdelegation->stateid = cur->stateid;
-    outdelegation->clientid = cur->clientid;
-    outdelegation->u.delegation.type = cur->u.delegation.type;
-    outdelegation->u.delegation.limit = cur->u.delegation.limit;
-
+    outdir_delegation->handle = header->handle;
+    outdir_delegation->clientid = cur->clientid;
+    outdir_delegation->stateid = cur->stateid;
+    outdir_delegation->notification_types = cur->notification_types;
+    outdir_delegation->child_attr_delay = cur->child_attr_delay;
+    outdir_delegation->dir_attr_delay = cur->dir_attr_delay;
+    
     pthread_rwlock_unlock(&(header->lock));
+
+    return ERR_STATE_NO_ERROR;
 }
 
-int state_check_delegation(fsal_handle_t *handle,
-			   open_delegation_type4 type)
+int state_check_delegation(fsal_handle_t *handle)
 {
     entryheader* header;
-    
-    if ((type != OPEN_DELEGATE_READ) &&
-	(type != OPEN_DELEGATE_WRITE))
-      {
-	LogDebug(COMPONENT_STATES,
-		 "state_check_delegation: attempt to create delegation of invalid type.");
-	return ERR_STATE_INVAL;
-      }
-    
-    /* Retrieve or create header for per-filehandle chain */
 
     if (!(header = header_for_read(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_check_delegation: could not find header entry.");
+		     "state_check_dir_delegation: could not find header entry.");
 	    return 0;
 	}
 
-    pthread_rwlock_unlock(&(header->lock));
-
-    if (type == OPEN_DLEGATE_READ)
-	return header->read_delegations;
-    else
-	return header->write_delegations;
+    unlock(&(header->lock));
+    return header->write_delegations;
 }
