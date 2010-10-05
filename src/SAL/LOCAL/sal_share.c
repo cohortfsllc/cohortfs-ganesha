@@ -359,7 +359,7 @@ int state_end_32read(fsal_handle_t *handle)
 
     /* Check for potential conflicts */
 
-    header->nfs32readers--;
+    header->nfs32writers ? header->nfs32readers-- : 0;
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
@@ -378,7 +378,7 @@ int state_end_32write(fsal_handle_t *handle)
 	    return ERR_STATE_FAIL;
 	}
 
-    header->nfs32writers--;
+    header->nfs21writers ? header->nfs32writers-- : 0;
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;

@@ -195,7 +195,6 @@ int state_start_32write(fsal_handle_t *handle)
 int state_end_32read(fsal_handle_t *handle)
 int state_end_32write(fsal_handle_t *handle)
 
-
 /* Delegations */
 
 /*
@@ -212,7 +211,7 @@ int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
  * returned.
  */
 		            
-int state_delete_delegation(stateid4* stateid);
+int state_delete_delegation(stateid4 stateid);
 
 /*
  * Retrieves the delegation for a given (filehandle, clientid)
