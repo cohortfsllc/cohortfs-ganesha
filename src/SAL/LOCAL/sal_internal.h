@@ -40,9 +40,11 @@
 
 typedef struct __localshare
 {
-    open_owner4 open_owner;
+    char open_owner[NFS4_OPAQUE_LIMIT];
+    size_t open_owner_len;
     uint32_t share_access;
     uint32_t share_deny;
+    boolean locks;
 } share;
 
 typedef struct __localdeleg
@@ -131,15 +133,12 @@ typedef struct __entryheader
 
 extern pthread_mutex_t entrymutex;
 
-extern locallockentry* lockentrypool;
 extern locallayoutentry* layoutentrypool;
 extern entryheader* entryheaderpool;
-extern localstate* localstatepool;
-extern concatstates* concatstatepool;
+extern state* statepool;
 
 extern hash_table_t* stateidtable;
 extern hash_table_t* entrytable;
-extern hash_table_t* concattable;
 
 
 /************************************************************************
@@ -148,11 +147,13 @@ extern hash_table_t* concattable;
 
 int init_stateidtable(void);
 int init_entrytable(void);
-int init_concattable(void);
-int entryisfile(cache_entry_t* entry);
-int header_for_writing(cache_entry_t entry, entryheader** header);
-concatstates* get_concat(entryheader* header, clientid4 clientid,
-			 bool create);
+int header_for_write(fsal_handle_t handle, entryheader** header);
+int header_for_read(fsal_handle_t handle, entryheader** header);
 localstate* newstate(clientid4 clientid);
+void chain(localstate* state, entryheader* header);
+state* iterate_entry(entryheader* entry, state** state);
+int lookup_state_and_lock(stateid4 stateid, state** state,
+			  entryheader** header, boolean write);
+void killstate(state* state);
 
 #endif                                                /* _SAL_INTERNAL */

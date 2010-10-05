@@ -53,11 +53,8 @@ pthread_mutex_t entrymutex = PTHREAD_MUTEX_INITIALIZER;
  * A few pools for local data structures.
  ***********************************************************************/
 
-locallockentry* lockentrypool;
 locallayoutentry* layoutentrypool;
-cache_inode_fsal_data_t* fsaldatapool;
-localstate* localstatepool;
-concatstates* concatstatepool;
+state* statepool;
 
 /************************************************************************
  * Hash Tables 
@@ -90,7 +87,6 @@ concatstates* concatstatepool;
 
 hash_table_t* stateidtable;
 hash_table_t* entrytable;
-hash_table_t* concattable;
 
 /* State ID table */
 
@@ -187,27 +183,40 @@ int init_stateidtable(void)
     return stateidtable;
 }
 
-/* Entry table */
-
-/* This table is separate from cache_inode's state table, since in
- * distribute state realisations it may not make sense to store
- * pointers to states in cache entries.
- */
-
-
 int dummy2str(hash_buffer_t * pbuff, char *str)
 {
     str="DUMMY";
     return 0;
 }
 
+unsigned long state_id_value_hash_func(hash_parameter_t * p_hparam,
+                                       hash_buffer_t * buffclef)
+{
+    return (FSAL_Handle_to_HashIndex(buffclef->pdata, 0,
+				     p_hparam->alphabet_length,
+				     p_hparam->index_size));
+}
+
+unsigned long state_id_rbt_hash_func(hash_parameter_t * p_hparam,
+                                     hash_buffer_t * buffclef)
+{
+    return (FSAL_Handle_to_RBTIndex(buffclef->pdata, 0));
+}
+
+int compare_state_id(hash_buffer_t * buff1, hash_buffer_t * buff2)
+{
+    fsal_status_t status;
+
+    return (FSAL_handlecmp(buff1->pdata, buff2->pdata, &status));
+}
+
 hash_parameter_t entryparams = {
     .index_size=29,
     .alphabet_length=10,
     .nb_node_prealloc=1000,
-    .hash_func_key=cache_inode_fsal_hash_func,
-    .hash_func_rbt=cache_inode_fsal_rbt_func,
-    .compare_key=cache_inode_compare_key_fsal,
+    .hash_func_key=handle_hash_func,
+    .hash_func_rbt=handle_rbt_func,
+    .compare_key=handle_compare_key_fsal,
     .key_to_str=dummy2str,
     .val_to_str=dummy2str
 };
@@ -218,125 +227,30 @@ int init_entrytable(void)
     return entrytable;
 }
 
-/* Concatenated entry/clientid table */
-
-/* This table exists to allow quick lookups of pre-existing states on
- * a given cleint/file pair
- */
-
-    
-unsigned long concat_hash_func(hash_parameter_t * p_hparam,
-			       hash_buffer_t * buffclef)
-{
-    unsigned long h = 0;
-    cache_inode_fsal_data_t* pfsdata
-	= ((struct concatkey*) buffclef->pdata).pfsdata;
-    clientid4 clientid = ((concatkey*) buffclef->pdata).clientid;
-    unsigned int cookie = (pfsdata->cookie ^
-			   (0x00000000ffffffff & clientid) ^
-			   (clientid >> 0x20));
-
-    h = FSAL_Handle_to_HashIndex(&pfsdata->handle, cookie,
-                                 p_hparam->alphabet_length,
-                                 p_hparam->index_size);
-
-    return h;
-}                               /* cache_inode_fsal_hash_func */
-
-unsigned long concat_rbt_func(hash_parameter_t * p_hparam,
-			      hash_buffer_t * buffclef)
-{
-    unsigned long h = 0;
-    cache_inode_fsal_data_t* pfsdata
-	= ((struct concatkey*) buffclef->pdata).pfsdata;
-    clientid4 clientid = ((concatkey*) buffclef->pdata).clientid;
-    unsigned int cookie = (pfsdata->cookie ^
-			   (0x00000000ffffffff & clientid) ^
-			   (clientid >> 0x20));
-
-    h = FSAL_Handle_to_RBTIndex(&pfsdata->handle, cookie);
-
-    return h;
-}                               /* cache_inode_fsal_rbt_func */
-
-int concat_compare_key(hash_buffer_t * buff1, hash_buffer_t * buff2)
-{
-    struct concatkey* key1 = (struct concatkey*) buff1->pdata;
-    struct concatkey* key2 = (struct concatkey*) buff2->pdata;
-    
-    if(key1 == NULL)
-	return key2 == NULL ? 0 : 1;
-    else if(key2 == NULL)
-        return 1;              /* left member is the greater one */
-    else
-        {
-	    fsal_status_t status;
-	    cache_inode_fsal_data_t *pfsdata1 = key1.pfsdata;
-	    cache_inode_fsal_data_t *pfsdata2 = key2.pfsdata;
-
-	    if (pfsdata1 != pfsdata2)
-		return 1;
-	    else
-		return FSAL_handlecmp(&pfsdata1->handle,
-				      &pfsdata2->handle, &status);
-        }
-}
-
-hash_parameter_t concatparams = {
-    .index_size=19,
-    .alphabet_length=10,
-    .nb_node_prealloc=100,
-    .hash_func_key=concat_hash_func,
-    .hash_func_rbt=concat_rbt_func,
-    .compare_key=concat_compare_key,
-    .key_to_str=dummy2str,
-    .val_to_str=dummy2str
-};
-
-int init_concattable(void)
-{
-    concattable = HashTable_Init(concatparamgs);
-    return concattable;
-}
-
-
-
-/*
- * Returns 0 if the given cache entry refers to a file, nonzero
- * otherwise
- */
-
-int entryisfile(cache_entry_t* entry)
-{
-    return !(entry.internal_md.type == REGULAR_FILE);
-}
-
 /*
  * Fetches an entry header and write locks it.  If the header does not
  * exist, creates it in the table.
  */
 
-
-int header_for_write(cache_entry_t* entry)
+int header_for_write(fsal_handle_t* handle)
 {
-    hash_buffer_t key, bal;
-    cache_inode_fsal_data_t fsaldata;
+    hash_buffer_t key, val;
     entryheader* header;
-    int rc=0;
+    int rc = 0;
 
-    memset(fsaldata, 0, sizeof(cache_inode_fsal_data_t));
-    fsaldata.handle = entry->object.file.handle;
-    
-    key.pdata = &fsaldata;
-    key.len = sizeof(cache_inode_fsal_data_t);
+    key.pdata = handle;
+    key.len = sizeof(fsal_handle_t);
 
     rc = HashTable_get(entrytable, &key, &val);
 
     if (rc == HASHTABLE_SUCCESS)
 	{
 	    header = val.pdata;
-	    pthread_rwlock_wrlock(&(header->lock));
-	    return header;
+	    rc = pthread_rwlock_wrlock(&(header->lock));
+	    if (rc != 0 || !(header->valid))
+		return NULL;
+	    else
+		return header;
 	}
     else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	{
@@ -350,10 +264,13 @@ int header_for_write(cache_entry_t* entry)
 	    
 	    if (rc == HASHTABLE_SUCCESS)
 		{
+		    rc = pthread_rwlock_wrlock(&(header->lock));
 		    pthread_mutex_unlock(&entrymutex);
 		    header = val.pdata;
-		    pthread_rwlock_wrlock(&(header->lock));
-		    return header;
+		    if (rc != 0 || !(header->valid))
+			return NULL;
+		    else
+			return header;
 		}
 	    if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
 		{
@@ -364,29 +281,29 @@ int header_for_write(cache_entry_t* entry)
 
 	    /* We may safely create the entry */
 	    
-	    GET_PREALLOC(newheader, entryheaderpool, 1, entryheader,
+	    GET_PREALLOC(header, entryheaderpool, 1, entryheader,
 			 next_alloc);
 
-	    if (!newheader)
+	    if (!header)
 		{
 		    pthread_mutex_unlock(&entrymutex);
 		    return NULL;
 		}
 
-	    memset(newheader, 0, sizeof(entryheader));
+	    memset(header, 0, sizeof(entryheader));
 	    
 	    /* Copy, since it looks like the HashTable code depends on
 	       keys not going away */
 	    
-	    newheader.fsaldata = fsaldata;
-	    key.pdata = &(newheader.fsaldata);
+	    header.handle = *handle;
+	    key.pdata = &(newheader.handle);
 
 	    header->lock = PTHREAD_RWLOCK_INITIALIZER;
 
 	    pthread_rwlock_wrlock(&(header->lock));
 
 	    header->valid = 1;
-	    val.pdata = newheader;
+	    val.pdata = header;
 	    val.len = sizeof(entryheader);
 	    
 	    rc = Hash_Table_Test_and_Set(entrytable, &key, &val,
@@ -394,60 +311,37 @@ int header_for_write(cache_entry_t* entry)
 
 	    pthread_mutex_unlock(&entrymutex);
 	    if (rc == HASHTABLE_SUCCESS)
-		return newentry;
+		return header;
 	    else
-		RELEASE_PREALLOC(newentry, entrypool, next_alloc);
+		{
+		    pthread_rwlock_unlock(&(header->lock));
+		    header->valid = 0;
+		    RELEASE_PREALLOC(newentry, entrypool, next_alloc);
+		}
 	}
     return NULL ;
 }
 
-/* This fetches the concatstates structure for the given
- * entry/clientid pair.  If create is set, it creates it.  The
- * appropriate lock MUST have been acquired before calling this
- * function.
- */
-
-concatstates* get_concat(entryheader* header, clientid4 clientid,
-			 bool create)
+int header_for_read(fsal_handle_t* handle)
 {
     hash_buffer_t key, val;
-    struct concatkey keyval;
-    concatstates* concat;
+    entryheader* header;
     int rc = 0;
-    
-    keyval.pfsdata = &(entryheader->fsaldata);
-    keyval.clientid = clientid;
-    key.pdata = &keyval;
-    key.len = sizeof(struct concatkey);
-    rc = HashTable_get(entrytable, &key, &val);
-    
-    if (rc == HASHTABLE_SUCCESS)
-	concat = val.pdata;
-    else if (rc == HASHTABLE_NO_SUCH_KEY)
-	{
-	    if (create)
-		{
-		    GET_PREALLOC(concat, concatpool, 1, concatstates,
-				 next_alloc);
-		    memset(concat, 0, sizeof(concatstates));
-		    /* Copy the key off the stack */
-		    concatstates.key = keyval;
-		    key.pdata = &(concaststates.key);
-		    concatstates->header = header;
-		    concatstates->clientid = clientid;
-		    rc = Hash_Table_Test_and_Set(concattable, &key, &val,
-						 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
-		    
-		    if (rc != HASHTABLE_SUCCESS)
-			{
-			    RELEASE_PREALLOC(concat, concatpool, next_alloc);
-			    concat = NULL;
-			}
-		}
-	}
-    else
-	concat = NULL;
 
+    key.pdata = handle;
+    key.len = sizeof(fsal_handle_t);
+
+    rc = HashTable_get(entrytable, &key, &val);
+
+    if (rc == HASHTABLE_SUCCESS)
+	{
+	    header = val.pdata;
+	    rc = pthread_rwlock_wrlock(&(header->lock));
+	    if (rc != 0 || !(header->valid))
+		return NULL;
+	    else
+		return header;
+	}
     return NULL;
 }
 
@@ -477,15 +371,15 @@ void newstateidother(clientid4 clientid, char* other)
 
 /* Allocate a new state with stateid */
 
-localstate* newstate(clientid4 clientid)
+localstate* newstate(clientid4 clientid, entryheader* header)
 {
     hash_buffer_t key, val;
-    localstate* newstate;
+    state* state;
     int counter = 0;
     int rc = 0;
 
-    if (!(newstate = (GET_PREALLOC(newstate, localstatepool, 1,
-				   localstate, next_alloc))))
+    if (!(newstate = (GET_PREALLOC(state, statepool, 1,
+				   state, next_alloc))))
 	return NULL;
 
     memset(newstate, 0, sizeof(localstate));
@@ -502,6 +396,9 @@ localstate* newstate(clientid4 clientid)
 	}
     while ((rc != HASHTABLE_ERROR_KEY_ALREADY_EXISTS) && rc <= 100);
 
+    state.clientid = clientid;
+    state.stateid.seqid = 1;
+
     if (rc != HASHTABLE_SUCCESS)
 	{
 	    LogCrit(COMPONENT_STATES,
@@ -511,7 +408,9 @@ localstate* newstate(clientid4 clientid)
 	    return NULL;
 	}
 
-    return newstate;
+    chain(state, header);
+
+    return state;
 }
 
 /* Chain a state onto the filehandle and entire linked lists.  This
@@ -520,8 +419,126 @@ localstate* newstate(clientid4 clientid)
 
 void chain(localstate* state, entryheader* header)
 {
-    state->next = statechain;
-    statechain = state;
-    state->next_fh = header->states;
-    header->states = state;
+    state->header = header;
+
+    state->prevfh = NULL;
+    if (header->states == NULL)
+	{
+	    header->states = state;
+	    state->nextfh = NULL;
+	}
+    else
+	{
+	    state->nextfh = header->states;
+	    header->states = state;
+	}
+
+    state->prev = NULL;
+    if (statechain == NULL)
+	{
+	    statechain = state;
+	    state->next = NULL;
+	}
+    else
+	{
+	    state->next = statechin;
+	    statechain = state;
+	}
+}
+
+state* iterate_entry(entryheader* entry, state** state)
+{
+    if (*state == NULL)
+	*state = entry->states;
+    else
+	*state = state->next;
+    return *state;
+}
+
+int lookup_state_and_lock(stateid4 stateid, state** state,
+			  entryheader** header, boolean write)
+{
+    int rc = 0;
+    hash_buffer_t key, val;
+    state* state;
+    
+    key.pdata = stateid.other;
+    key.len = 12;
+    
+    rc = HashTable_get(statetable, &key, &val);
+    
+    if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
+	return ERR_STATE_NOENT;
+    else if (rc != HASHTABLE_SUCCESS)
+	return ERR_STATE_FAIL;
+
+    state = val.pdata;
+
+    rc = 0;
+    if (write)
+	rc = pthread_rwlock_wrlock(&(state->header->lock));
+    else
+	rc = pthread_rwlock_rdlock(&(state->header->lock));
+
+    if (rd || !(state->header->valid))
+	return ERR_STATE_NOENT;
+
+    return ERR_STATE_NO_ERROR;
+}
+
+void unchain(state* state)
+{
+    if (state->prevfh == NULL)
+	{
+	    state->header->states = state->nextfh;
+	    state->nextfh->prevfh = NULL;
+	}
+    else
+	{
+	    state->nextfh->prevfh = state->prevfh;
+	    state->prevfh->nextfh = state->nextfh;
+	}
+    if (state->prev == NULL)
+	{
+	    statechain = state->next;
+	    state->next->prev = NULL;
+	}
+    else
+	{
+	    state->next->prev = state->prev;
+	    state->prev->next = state->next;
+	}
+}
+
+void killstate(state* state)
+{
+    entryheader* header = state->header;
+    hash_buffer_t key;
+
+    unchain(state);
+
+    key.pdata = state->stateid.other;
+    key.len = 12;
+    
+    if (HashTable_Del(statetable, &key, NULL, NULL) !=
+	HASHTABLE_SUCCESS)
+	LogMajor(COMPONENT_STATES,
+		 "killstate: unable to remove stateid from hash table.");
+	
+    RELEASE_PREALLOC(state, statepool, next_alloc);
+
+    if (!(header->states))
+	{
+	    header->valid = 0;
+	    key.pdata = &(header->handle);
+	    key.len = sizeof(fsal_handle_t);
+	    if (HashTable_Del(entrytable, &key, NULL, NULL) !=
+		HASHTABLE_SUCCESS)
+		LogMajor(COMPONENT_STATES,
+			 "killstate: unable to remove header from hash table.");
+	    pthread_rwlock_unlock(&(header->lock));
+	    RELEASE_PREALLOC(header, entrypool, next_alloc);
+	}
+    else
+	pthread_rwlock_unlock(&(header->lock));
 }

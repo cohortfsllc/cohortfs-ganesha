@@ -51,20 +51,7 @@ int state_init(void)
 		     "state_init: could not initialise stateid table.");
 	    return ERR_STATE_FAIL;
 	}
-    if (!init_concattable())
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_init: could not initialise concatenated entry/clientid table.");
-	    return ERR_STATE_FAIL;
-	}
 
-    STUFF_PREALLOC(lockentrypool, 100, locallockentry, next_alloc);
-    if (!lockentrypool)
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_init: could not allocate lock entry pool.");
-	    return ERR_STATE_FAIL;
-	}
     STUFF_PREALLOC(layoutentrypool, 100, locallayoutentry, next_alloc);
     if (!layoutentrypool)
 	{
@@ -72,27 +59,8 @@ int state_init(void)
 		     "state_init: could not allocate layout entry pool.");
 	    return ERR_STATE_FAIL;
 	}
-    STUFF_PREALLOC(entryheaderpool, 500, entryheader, next_alloc);
-    if (!fsaldatapool)
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_init: could not allocate entry pool.");
-	    return ERR_STATE_FAIL;
-	}
-    STUFF_PREALLOC(localstatepool, 1000, localstate, next_alloc);
-    if (!fsaldatapool)
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_init: could not allocate state entry pool.");
-	    return ERR_STATE_FAIL;
-	}
-    STUFF_PREALLOC(concatstates, 500, concatstatepool, next_alloc);
-    if (!fsaldatapool)
-	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_init: could not allocate state pool.");
-	    return ERR_STATE_FAIL;
-	}
+    STUFF_PREALLOC(statepool, 1000, localstate, next_alloc);
+
     return ERR_STATE_NO_ERROR;
 }
 
