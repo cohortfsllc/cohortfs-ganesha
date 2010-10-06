@@ -72,6 +72,7 @@ typedef struct __locallockstate
 
 typedef struct __locallayoutstate
 {
+    layouttype4 type;
     locallayoutentry* layoutentries;
 } layout;
 
@@ -81,8 +82,8 @@ typedef struct __locallayoutentry
     layoutiomode4 iomode;
     offset4 offset;
     length4 length;
-    bool return_on_close;
-    fsal_layout_t layoutdata;
+    boolean return_on_close;
+    fsal_layout_t* layoutdata;
     struct __locallayoutentry* next;
     struct __locallayoutentry* prev;
     struct __locallayoutentry* next_alloc;

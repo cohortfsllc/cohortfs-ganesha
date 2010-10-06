@@ -57,16 +57,25 @@ int state_create_lock_state(fsal_handle_t *handle,
 
     rc = lookup_state(open_stateid, &openstate);
 
-    if (rc != ERR_STATE_NO_ERROR)
+    if (rc == ERR_STATE_NO_ERROR)
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogError(COMPONENT_STATES,
 		     "state_create_lock_state: could not find open state.");
-	    return ERR_STATE_FAIL;
+	    return rc;
+	}
+
+    if (!((state->type != open) ||
+	  (state->type != delegation)))
+	{
+	    pthread_rwlock_unlock(&(header->lock));
+	    LogError(COMPONENT_STATES,
+		     "state_create_lock_state: supplied state of invalid type.");
+	    return ERR_STATE_INVAL;
 	}
 
     /* Create and fill in new entry */
-
+    
     if (!(state = newstate(clientid, header)))
 	{
 	    pthread_rwlock_unlock(&(header->lock));
@@ -104,7 +113,8 @@ int state_delete_lock_state(stateid4 stateid);
 	}
 
     state->type = any;
-    openstate->u.share.locks = 0;
+    state->u.share.openstate->u.share.locks = 0;
+
     while (iterate_entry(entry, &cur))
 	{
 	    if (!((cur->type == lock)
@@ -132,7 +142,7 @@ int state_query_lock_state(fsal_handle_t *handle,
     if (!(header = header_for_read(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_query_dir_delegation: could not find header entry.");
+		     "state_query_lock: could not find header entry.");
 	    return ERR_STATE_FAIL;
 	}
 
@@ -155,7 +165,7 @@ int state_query_lock_state(fsal_handle_t *handle,
 	    return ERR_STATE_NOENT;
 	}
 
-    memset(outlockstate, 0, sizeof(dir_delegationstate));
+    memset(outlockstate, 0, sizeof(dir_lock));
 
     outlockstate->handle = header->handle;
     outlockstate->clientid = cur->clientid;
@@ -169,5 +179,31 @@ int state_query_lock_state(fsal_handle_t *handle,
     
     pthread_rwlock_unlock(&(header->lock));
 
+    return ERR_STATE_NO_ERROR;
+}
+
+int state_lock_inc_state(stateid4* stateid)
+{
+    state* state;
+    
+    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_inc_lock_state: could not find state.");
+	    return ERR_STATE_FAIL;
+	}
+    if (state->type != lock)
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_inc_lock_state: supplied state of wrong type.");
+	    pthread_rwlock_unlock(&(state->header->lock));
+	    return ERR_STATE_INVAL;
+	}
+
+    ++state->stateid.seqid;
+
+    *stateid = state->stateid;
+
+    pthread_rwlock_unlock(&(state->header->lock));
     return ERR_STATE_NO_ERROR;
 }

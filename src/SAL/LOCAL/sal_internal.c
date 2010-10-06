@@ -565,3 +565,4 @@ void killstate(state* state)
     else
 	pthread_rwlock_unlock(&(header->lock));
 }
+

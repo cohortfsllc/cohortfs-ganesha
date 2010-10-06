@@ -103,12 +103,18 @@ typedef struct __layoutstate
     clientid4 clientid;
     stateid4 stateid;
     layouttype4 type;
+} layoutstate;
+
+typedef struct __layoutsegment
+{
+    layouttype4 type;
     layoutiomode4 iomode;
     offset4 offset;
     length4 length;
-    bool return_on_close;
-    fsal_layout_t layoutdata;
-} layoutstate;
+    boolean return_on_close;
+    fsal_layout_t* layoutdata;
+    uint64_t segid;
+} layoutsegment;
 
 typedef enum __ statelocktype
     {readlock, writelock}
@@ -298,15 +304,25 @@ int state_query_lock_state(fsal_handle_t *handle,
 			   lock_owner4 lock_owner,
 			   lockstate* lockstateout);
 
-/*
- * Creates a new layout state for an open file with no existing
- * layouts.  If there is a pre-existing layout state, an error is
- * returned.  
- */
 
-int state_create_layout_state(fsal_handle_t *handle,
+/* Increment the lock seqid (after performing some lock operations
+   inthe FSAL */
+
+int state_inc_lock_state(stateid4* stateid);
+
+/* Retrieves the layout state associated with the
+   client/filehandle/type */
+
+int state_create_layout_state(fsal_handle_t handle,
+			      stateid4 ostateid,
 			      layouttype4 type,
 			      stateid4* stateid);
+
+/*
+ * Deletes the entire layout state.
+ */
+
+int state_delete_layout_state(stateid* stateid);
 
 /*
  * Adds a new layout to the layout state for the file.  As the semantics
@@ -314,50 +330,34 @@ int state_create_layout_state(fsal_handle_t *handle,
  * check for conflicts.
  */
 
-int state_add_layout_segment(layouttype4 type,
-			     layoutimode4 iomode,
+int state_add_layout_segment(layoutimode4 iomode,
 			     offset4 offset,
 			     length4 length,
 			     boolean return_on_close,
-			     fsal_layout_t layoutdata,
-			     stateid4* stateid);
+			     fsal_layout_t* layoutdata,
+			     stateid4 stateid);
 /*
- * Adds a new layout to the layout state for the file.  If a layout of
- * the same type and iomode adjoins or overlaps, they may be merged.  The
- * provided layoutdata replaces those of pre-existing merged ranges.
- * (This and the above are offered for FSALs that cannot handle
- * merge.)
+ * Changes a layout segment
  */
 
-int state_add_layout_merge_segment(layouttype4 type,
-				   layoutimode4 iomode,
-				   offset4 offset,
-				   length4 length,
-				   boolean return_on_close,
-				   fsal_layout_t layoutdata,
-				   stateid4* stateid);
+int state_mod_layout_segment(layoutimode4 iomode,
+			     offset4 offset,
+			     length4 length,
+			     fsal_layout_t* layoutdata,
+			     stateid4 stateid,
+			     uint64_t segid);
 /*
  * Frees a layout or sublayout.  Should be called after whatever call is
  * necessary to free resources.
  */
 
-int state_free_layout_segment(layouttype4 type,
-			      layoutimode4 iomode,
-			      offset4 offset,
-			      length4 length,
-			      stateid4* stateid);
-/*
- * Deletes the entire layout state.
- */
+int state_free_layout_segment(stateid4 stateid,
+			      uint64_t segid);
 
-int state_delete_layout_state(stateid* stateid);
+/* Increment the lock seqid (after performing some lock operations
+   inthe FSAL */
 
-/* Retrieves the layout state associated with the
-   client/filehandle/type */
-
-int state_create_layout_state(fsal_handle_t handle,
-			      layouttype4 type,
-			      layoutstate* outlayoutstate);
+int state_layout_inc_state(stateid4* stateid);
 
 /*
  * Iterates through the layouts on a file.  &stateid may be an open
@@ -366,10 +366,10 @@ int state_create_layout_state(fsal_handle_t handle,
  * updated on success so a subsequent call retrieves the next value.
  */
 
-int state_iter_layouts(stateid4 stateid,
-		       uint64_t* cookie,
-		       boolean* finished,
-		       layoutsegment* state);
+int state_iter_layout_entries(stateid4 stateid,
+			      uint64_t* cookie,
+			      boolean* finished,
+			      layoutsegment* segment);
 
 /* General Use */
 
@@ -383,7 +383,7 @@ int state_lock_filehandle(fsal_handle_t *handle, statelocktype rw);
  * Unlocks the filehandle.
  */
 
-int state_unlock_filehandle(fsal_handle_t *handle, statelocktype rw);
+int state_unlock_filehandle(fsal_handle_t *handle);
 
 /*
  * Fills in state progressively with all states existing on a
@@ -403,16 +403,6 @@ int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 int state_iterate_by_clientid(clientid4 clientid, statetype type,
 			      uint64_t* cookie, boolean* finished,
 			      state* state);
-
-/*
- * Iterate over all states of the given type.
- *
- * This last function is expected to be useful only to a process to
- * reap state after lease expiration.
- */
-
-int state_iterate_all(statetype type, uint64_t* cookie,
-		      boolean* finished, state* state); 
 
 /* Initialise state realisation */
 
