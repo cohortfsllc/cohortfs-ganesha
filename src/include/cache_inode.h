@@ -369,14 +369,6 @@ typedef struct cache_entry__
 #endif
 } cache_entry_t;
 
-typedef struct cache_inode_open_owner_name__
-{
-  clientid4 clientid;
-  unsigned int owner_len;
-  char owner_val[MAXNAMLEN];
-  struct cache_inode_open_owner_name__ *next;
-} cache_inode_open_owner_name_t;
-
 typedef struct cache_inode_dir_begin__ cache_inode_dir_begin_t;
 typedef struct cache_inode_dir_cont__ cache_inode_dir_cont_t;
 typedef struct cache_inode_dir_entry__ cache_inode_dir_entry_t;
@@ -401,7 +393,6 @@ typedef struct cache_inode_client__
   cache_inode_dir_data_t *pool_dir_data;                           /**< Worker's preallocad cache directory data pool            */
   cache_inode_parent_entry_t *pool_parent;                         /**< Pool of pointers to the parent entries                   */
   cache_inode_fsal_data_t *pool_key;                               /**< Pool for building hash's keys                            */
-  cache_inode_open_owner_name_t *pool_open_owner_name;             /**< Pool for NFSv4 files's open_owner                        */
 #ifdef _USE_NFS4_1
   nfs41_session_t *pool_session;                                   /**< Pool for NFSv4.1 session                                 */
 #ifdef _USE_PNFS

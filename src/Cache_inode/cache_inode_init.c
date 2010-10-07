@@ -171,32 +171,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
   BuddySetDebugLabel("cache_inode_state_t");
 #endif
 
-  STUFF_PREALLOC(pclient->pool_state_v4,
-                 pclient->nb_pre_state_v4, cache_inode_state_t, next);
-  if(pclient->pool_state_v4 == NULL)
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client state v4 pool");
-      return 1;
-    }
-
-  STUFF_PREALLOC(pclient->pool_open_owner,
-                 pclient->nb_pre_state_v4, cache_inode_open_owner_t, next);
-  if(pclient->pool_open_owner == NULL)
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client open owner pool");
-      return 1;
-    }
-
-  STUFF_PREALLOC(pclient->pool_open_owner_name,
-                 pclient->nb_pre_state_v4, cache_inode_open_owner_name_t, next);
-  if(pclient->pool_open_owner_name == NULL)
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client open owner name pool");
-      return 1;
-    }
 #ifdef _USE_NFS4_1
   STUFF_PREALLOC(pclient->pool_session,
                  pclient->nb_pre_state_v4, nfs41_session_t, next_alloc);

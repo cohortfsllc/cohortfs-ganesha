@@ -327,92 +327,6 @@ void nfs41_op_layoutreturn_Free(LOCK4res * resp)
 
 #if 0
 
-void iterate_layoutstate_by_clientid(cache_inode_state_t** state,
-				     clientid4 clientid)
-{
-  int i;
-  
-  for(i = 0; i < data->ht->parameter.index_size; i++)
-    {
-      struct rbt_head *head;
-      struct rbt_node *node;
-      
-      head = &((data->ht->array_rbt)[i]);
-      RBT_LOOP(head, node)
-	{
-	  fsal_fsid_t fsid;
-	  hash_data_t *pdata;
-	  pdata = (hash_data_t *) node->rbt_opaq;
-	  pstate_exists = (cache_inode_state_t* )
-	    (pdata->buffval.pdata);
-	  
-	  if (arg_LAYOUTRETURN4.lora_layout_type ==
-	      LAYOUTRETURN4_FSID)
-	    {
-	      if(cache_inode_getattr(pstate_exists->pentry,
-				     &attr,
-				     data->ht,
-				     data->pclient,
-				     data->pcontext, &cache_status)
-		 != CACHE_INODE_SUCCESS)
-		{
-		  res_LAYOUTRETURN4.lorr_status = NFS4ERR_SERVERFAULT;
-		  return res_LAYOUTRETURN4.lorr_status;
-		}
-	      
-	      if ((basefsid.major != attr.fsid.major) &&
-		  (basefsid.minor != attr.fsid.minor))
-		{
-		  continue;
-		}
-	    }
-	  
-	  if (pstate_exists->powner->clientid !=
-	      data->pclient->pool_open_owner->clientid)
-	    continue;
-	  
-	  do
-	    {
-	      cache_inode_state_t *next = NULL;
-	      cache_inode_status_t *pstatus;
-	      
-	      
-	      if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
-		continue;
-	      
-	      if (!((arg_LAYOUTRETURN4.lora_iomode == LAYOUTIOMODE4_ANY) ||
-		    (arg_LAYOUTRETURN4.lora_iomode ==
-		     pstate_exists->state_data.layout.iomode)))
-		continue;
-	      
-	      status=FSAL_layoutreturn(&(pstate_exists->pentry->object.file.handle),
-				       pstate_exists->state_data.layout.layout_type,
-				       pstate_exists->state_data.layout.iomode,
-				       pstate_exists->state_data.layout.offset,
-				       pstate_exists->state_data.layout.length,
-				       data->pcontext);
-	      if (FSAL_IS_ERROR(status))
-		{
-		  res_LAYOUTRETURN4.lorr_status = status.major;
-		  return res_LAYOUTRETURN4.lorr_status;
-		}
-	      
-	      /* We need a temporary to hold the next pointer, since
-		 delete trashes the pointer */
-	      
-	      next=pstate_exists->next;
-	      cache_inode_del_state(pstate_exists,
-				    data->pclient,
-				    pstatus);
-	      
-	      pstate_exists=next;
-	    }
-	  while (pstate_exists);
-	  RBT_INCREMENT(node);
-	}
-    }
-}
-
 #endif /* 0 */
 
 /**
@@ -434,6 +348,7 @@ int FSALBACK_layout_remove_state(void* opaque)
 
   cache_inode_state_t* state = cbc->passed_state;
   cache_inode_status_t status;
+
 
   cache_inode_del_state(cbc->passed_state,
 			     cbc->pclient,

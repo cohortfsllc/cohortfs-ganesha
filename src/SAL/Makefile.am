@@ -5,10 +5,10 @@ noinst_LTLIBRARIES            = libsal.la
 
 
 libsal_la_SOURCES = sal_glue.c    \
-		    sal_general.c \
+		    sal_general.c
 
-if USE_FSAL_LOCAL
-SUBDIRS = SAL_LOCAL
+if USE_SAL_LOCAL
+SUBDIRS = LOCAL
 endif
 
 new: clean all
