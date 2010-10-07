@@ -3,10 +3,9 @@ AM_CFLAGS                     = $(SAL_CFLAGS) $(SEC_CFLAGS)
 
 noinst_LTLIBRARIES            = libsal.la
 
-#check_PROGRAMS                = test_cache_inode test_cache_inode_readlink \
-#                                test_cache_inode_readdir test_cache_inode_lookup 
 
-libsal_la_SOURCES = sal_glue.c
+libsal_la_SOURCES = sal_glue.c    \
+		    sal_general.c \
 
 if USE_FSAL_LOCAL
 SUBDIRS = SAL_LOCAL

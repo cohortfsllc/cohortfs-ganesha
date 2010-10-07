@@ -478,7 +478,7 @@ int lookup_state_and_lock(stateid4 stateid, state** state,
     return ERR_STATE_NO_ERROR;
 }
 
-int lookup_state(stateid4 stateid, state** state)
+nt lookup_state(stateid4 stateid, state** state)
 {
     int rc = 0;
     hash_buffer_t key, val;
@@ -539,6 +539,7 @@ void killstate(state* state)
     hash_buffer_t key;
 
     unchain(state);
+
 
     key.pdata = state->stateid.other;
     key.len = 12;

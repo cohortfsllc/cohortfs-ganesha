@@ -35,11 +35,11 @@
  * These functions realise lock state functionality.
  ***********************************************************************/
 
-int state_create_lock_state(fsal_handle_t *handle,
-			    stateid4 open_stateid,
-			    lock_owner4 lock_owner,
-			    fsal_lock_t* lockdata,
-			    stateid4* stateid)
+int localstate_create_lock_state(fsal_handle_t *handle,
+				 stateid4 open_stateid,
+				 lock_owner4 lock_owner,
+				 fsal_lock_t* lockdata,
+				 stateid4* stateid)
 {
     entryheader* header;
     state* state;
@@ -99,7 +99,7 @@ int state_create_lock_state(fsal_handle_t *handle,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_lock_state(stateid4 stateid);
+int localstate_delete_lock_state(stateid4 stateid)
 {
     state* state;
     state* cur = NULL;
@@ -128,10 +128,10 @@ int state_delete_lock_state(stateid4 stateid);
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_lock_state(fsal_handle_t *handle,
-			   stateid4 open_stateid,
-			   lock_owner4 lock_owner,
-			   lockstate* outlockstate)
+int localstate_query_lock_state(fsal_handle_t *handle,
+				stateid4 open_stateid,
+				lock_owner4 lock_owner,
+				lockstate* outlockstate)
 {
     entryheader* header;
     state* cur = NULL;
@@ -167,6 +167,14 @@ int state_query_lock_state(fsal_handle_t *handle,
 
     memset(outlockstate, 0, sizeof(dir_lock));
 
+    pthread_rwlock_unlock(&(header->lock));
+
+    return ERR_STATE_NO_ERROR;
+}
+
+void filllockstate(state* cur, lockstate* outlockstate,
+		   entryheader* header)
+{
     outlockstate->handle = header->handle;
     outlockstate->clientid = cur->clientid;
     outlockstate->stateid = cur->stateid;
@@ -176,13 +184,10 @@ int state_query_lock_state(fsal_handle_t *handle,
 	   cur->u.lock.lock_owner,
 	   cur->u.lock.lock_owner_len);
     outlockstate->lockdata = cur->u.lock.lockdata;
-    
-    pthread_rwlock_unlock(&(header->lock));
-
-    return ERR_STATE_NO_ERROR;
 }
+  
 
-int state_lock_inc_state(stateid4* stateid)
+int localstate_lock_inc_state(stateid4* stateid)
 {
     state* state;
     

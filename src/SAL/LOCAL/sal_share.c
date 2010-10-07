@@ -86,9 +86,9 @@ int share_conflict(entryheader* header, open_owner4 open_owner,
     return ERR_STATE_NONE;
 }
 
-int state_create_share(fsal_handle_t *handle, open_owner4 open_owner,
-		       clientid4 clientid, uint32_t share_access,
-		       uint32_t share_deny, stateid4* stateid)
+int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
+			    clientid4 clientid, uint32_t share_access,
+			    uint32_t share_deny, stateid4* stateid)
 {
     entryheader* header;
     state* state;
@@ -141,8 +141,8 @@ int state_create_share(fsal_handle_t *handle, open_owner4 open_owner,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
-			stateid4* stateid)
+int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
+			     stateid4* stateid)
 {
     state* state;
     entryheader* header;
@@ -173,8 +173,8 @@ int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
-			  stateid4* stateid)
+int localstate_downgrade_share(uint32_t share_access, uint32_t share_deny,
+			       stateid4* stateid)
 {
     state* state;
     entryheader* header;
@@ -206,7 +206,7 @@ int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_share(stateid4 stateid)
+int localstate_delete_share(stateid4 stateid)
 {
     state* state;
     entryheader* header;
@@ -236,9 +236,8 @@ int state_delete_share(stateid4 stateid)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_share(fsal_handle_t *handle, clientid4 clientid,
-		      open_owner4 open_owner, sharestate* outshare)
-
+int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
+			   open_owner4 open_owner, sharestate* outshare)
 {
     entryheader* header;
     state* cur = NULL;
@@ -271,7 +270,17 @@ int state_query_share(fsal_handle_t *handle, clientid4 clientid,
 	pthread_rwlock_unlock(&(header->lock));
 
     memset(outshare, 0, sizeof(sharestate));
+    
+    fillsharestate(cur, outshare);
 
+    pthread_rwlock_unlock(&(header->lock));
+
+    return ERR_STATE_NOSTATE;
+}
+
+void fillsharestate(state* cur, sharestate* outshare,
+		    entryheader* header);
+{
     outshare->handle = header->handle;
     outshare->stateid = cur->stateid;
     outshare->clientid = cur->clientid;
@@ -282,10 +291,10 @@ int state_query_share(fsal_handle_t *handle, clientid4 clientid,
     outshare->open_owner.clientid = cur->clientid;
     outshare->share_access = cur->u.share.share_access;
     outshare->share_deny = cur->u.share.share_deny;
-    pthread_rwlock_unlock(&(header->lock));
+    outshare->locksheld = cur->u.share.locksheld;
 }
 
-int state_start_32read(fsal_handle_t *handle)
+int localstate_start_32read(fsal_handle_t *handle)
 {
     entryheader* header;
     
@@ -314,7 +323,7 @@ int state_start_32read(fsal_handle_t *handle)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_start_32write(fsal_handle_t *handle)
+int localstate_start_32write(fsal_handle_t *handle)
 {
     entryheader* header;
     
@@ -344,7 +353,7 @@ int state_start_32write(fsal_handle_t *handle)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_end_32read(fsal_handle_t *handle)
+int localstate_end_32read(fsal_handle_t *handle)
 {
     entryheader* header;
     
@@ -365,7 +374,7 @@ int state_end_32read(fsal_handle_t *handle)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_end_32write(fsal_handle_t *handle)
+int localstate_end_32write(fsal_handle_t *handle)
 {
     entryheader* header;
     

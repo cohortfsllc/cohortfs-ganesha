@@ -157,5 +157,104 @@ int lookup_state_and_lock(stateid4 stateid, state** state,
 			  entryheader** header, boolean write);
 int lookup_state(stateid4 stateid, state** state);
 void killstate(state* state);
+void filltaggedstate(state* state, taggedstate* outstate);
+void fillsharestate(state* cur, sharestate* outshare
+		    entryheader* header);
+void filldelegationstate(state* cur, delegationstate outdelegation,
+			 entryheader* header);
+void filldir_delegationstate(state* cur,
+			     dir_delegationstate* outdir_delegation,
+			     entryheader* header);
+void filllockstate(state* cur, dir_delegationstate* outdir_delegation,
+		   entryheader* header);
+void filllayoutstate(state* cur, dir_delegationstate* outdir_delegation,
+		     entryheader* header);
 
+/* Prototypes for realisations */
+
+int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
+			    clientid4 clientid, uint32_t share_access,
+			    uint32_t share_deny, stateid4* stateid);
+int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
+			     stateid4* stateid);
+int localstate_downgrade_share(uint32_t share_access, uint32_t share_deny,
+			       stateid4* stateid);
+int localstate_delete_share(stateid4 stateid);
+int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
+			   open_owner4 open_owner, sharestate*
+			   outshare);
+int localstate_start_32read(fsal_handle_t *handle);
+int localstate_start_32write(fsal_handle_t *handle);
+int localstate_end_32read(fsal_handle_t *handle);
+int localstate_end_32write(fsal_handle_t *handle);
+int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
+				 open_delegation_type4 type,
+				 nfs_space_limit4 limit,
+				 stateid4* stateid);
+int localstate_delete_delegation(stateid4 stateid);
+int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
+				delegationstate* outdelegation);
+int localstate_check_delegation(fsal_handle_t *handle,
+				open_delegation_type4 type);
+int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+				     bitmap4 notification_types,
+				     attr_notice4 child_attr_delay,
+				     attr_notice4 dir_attr_delay,
+				     bitmap4 child_attributes,
+				     bitmap4 dir_attributes,
+				     stateid4* stateid);
+int localstate_delete_dir_delegation(stateid4 stateid);
+int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+				    dir_delegationstate* outdir_delegation);
+int localstate_check_delegation(fsal_handle_t *handle);
+int localstate_create_lock_state(fsal_handle_t *handle,
+				 stateid4 open_stateid,
+				 lock_owner4 lock_owner,
+				 fsal_lock_t* lockdata,
+				 stateid4* stateid);
+int localstate_delete_lock_state(stateid4 stateid);
+int localstate_query_lock_state(fsal_handle_t *handle,
+				stateid4 open_stateid,
+				lock_owner4 lock_owner,
+				lockstate* outlockstate);
+int localstate_lock_inc_state(stateid4* stateid);
+int localstate_create_layout_state(fsal_handle_t handle,
+				   stateid4 ostateid,
+				   layouttype4 type,
+				   stateid4* stateid);
+int localstate_delete_layout_state(stateid4 stateid);
+int state_query_layout_state(fsal_handle_t *handle,
+			     layouttype4 type,
+			     lockstate* outlayoutstate);
+int localstate_add_layout_segment(layouttype4 type,
+				  layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  boolean return_on_close,
+				  fsal_layout_t* layoutdata,
+				  stateid4* stateid);
+int localstate_mod_layout_segment(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid,
+				  uint64_t segid);
+int localstate_free_layout_segment(stateid4 stateid,
+				   uint64_t segid);
+int localstate_layout_inc_state(stateid4* stateid);
+int localstate_iter_layout_entries(stateid4 stateid,
+				   uint64_t* cookie,
+				   boolean* finished,
+				   layoutsegment* segment);
+int localstate_lock_filehandle(fsal_handle_t *handle,
+			       statelocktype rw);
+int localstate_unlock_filehandle(fsal_handle_t *handle);
+int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
+				     uint64_t* cookie, boolean* finished,
+				     taggedstate* outstate);
+int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
+				   uint64_t* cookie, boolean* finished,
+				   state* outstate);
+int localstate_retrieve_state(stateid4 stateid,
+			      taggedstate* outstate);
 #endif                                                /* _SAL_INTERNAL */

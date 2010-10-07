@@ -35,10 +35,10 @@
  * These functions realise lock state functionality.
  ***********************************************************************/
 
-int state_create_layout_state(fsal_handle_t handle,
-			      stateid4 ostateid,
-			      layouttype4 type,
-			      stateid4* stateid);
+int localstate_create_layout_state(fsal_handle_t handle,
+				   stateid4 ostateid,
+				   layouttype4 type,
+				   stateid4* stateid)
 {
     entryheader* header;
     state* state = NULL;
@@ -111,7 +111,7 @@ int state_create_layout_state(fsal_handle_t handle,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_layout_state(stateid4 stateid);
+int localstate_delete_layout_state(stateid4 stateid)
 {
     state* state;
     state* cur = NULL;
@@ -176,23 +176,27 @@ int state_query_layout_state(fsal_handle_t *handle,
 
     memset(outlayoutstate, 0, sizeof(layout));
 
-    outlayoutstate->handle = header->handle;
-    outlayoutstate->clientid = cur->clientid;
-    outlayoutstate->stateid = cur->stateid;
-    outlayoutstate->type = cur->u.layout.type;
-    
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
 
-int state_add_layout_segment(layouttype4 type,
-			     layoutimode4 iomode,
-			     offset4 offset,
-			     length4 length,
-			     boolean return_on_close,
-			     fsal_layout_t* layoutdata,
-			     stateid4* stateid)
+void filllayoutstate(state* cur, layoutstate* outlayoutstate,
+		     entryheader* header)
+{
+    outlayoutstate->handle = header->handle;
+    outlayoutstate->clientid = cur->clientid;
+    outlayoutstate->stateid = cur->stateid;
+    outlayoutstate->type = cur->u.layout.type;
+}
+
+int localstate_add_layout_segment(layouttype4 type,
+				  layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  boolean return_on_close,
+				  fsal_layout_t* layoutdata,
+				  stateid4* stateid)
 {
     state* state;
     layoutentry* layoutentry;
@@ -236,12 +240,12 @@ int state_add_layout_segment(layouttype4 type,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_mod_layout_segment(layoutimode4 iomode,
-			     offset4 offset,
-			     length4 length,
-			     fsal_layout_t* layoutdata,
-			     stateid4 stateid,
-			     uint64_t segid)
+int localstate_mod_layout_segment(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid,
+				  uint64_t segid)
 {
     layoutentry* layoutentry = (layoutentry* )segid;
     
@@ -294,7 +298,7 @@ int state_free_layout_segment(stateid4 stateid,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_layout_inc_state(stateid4* stateid)
+int localstate_layout_inc_state(stateid4* stateid)
 {
     state* state;
     int rc = 0;
@@ -321,10 +325,10 @@ int state_layout_inc_state(stateid4* stateid)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_iter_layout_entries(stateid4 stateid,
-			      uint64_t* cookie,
-			      boolean* finished,
-			      layoutsegment* segment)
+int localstate_iter_layout_entries(stateid4 stateid,
+				   uint64_t* cookie,
+				   boolean* finished,
+				   layoutsegment* segment)
 {
     state* state = NULL;
     layoutentry* layoutentry = NULL;

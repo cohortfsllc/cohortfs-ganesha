@@ -58,6 +58,7 @@ typedef struct __sharestate
     clientid4 clientid;
     uint32_t share_access;
     uint32_t share_deny;
+    boolean_t locksheld;
 } sharestate;
 
 /*
@@ -258,7 +259,7 @@ int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
  * Deletes the delegation.  An error is returned if it does not exist.
  */ 
 		            
-int state_delete_dir_delegation(stateid4* stateid);
+int state_delete_dir_delegation(stateid4 stateid);
 
 /*
  * Retrieves the delegation for a given (filehandle, clientid)
@@ -295,7 +296,7 @@ int state_create_lock_state(fsal_handle_t *handle,
  * Deletes the entire state associated with the give file lock.
  */
 
-int state_delete_lock_state(stateid4* stateid);
+int state_delete_lock_state(stateid4 stateid);
 
 /* Returns the state for a given lock */
 
@@ -322,7 +323,7 @@ int state_create_layout_state(fsal_handle_t handle,
  * Deletes the entire layout state.
  */
 
-int state_delete_layout_state(stateid* stateid);
+int state_delete_layout_state(stateid stateid);
 
 /*
  * Adds a new layout to the layout state for the file.  As the semantics
@@ -422,6 +423,8 @@ int state_loadlibrary(char* path);
 
 /* Error return codes */
 
+uint32_t staterr2nfs4err(uint32_t staterr);
+
 static family_error_t __attribute__ ((__unused__)) tab_errstatus_SAL[] =
 {
 #define ERR_STATE_NO_ERROR 0
@@ -496,7 +499,7 @@ typedef struct __sal_functions
 				     bitmap4 child_attributes,
 				     bitmap4 dir_attributes,
 				     stateid4* stateid);
-  int (*state_delete_dir_delegation)(stateid4* stateid);
+  int (*state_delete_dir_delegation)(stateid4 stateid);
   int (*state_query_dir_delegation)(fsal_handle_t *handle,
 				    clientid4 clientid,
 				    dir_delegationstate* state);
@@ -506,7 +509,7 @@ typedef struct __sal_functions
 				 lock_owner4 lock_owner,
 				 fsal_lock_t* lockdata,
 				 stateid4* stateid);
-  int (*state_delete_lock_state)(stateid4* stateid);
+  int (*state_delete_lock_state)(stateid4 stateid);
   int (*state_query_lock_state)(fsal_handle_t *handle,
 				stateid4 open_stateid,
 				lock_owner4 lock_owner,

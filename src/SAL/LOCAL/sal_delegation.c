@@ -59,9 +59,9 @@ void update_delegations(entryheader* entry)
 	}
 }
 
-int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
-			    open_delegation_type4 type,
-			    nfs_space_limit4 limit, stateid4* stateid)
+int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
+				 open_delegation_type4 type,
+				 nfs_space_limit4 limit, stateid4* stateid)
 {
     entryheader* header;
     state* state;
@@ -120,7 +120,7 @@ int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_delegation(stateid4 stateid);
+int localstate_delete_delegation(stateid4 stateid)
 {
     state* state;
     entryheader* header;
@@ -139,8 +139,8 @@ int state_delete_delegation(stateid4 stateid);
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
-			   delegationstate* outdelegation)
+int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
+				delegationstate* outdelegation)
 {
     entryheader* header;
     state* cur = NULL;
@@ -172,17 +172,25 @@ int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     memset(outdelegation, 0, sizeof(delegationstate));
 
+    filldelegation(cur, outdelegation, header);
+
+    pthread_rwlock_unlock(&(header->lock));
+
+    return ERR_STATE_NO_ERROR;
+}
+
+void filldelegationstate(state* cur, delegationstate outdelegation,
+			 entryheader* header)
+{
     outdelegation->handle = header->handle;
     outdelegation->stateid = cur->stateid;
     outdelegation->clientid = cur->clientid;
     outdelegation->u.delegation.type = cur->u.delegation.type;
     outdelegation->u.delegation.limit = cur->u.delegation.limit;
-
-    pthread_rwlock_unlock(&(header->lock));
 }
 
-int state_check_delegation(fsal_handle_t *handle,
-			   open_delegation_type4 type)
+int localstate_check_delegation(fsal_handle_t *handle,
+				open_delegation_type4 type)
 {
     entryheader* header;
     

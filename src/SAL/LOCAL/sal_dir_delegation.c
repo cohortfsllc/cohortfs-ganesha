@@ -53,13 +53,13 @@ void update_dir_delegations(entryheader* entry)
 	}
 }
 
-int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-				bitmap4 notification_types,
-				attr_notice4 child_attr_delay,
-				attr_notice4 dir_attr_delay,
-				bitmap4 child_attributes,
-				bitmap4 dir_attributes,
-				stateid4* stateid);
+int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+				     bitmap4 notification_types,
+				     attr_notice4 child_attr_delay,
+				     attr_notice4 dir_attr_delay,
+				     bitmap4 child_attributes,
+				     bitmap4 dir_attributes,
+				     stateid4* stateid)
 {
     entryheader* header;
     state* state;
@@ -96,7 +96,7 @@ int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_delete_dir_delegation(stateid4 stateid);
+int localstate_delete_dir_delegation(stateid4 stateid);
 {
     state* state;
     entryheader* header;
@@ -115,8 +115,8 @@ int state_delete_dir_delegation(stateid4 stateid);
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-			       dir_delegationstate* outdir_delegation)
+int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
+				    dir_delegationstate* outdir_delegation)
 {
     entryheader* header;
     state* cur = NULL;
@@ -148,19 +148,26 @@ int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     memset(outdir_delegation, 0, sizeof(dir_delegationstate));
 
+    filldir_delegationstate(cur, outdir_delegation, header);
+
+    pthread_rwlock_unlock(&(header->lock));
+
+    return ERR_STATE_NO_ERROR;
+}
+
+void filldir_delegationstate(state* cur,
+			     dir_delegationstate* outdir_delegation,
+			     entryheader* header)
+{
     outdir_delegation->handle = header->handle;
     outdir_delegation->clientid = cur->clientid;
     outdir_delegation->stateid = cur->stateid;
     outdir_delegation->notification_types = cur->notification_types;
     outdir_delegation->child_attr_delay = cur->child_attr_delay;
     outdir_delegation->dir_attr_delay = cur->dir_attr_delay;
-    
-    pthread_rwlock_unlock(&(header->lock));
-
-    return ERR_STATE_NO_ERROR;
 }
 
-int state_check_delegation(fsal_handle_t *handle)
+int localstate_check_delegation(fsal_handle_t *handle)
 {
     entryheader* header;
 

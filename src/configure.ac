@@ -6,7 +6,7 @@ AC_INIT( [nfs-ganesha], [1.0.2], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS/CEPH(alpha)/ZFS(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
+AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS/CEPH(alpha)/ZFS(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta), Early pNFS (alpha), SAL: LOCAL(all alpha) ])
 
 # Init Automake
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
@@ -199,6 +199,18 @@ else
 fi
 AM_CONDITIONAL(BUILD_SHARED_FSAL, test "$enable_buildsharedfsal" = "yes")
 
+# Build SAL's dynamic lib
+GA_ENABLE_AM_CONDITION([buildsharedsal],[when enable, build the SAL as both static and dynamic library],[BUILD_SHARED_SAL])
+
+if test "$enable_buildsharedsal" == "yes"; then
+        AC_DEFINE(_BUILD_SHARED_SAL,1,[Build shared SAL])
+	SHARED_SAL=1 
+	SHARED_SAL_PKG=yes 
+else
+	SHARED_SAL=0 
+	SHARED_SAL_PKG=no 
+fi
+AM_CONDITIONAL(BUILD_SHARED_SAL, test "$enable_buildsharedsal" = "yes")
 
 # NLMv4 
 GA_ENABLE_AM_CONDITION([nlm],[enable NLMv4 support (Lock management for NFSv3)],[USE_NLM])
@@ -357,6 +369,15 @@ AM_CONDITIONAL(USE_FSAL_TEMPLATE, test "$FSAL" = "TEMPLATE")
 AM_CONDITIONAL(SHARED_FSAL,       test "$FSAL" = "DYNFSAL")
 AM_CONDITIONAL(USE_FSAL_CEPH,     test "$FSAL" = "CEPH")
 AM_CONDITIONAL(USE_FSAL_ZFS,      test "$FSAL" = "ZFS")
+
+# SAL switch argument (default is LOCAL)
+AC_ARG_WITH( [sal], AS_HELP_STRING([--with-sal=LOCAL|DYNSAL (default=LOCAL)],[specify the state realisation] ),
+	     SAL="$withval", SAL="LOCAL")
+
+# exporting USE_SAL_... for conditional compilation
+AM_CONDITIONAL(USE_SAL_LOCAL,     test "$SAL" = "LOCAL")
+AM_CONDITIONAL(SHARED_SAL,       test "$SAL" = "DYNSAL")
+
 
 # NFSv4.0 NFSv4.1 switch
 AC_ARG_WITH( [nfs4-minorversion], AS_HELP_STRING([--with-nfs4-minorversion=0|1  (default=0)], [specify if server support NFSv4 or NFSv4.1] ),
@@ -590,6 +611,31 @@ case $FSAL in
 		AC_MSG_ERROR([This FSAL is not supported yet]) 
 esac
 
+# define state relative flags 
+
+# HOOK: we escape the '$' sign in SAL_LIB, so that '$(top_builddir)' is kept uninterpreted until compilation time
+
+
+case $SAL in
+	LOCAL)
+		AC_DEFINE([_USE_LOCAL], 1, [GANESHA is compiled with LOCAL state realisation])
+		SAL_CFLAGS=""
+		SAL_LDFLAGS=""
+        	SAL_LIB="\$(top_builddir)/SAL/LOCAL/libsallocal.la"
+
+		;;
+        DYNSAL)
+               	AC_DEFINE( _USE_SHARED_SAL, 1, [enable shared SAL] )
+		AM_CONDITIONAL( SHARED_SAL, test "$SAL" = "DYNSAL" )
+		FSAL_CFLAGS=-rdynamic
+                FSAL_LDFLAGS="-ldl"
+		FSAL_LIB=
+		FS_NAME="dynfsal"
+                ;;
+	*)
+		AC_MSG_ERROR([This SAL is not supported yet]) 
+esac
+
 case $MFSL in
         NONE)
 		MFS_LIB=""
@@ -651,12 +697,17 @@ fi
 AC_SUBST(FSAL_CFLAGS)
 AC_SUBST(FSAL_LDFLAGS)
 AC_SUBST(FSAL_LIB)
+AC_SUBST(SAL_CFLAGS)
+AC_SUBST(SAL_LDFLAGS)
+AC_SUBST(SAL_LIB)
 AC_SUBST(MFSL_LIB)
 AC_SUBST(PNFS_LIB)
 AC_SUBST(FSALMDS_LIB)
 AC_SUBST(FS_NAME)
 AC_SUBST(SHARED_FSAL)
+AC_SUBST(SHARED_SAL)
 AC_SUBST(SHARED_FSAL_PKG)
+AC_SUBST(SHARED_SAL_PKG)
 AC_SUBST(SEC_CFLAGS)
 AC_SUBST(SEC_LFLAGS)
 AC_SUBST(DEBIAN_DB_DEP)
@@ -728,6 +779,8 @@ AC_CONFIG_FILES([include/Makefile
 		 FSAL/FSAL_GPFS/Makefile
                  FSAL/FSAL_ZFS/Makefile
 		 FSAL/FSAL_TEMPLATE/Makefile
+		 SAL/Makefile
+		 SAL/LOCAL/Makefile
 		 MFSL/Makefile
 		 MFSL/MFSL_NULL/Makefile                 
 		 MFSL/MFSL_ASYNC/Makefile                 

@@ -33,7 +33,7 @@
  * General state functions
  ***********************************************************************/
 
-int state_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
+int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 {
     entryheader* header;
     
@@ -65,7 +65,7 @@ int state_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
  * Unlocks the filehandle.
  */
 
-int state_unlock_filehandle(fsal_handle_t *handle)
+int localstate_unlock_filehandle(fsal_handle_t *handle)
 {
     hash_buffer_t key, val;
     entryheader* header;
@@ -91,9 +91,9 @@ int state_unlock_filehandle(fsal_handle_t *handle)
 	return ERR_STATE_FAIL;
 }
 
-int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
-				uint64_t* cookie, boolean* finished,
-				taggedstate* outstate)
+int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
+				     uint64_t* cookie, boolean* finished,
+				     taggedstate* outstate)
 {
     entryheader* header;
     state* cur = NULL;
@@ -140,9 +140,9 @@ int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 }
 
 
-int state_iterate_by_clientid(clientid4 clientid, statetype type,
-			      uint64_t* cookie, boolean* finished,
-			      state* outstate)
+int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
+				   uint64_t* cookie, boolean* finished,
+				   state* outstate)
 {
     state* cur = NULL;
     state* next = NULL;
@@ -179,7 +179,7 @@ int state_iterate_by_clientid(clientid4 clientid, statetype type,
     return(ERR_STATE_NO_ERROR);
 }
 
-int state_retrieve_state(stateid4 stateid, taggedstate* outstate)
+int localstate_retrieve_state(stateid4 stateid, taggedstate* outstate)
 {
     state* state = NULL;
     int rc = 0;
