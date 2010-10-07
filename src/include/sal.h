@@ -126,7 +126,7 @@ typedef enum __statetype
 
 #define NUMSTATETYPES=5;
 
-typedef struct __state
+typedef struct __taggedstate
 {
     statetype tag;
     union
@@ -137,7 +137,7 @@ typedef struct __state
 	struct lockstate lock;
 	struct layoutstate layout;
     } u;
-} state;
+} taggedstate;
 
 
 /************************************************************************
@@ -196,10 +196,10 @@ int state_delete_share(stateid4 stateid);
 int state_query_share(fsal_handle_t *handle, clientid4 clientid,
 		      open_owner4 open_owner, sharestate* state);
 
-int state_start_32read(fsal_handle_t *handle)
-int state_start_32write(fsal_handle_t *handle)
-int state_end_32read(fsal_handle_t *handle)
-int state_end_32write(fsal_handle_t *handle)
+int state_start_32read(fsal_handle_t *handle);
+int state_start_32write(fsal_handle_t *handle);
+int state_end_32read(fsal_handle_t *handle);
+int state_end_32write(fsal_handle_t *handle);
 
 /* Delegations */
 
@@ -393,7 +393,7 @@ int state_unlock_filehandle(fsal_handle_t *handle);
 
 int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 				uint64_t* cookie, boolean* finished,
-				state* state);
+				taggedstate* state);
 
 /*
  * Fills in state progressively with all states associated with a
@@ -402,7 +402,11 @@ int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 
 int state_iterate_by_clientid(clientid4 clientid, statetype type,
 			      uint64_t* cookie, boolean* finished,
-			      state* state);
+			      taggedstate* state);
+
+/* Retrieves a state by stateid */
+
+int state_retrieve_state(stateid4 stateid, taggedstate* state);
 
 /* Initialise state realisation */
 
@@ -465,106 +469,84 @@ typedef struct __sal_functions
   int (*state_create_share)(fsal_handle_t *handle, open_owner4 open_owner,
 			    clientid4 clientid, uint32_t share_access,
 			    uint32_t share_deny, stateid4* stateid);
-  int (*state_update_share)(uint32_t share_access, uint32_t share_deny,
-			   stateid4* stateid);
-  int (*state_delete_share)(stateid4* stateid);
+  int (*state_upgrade_share)(uint32_t share_access, uint32_t share_deny,
+			     stateid4* stateid);
+  int (*state_downgrade_share)(uint32_t share_access, uint32_t share_deny,
+			       stateid4* stateid);
+  int (*state_delete_share)(stateid4 stateid);
+  
   int (*state_query_share)(fsal_handle_t *handle, clientid4 clientid,
 			   open_owner4 open_owner, sharestate* state);
+  int (*state_start_32read)(fsal_handle_t *handle);
+  int (*state_start_32write)(fsal_handle_t *handle);
+  int (*state_end_32read)(fsal_handle_t *handle);
+  int (*state_end_32write)(fsal_handle_t *handle);
   int (*state_create_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				 open_delegation_type4 type,
-				 nfs_space_limit4 limit,
-				 stateid4* stateid);
-  int (*state_delete_delegation)(stateid4* stateid);
+				 nfs_space_limit4 limit, stateid4* stateid);
+  int (*state_delete_delegation)(stateid4 stateid);
   int (*state_query_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				delegationstate* state);
   int (*state_check_delegation)(fsal_handle_t *handle,
 				open_delegation_type4 type);
-  int (*state_create_dir_delegation)(fsal_handle_t *handle,
-				    clientid4 clientid,
-				    bitmap4 notification_types,
-				    attr_notice4 child_attr_delay,
-				    attr_notice4 dir_attr_delay,
-				    bitmap4 child_attributes,
-				    bitmap4 dir_attributes,
-				    stateid4* stateid);
+  int (*state_create_dir_delegation)(fsal_handle_t *handle, clientid4 clientid,
+				     bitmap4 notification_types,
+				     attr_notice4 child_attr_delay,
+				     attr_notice4 dir_attr_delay,
+				     bitmap4 child_attributes,
+				     bitmap4 dir_attributes,
+				     stateid4* stateid);
   int (*state_delete_dir_delegation)(stateid4* stateid);
   int (*state_query_dir_delegation)(fsal_handle_t *handle,
 				    clientid4 clientid,
 				    dir_delegationstate* state);
   int (*state_check_dir_delegation)(fsal_handle_t *handle);
   int (*state_create_lock_state)(fsal_handle_t *handle,
-				 open_stateid4 open_stateid,
+				 stateid4 open_stateid,
 				 lock_owner4 lock_owner,
-				 nfs_lock_type4 locktype,
-				 offset4 offset,
-				 length4 length,
-				 fsal_lock_t lockdata,
+				 fsal_lock_t* lockdata,
 				 stateid4* stateid);
-  int (*state_add_lock_range)(nfs_lock_type4 type,
-			      offset4 offset,
-			      length4 length,
-			      fsal_lock_t lockdata,
-			      stateid4* stateid);
-  int (*state_add_lock_merge)(nfs_lock_type4 type,
-			      offset4 offset,
-			      length4 length,
-			      fsal_lock_t lockdata,
-			      stateid4* stateid);
-  int (*state_free_lock_range)(nfs_locK_type4 type,
-			       offset4 offset,
-			       length4 length,
-			       stateid4* stateid);
   int (*state_delete_lock_state)(stateid4* stateid);
-  int (*state_iter_lock_ranges)(stateid4* stateid, uint64_t* cookie,
-				boolean* finished, lockstate* state);
-  int (*state_test_lock_range)(fsal_handle_t *handle, offset4 offset,
-			       length4 length, nfs_lock_type4 type);
-  int (*state_query_lock_range)(fsal_handle_t *handle, offset4 offset,
-				length4 length, nfs_lock_type4 type,
-				lockstate* state);
-  int (*state_create_layout_state)(fsal_handle_t *handle,
+  int (*state_query_lock_state)(fsal_handle_t *handle,
+				stateid4 open_stateid,
+				lock_owner4 lock_owner,
+				lockstate* lockstateout);
+  int (*state_inc_lock_state)(stateid4* stateid);
+  int (*state_create_layout_state)(fsal_handle_t handle,
+				   stateid4 ostateid,
 				   layouttype4 type,
-				   layoutiomode4 iomode,
-				   offset4 offset,
-				   length4 length,
-				   boolean return_on_close,
-				   fsal_layout_t layoutdata);
-  int (*state_add_layout)(layouttype4 type,
-			  layoutimode4 iomode,
-			  offset4 offset,
-			  length4 length,
-			  boolean return_on_close,
-			  fsal_layout_t layoutdata,
-			  stateid4* stateid);
-  int (*state_add_layout_merge)(layouttype4 type,
-				layoutimode4 iomode,
-				offset4 offset,
-				length4 length,
-				boolean return_on_close,
-				fsal_layout_t layoutdata,
-				stateid4* stateid);
-  int (*state_free_layout)(layouttype4 type,
-			   layoutimode4 iomode,
-			   offset4 offset,
-			   length4 length,
-			   stateid4* stateid);
-  int (*state_delete_layout_state)(stateid* stateid);
-  int (*state_iter_layouts)(stateid4* stateid,
-			    uint64_t* cookie,
-			    boolean* finished,
-			    layoutstate* state);
-  int (*state_lock_filehandle)(fsal_handle_t *handle, statelocktype rw);
-  int (*state_unlock_filehandle)(fsal_handle_t *handle, statelocktype rw);
-  int (*state_iterate_by_filehandle)(fsal_handle_t *handle, statetype type,
+				   stateid4* stateid);
+  int (*state_delete_layout_state)(stateid stateid);
+  int (*state_add_layout_segment)(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  boolean return_on_close,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid);
+  int (*state_mod_layout_segment)(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid,
+				  uint64_t segid);
+  int (*state_free_layout_segment)(stateid4 stateid,
+				   uint64_t segid);
+  int (*state_layout_inc_state)(stateid4* stateid);
+  int state_iter_layout_entries(stateid4 stateid,
+				uint64_t* cookie,
+				boolean* finished,
+				layoutsegment* segment);
+  int (*state_lock_filehandle)(fsal_handle_t handle, statelocktype rw);
+  int (*state_unlock_filehandle)(fsal_handle_t handle);
+  int (*state_iterate_by_filehandle)(fsal_handle_t handle, statetype type,
 				     uint64_t* cookie, boolean* finished,
-				     state* state);
+				     taggedstate* state);
   int (*state_iterate_by_clientid)(clientid4 clientid, statetype type,
 				   uint64_t* cookie, boolean* finished,
-				   state* state);
-  int (*state_iterate_all)(statetype type, uint64_t* cookie,
-			   boolean* finished, state* state);
+				   taggedstate* state);
   int (*state_init)(void);
   int (*state_shutdown)(void);
+  int (*state_retrieve_state)(stateid4 stateid, taggedstate* state);
 } sal_functions_t;
   
 #endif                          /* _SAL_H */

@@ -9,6 +9,9 @@ libsallocal_la_SOURCES = sal_init.c           \
 			 sal_share.c          \
 			 sal_delegation.c     \
 			 sal_dir_delegation.c \
+			 sal_lock.c \
+			 sal_layout.c \
+			 sal_tools.c \
                         ../../include/sal.h
 new: clean all
 

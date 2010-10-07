@@ -566,3 +566,28 @@ void killstate(state* state)
 	pthread_rwlock_unlock(&(header->lock));
 }
 
+void filltaggedstate(state* state, taggedstate* outstate)
+{
+    memset(outstate, 0, sizeof(taggedstate));
+    switch (state->type)
+	{
+	case share:
+	    fillshare(state, &(outstate->u.share));
+	    break;
+	case delegation:
+	    filldelegation(state, &(outstate->u.delegation));
+	    break;
+	case dir_delegation:
+	    filldir_delegation(state, &(outstate->u.dir_delegation));
+	    break;
+	case lock:
+	    filllock(state, &(outstate->u.lock));
+	    break;
+	case layout:
+	    filllayout(state, &(outstate->u.layout));
+	    break;
+	default:
+	    LogCrit(COMPONENT_STATES,
+		    "filltaggedstate: invalid state (can't happen)!");
+	}
+}
