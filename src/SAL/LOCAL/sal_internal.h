@@ -45,6 +45,7 @@ typedef struct __localshare
     uint32_t share_access;
     uint32_t share_deny;
     boolean locks;
+    openref_t* openref;
 } share;
 
 typedef struct __localdeleg

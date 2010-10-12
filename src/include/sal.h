@@ -59,6 +59,7 @@ typedef struct __sharestate
     uint32_t share_access;
     uint32_t share_deny;
     boolean_t locksheld;
+    openref_t* openref;
 } sharestate;
 
 /*
@@ -164,9 +165,14 @@ typedef struct __taggedstate
  * conflicting share state exists, an error is returned.
  */
  
-int state_create_share(fsal_handle_t *handle, open_owner4 open_owner,
+int state_create_share(fsal_handle_t handle, open_owner4 open_owner,
 		       clientid4 clientid, uint32_t share_access,
 		       uint32_t share_deny, stateid4* stateid);
+
+int state_check_share(fsal_handle_t handle, uint32_t share_access,
+		      uint32_t share_deny);
+
+
 /*
  * This function changes the share/deny flags associated with the file
  * to the flags provided.  If the stateid is not a valid stateid from a
@@ -378,13 +384,13 @@ int state_iter_layout_entries(stateid4 stateid,
  * Locks the filehandle for reading or writing state.
  */
 
-int state_lock_filehandle(fsal_handle_t *handle, statelocktype rw);
+int state_lock_filehandle(fsal_handle_t handle, statelocktype rw);
 
 /*
  * Unlocks the filehandle.
  */
 
-int state_unlock_filehandle(fsal_handle_t *handle);
+int state_unlock_filehandle(fsal_handle_t handle);
 
 /*
  * Fills in state progressively with all states existing on a

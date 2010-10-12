@@ -292,6 +292,7 @@ void fillsharestate(state* cur, sharestate* outshare,
     outshare->share_access = cur->u.share.share_access;
     outshare->share_deny = cur->u.share.share_deny;
     outshare->locksheld = cur->u.share.locksheld;
+    outshare->openref = cur->u.share.openref;
 }
 
 int localstate_start_32read(fsal_handle_t *handle)
