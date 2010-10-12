@@ -27,6 +27,7 @@
 #include "fsal.h"
 #include "log_macros.h"
 #include <sys/time.h>
+#include <alloca.h>
 
 /************************************************************************
  * The Head of the Chain
@@ -926,4 +927,51 @@ int getstate(stateid4 stateid, state** state)
 	return ERR_STATE_BADSEQ;
     else
 	return ERR_STATE_NO_ERROR;
+}
+
+int getownedstate(clientid4 clientid, open_owner4* open_owner,
+		  lock_owner4* lock_owner, state** state)
+{
+    int rc = 0;
+    char* keybuff;
+    hash_buffer_t key, val;
+    size_t keylen
+	= (open_owner->owner.owner_len +
+	   (lock_owner ? lock_owner->owner.owner_len : 0) +
+	   sizeof(clientid4) + 1);
+    
+    keybuff = alloca(keylen);
+
+    *keybuff = lock_owner ? 1 : 0;
+    *((clientid4*) (keybuff + 1)) = clientid;
+    (*newstate)->assoc.owned.open_owner = (keybuff + 1 +
+					   sizeof(clientid));
+    memcpy((keybuff + 1 + sizeof(clientid))
+	   open_owner.owner.owner_val,
+	   open_owner.owner.owner_len);
+    (*newstate)->assoc.owned.oolen = open_owner.owner.owner_len;
+
+    if (lock_owner)
+	memcpy((keybuff + 1 + sizeof(clientid) +
+		open_owner.owner.owner_len),
+	       lock_owner.owner.owner_val,
+	       lock_owner.owner.owner_len);
+
+    key.pdata = keybuff;
+    key.len = keylen;
+
+    rc = HashTable_get(ownertable, &key, &val)
+
+    if (rc == HASHTABLE_NO_SUCH_KEY)
+	{
+	    killstate(newstate);
+	    LogDebug(COMPONENT_STATES,
+		     "Could not find state for owner/client pair.");
+	    return ERR_STATE_NOENT;
+	}
+
+    else if (rc != HASHTABLE_SUCCESS)
+	return ERR_STATE_FAIL;
+
+    return ERR_STATE_NO_ERROR;
 }

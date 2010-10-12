@@ -63,21 +63,9 @@ typedef struct __localdir_deleg
 typedef struct __locallockstate
 {
     state* sharestate;
-    locallockentry* locks;
     state* prev;
     state* next; /* For multiple lock_owners */
 } locallockstate;
-
-typedef struct __locallockentry
-{
-    nfs_lock_type4 locktype;
-    offset4 offset;
-    length4 length;
-    fsal_lock_t lockdata;
-    struct __locallockentry* prev;
-    struct __locallockentry* next;
-    struct __locallockentry* next_alloc;
-} locallockentry;
 
 typedef struct __locallayoutstate
 {
@@ -185,7 +173,6 @@ typedef struct __entryheader
 
 extern pthread_mutex_t entrymutex;
 
-extern locallockentry* lockentrypool;
 extern locallayoutentry* layoutentrypool;
 extern entryheader* entryheaderpool;
 extern state* statepool;
@@ -213,6 +200,7 @@ concatstates* get_concat(entryheader* header, clientid4 clientid,
 int newclientstate(clientid4 clientid, state** newstate);
 int newownedstate(clientid4 clientid, open_owner4* open_owner,
 		  lock_owner4* lock_owner, state** newstate);
+int getstate(stateid4 stateid, state** state)
 int chain(state* state, entryheader* header, state* share);
 int unchain(state* state);
 int next_entry_state(entryheader* entry, state** state)

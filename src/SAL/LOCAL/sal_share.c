@@ -139,7 +139,6 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
 int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
 			stateid4 stateid)
 {
-    entryheader* header;
     state* state;
     int rc = 0
     
@@ -188,7 +187,6 @@ int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
 int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
 			  stateid4 stateid)
 {
-    entryheader* header;
     state* state;
     int rc = 0
     
@@ -227,4 +225,48 @@ int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
     pthread_rwlock_unlock(&(state->header->lock));
 
     return ERR_STATE_NO_ERROR;
+}
+
+int state_delete_share(stateid4* stateid)
+{
+    state* state;
+    int rc = 0
+    
+    rc = getstate(stateid, &state);
+    if (rc != ERR_STATE_NO_ERROR)
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_downgrade_share: unable to retrieve state.");
+	    return rc;
+	}
+
+    pthread_rwlock_wrlock(state->header->lock);
+    rc = killstate(state);
+    if (rc != ERR_STATE_NO_ERROR)
+	pthread_rwlock_unlock(&(state->header->lock));
+
+    return 0;
+}
+
+/* This locking scheme opens up all sorts of race conditions.
+   Fix it later. */
+
+int state_query_share(cache_entry_t *entry, clientid4 clientid,
+		      open_owner4 open_owner, sharestate* state)
+{
+    state* state;
+    int rc = 0
+    
+    rc = getownedstate(clientid, open_owner4* open_owner,
+		       lock_owner4* lock_owner, state** state);
+
+
+    if (rc != ERR_STATE_NO_ERROR)
+	{
+	    LogError(COMPONENT_STATES,
+		     "state_query_share: unable to retrieve state.");
+	    return rc;
+	}
+
+    
 }
