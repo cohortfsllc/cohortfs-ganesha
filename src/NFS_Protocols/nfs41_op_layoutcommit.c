@@ -184,7 +184,6 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 
   fsal_boolean_t size_changed=(arg_LAYOUTCOMMIT4.loca_last_write_offset
 			    .no_newoffset);
-  cache_inode_state_t *pstate_exists;
   fsal_handle_t fsalh;
 
   /* Is the layout actually held? */
@@ -195,68 +194,6 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTCOMMIT4.locr_status;
     }
   
-  if(cache_inode_get_state(arg_LAYOUTCOMMIT4.loca_stateid.other,
-			   &pstate_exists,
-			   data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      if(cache_status == CACHE_INODE_NOT_FOUND)
-	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_STALE_STATEID;
-      else
-	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_INVAL;
-      
-      return res_LAYOUTCOMMIT4.locr_status;
-    }
-  do
-    {
-      if (pstate_exists->state_type != CACHE_INODE_STATE_LAYOUT)
-	continue;
-      
-      if ((arg_LAYOUTCOMMIT4.loca_offset <
-	   pstate_exists->state_data.layout.offset) ||
-	  (arg_LAYOUTCOMMIT4.loca_length >
-	   pstate_exists->state_data.layout.length))
-	continue;
-
-      found=1; /* Found a layout, right IO mode? */
-      
-      if (pstate_exists->state_data.layout.iomode !=
-	  LAYOUTIOMODE4_RW)
-	continue;
-      
-      found=2;
-
-      break;
-    }
-  while (pstate_exists=pstate_exists->next);
-
-  if (found == 0)
-    {
-      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
-      return res_LAYOUTCOMMIT4.locr_status;
-    }
-  if (found == 1)
-    {
-      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADIOMODE;
-      return res_LAYOUTCOMMIT4.locr_status;
-    }
-
-  nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
-
-  status=FSAL_layoutcommit(&fsalh,
-			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
-			    .lou_type),
-			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
-			    .lou_body.lou_body_val),
-			   (arg_LAYOUTCOMMIT4.loca_layoutupdate
-			    .lou_body.lou_body_len),
-			   arg_LAYOUTCOMMIT4.loca_offset,
-			   arg_LAYOUTCOMMIT4.loca_length,
-			   &last_write,
-			   &size_changed,
-			   (struct fsal_time_t*)
-			   ((arg_LAYOUTCOMMIT4.loca_time_modify
-			     .nt_timechanged) ? &last_time : NULL));
-
   if (FSAL_IS_ERROR(status))
     {
       res_LAYOUTCOMMIT4.locr_status = status.major;

@@ -371,7 +371,6 @@ int main(int argc, char *argv[])
     LogEvent(COMPONENT_INIT,
                     "Signal SIGHUP (daemon export reload) is ready to be used");
 
-
 #ifdef _USE_SHARED_FSAL
   if(nfs_get_fsalpathlib_conf(my_config_path, fsal_path_lib))
     {

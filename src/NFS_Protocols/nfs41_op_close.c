@@ -93,7 +93,6 @@ int nfs41_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 {
   int rc = 0;
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_close";
-  cache_inode_state_t *pstate_found = NULL;
 
   cache_inode_status_t cache_status;
 
@@ -151,37 +150,31 @@ int nfs41_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
     }
 
   /* Get the related state */
-  if(cache_inode_get_state(arg_CLOSE4.open_stateid.other,
-                           &pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
+  if((rc = state_retrieve_state(arg_CLOSE4.open_stateid.other,
+				&pstate_found,
+				data->pclient, &cache_status))
+     != ERR_STATE_NO_ERROR)
     {
-      if(cache_status == CACHE_INODE_NOT_FOUND)
-        res_CLOSE4.status = NFS4ERR_BAD_STATEID;
-      else
-        res_CLOSE4.status = NFS4ERR_INVAL;
+      res_CLOSE4.sttus = staterr2nfs4err(rc);
 
       return res_CLOSE4.status;
     }
 
   /* Check is held locks remain */
-  if(pstate_found->state_data.share.lockheld > 0)
+  if(pstate_found->state_data.share.lockheld)
     {
       res_CLOSE4.status = NFS4ERR_LOCKS_HELD;
       return res_CLOSE4.status;
     }
 
-  /* Update the seqid for the open_owner */
-  P(pstate_found->powner->lock);
-  pstate_found->powner->seqid += 1;
-  V(pstate_found->powner->lock);
-
   /* Prepare the result */
-  res_CLOSE4.CLOSE4res_u.open_stateid.seqid = pstate_found->seqid + 1;
+  res_CLOSE4.CLOSE4res_u.open_stateid.seqid = state->stateid.seqid + 1;
 
   /* Close the file in FSAL through the cache inode */
   P_w(&data->current_entry->lock);
   if(cache_inode_close(data->current_entry,
-                       data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
+                       data->pclient, &state->u.share.stateid,
+		       &cache_status) != CACHE_INODE_SUCCESS)
     {
       V_w(&data->current_entry->lock);
 
@@ -189,14 +182,6 @@ int nfs41_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
       return res_CLOSE4.status;
     }
   V_w(&data->current_entry->lock);
-
-  /* File is closed, release the corresponding state */
-  if(cache_inode_del_state_by_key(arg_CLOSE4.open_stateid.other,
-                                  data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      res_CLOSE4.status = nfs4_Errno(cache_status);
-      return res_CLOSE4.status;
-    }
 
   memcpy(res_CLOSE4.CLOSE4res_u.open_stateid.other, arg_CLOSE4.open_stateid.other, 12);;
 

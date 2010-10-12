@@ -1330,6 +1330,14 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
   char GssError[MAXNAMLEN];
 #endif
 
+  rc = state_init();
+  if (rc != ERR_STATE_NO_ERROR)
+      {
+	  /* Failed init */
+	  LogMajor(COMPONENT_INIT, "NFS_INIT: SAL library could not be initialized");
+	  exit(1);
+      }
+
   /* FSAL Initialisation */
   fsal_status = FSAL_Init(&nfs_param.fsal_param);
   if(FSAL_IS_ERROR(fsal_status))

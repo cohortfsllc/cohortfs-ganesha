@@ -284,31 +284,37 @@ typedef struct nfs_client_cred__
 /* this structure contains the necessary stuff for keeping the state of a V4 compound request */
 typedef struct compoud_data
 {
-  nfs_fh4 currentFH;                                  /**< Current filehandle                                            */
-  nfs_fh4 rootFH;                                     /**< Root filehandle                                               */
-  nfs_fh4 savedFH;                                    /**< Saved filehandle                                              */
-  nfs_fh4 publicFH;                                   /**< Public filehandle                                             */
-  nfs_fh4 mounted_on_FH;                              /**< File handle to "mounted on" File System                       */
-  unsigned int minorversion;                          /**< NFSv4 minor version                                           */
-  cache_entry_t *current_entry;                       /**< cache entry related to current filehandle                     */
-  cache_entry_t *saved_entry;                         /**< cache entry related to saved filehandle                       */
-  cache_inode_file_type_t current_filetype;           /**< File type associated with the current filehandle and inode    */
-  cache_inode_file_type_t saved_filetype;             /**< File type associated with the saved filehandle and inode      */
-  fsal_op_context_t *pcontext;                        /**< Credentials related to this filesets                          */
-                                                      /**< (to handle different uid mapping)                             */
-  exportlist_t *pexport;                              /**< Export entry related to the request                           */
-  exportlist_t *pfullexportlist;                      /**< Pointer to the whole exportlist                               */
-  pseudofs_t *pseudofs;                               /**< Pointer to the pseudo filesystem tree                         */
-  char MntPath[MAXPATHLEN];                           /**< Path (in pseudofs) of the current mounted entry               */
-  struct svc_req *reqp;                               /**< Raw RPC credentials                                           */
-  hash_table_t *ht;                                   /**< hashtable for cache_inode                                     */
-  cache_inode_client_t *pclient;                      /**< client ressource for the request                              */
-  nfs_client_cred_t credential;                       /**< RPC Request related to the compound                           */
+  nfs_fh4 currentFH;                        /**< Current filehandle */
+  nfs_fh4 rootFH;                           /**< Root filehandle */
+  nfs_fh4 savedFH;                          /**< Saved filehandle */
+  nfs_fh4 publicFH;                         /**< Public filehandle */
+  nfs_fh4 mounted_on_FH;                    /**< File handle to "mounted on" File System */
+  unsigned int minorversion;                /**< NFSv4 minor version */
+  cache_entry_t *current_entry;             /**< cache entry related to current filehandle */
+  cache_entry_t *saved_entry;               /**< cache entry related to saved filehandle */
+  cache_inode_file_type_t current_filetype; /**< File type associated
+					         with the current
+						 filehandle and inode */
+  cache_inode_file_type_t saved_filetype;   /**< File type associated
+					         with the saved
+					         filehandle and inode */
+  fsal_op_context_t *pcontext;              /**< Credentials related to this filesets
+					         (to handle different uid mapping) */
+  exportlist_t *pexport;                    /**< Export entry related to the request */
+  exportlist_t *pfullexportlist;            /**< Pointer to the whole exportlist */
+  pseudofs_t *pseudofs;                     /**< Pointer to the pseudo filesystem tree */
+  char MntPath[MAXPATHLEN];                 /**< Path (in pseudofs) of the current mounted entry */
+  struct svc_req *reqp;                     /**< Raw RPC credentials */
+  hash_table_t *ht;                         /**< hashtable for cache_inode */
+  cache_inode_client_t *pclient;            /**< client ressource for the request */
+  nfs_client_cred_t credential;             /**< RPC Request related to the compound */
 #ifdef _USE_NFS4_1
-  caddr_t pcached_res;                                /**< NFv41: pointer to cached RPC res in a session's slot          */
-  bool_t use_drc;                                     /**< Set to TRUE if session DRC is to be used                      */
-  uint32_t oppos;                                     /**< Position of the operation within the request processed        */
-  nfs41_session_t *psession;                          /**< Related session (found by OP_SEQUENCE)                        */
+  stateid4 currentstate;                    /**< Current stateid */
+  stateid4 savedstate;                      /**< Saved stateid */
+  caddr_t pcached_res;                      /**< NFv41: pointer to cached RPC res in a session's slot */
+  bool_t use_drc;                           /**< Set to TRUE if session DRC is to be used */
+  uint32_t oppos;                           /**< Position of the operation within the request processed */
+  nfs41_session_t *psession;                /**< Related session (found by OP_SEQUENCE) */
 #endif                          /* USE_NFS4_1 */
 } compound_data_t;
 

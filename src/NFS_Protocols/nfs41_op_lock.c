@@ -103,19 +103,7 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_lock";
 
   cache_inode_status_t cache_status;
-  cache_inode_state_data_t candidate_data;
-  cache_inode_state_type_t candidate_type;
   int rc = 0;
-  cache_inode_state_t *file_state = NULL;
-  cache_inode_state_t *pstate_exists = NULL;
-  cache_inode_state_t *pstate_open = NULL;
-  cache_inode_state_t *pstate_found = NULL;
-  cache_inode_state_t *pstate_previous_iterate = NULL;
-  cache_inode_state_t *pstate_found_iterate = NULL;
-  cache_inode_open_owner_t *powner = NULL;
-  cache_inode_open_owner_t *popen_owner = NULL;
-  cache_inode_open_owner_t *powner_exists = NULL;
-  cache_inode_open_owner_name_t *powner_name = NULL;
   uint64_t a, b, a1, b1;
   unsigned int overlap = FALSE;
   cache_inode_open_owner_name_t owner_name;
@@ -242,123 +230,6 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
   /* Check for conflicts with previously obtained states */
   /* At this step of the code, if pstate_exists == NULL, then all-0 or all-1 stateid is used */
-
-  /* loop into the states related to this pentry to find the related lock */
-  pstate_found_iterate = NULL;
-  pstate_previous_iterate = pstate_found;
-  do
-    {
-      cache_inode_state_iterate(data->current_entry,
-                                &pstate_found_iterate,
-                                pstate_previous_iterate,
-                                data->pclient, data->pcontext, &cache_status);
-      if((cache_status == CACHE_INODE_STATE_ERROR)
-         || (cache_status == CACHE_INODE_INVALID_ARGUMENT))
-        {
-          res_LOCK4.status = NFS4ERR_INVAL;
-          return res_LOCK4.status;
-        }
-
-      if(pstate_found_iterate != NULL)
-        {
-          if(pstate_found_iterate->state_type == CACHE_INODE_STATE_LOCK)
-            {
-              /* Check lock upgrade/downgrade */
-              if(pstate_exists != NULL)
-                {
-                  if((pstate_exists == pstate_found_iterate) &&
-                     (pstate_exists->state_data.lock.lock_type != arg_LOCK4.locktype))
-                    LogCrit(COMPONENT_NFS_V4,
-                        "&&&&&&&& CAS FOIREUX !!!!!!!!!!!!!!!!!!\n");
-                }
-
-              a = pstate_found_iterate->state_data.lock.offset;
-              b = pstate_found_iterate->state_data.lock.offset +
-                  pstate_found_iterate->state_data.lock.length;
-              a1 = arg_LOCK4.offset;
-              b1 = arg_LOCK4.offset + arg_LOCK4.length;
-
-              /* Locks overlap is a <= a1 < b or a < b1 <= b */
-              overlap = FALSE;
-              if(a <= a1)
-                {
-                  if(a1 < b)
-                    overlap = TRUE;
-                }
-              else
-                {
-                  if(a < b1)
-                    {
-                      if(b1 <= b)
-                        overlap = TRUE;
-                    }
-                }
-
-              if(overlap == TRUE)
-
-                /* Locks overlap is a < a1 < b or a < b1 < b */
-                if(overlap == TRUE)
-                  {
-                    /* Locks are overlapping */
-
-                    /* If both lock are READ, this is not a case of error  */
-                    if((arg_LOCK4.locktype != READ_LT)
-                       || (pstate_found_iterate->state_data.lock.lock_type != READ_LT))
-                      {
-                        /* Overlapping lock is found, if owner is different than the calling owner, return NFS4ERR_DENIED */
-                        if((pstate_exists != NULL) &&   /* all-O/all-1 stateid is considered a different owner */
-                           ((powner_exists->owner_len ==
-                             pstate_found_iterate->powner->owner_len)
-                            &&
-                            (!memcmp
-                             (powner_exists->owner_val,
-                              pstate_found_iterate->powner->owner_val,
-                              pstate_found_iterate->powner->owner_len))))
-                          {
-                            /* The calling state owner is the same. There is a discussion on this case at page 161 of RFC3530. I choose to ignore this
-                             * lock and continue iterating on the other states */
-                          }
-                        else
-                          {
-                            /* A  conflicting lock from a different lock_owner, returns NFS4ERR_DENIED */
-                            res_LOCK4.LOCK4res_u.denied.offset =
-                                pstate_found_iterate->state_data.lock.offset;
-                            res_LOCK4.LOCK4res_u.denied.length =
-                                pstate_found_iterate->state_data.lock.length;
-                            res_LOCK4.LOCK4res_u.denied.locktype =
-                                pstate_found_iterate->state_data.lock.lock_type;
-                            res_LOCK4.LOCK4res_u.denied.owner.owner.owner_len =
-                                pstate_found_iterate->powner->owner_len;
-                            res_LOCK4.LOCK4res_u.denied.owner.owner.owner_val =
-                                pstate_found_iterate->powner->owner_val;
-                            res_LOCK4.status = NFS4ERR_DENIED;
-                            return res_LOCK4.status;
-                          }
-                      }
-                  }
-            }
-          /* if( ... == CACHE_INODE_STATE_LOCK */
-          if(pstate_found_iterate->state_type == CACHE_INODE_STATE_SHARE)
-            {
-              /* In a correct POSIX behavior, a write lock should not be allowed on a read-mode file */
-              if((pstate_found_iterate->state_data.share.
-                  share_deny & OPEN4_SHARE_DENY_WRITE)
-                 && !(pstate_found_iterate->state_data.share.
-                      share_access & OPEN4_SHARE_ACCESS_WRITE)
-                 && (arg_LOCK4.locktype == WRITE_LT))
-                {
-                  /* A conflicting open state, return NFS4ERR_OPENMODE
-                   * This behavior is implemented to comply with newpynfs's test LOCK4 */
-                  res_LOCK4.status = NFS4ERR_OPENMODE;
-                  return res_LOCK4.status;
-
-                }
-            }
-
-        }                       /* if( pstate_found_iterate != NULL ) */
-      pstate_previous_iterate = pstate_found_iterate;
-    }
-  while(pstate_found_iterate != NULL);
 
   switch (arg_LOCK4.locker.new_lock_owner)
     {

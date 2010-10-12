@@ -52,12 +52,14 @@
 
 typedef struct __sharestate
 {
-    cache_entry_t *entry;
+    fsal_handle_t handle;
     stateid4 stateid;
     open_owner4 open_owner;
     clientid4 clientid;
     uint32_t share_access;
     uint32_t share_deny;
+    boolean_t locksheld;
+    openref_t* openref;
 } sharestate;
 
 /*
@@ -69,7 +71,7 @@ typedef struct __sharestate
 
 typedef struct __delegationstate
 {
-    cache_entry_t *entry;
+    fsal_handle_t handle;
     clientid4 clientid;
     stateid4 stateid;
     open_delegation_type4 type;
@@ -78,7 +80,7 @@ typedef struct __delegationstate
 
 typedef struct __dir_delegationstate
 {
-    cache_entry_t *entry;
+    fsal_handle_t handle;
     clientid4 clientid;
     stateid4 stateid;
     bitmap4 notification_types;
@@ -90,28 +92,31 @@ typedef struct __dir_delegationstate
 
 typedef struct __lockstate
 {
-    cache_entry_t *entry;
+    fsal_handle_t handle;
     stateid4 open_stateid;
     lock_owner4 lock_owner;
     stateid4 lock_stateid;
-    nfs_lock_type4 locktype;
-    offset4 offset;
-    length4 length;
-    fsal_lock_t lockdata;
+    fsal_lock_t* lockdata;
 } lockstate;
 
 typedef struct __layoutstate
 {
-    cache_entry_t *entry;
+    fsal_handle_t handle;
     clientid4 clientid;
     stateid4 stateid;
+    layouttype4 type;
+} layoutstate;
+
+typedef struct __layoutsegment
+{
     layouttype4 type;
     layoutiomode4 iomode;
     offset4 offset;
     length4 length;
-    bool return_on_close;
-    fsal_layout_t layoutdata;
-} layoutstate;
+    boolean return_on_close;
+    fsal_layout_t* layoutdata;
+    uint64_t segid;
+} layoutsegment;
 
 typedef enum __ statelocktype
     {readlock, writelock}
@@ -123,7 +128,7 @@ typedef enum __statetype
 
 #define NUMSTATETYPES=5;
 
-typedef struct __state
+typedef struct __taggedstate
 {
     statetype tag;
     union
@@ -134,7 +139,7 @@ typedef struct __state
 	struct lockstate lock;
 	struct layoutstate layout;
     } u;
-} state;
+} taggedstate;
 
 
 /************************************************************************
@@ -160,9 +165,14 @@ typedef struct __state
  * conflicting share state exists, an error is returned.
  */
  
-int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
+int state_create_share(fsal_handle_t handle, open_owner4 open_owner,
 		       clientid4 clientid, uint32_t share_access,
 		       uint32_t share_deny, stateid4* stateid);
+
+int state_check_share(fsal_handle_t handle, uint32_t share_access,
+		      uint32_t share_deny);
+
+
 /*
  * This function increases the share/deny levels associated with a
  * previous share.  If the stateid is not a valid stateid from a
@@ -173,8 +183,10 @@ int state_create_share(cache_entry_t *entry, open_owner4 open_owner,
  */   
 
 int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
-		       stateid4* stateid);
+			stateid4* stateid);
 
+int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
+			  stateid4* stateid);
 /*
  * This function decreases the share/deny levels associated with a
  * previous share.  If the stateid is not a valid stateid from a
@@ -192,7 +204,7 @@ int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
  * exists.  An error is returned if no such share state exists.
  */ 
 
-int state_delete_share(stateid4* stateid);
+int state_delete_share(stateid4 stateid);
 
 /*
  * Retrieves share state for a given (file, clientid, open_owner)
@@ -200,8 +212,13 @@ int state_delete_share(stateid4* stateid);
  */
   
 
-int state_query_share(cache_entry_t *entry, clientid4 clientid,
+int state_query_share(fsal_handle_t *handle, clientid4 clientid,
 		      open_owner4 open_owner, sharestate* state);
+
+int state_start_32read(fsal_handle_t *handle);
+int state_start_32write(fsal_handle_t *handle);
+int state_end_32read(fsal_handle_t *handle);
+int state_end_32write(fsal_handle_t *handle);
 
 /* Delegations */
 
@@ -210,7 +227,7 @@ int state_query_share(cache_entry_t *entry, clientid4 clientid,
  * of conflicting share.
  */
 
-int state_create_delegation(cache_entry_t *entry, clientid4 clientid,
+int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 			    open_delegation_type4 type,
 			    nfs_space_limit4 limit, stateid4* stateid);
 
@@ -219,14 +236,14 @@ int state_create_delegation(cache_entry_t *entry, clientid4 clientid,
  * returned.
  */
 		            
-int state_delete_delegation(stateid4* stateid);
+int state_delete_delegation(stateid4 stateid);
 
 /*
  * Retrieves the delegation for a given (filehandle, clientid)
  * pair, if any.
  */
 
-int state_query_delegation(cache_entry_t *entry, clientid4 clientid,
+int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 			   delegationstate* state);
 
 /*
@@ -237,7 +254,7 @@ int state_query_delegation(cache_entry_t *entry, clientid4 clientid,
  * state_iter_by_filehandle.
  */
 
-int state_check_delegation(cache_entry_t *entry,
+int state_check_delegation(fsal_handle_t *handle,
 			   open_delegation_type4 type);
 
 
@@ -248,7 +265,7 @@ int state_check_delegation(cache_entry_t *entry,
  * directory delegations, but operations do.)
  */
 
-int state_create_dir_delegation(cache_entry_t *entry, clientid4 clientid,
+int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				bitmap4 notification_types,
 				attr_notice4 child_attr_delay,
 				attr_notice4 dir_attr_delay,
@@ -260,14 +277,14 @@ int state_create_dir_delegation(cache_entry_t *entry, clientid4 clientid,
  * Deletes the delegation.  An error is returned if it does not exist.
  */ 
 		            
-int state_delete_dir_delegation(stateid4* stateid);
+int state_delete_dir_delegation(stateid4 stateid);
 
 /*
  * Retrieves the delegation for a given (filehandle, clientid)
  * pair, if any.
  */
 
-int state_query_dir_delegation(cache_entry_t *entry,
+int state_query_dir_delegation(fsal_handle_t *handle,
 			       clientid4 clientid,
 			       dir_delegationstate* state);
 
@@ -276,7 +293,7 @@ int state_query_dir_delegation(cache_entry_t *entry,
  * directory.
  */
 
-int state_check_dir_delegation(cache_entry_t *entry);
+int state_check_dir_delegation(fsal_handle_t *handle);
 
 /* Locks */
 
@@ -287,100 +304,44 @@ int state_check_dir_delegation(cache_entry_t *entry);
  * corresponding open for open_stateid, an error is returned.
  */ 
 
-int state_create_lock_state(cache_entry_t *entry,
-			    open_stateid4 open_stateid,
+int state_create_lock_state(fsal_handle_t *handle,
+			    stateid4 open_stateid,
 			    lock_owner4 lock_owner,
-			    nfs_lock_type4 locktype,
-			    offset4 offset,
-			    length4 length,
-			    fsal_lock_t lockdata,
+			    fsal_lock_t* lockdata,
 			    stateid4* stateid);
-
-/*
- * Adds a new byte range to the lock state and increments the
- * stateid.
- */
-
-int state_add_lock_range(nfs_lock_type4 type,
-			 offset4 offset,
-			 length4 length,
-			 fsal_lock_t lockdata,
-			 stateid4* stateid);
-/*
- * Adds a new byte range lock or extends an existing lock.  The new
- * lockdata is associated with the entire range.  The choice of which
- * to use is up to the caller (depending on FSAL requirements.)
- */
-
-int state_add_lock_merge(nfs_lock_type4 type,
-			 offset4 offset,
-			 length4 length,
-			 fsal_lock_t lockdata,
-			 stateid4* stateid);
-
-/*
- * Frees a locked range.  This may be a subrange or span ranges and
- * subranges.  FSAL unlocking should be called before this call, as
- * restrictions of the underlying filesystem will determine what
- * unlock ranges are valid.  The seqid is incremented upon success.
- * Unlocking the last range does not remove the ID.
- */
-
-int state_free_lock_range(nfs_locK_type4 type,
-			  offset4 offset,
-			  length4 length,
-			  stateid4* stateid);
 
 /*
  * Deletes the entire state associated with the give file lock.
  */
 
-int state_delete_lock_state(stateid4* stateid);
+int state_delete_lock_state(stateid4 stateid);
 
-/*
- * Iterates through the locks on a file.  stateid may be an open
- * stateid or a lock stateid.  If there is no lock state, an error
- * is returned.  cookie should be set to 0 on first call.  It will
- * be updated on success so a subsequent call retrieves the next
- * value.  Finished is set to true on end of locks.
- */
+/* Returns the state for a given lock */
 
-int state_iter_lock_ranges(stateid4* stateid, uint64_t* cookie,
-			   boolean* finished, lockstate* state);
+int state_query_lock_state(fsal_handle_t *handle,
+			   stateid4 open_stateid,
+			   lock_owner4 lock_owner,
+			   lockstate* lockstateout);
 
 
-/* 
- * Returns true the given range/type is unlocked, false otherwise.
- * To be intended to allow an implementation to provide a fast test
- * to be used in read/write operations.
- */
+/* Increment the lock seqid (after performing some lock operations
+   inthe FSAL */
 
-int state_test_lock_range(cache_entry_t *entry, offset4 offset,
-			  length4 length, nfs_lock_type4 type);
+int state_inc_lock_state(stateid4* stateid);
 
+/* Retrieves the layout state associated with the
+   client/filehandle/type */
 
-/*
- * Returns false and filles in lockstate if a conflict exists,
- * otherwise returns true.
- */
-
-int state_query_lock_range(cache_entry_t *entry, offset4 offset,
-			   length4 length, nfs_lock_type4 type,
-			   lockstate* state);
-
-/*
- * Creates a new layout state for an open file with no existing
- * layouts.  If there is a pre-existing layout state, an error is
- * returned.  
- */
-
-int state_create_layout_state(cache_entry_t *entry,
+int state_create_layout_state(fsal_handle_t handle,
+			      stateid4 ostateid,
 			      layouttype4 type,
-			      layoutiomode4 iomode,
-			      offset4 offset,
-			      length4 length,
-			      boolean return_on_close,
-			      fsal_layout_t layoutdata);
+			      stateid4* stateid);
+
+/*
+ * Deletes the entire layout state.
+ */
+
+int state_delete_layout_state(stateid stateid);
 
 /*
  * Adds a new layout to the layout state for the file.  As the semantics
@@ -388,42 +349,34 @@ int state_create_layout_state(cache_entry_t *entry,
  * check for conflicts.
  */
 
-int state_add_layout(layouttype4 type,
-		     layoutimode4 iomode,
-		     offset4 offset,
-		     length4 length,
-		     boolean return_on_close,
-		     fsal_layout_t layoutdata,
-		     stateid4* stateid);
+int state_add_layout_segment(layoutimode4 iomode,
+			     offset4 offset,
+			     length4 length,
+			     boolean return_on_close,
+			     fsal_layout_t* layoutdata,
+			     stateid4 stateid);
 /*
- * Adds a new layout to the layout state for the file.  If a layout of
- * the same type and iomode adjoins or overlaps, they are merged.  The
- * provided layoutdata replaces those of pre-existing merged ranges.
+ * Changes a layout segment
  */
 
-int state_add_layout_merge(layouttype4 type,
-			   layoutimode4 iomode,
-			   offset4 offset,
-			   length4 length,
-			   boolean return_on_close,
-			   fsal_layout_t layoutdata,
-			   stateid4* stateid);
+int state_mod_layout_segment(layoutimode4 iomode,
+			     offset4 offset,
+			     length4 length,
+			     fsal_layout_t* layoutdata,
+			     stateid4 stateid,
+			     uint64_t segid);
 /*
  * Frees a layout or sublayout.  Should be called after whatever call is
  * necessary to free resources.
  */
 
-int state_free_layout(layouttype4 type,
-		      layoutimode4 iomode,
-		      offset4 offset,
-		      length4 length,
-		      stateid4* stateid);
-/*
- * Deletes the entire layout state.
- */
+int state_free_layout_segment(stateid4 stateid,
+			      uint64_t segid);
 
-int state_delete_layout_state(stateid* stateid);
+/* Increment the lock seqid (after performing some lock operations
+   inthe FSAL */
 
+int state_layout_inc_state(stateid4* stateid);
 
 /*
  * Iterates through the layouts on a file.  &stateid may be an open
@@ -432,11 +385,10 @@ int state_delete_layout_state(stateid* stateid);
  * updated on success so a subsequent call retrieves the next value.
  */
 
-int state_iter_layouts(stateid4* stateid,
-		       uint64_t* cookie,
-		       boolean* finished,
-		       layoutstate* state);
-
+int state_iter_layout_entries(stateid4 stateid,
+			      uint64_t* cookie,
+			      boolean* finished,
+			      layoutsegment* segment);
 
 /* General Use */
 
@@ -444,13 +396,13 @@ int state_iter_layouts(stateid4* stateid,
  * Locks the filehandle for reading or writing state.
  */
 
-int state_lock_filehandle(cache_entry_t *entry, statelocktype rw);
+int state_lock_filehandle(fsal_handle_t handle, statelocktype rw);
 
 /*
  * Unlocks the filehandle.
  */
 
-int state_unlock_filehandle(cache_entry_t *entry, statelocktype rw);
+int state_unlock_filehandle(fsal_handle_t handle);
 
 /*
  * Fills in state progressively with all states existing on a
@@ -458,9 +410,9 @@ int state_unlock_filehandle(cache_entry_t *entry, statelocktype rw);
  * to iterate through all states, or restricted to a particular type.
  */
 
-int state_iterate_by_filehandle(cache_entry_t *entry, statetype type,
+int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 				uint64_t* cookie, boolean* finished,
-				state* state);
+				taggedstate* state);
 
 /*
  * Fills in state progressively with all states associated with a
@@ -469,17 +421,11 @@ int state_iterate_by_filehandle(cache_entry_t *entry, statetype type,
 
 int state_iterate_by_clientid(clientid4 clientid, statetype type,
 			      uint64_t* cookie, boolean* finished,
-			      state* state);
+			      taggedstate* state);
 
-/*
- * Iterate over all states of the given type.
- *
- * This last function is expected to be useful only to a process to
- * reap state after lease expiration.
- */
+/* Retrieves a state by stateid */
 
-int state_iterate_all(statetype type, uint64_t* cookie,
-		      boolean* finished, state* state); 
+int state_retrieve_state(stateid4 stateid, taggedstate* state);
 
 /* Initialise state realisation */
 
@@ -494,6 +440,8 @@ int state_shutdown(void);
 int state_loadlibrary(char* path);
 
 /* Error return codes */
+
+uint32_t staterr2nfs4err(uint32_t staterr);
 
 static family_error_t __attribute__ ((__unused__)) tab_errstatus_SAL[] =
 {
@@ -529,109 +477,87 @@ static family_error_t __attribute__ ((__unused__)) tab_errstatus_SAL[] =
 
 typedef struct __sal_functions
 {
-  int (*state_create_share)(cache_entry_t *entry, open_owner4 open_owner,
+  int (*state_create_share)(fsal_handle_t *handle, open_owner4 open_owner,
 			    clientid4 clientid, uint32_t share_access,
 			    uint32_t share_deny, stateid4* stateid);
-  int (*state_update_share)(uint32_t share_access, uint32_t share_deny,
-			   stateid4* stateid);
-  int (*state_delete_share)(stateid4* stateid);
-  int (*state_query_share)(cache_entry_t *entry, clientid4 clientid,
+  int (*state_upgrade_share)(uint32_t share_access, uint32_t share_deny,
+			     stateid4* stateid);
+  int (*state_downgrade_share)(uint32_t share_access, uint32_t share_deny,
+			       stateid4* stateid);
+  int (*state_delete_share)(stateid4 stateid);
+  
+  int (*state_query_share)(fsal_handle_t *handle, clientid4 clientid,
 			   open_owner4 open_owner, sharestate* state);
-  int (*state_create_delegation)(cache_entry_t *entry, clientid4 clientid,
+  int (*state_start_32read)(fsal_handle_t *handle);
+  int (*state_start_32write)(fsal_handle_t *handle);
+  int (*state_end_32read)(fsal_handle_t *handle);
+  int (*state_end_32write)(fsal_handle_t *handle);
+  int (*state_create_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				 open_delegation_type4 type,
-				 nfs_space_limit4 limit,
-				 stateid4* stateid);
-  int (*state_delete_delegation)(stateid4* stateid);
-  int (*state_query_delegation)(cache_entry_t *entry, clientid4 clientid,
+				 nfs_space_limit4 limit, stateid4* stateid);
+  int (*state_delete_delegation)(stateid4 stateid);
+  int (*state_query_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				delegationstate* state);
-  int (*state_check_delegation)(cache_entry_t *entry,
+  int (*state_check_delegation)(fsal_handle_t *handle,
 				open_delegation_type4 type);
-  int (*state_create_dir_delegation)(cache_entry_t *entry,
-				    clientid4 clientid,
-				    bitmap4 notification_types,
-				    attr_notice4 child_attr_delay,
-				    attr_notice4 dir_attr_delay,
-				    bitmap4 child_attributes,
-				    bitmap4 dir_attributes,
-				    stateid4* stateid);
-  int (*state_delete_dir_delegation)(stateid4* stateid);
-  int (*state_query_dir_delegation)(cache_entry_t *entry,
+  int (*state_create_dir_delegation)(fsal_handle_t *handle, clientid4 clientid,
+				     bitmap4 notification_types,
+				     attr_notice4 child_attr_delay,
+				     attr_notice4 dir_attr_delay,
+				     bitmap4 child_attributes,
+				     bitmap4 dir_attributes,
+				     stateid4* stateid);
+  int (*state_delete_dir_delegation)(stateid4 stateid);
+  int (*state_query_dir_delegation)(fsal_handle_t *handle,
 				    clientid4 clientid,
 				    dir_delegationstate* state);
-  int (*state_check_dir_delegation)(cache_entry_t *entry);
-  int (*state_create_lock_state)(cache_entry_t *entry,
-				 open_stateid4 open_stateid,
+  int (*state_check_dir_delegation)(fsal_handle_t *handle);
+  int (*state_create_lock_state)(fsal_handle_t *handle,
+				 stateid4 open_stateid,
 				 lock_owner4 lock_owner,
-				 nfs_lock_type4 locktype,
-				 offset4 offset,
-				 length4 length,
-				 fsal_lock_t lockdata,
+				 fsal_lock_t* lockdata,
 				 stateid4* stateid);
-  int (*state_add_lock_range)(nfs_lock_type4 type,
-			      offset4 offset,
-			      length4 length,
-			      fsal_lock_t lockdata,
-			      stateid4* stateid);
-  int (*state_add_lock_merge)(nfs_lock_type4 type,
-			      offset4 offset,
-			      length4 length,
-			      fsal_lock_t lockdata,
-			      stateid4* stateid);
-  int (*state_free_lock_range)(nfs_locK_type4 type,
-			       offset4 offset,
-			       length4 length,
-			       stateid4* stateid);
-  int (*state_delete_lock_state)(stateid4* stateid);
-  int (*state_iter_lock_ranges)(stateid4* stateid, uint64_t* cookie,
-				boolean* finished, lockstate* state);
-  int (*state_test_lock_range)(cache_entry_t *entry, offset4 offset,
-			       length4 length, nfs_lock_type4 type);
-  int (*state_query_lock_range)(cache_entry_t *entry, offset4 offset,
-				length4 length, nfs_lock_type4 type,
-				lockstate* state);
-  int (*state_create_layout_state)(cache_entry_t *entry,
+  int (*state_delete_lock_state)(stateid4 stateid);
+  int (*state_query_lock_state)(fsal_handle_t *handle,
+				stateid4 open_stateid,
+				lock_owner4 lock_owner,
+				lockstate* lockstateout);
+  int (*state_inc_lock_state)(stateid4* stateid);
+  int (*state_create_layout_state)(fsal_handle_t handle,
+				   stateid4 ostateid,
 				   layouttype4 type,
-				   layoutiomode4 iomode,
-				   offset4 offset,
-				   length4 length,
-				   boolean return_on_close,
-				   fsal_layout_t layoutdata);
-  int (*state_add_layout)(layouttype4 type,
-			  layoutimode4 iomode,
-			  offset4 offset,
-			  length4 length,
-			  boolean return_on_close,
-			  fsal_layout_t layoutdata,
-			  stateid4* stateid);
-  int (*state_add_layout_merge)(layouttype4 type,
-				layoutimode4 iomode,
-				offset4 offset,
-				length4 length,
-				boolean return_on_close,
-				fsal_layout_t layoutdata,
-				stateid4* stateid);
-  int (*state_free_layout)(layouttype4 type,
-			   layoutimode4 iomode,
-			   offset4 offset,
-			   length4 length,
-			   stateid4* stateid);
-  int (*state_delete_layout_state)(stateid* stateid);
-  int (*state_iter_layouts)(stateid4* stateid,
-			    uint64_t* cookie,
-			    boolean* finished,
-			    layoutstate* state);
-  int (*state_lock_filehandle)(cache_entry_t *entry, statelocktype rw);
-  int (*state_unlock_filehandle)(cache_entry_t *entry, statelocktype rw);
-  int (*state_iterate_by_filehandle)(cache_entry_t *entry, statetype type,
+				   stateid4* stateid);
+  int (*state_delete_layout_state)(stateid stateid);
+  int (*state_add_layout_segment)(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  boolean return_on_close,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid);
+  int (*state_mod_layout_segment)(layoutimode4 iomode,
+				  offset4 offset,
+				  length4 length,
+				  fsal_layout_t* layoutdata,
+				  stateid4 stateid,
+				  uint64_t segid);
+  int (*state_free_layout_segment)(stateid4 stateid,
+				   uint64_t segid);
+  int (*state_layout_inc_state)(stateid4* stateid);
+  int state_iter_layout_entries(stateid4 stateid,
+				uint64_t* cookie,
+				boolean* finished,
+				layoutsegment* segment);
+  int (*state_lock_filehandle)(fsal_handle_t handle, statelocktype rw);
+  int (*state_unlock_filehandle)(fsal_handle_t handle);
+  int (*state_iterate_by_filehandle)(fsal_handle_t handle, statetype type,
 				     uint64_t* cookie, boolean* finished,
-				     state* state);
+				     taggedstate* state);
   int (*state_iterate_by_clientid)(clientid4 clientid, statetype type,
 				   uint64_t* cookie, boolean* finished,
-				   state* state);
-  int (*state_iterate_all)(statetype type, uint64_t* cookie,
-			   boolean* finished, state* state);
+				   taggedstate* state);
   int (*state_init)(void);
   int (*state_shutdown)(void);
+  int (*state_retrieve_state)(stateid4 stateid, taggedstate* state);
 } sal_functions_t;
   
 #endif                          /* _SAL_H */
