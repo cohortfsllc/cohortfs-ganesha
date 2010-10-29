@@ -5,8 +5,11 @@
 #include "nfs_file_handle.h"
 #include <rpc/xdr.h>
 #include "fsal.h"
+
+#ifdef _USE_FSALMDS
 #include "layouttypes/fsal_layout.h"
 #include "layouttypes/filelayout.h"
+
 
 /**
  *
@@ -38,3 +41,4 @@ int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
   fhs->ds_flag=1;
   return rc;
 }
+#endif

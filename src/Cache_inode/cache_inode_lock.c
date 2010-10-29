@@ -75,139 +75,6 @@ static void cache_inode_lock_print(cache_entry_t * pentry)
 
 /**
  *
- * cache_inode_lock_check_conflicting_range: checks for conflicts in lock ranges.
- *
- * Checks for conflicts in lock ranges.
- *
- * @param pentry    [INOUT] cache entry for which the lock is to be created
- * @param offset    [IN]    offset where the lock range start
- * @param length    [IN]    length for the lock range ( do not use CACHE_INODE_LOCK_OFFSET_EOF)
- * @param pfilelock [OUT]   pointer to the conflicting lock if a conflit is found, NULL if no conflict
- * @param pstatus   [OUT]   returned status.
- *
- * @return the same as *pstatus
- *
- */
-cache_inode_status_t
-cache_inode_lock_check_conflicting_range(cache_entry_t * pentry,
-                                         uint64_t offset,
-                                         uint64_t length,
-                                         nfs_lock_type4 lock_type,
-                                         cache_inode_status_t *
-                                         pstatus)
-{
-    if(pstatus == NULL)
-        return CACHE_INODE_INVALID_ARGUMENT;
-
-    /* pentry should be there */
-    if(pentry == NULL)
-        {
-            *pstatus = CACHE_INODE_INVALID_ARGUMENT;
-            return *pstatus;
-        }
-
-    /* pentry should be a file */
-    if(pentry->internal_md.type != REGULAR_FILE)
-        {
-            *pstatus = CACHE_INODE_BAD_TYPE;
-            return *pstatus;
-        }
-    /*
-     * CACHE_INODE_LOCK_OFFSET_EOF should have been handled
-     * sooner, use "absolute" length
-     */
-    if(length == CACHE_INODE_LOCK_OFFSET_EOF)
-        {
-            *pstatus = CACHE_INODE_INVALID_ARGUMENT;
-            return *pstatus;
-        }
-
-    LogFullDebug(COMPONENT_CACHE_INODE,
-                 "!!!!! Plein de chose a faire dans cache_inode_lock_print !!!!!\n");
-    *pstatus = CACHE_INODE_INVALID_ARGUMENT;
-    return *pstatus;
-
-#ifdef BUGAZOMEU
-    for(piter_state = pentry->object.file.state_v4; piter_state != NULL;
-        piter_state = piter_state->next)
-        {
-            if(piter_state->state_type != CACHE_INODE_STATE_LOCK)
-                continue;
-
-            LogFullDebug(COMPONENT_CACHE_INODE,
-                         "--- check_conflicting_range : offset=%llu length=%llu "
-                         "piter_state->offset=%llu piter_state->length=%llu "
-                         "lock_type=%u piter_state->lock_type=%u\n",
-                         offset, length, piter_state->data.lock.offset,
-                         piter_state->data.lock.length,
-                         lock_type, piter_state->data.lock.lock_type);
-
-            /* Check for a "conflict on the left" */
-            if((offset <= piter_state->data.lock.offset) &&
-               ((offset + length) >= piter_state->data.lock.offset))
-                found = TRUE;
-
-            /* Check for a "conflict on the right" */
-            if((offset >= piter_state->data.lock.offset) &&
-               (offset <= (piter_state->data.lock.offset +
-                           piter_state->data.lock.length)))
-                found = TRUE;
-
-            if(found)
-                {
-                    /* No conflict on read lock */
-                    if((piter_state->data.lock.lock_type == CACHE_INODE_WRITE_LT) ||
-                       (lock_type == CACHE_INODE_WRITE_LT))
-                        {
-                            *ppfilelock = piter_state;
-                            *pstatus = CACHE_INODE_LOCK_CONFLICT;
-                            return *pstatus;
-                        }
-                }
-
-            /*
-             * Locks are supposed to be ordered by their range.
-             * Stop search is lock is "on the right"
-             * of the right extremity of the requested lock
-             */
-            if((offset + length) < piter_state->data.lock.offset)
-                break;
-        }
-
-    /* If this line is reached, then no conflict were found */
-    *ppfilelock = NULL;
-    *pstatus = CACHE_INODE_SUCCESS;
-    return *pstatus;
-#endif    /* BUGAZOMEU */
-}
-
-cache_inode_status_t
-cache_inode_lock_test(cache_entry_t * pentry,
-                      uint64_t offset,
-                      uint64_t length,
-                      nfs_lock_type4 lock_type,
-                      cache_inode_client_t * pclient,
-                      cache_inode_status_t * pstatus)
-{
-    /* stat */
-    pclient->stat.nb_call_total += 1;
-    inc_func_call(pclient, CACHE_INODE_LOCKT);
-
-    P_r(&pentry->lock);
-    cache_inode_lock_check_conflicting_range(pentry, offset,
-                                             length, lock_type,
-                                             pstatus);
-    V_r(&pentry->lock);
-
-    if(*pstatus == CACHE_INODE_SUCCESS)
-        inc_func_err_unrecover(pclient, CACHE_INODE_LOCKT);
-    else
-        inc_func_success(pclient, CACHE_INODE_LOCKT);
-    return *pstatus;
-}
-
-/**
- *
  * cache_inode_lock_create: creates a new lock for a given entry.
  *
  * Creates a new lock for a given entry.
@@ -228,7 +95,7 @@ cache_inode_status_t cache_inode_lock_create(cache_entry_t * pentry,
                                              uint64_t offset,
                                              uint64_t length,
                                              nfs_lock_type4 lock_type,
-                                             open_owner4 * pstate_owner,
+                                             open_owner4 * plockowner,
                                              unsigned int client_inst_num,
                                              cache_inode_client_t * pclient,
                                              cache_inode_status_t * pstatus)

@@ -25,7 +25,6 @@
 #include "sal.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
-#include "nfs_log.h"
 #include "log_macros.h"
 #include "sal_internal.h"
 
@@ -35,14 +34,15 @@
  * These functions realise lock state functionality.
  ***********************************************************************/
 
-int localstate_create_layout_state(fsal_handle_t handle,
+int localstate_create_layout_state(fsal_handle_t* handle,
 				   stateid4 ostateid,
+				   clientid4 clientid,
 				   layouttype4 type,
 				   stateid4* stateid)
 {
-    entryheader* header;
-    state* state = NULL;
-    state* openstate = NULL;
+    entryheader_t* header;
+    state_t* state = NULL;
+    state_t* openstate = NULL;
     int rc = 0;
 
     /* Retrieve or create header for per-filehandle chain */
@@ -54,37 +54,33 @@ int localstate_create_layout_state(fsal_handle_t handle,
 	    return ERR_STATE_FAIL;
 	}
 
-    rc = lookup_state(open_stateid, &openstate);
+    rc = lookup_state(ostateid, &openstate);
 
     if (rc != ERR_STATE_NO_ERROR)
 	{
 	    pthread_rwlock_unlock(&(header->lock));
-	    LogError(COMPONENT_STATES,
-		     "state_create_layout_state: could not find open state.");
 	    return rc;
 	}
 
-    if (!((openstate->type == share) ||
-	  (openstate->type == delegation) ||
-	  (openstate->type == lock)))
+    if (!((openstate->type == STATE_SHARE) ||
+	  (openstate->type == STATE_DELEGATION) ||
+	  (openstate->type == STATE_LOCK)))
       {
 	  pthread_rwlock_unlock(&(header->lock));
-	  LogError(COMPONENT_STATES,
-		   "state_create_layout_state: open state of wrong type.");
 	  return ERR_STATE_INVAL;
       }
 
     while (iterate_entry(header, &state))
 	{
-	    if ((state->type == layout) &&
-		(state->clientid == clientid)
-		(state->u.layout.type == type))
+	    if ((state->type == STATE_LAYOUT) &&
+		(state->clientid == clientid) &&
+		(state->state.layout.type == type))
 		break;
 	    else
 		continue;
 	}
 
-    if (cur)
+    if (state)
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
@@ -103,29 +99,24 @@ int localstate_create_layout_state(fsal_handle_t handle,
 	    return ERR_STATE_FAIL;
 	}
 
-    state->type = layout;
-    state->u.layout.type = type;
+    state->type = STATE_LAYOUT;
+    state->state.layout.type = type;
     
-    *stateid = header->stateid;
+    *stateid = state->stateid;
     pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
 int localstate_delete_layout_state(stateid4 stateid)
 {
-    state* state;
-    state* cur = NULL;
-    entryheader* header;
+    state_t* state;
+    entryheader_t* header;
     int rc;
 
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
-	{
-	    LogError(COMPONENT_STATES,
-		     "state_delete_layout_state: could not find state.");
-	    return ERR_STATE_FAIL;
-	}
+	return ERR_STATE_FAIL;
 
-    if (state->u.layout.layoutentries)
+    if (state->state.layout.layoutentries)
 	{
 	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
@@ -140,11 +131,12 @@ int localstate_delete_layout_state(stateid4 stateid)
 }
 
 int state_query_layout_state(fsal_handle_t *handle,
+			     clientid4 clientid,
 			     layouttype4 type,
-			     lockstate* outlayoutstate)
+			     layoutstate* outlayoutstate)
 {
-    entryheader* header;
-    state* cur = NULL;
+    entryheader_t* header;
+    state_t* cur = NULL;
     int rc = 0;
     
     /* Retrieve or create header for per-filehandle chain */
@@ -158,9 +150,9 @@ int state_query_layout_state(fsal_handle_t *handle,
 
     while (iterate_entry(header, &cur))
 	{
-	    if ((cur->type == layout) &&
-		(cur->clientid == clientid)
-		(cur->u.layout.type == type))
+	    if ((cur->type == STATE_LAYOUT) &&
+		(cur->clientid == clientid) &&
+		(cur->state.layout.type == type))
 		break;
 	    else
 		continue;
@@ -174,106 +166,104 @@ int state_query_layout_state(fsal_handle_t *handle,
 	    return ERR_STATE_NOENT;
 	}
 
-    memset(outlayoutstate, 0, sizeof(layout));
+    memset(outlayoutstate, 0, sizeof(layoutstate));
 
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
 
-void filllayoutstate(state* cur, layoutstate* outlayoutstate,
-		     entryheader* header)
+void filllayoutstate(state_t* cur, layoutstate* outlayoutstate,
+		     entryheader_t* header)
 {
     outlayoutstate->handle = header->handle;
     outlayoutstate->clientid = cur->clientid;
     outlayoutstate->stateid = cur->stateid;
-    outlayoutstate->type = cur->u.layout.type;
+    outlayoutstate->type = cur->state.layout.type;
 }
 
 int localstate_add_layout_segment(layouttype4 type,
-				  layoutimode4 iomode,
+				  layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
-				  boolean return_on_close,
+				  bool_t return_on_close,
 				  fsal_layout_t* layoutdata,
-				  stateid4* stateid)
+				  stateid4 stateid)
 {
-    state* state;
-    layoutentry* layoutentry;
+    state_t* state;
+    entryheader_t* header;
+    locallayoutentry_t* thentry;
     int rc = 0;
     
-    GET_PREALLOC(header, entryheaderpool, 1, entryheader,
+    GET_PREALLOC(thentry, layoutentrypool, 1, locallayoutentry_t,
 		 next_alloc);
     
-    if (!layoutentry)
+    if (!thentry)
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_add_layout_segment: cannot allocate segment.");
 	    return ERR_STATE_FAIL;
 	}
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
-	{
-	    LogError(COMPONENT_STATES,
-		     "state_add_layout_segment: could not find state.");
+    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
 	    return ERR_STATE_FAIL;
-	}
-    if (state->type != layout)
+
+    if (state->type != STATE_LAYOUT)
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_add_layout_segment: supplied state of wrong type.");
 	    pthread_rwlock_unlock(&(state->header->lock));
 	    return ERR_STATE_INVAL;
 	}
     
-    layoutentry->type = type;
-    layoutentry->iomode = iomode;
-    layoutentry->offset = offset;
-    layoutentry->length = length;
-    layoutentry->return_on_close = return_on_close;
-    layoutentry->layoutdata = layoutdata;
-    layoutentry->prev = NULL;
-    layoutentry->next = state->entries;
-    state->u.layout.entries = layoutentry;
+    thentry->type = type;
+    thentry->iomode = iomode;
+    thentry->offset = offset;
+    thentry->length = length;
+    thentry->return_on_close = return_on_close;
+    thentry->layoutdata = layoutdata;
+    thentry->prev = NULL;
+    thentry->next = state->state.layout.layoutentries;
+    state->state.layout.layoutentries = thentry;
 
     pthread_rwlock_unlock(&(state->header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
-int localstate_mod_layout_segment(layoutimode4 iomode,
+int localstate_mod_layout_segment(layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
 				  fsal_layout_t* layoutdata,
 				  stateid4 stateid,
 				  uint64_t segid)
 {
-    layoutentry* layoutentry = (layoutentry* )segid;
+    locallayoutentry_t* layoutentry = (locallayoutentry_t*)segid;
     
     layoutentry->iomode = iomode;
     layoutentry->offset = offset;
     layoutentry->length = length;
     layoutentry->layoutdata = layoutdata;
 
-    pthread_rwlock_unlock(&(state->header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
 int state_free_layout_segment(stateid4 stateid,
 			      uint64_t segid)
 {
-    layoutentry* layoutentry = (layoutentry* )segid;
-    state* state;
+    locallayoutentry_t* layoutentry = (locallayoutentry_t*)segid;
+    entryheader_t* header;
+    state_t* state;
     int rc = 0;
     
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_free_layout_segment: could not find state.");
 	    return ERR_STATE_FAIL;
 	}
-    if (state->type != layout)
+    if (state->type != STATE_LAYOUT)
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_free_layout_segment: supplied state of wrong type.");
 	    pthread_rwlock_unlock(&(state->header->lock));
 	    return ERR_STATE_INVAL;
@@ -283,7 +273,7 @@ int state_free_layout_segment(stateid4 stateid,
 	{
 	    if (layoutentry->next)
 		layoutentry->next->prev = NULL;
-	    state->u.layout.entries = layoutentry->next;
+	    state->state.layout.layoutentries = layoutentry->next;
 	}
     else
 	{
@@ -300,18 +290,19 @@ int state_free_layout_segment(stateid4 stateid,
 
 int localstate_layout_inc_state(stateid4* stateid)
 {
-    state* state;
+    state_t* state;
+    entryheader_t* header;
     int rc = 0;
     
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_inc_layout_state: could not find state.");
 	    return ERR_STATE_FAIL;
 	}
-    if (state->type != layout)
+    if (state->type != STATE_LAYOUT)
 	{
-	    LogError(COMPONENT_STATES,
+	    LogMajor(COMPONENT_STATES,
 		     "state_inc_layout_state: supplied state of wrong type.");
 	    pthread_rwlock_unlock(&(state->header->lock));
 	    return ERR_STATE_INVAL;
@@ -327,44 +318,45 @@ int localstate_layout_inc_state(stateid4* stateid)
 
 int localstate_iter_layout_entries(stateid4 stateid,
 				   uint64_t* cookie,
-				   boolean* finished,
+				   bool_t* finished,
 				   layoutsegment* segment)
 {
-    state* state = NULL;
-    layoutentry* layoutentry = NULL;
+    state_t* state = NULL;
+    entryheader_t* header;
+    locallayoutentry_t* layoutentry = NULL;
     int rc = 0;
 
     *finished = false;
     
     if (*cookie)
-	layoutentry = (layoutentry* )cookie;
+	layoutentry = (locallayoutentry_t*)cookie;
     else
 	{
 	    if (rc = lookup_state_and_lock(stateid, &state, &header,
 					   false))
 		{
-		    LogError(COMPONENT_STATES,
+		    LogMajor(COMPONENT_STATES,
 			     "state_inc_layout_state: could not find state.");
 		    return rc;
 		}
-	    if (state->type != layout)
+	    if (state->type != STATE_LAYOUT)
 		{
-		    LogError(COMPONENT_STATES,
+		    LogMajor(COMPONENT_STATES,
 			     "state_inc_layout_state: supplied state of wrong type.");
 		    pthread_rwlock_unlock(&(state->header->lock));
 		    return ERR_STATE_INVAL;
 		}
-	    layoutentry = state->u.layout.entries;
+	    layoutentry = state->state.layout.layoutentries;
 	    if (!layoutentry)
 		return ERR_STATE_NOENT;
 	}
 
     segment->type = layoutentry->type;
-    segment->iomode = layotuentry->iomode;
+    segment->iomode = layoutentry->iomode;
     segment->offset = layoutentry->offset;
     segment->length = layoutentry->length;
     segment->return_on_close = layoutentry->return_on_close;
-    segment->layoutdata layoutentry->layoutdata;
+    segment->layoutdata = layoutentry->layoutdata;
     segment->segid = (uint64_t) layoutentry;
     *cookie = (uint64_t) (layoutentry->next);
 

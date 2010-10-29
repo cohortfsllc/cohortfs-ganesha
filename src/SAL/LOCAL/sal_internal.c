@@ -28,6 +28,7 @@
 #include "log_macros.h"
 #include <sys/time.h>
 #include <alloca.h>
+#include "sal_internal.h"
 
 /************************************************************************
  * The Head of the Chain
@@ -35,7 +36,7 @@
  * This chain exists entirely to facilitate iterating over all states.
  ***********************************************************************/
 
-loclastate* statechain = NULL;
+state_t* statechain = NULL;
 
 /************************************************************************
  * Mutexes 
@@ -47,6 +48,7 @@ loclastate* statechain = NULL;
  ***********************************************************************/
 
 pthread_mutex_t entrymutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ownermutex = PTHREAD_MUTEX_INITIALIZER;
 
 /************************************************************************
  * Global pools 
@@ -54,8 +56,12 @@ pthread_mutex_t entrymutex = PTHREAD_MUTEX_INITIALIZER;
  * A few pools for local data structures.
  ***********************************************************************/
 
-locallayoutentry* layoutentrypool;
-state* statepool;
+entryheader_t* entryheaderpool;
+#ifdef _USE_FSALMDS
+locallayoutentry_t* layoutentrypool;
+#endif
+state_t* statepool;
+state_owner_t* ownerpool;
 
 /************************************************************************
  * Hash Tables 
@@ -88,11 +94,8 @@ state* statepool;
 
 hash_table_t* stateidtable;
 hash_table_t* entrytable;
-<<<<<<< HEAD
-hash_table_t* concattable;
-hash_table_t* ownertable;
-=======
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
+hash_table_t* openownertable;
+hash_table_t* lockownertable;
 
 /* State ID table */
 
@@ -176,44 +179,45 @@ hash_parameter_t stateidparams = {
     .index_size=17,
     .alphabet_length=10,
     .nb_node_prealloc=10,
-    .hash_func_key=state_id_hash_func,
-    .hash_func_rbt=state_id_rbt_func,
+    .hash_func_key=state_id_value_hash_func,
+    .hash_func_rbt=state_id_rbt_hash_func,
     .compare_key=compare_state_id,
     .key_to_str=display_state_id_key,
     .val_to_str=display_state_id_val
 };
 
-int init_stateidtable(void)
+hash_table_t* init_stateidtable(void)
 {
     stateidtable = HashTable_Init(stateidparams);
     return stateidtable;
 }
 
-int dummy2str(hash_buffer_t * pbuff, char *str)
+int localsalstringnoop(hash_buffer_t * pbuff, char *str)
 {
-    str="DUMMY";
-    return 0;
+  return 0;
 }
 
-unsigned long state_id_value_hash_func(hash_parameter_t * p_hparam,
-                                       hash_buffer_t * buffclef)
+unsigned long handle_hash_func(hash_parameter_t * p_hparam,
+			       hash_buffer_t * buffclef)
 {
-    return (FSAL_Handle_to_HashIndex(buffclef->pdata, 0,
-				     p_hparam->alphabet_length,
-				     p_hparam->index_size));
+  return (FSAL_Handle_to_HashIndex((fsal_handle_t*) buffclef->pdata, 0,
+				   p_hparam->alphabet_length,
+				   p_hparam->index_size));
 }
 
-unsigned long state_id_rbt_hash_func(hash_parameter_t * p_hparam,
-                                     hash_buffer_t * buffclef)
+unsigned long handle_rbt_func(hash_parameter_t * p_hparam,
+			      hash_buffer_t * buffclef)
 {
-    return (FSAL_Handle_to_RBTIndex(buffclef->pdata, 0));
+  return (FSAL_Handle_to_RBTIndex((fsal_handle_t*) buffclef->pdata, 0));
 }
 
-int compare_state_id(hash_buffer_t * buff1, hash_buffer_t * buff2)
+int handle_compare_key_fsal(hash_buffer_t * buff1, hash_buffer_t * buff2)
 {
     fsal_status_t status;
 
-    return (FSAL_handlecmp(buff1->pdata, buff2->pdata, &status));
+    return (FSAL_handlecmp((fsal_handle_t*)buff1->pdata,
+			   (fsal_handle_t*)buff2->pdata,
+			   &status));
 }
 
 hash_parameter_t entryparams = {
@@ -223,56 +227,51 @@ hash_parameter_t entryparams = {
     .hash_func_key=handle_hash_func,
     .hash_func_rbt=handle_rbt_func,
     .compare_key=handle_compare_key_fsal,
-    .key_to_str=dummy2str,
-    .val_to_str=dummy2str
+    .key_to_str=localsalstringnoop,
+    .val_to_str=localsalstringnoop
 };
 
-<<<<<<< HEAD
-int init_concattable(void)
+hash_table_t* init_entrytable(void)
 {
-    concattable = HashTable_Init(concatparams);
-    return concattable;
+    entrytable = HashTable_Init(entryparams);
+    return entrytable;
 }
 
 unsigned long simple_hash_func(hash_parameter_t * p_hparam,
 			       hash_buffer_t * buffclef);
-unsigned int rbt_hash_func(hash_parameter_t * p_hparam,
+unsigned long rbt_hash_func(hash_parameter_t * p_hparam,
 			   hash_buffer_t * buffclef);
-int simple_compare_func(hash_buffer_t *key1,
-			hash_buffer_t *key2)
+
+int owner_cmp_func(hash_buffer_t* key1,
+		   hash_buffer_t* key2)
 {
-  return (key1.len != key2.len) ||
-    memcmp(key1.pdata, key2.pdata, key1.len);
+    if (key1->len == key2->len)
+	return memcmp(key1->pdata, key2->pdata, key1->len);
+    else
+	return -1;
 }
 
 hash_parameter_t ownerparams = {
-    .index_size=19,
+    .index_size=29,
     .alphabet_length=10,
-    .nb_node_prealloc=100,
+    .nb_node_prealloc=1000,
     .hash_func_key=simple_hash_func,
-    .hash_func_rbt=simple_rbt_func,
-    .compare_key=simple_compare_func,
-    .key_to_str=dummy2str,
-    .val_to_str=dummy2str
+    .hash_func_rbt=rbt_hash_func,
+    .compare_key=owner_cmp_func,
+    .key_to_str=localsalstringnoop,
+    .val_to_str=localsalstringnoop
 };
 
-int init_ownertable(void)
+hash_table_t* init_openownertable(void)
 {
-  ownertable = HashTable_Init(ownerparams);
+    openownertable= HashTable_Init(ownerparams);
+    return openownertable;
 }
 
-/*
- * Returns 0 if the given cache entry refers to a file, nonzero
- * otherwise
- */
-
-int entryisfile(cache_entry_t* entry)
-=======
-int init_entrytable(void)
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
+hash_table_t* init_lockownertable(void)
 {
-    entrytable = HashTable_Init(entryparams);
-    return entrytable;
+    lockownertable = HashTable_Init(ownerparams);
+    return lockownertable;
 }
 
 /*
@@ -280,20 +279,20 @@ int init_entrytable(void)
  * exist, creates it in the table.
  */
 
-int header_for_write(fsal_handle_t* handle)
+entryheader_t* header_for_write(fsal_handle_t* handle)
 {
     hash_buffer_t key, val;
-    entryheader* header;
+    entryheader_t* header;
     int rc = 0;
 
-    key.pdata = handle;
+    key.pdata = (caddr_t)handle;
     key.len = sizeof(fsal_handle_t);
 
-    rc = HashTable_get(entrytable, &key, &val);
+    rc = HashTable_Get(entrytable, &key, &val);
 
     if (rc == HASHTABLE_SUCCESS)
 	{
-	    header = val.pdata;
+	    header = (entryheader_t*)val.pdata;
 	    rc = pthread_rwlock_wrlock(&(header->lock));
 	    if (rc != 0 || !(header->valid))
 		return NULL;
@@ -308,13 +307,13 @@ int header_for_write(fsal_handle_t* handle)
 	    /* Make sure no one created the entry while we were
 	       waiting for the mutex */
 
-	    rc = HashTable_get(entrytable, &key, &val);
+	    rc = HashTable_Get(entrytable, &key, &val);
 	    
 	    if (rc == HASHTABLE_SUCCESS)
 		{
+		    header = (entryheader_t*) val.pdata;
 		    rc = pthread_rwlock_wrlock(&(header->lock));
 		    pthread_mutex_unlock(&entrymutex);
-		    header = val.pdata;
 		    if (rc != 0 || !(header->valid))
 			return NULL;
 		    else
@@ -329,7 +328,7 @@ int header_for_write(fsal_handle_t* handle)
 
 	    /* We may safely create the entry */
 	    
-	    GET_PREALLOC(header, entryheaderpool, 1, entryheader,
+	    GET_PREALLOC(header, entryheaderpool, 1, entryheader_t,
 			 next_alloc);
 
 	    if (!header)
@@ -338,24 +337,22 @@ int header_for_write(fsal_handle_t* handle)
 		    return NULL;
 		}
 
-	    memset(header, 0, sizeof(entryheader));
-	    
 	    /* Copy, since it looks like the HashTable code depends on
 	       keys not going away */
 	    
-	    header.handle = *handle;
-	    key.pdata = &(newheader.handle);
+	    header->handle = *handle;
+	    key.pdata = (caddr_t)&(header->handle);
 
-	    header->lock = PTHREAD_RWLOCK_INITIALIZER;
+	    pthread_rwlock_init(&(header->lock), NULL);
 
 	    pthread_rwlock_wrlock(&(header->lock));
 
 	    header->valid = 1;
-	    val.pdata = header;
-	    val.len = sizeof(entryheader);
+	    val.pdata = (caddr_t)header;
+	    val.len = sizeof(entryheader_t);
 	    
-	    rc = Hash_Table_Test_and_Set(entrytable, &key, &val,
-					 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+	    rc = HashTable_Test_And_Set(entrytable, &key, &val,
+					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 
 	    pthread_mutex_unlock(&entrymutex);
 	    if (rc == HASHTABLE_SUCCESS)
@@ -364,52 +361,31 @@ int header_for_write(fsal_handle_t* handle)
 		{
 		    pthread_rwlock_unlock(&(header->lock));
 		    header->valid = 0;
-		    RELEASE_PREALLOC(newentry, entrypool, next_alloc);
+		    RELEASE_PREALLOC(header, entryheaderpool, next_alloc);
 		}
 	}
     return NULL ;
 }
 
-int header_for_read(fsal_handle_t* handle)
+entryheader_t* header_for_read(fsal_handle_t* handle)
 {
     hash_buffer_t key, val;
-    entryheader* header;
+    entryheader_t* header;
     int rc = 0;
 
-    key.pdata = handle;
+    key.pdata = (caddr_t)handle;
     key.len = sizeof(fsal_handle_t);
 
-    rc = HashTable_get(entrytable, &key, &val);
+    rc = HashTable_Get(entrytable, &key, &val);
 
     if (rc == HASHTABLE_SUCCESS)
 	{
-<<<<<<< HEAD
-	    if (create)
-		{
-		    GET_PREALLOC(concat, concatpool, 1, concatstates,
-				 next_alloc);
-		    memset(concat, 0, sizeof(concatstates));
-		    /* Copy the key off the stack */
-		    concat.key = keyval;
-		    key.pdata = &(concaststates.key);
-		    concat->header = header;
-		    rc = Hash_Table_Test_and_Set(concattable, &key, &val,
-						 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
-		    
-		    if (rc != HASHTABLE_SUCCESS)
-			{
-			    RELEASE_PREALLOC(concat, concatpool, next_alloc);
-			    concat = NULL;
-			}
-		}
-=======
-	    header = val.pdata;
+	    header = (entryheader_t*)val.pdata;
 	    rc = pthread_rwlock_wrlock(&(header->lock));
 	    if (rc != 0 || !(header->valid))
 		return NULL;
 	    else
 		return header;
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
 	}
     return NULL;
 }
@@ -420,503 +396,81 @@ int header_for_read(fsal_handle_t* handle)
 
 void newstateidother(clientid4 clientid, char* other)
 {
-    uint64_t* first64 = (uint64_t) other;
+    uint64_t* first64 = (uint64_t*) other;
     uint32_t* first32 = (uint32_t*) other;
-    uint32_t* second64 = (uint64_t*) (other + 4);
-    struct timeval_t tv;
+    uint64_t* second64 = (uint64_t*) (other + 4);
+    struct timeval tv;
     struct timezone tz;
 
     memset(other, 0, 12);
 
-    assert(((void*) second32) - (void*) first64 == sizeof(uint32_t));
-
-    *first64 = clientid4;
+    *first64 = clientid;
 
     gettimeofday(&tv, &tz);
 
-    *first32 = first32 ^ tv.tv_usec;
-    *second64 = second64 ^ tv.tv_sec;
+    *first32 = *first32 ^ tv.tv_usec;
+    *second64 = *second64 ^ tv.tv_sec;
 }
 
 /* Allocate a new state with stateid */
 
-<<<<<<< HEAD
-int newclientstate(clientid4 clientid, state** newstate)
+state_t* newstate(clientid4 clientid, entryheader_t* header)
 {
     hash_buffer_t key, val;
+    state_t* state;
     int counter = 0;
     int rc = 0;
 
-    if (!(*newstate = (GET_PREALLOC(newstate, statepool, 1,
-				    state, next_alloc))))
-	return ERR_STATE_FAIL;
-=======
-localstate* newstate(clientid4 clientid, entryheader* header)
-{
-    hash_buffer_t key, val;
-    state* state;
-    int counter = 0;
-    int rc = 0;
-
-    if (!(newstate = (GET_PREALLOC(state, statepool, 1,
-				   state, next_alloc))))
+    GET_PREALLOC(state, statepool, 1, state_t, next_alloc);
+		
+    if (!state)
 	return NULL;
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
-
-    memset(*newstate, 0, sizeof(state));
+    
     key.len = 12;
-    val.pdata = *newstate;
+    val.pdata = (caddr_t)state;
     val.len = sizeof(state);
-    state.type = any; /* Mark invalid, until filled in */
+    state->type = STATE_ANY; /* Mark invalid, until filled in */
 
     do
 	{
-	    newstateidother(clientid, (*newstate)->stateid.other);
-	    key.pdata = (*newstate)->stateid.other;
-	    rc = Hash_Table_Test_and_Set(concattable, &key, &val,
-					 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+	    newstateidother(clientid, state->stateid.other);
+	    key.pdata = (caddr_t) state->stateid.other;
+	    rc = HashTable_Test_And_Set(entrytable, &key, &val,
+					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 	}
     while ((rc != HASHTABLE_ERROR_KEY_ALREADY_EXISTS) && rc <= 100);
 
-    state.clientid = clientid;
-    state.stateid.seqid = 1;
+    state->clientid = clientid;
+    state->stateid.seqid = 1;
 
     if (rc != HASHTABLE_SUCCESS)
 	{
 	    LogCrit(COMPONENT_STATES,
 		    "Unable to create new stateid.  This should not happen.");
 	    
-	    RELEASE_PREALLOC(newstate, statepool, next_alloc);
-	    *newstate=NULL;
+	    RELEASE_PREALLOC(state, statepool, next_alloc);
+	    state=NULL;
 	    ERR_STATE_FAIL;
 	}
 
     return ERR_STATE_NO_ERROR;
 }
 
-/* This function is in direct violation of RFC 5661, section 9.5.
- * Rather than the prescribed behaviour for different open_owners
- * sharing the same lock_owner.  This implementation treats all
- * lock_owners belonging to different open_owners as living in
- * completely separate spaces.  RFC5661, section 9.5 is not
- * particularly wonderful, anyway, and in POSIX you can't even do
- * that.
- */
-
-int newownedstate(clientid4 clientid, open_owner4* open_owner,
-		  lock_owner4* lock_owner, state** newstate)
-{
-    int rc = 0;
-    char* keybuff;
-    hash_buffer_t key, val;
-    size_t keylen
-	= (open_owner->owner.owner_len +
-	   (lock_owner ? lock_owner->owner.owner_len : 0) +
-	   sizeof(clientid4) + 1);
-    
-    rc = newclientstate(clientid4, &newstate);
-    if (rc != 0)
-	return rc;
-
-    keybuff = Mem_Alloc(keylen);
-    if (!keybuff)
-	{
-	    killstate(newstate);
-	    LogCrit(COMPONENT_STATES,
-		    "Unable to allocate memory for owner key.");
-	    return ERR_STATE_FAIL;
-	}
-
-    (*newstate)->assoc.owned.chunk = keybuff;
-    *keybuff = lock_owner ? 1 : 0;
-    *((clientid4*) (keybuff + 1)) = clientid;
-    (*newstate)->assoc.owned.open_owner = (keybuff + 1 +
-					   sizeof(clientid));
-    memcpy((*newstate)->assoc.owned.open_owner,
-	   open_owner.owner.owner_val,
-	   open_owner.owner.owner_len);
-    (*newstate)->assoc.owned.oolen = open_owner.owner.owner_len;
-    if (lock_owner)
-	{
-	    (*newstate)->assoc.owned.lock_owner =
-		((*newstate)->assoc.owned.open_owner +
-		 (*newstate)->assoc.owned.oolen);
-	    memcpy((*newstate)->assoc.owned.lock_owner,
-		   lock_owner.owner.owner_val,
-		   lock_owner.owner.owner_len);
-	    (*newstate)->assoc.owned.lolen =
-		lock_owner.owner.owner_len;
-	}
-    else
-	{
-	    (*newstate)->assoc.owned.lock_owner = NULL;
-	    (*newstate)->assoc.owned.lolen = 0;
-	}
-
-    key.pdata = keybuff;
-    key.len = keylen;
-
-    val.pdata = *newstate;
-    val.len = sizeof(state);
-
-<<<<<<< HEAD
-    state->assoc.owned.keylen = keylen;
-    
-    rc = Hash_Table_Test_and_Set(concattable, &key, &val,
-				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
-
-    if (rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS)
-	{
-	    killstate(newstate);
-	    LogDebug(COMPONENT_STATES,
-		     "Pre-existing lock/share for owner/lockid combination.");
-	    return ERR_STATE_PREEXISTS;
-	}
-
-    else if (rc != HASHTABLE_SUCCESS)
-	{
-	    killstate(newstate);
-	    return ERR_STATE_FAIL;
-	}
-
-    return ERR_STATE_NO_ERROR;
-=======
-    chain(state, header);
-
-    return state;
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
-}
-
 /* Removes a state from relevant hash tables and deallocates resources
  * associated with it.  Have a write-lock on the entry_header.
  */
 
-int killstate(state* state)
-{
-<<<<<<< HEAD
-    hash_buffer_t key;
-    int rc;
-
-    /* All this state specific stuff goes first so we don't end up
-     * with a state half-deallocated but still alive after an error
-     */
-
-    switch (state->type)
-	{
-	    /* Uninitialised state, it just gets the stateid removal and
-	     * deallocated in the catch-all */
-	case any:
-	    break;
-
-	    /* Check for locks.  if any exist, return an error */
-	case share:
-	    if (state->assoc.owned.share.locks)
-		return ERR_STATE_LOCKSHELD;
-	    break;
-
-	    /* Free all lock entries */
-	case deleg:
-	case dir_deleg:
-	    break;
-	case lock:
-	    freelocks(state);
-	    break;
-	case layout:
-	    freelayouts(state);
-	    break
-	}
-
-    unchain(state)
-
-    /* If owned, reove from owner hash and deallocate*/
-    if ((state->type == share) ||
-	(state->type == lock))
-	{
-	    key.pdata = state->assoc.owned.chunk;
-	    key.len = state->assoc.owned.keylen;
-	    rc = HashTable_Del(ownertable, key, NULL, NULL);
-	    if ((rc != HASHTABLE_SUCCESS) &&
-		(rc != HASHTABLE_NO_SUCH_KEY))
-		    LogError(COMPONENT_STATES,
-			     "Error deleting owner key.");
-	    Mem_Free(state->chunk);
-	}
-
-    key.pdata = state->stateid.other;
-    key.len = 12;
-    HashTable_Del(ownertable, key, NULL, NULL);
-    if ((rc != HASHTABLE_SUCCESS) &&
-	(rc != HASHTABLE_NO_SUCH_KEY))
-	LogError(COMPONENT_STATES,
-		 "Error deleting stateid key.");
-
-    RELEASE_PREALLOC(state, statepool, next_alloc);
-    return ERR_STATE_NO_ERROR;
-}
-
-/* Chain a state into the various associations
- *
- * share is NULL except in the case of a lock state.
- */
-
-int chain(state* state, entryheader* header, state* share)
-{
-    concatstate* concat = NULL,
-
-    if (state->type == any)
-	{
-	    LogCrit(COMPONENT_STATES,
-		     "chain: attempt to chain invalid state.");
-	    return ERR_STATE_FAIL;
-	}
-
-    if ((state->type != lock) && share)
-	{
-	    LogCrit(COMPONENT_STATES,
-		    "chains: associated share supplied to non-lock.");
-	    return ERR_STATE_FAIL;
-	}
-    
-    if ((state->type == delegation) ||
-	(state->type == dir_delegation) ||
-	(state->type == layout))
-	{
-	    if (!(*concat = get_concat(entry, clientid, true)))
-		{
-		    LogMajor(COMPONENT_STATES,
-			     "chain: could not find/create file/clientid entry.");
-		    return ERR_STATE_FAIL;
-		}
-	    state->assoc.client.concats = *concats;
-	}
-    
-	    
-    /* Make sure we aren't being bad */
-
-    if (((state->type == delegation) &&
-	 ((*concat)->deleg)) ||
-	((state->type == dir_delegation) &&
-	 ((*concat)->dir_deleg))
-	((state->type == layout) &&
-	 ((*concat)->layout)))
-	return ERR_STATE_PREEXISTS;
-
-    /* Link to filehandle chain */
-
-    state->prevfh = NULL;
-    state->nextfh = entryheader->states;
-    entryheader->states = state;
-
-    state->header = entryheader;
-
-    /* Link to the main chain */
-
-    state->prev = NULL;
-    state->next = statechain;
-    statechain = state;
-
-    /* Link to concats */
-
-
-    if (state->type == delegation)
-	*concats->deleg = state;
-    if (state->type == dir_delegation)
-	*concats->dir_deleg = state;
-    if (state->type == layout)
-	*concats->layout = state;
-
-    if (state->type == lock)
-	{
-	    state->assoc.owned.state.lock.share = share;
-	    state->assoc.owned.state.lock.prev = NULL;
-	    state->assoc.owned.state.lock.next
-		= share->assoc.owned.state.share.locks;
-	    share->assoc.owned.state.share.locks = share;
-	}
-    
-    return ERR_FSAL_NO_ERROR;
-}
-
-/* Unchain a state, essentially do the last thing in reverse */
-
-int unchain(state* state)
-{
-    /* Since chain refuses to chain undefined states, they're already
-       uchained. */
-
-    if (state->type == any)
-	return ERR_STATE_NO_ERROR;
-
-    /* Unlink from the main chain */
-
-    if (state->prev == NULL)
-	{
-	    statechain = state->next;
-	    state->next->prev = NULL;
-	}
-    else
-	{
-	    state->prev->next = state->next;
-	    state->next->prev = state->prev;
-	}
-
-    /* Remove link from filehandle chain */
-
-    if (state->prevfh == NULL)
-	{
-	    state->header->states = state->nextfh;
-	    state->nextfh->prevfh = NULL;
-	}
-    else
-	{
-	    state->prevfh->nextfh = state->nextfh;
-	    state->nextfh->prevfh = state->prevfh;
-	}
-
-    if (state->type == delegation)
-	state->assoc.client.concats->deleg = NULL;
-    if (state->type == dir_delegation)
-	state->assoc.client.concats->dir_deleg = NULL;
-    if (state->type == layout)
-	state->assoc.client.concats->layout = NULL;
-
-    if (state->assoc.client.concats->deleg ==
-	state->assoc.client.concats->dir_deleg ==
-	state->assoc.client.concats->layout ==
-	NULL)
-	kill_concats;
-
-    if (state->header.states == NULL)
-	killheader(state->header);
-
-    if (state->type == lock)
-	{
-	    if (state->assoc.owned.state.lock.prev == NULL)
-		{
-		    state->assoc.owned.state.share->locks
-			= state->assoc.owned.state.lock.next;
-		    state->assoc.owned.state.lock.next->prev = NULL;
-		}
-	    else
-		{
-		    state->assoc.owned.state.lock.prev->next
-			= state->assoc.owned.state.lock.next;
-		    state->assoc.owned.state.lock.next->prev
-			= state->assoc.owned.state.lock.prev;
-		}
-	}
-    return ERR_FSAL_NO_ERROR;
-}
-
-/* Harvest a leftover concatstates */
-
-int killconcats(concatstate* concats)
-{
-    int rc = 0;
-    
-    key.pdata = &(concats.key);
-    key.len = sizeof(struct concatkey);
-    rc = HashTable_Del(ownertable, key, NULL, NULL);
-    if ((rc != HASHTABLE_SUCCESS) &&
-	(rc != HASHTABLE_NO_SUCH_KEY))
-	LogError(COMPONENT_STATES,
-		 "Error deleting owner key.");
-
-    RELEASE_PREALLOC(concats, concatpool, next_alloc);
-}
-
-/* Harvest a leftover header */
-
-int killheader(entryheader* entry)
-{
-    int rc = 0;
-
-    if (!pthread_mutex_lock(&entrymutex))
-	return ERR_STATE_FAIL;
-    
-    key.pdata = entry->fsaldata;
-    key.len = sizeof(cache_inode_fsal_data_t);
-    
-    rc = HashTable_Del(entrytable, key, NULL, NULL);
-    if ((rc != HASHTABLE_SUCCESS) &&
-	(rc != HASHTABLE_NO_SUCH_KEY))
-	LogError(COMPONENT_STATES,
-		 "Error deleting entry header key.");
-
-    pthread_mutex_unlock(&entrymutex);
-    pthread_rwlock_unlock(&(entry->lock));
-    RELEASE_PREALLOC(entry, entrypool, next_alloc);
-    return ERR_STATE_NO_ERROR;
-}
-
-
-/* Traverse all states associated with a given entry.  Whatever you
- * plan to do with them, acquire the appropriate lock first.  Returns
- * NULL on failure to find a next entry.
- */
- 
-int next_entry_state(entryheader* entry, state** state)
-{
-    if (*state == NULL)
-	*state = entryheader->states;
-    else
-	*state = state->next;
-
-    return *state;
-}
-
-
-/* Retrieve a state by stateid */
-
-int getstate(stateid4 stateid, state** state)
-{
-    hash_buffer_t key, val;
-    int counter = 0;
-    int rc = 0;
-
-    key.pdate = stateid.other;
-    key.len = 12;
-
-    rc = HashTable_get(entrytable, &key, &val);
-=======
-    state->header = header;
-
-    state->prevfh = NULL;
-    if (header->states == NULL)
-	{
-	    header->states = state;
-	    state->nextfh = NULL;
-	}
-    else
-	{
-	    state->nextfh = header->states;
-	    header->states = state;
-	}
-
-    state->prev = NULL;
-    if (statechain == NULL)
-	{
-	    statechain = state;
-	    state->next = NULL;
-	}
-    else
-	{
-	    state->next = statechin;
-	    statechain = state;
-	}
-}
-
-state* iterate_entry(entryheader* entry, state** state)
+state_t* iterate_entry(entryheader_t* entry, state_t** state)
 {
     if (*state == NULL)
 	*state = entry->states;
     else
-	*state = state->next;
+	*state = (*state)->next;
     return *state;
 }
 
-int lookup_state_and_lock(stateid4 stateid, state** state,
-			  entryheader** header, boolean write)
+int lookup_state_and_lock(stateid4 stateid, state_t** state,
+			  entryheader_t** header, bool_t write)
 {
     int rc = 0;
     
@@ -926,19 +480,19 @@ int lookup_state_and_lock(stateid4 stateid, state** state,
 	
     rc = 0;
     if (write)
-	rc = pthread_rwlock_wrlock(&(state->header->lock));
+	rc = pthread_rwlock_wrlock(&((*state)->header->lock));
     else
-	rc = pthread_rwlock_rdlock(&(state->header->lock));
+	rc = pthread_rwlock_rdlock(&((*state)->header->lock));
 
     *header = (*state)->header;
 
-    if (rd || !(state->header->valid))
+    if (rc || !((*state)->header->valid))
 	return ERR_STATE_NOENT;
 
     return ERR_STATE_NO_ERROR;
 }
 
-nt lookup_state(stateid4 stateid, state** state)
+int lookup_state(stateid4 stateid, state_t** state)
 {
     int rc = 0;
     hash_buffer_t key, val;
@@ -946,20 +500,14 @@ nt lookup_state(stateid4 stateid, state** state)
     key.pdata = stateid.other;
     key.len = 12;
     
-    rc = HashTable_get(statetable, &key, &val);
+    rc = HashTable_Get(stateidtable, &key, &val);
     
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
     if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	return ERR_STATE_NOENT;
     else if (rc != HASHTABLE_SUCCESS)
 	return ERR_STATE_FAIL;
 
-    *state = val.pdata;
-<<<<<<< HEAD
-    if (stateid.seqid && (state.seqid < state.stateid.seqid))
-	return ERR_STATE_OLDSEQ;
-    else if (stateid.seqid && (state.seqid > state.stateid.seqid))
-=======
+    *state = (state_t*)val.pdata;
 
     /* TODO Update this to handle wraparound once we figure out how to
        quickly count the number of slots total associated with a
@@ -967,63 +515,15 @@ nt lookup_state(stateid4 stateid, state** state)
 
     if (stateid.seqid == 0)
 	return ERR_STATE_NO_ERROR;
-    else if (stateid.seqid < state->stateid.seqid)
+    else if (stateid.seqid < (*state)->stateid.seqid)
 	return ERR_STATE_OLDSEQ;
-    else if (stateid.seqid > state->stateid.seqid)
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
+    else if (stateid.seqid > (*state)->stateid.seqid)
 	return ERR_STATE_BADSEQ;
     else
 	return ERR_STATE_NO_ERROR;
 }
 
-<<<<<<< HEAD
-int getownedstate(clientid4 clientid, open_owner4* open_owner,
-		  lock_owner4* lock_owner, state** state)
-{
-    int rc = 0;
-    char* keybuff;
-    hash_buffer_t key, val;
-    size_t keylen
-	= (open_owner->owner.owner_len +
-	   (lock_owner ? lock_owner->owner.owner_len : 0) +
-	   sizeof(clientid4) + 1);
-    
-    keybuff = alloca(keylen);
-
-    *keybuff = lock_owner ? 1 : 0;
-    *((clientid4*) (keybuff + 1)) = clientid;
-    (*newstate)->assoc.owned.open_owner = (keybuff + 1 +
-					   sizeof(clientid));
-    memcpy((keybuff + 1 + sizeof(clientid))
-	   open_owner.owner.owner_val,
-	   open_owner.owner.owner_len);
-    (*newstate)->assoc.owned.oolen = open_owner.owner.owner_len;
-
-    if (lock_owner)
-	memcpy((keybuff + 1 + sizeof(clientid) +
-		open_owner.owner.owner_len),
-	       lock_owner.owner.owner_val,
-	       lock_owner.owner.owner_len);
-
-    key.pdata = keybuff;
-    key.len = keylen;
-
-    rc = HashTable_get(ownertable, &key, &val)
-
-    if (rc == HASHTABLE_NO_SUCH_KEY)
-	{
-	    killstate(newstate);
-	    LogDebug(COMPONENT_STATES,
-		     "Could not find state for owner/client pair.");
-	    return ERR_STATE_NOENT;
-	}
-
-    else if (rc != HASHTABLE_SUCCESS)
-	return ERR_STATE_FAIL;
-
-    return ERR_STATE_NO_ERROR;
-=======
-void unchain(state* state)
+void unchain(state_t* state)
 {
     if (state->prevfh == NULL)
 	{
@@ -1047,18 +547,17 @@ void unchain(state* state)
 	}
 }
 
-void killstate(state* state)
+void killstate(state_t* state)
 {
-    entryheader* header = state->header;
+    entryheader_t* header = state->header;
     hash_buffer_t key;
 
     unchain(state);
 
-
     key.pdata = state->stateid.other;
     key.len = 12;
     
-    if (HashTable_Del(statetable, &key, NULL, NULL) !=
+    if (HashTable_Del(stateidtable, &key, NULL, NULL) !=
 	HASHTABLE_SUCCESS)
 	LogMajor(COMPONENT_STATES,
 		 "killstate: unable to remove stateid from hash table.");
@@ -1068,42 +567,184 @@ void killstate(state* state)
     if (!(header->states))
 	{
 	    header->valid = 0;
-	    key.pdata = &(header->handle);
+	    key.pdata = (caddr_t)&(header->handle);
 	    key.len = sizeof(fsal_handle_t);
 	    if (HashTable_Del(entrytable, &key, NULL, NULL) !=
 		HASHTABLE_SUCCESS)
 		LogMajor(COMPONENT_STATES,
 			 "killstate: unable to remove header from hash table.");
 	    pthread_rwlock_unlock(&(header->lock));
-	    RELEASE_PREALLOC(header, entrypool, next_alloc);
+	    RELEASE_PREALLOC(header, entryheaderpool, next_alloc);
 	}
     else
 	pthread_rwlock_unlock(&(header->lock));
 }
 
-void filltaggedstate(state* state, taggedstate* outstate)
+void filltaggedstate(state_t* state, taggedstate* outstate)
 {
     memset(outstate, 0, sizeof(taggedstate));
     switch (state->type)
 	{
-	case share:
-	    fillshare(state, &(outstate->u.share));
+	case STATE_SHARE:
+	    fillsharestate(state, &(outstate->u.share), state->header);
 	    break;
-	case delegation:
-	    filldelegation(state, &(outstate->u.delegation));
+	case STATE_DELEGATION:
+	    filldelegationstate(state, &(outstate->u.delegation),
+				state->header);
 	    break;
-	case dir_delegation:
-	    filldir_delegation(state, &(outstate->u.dir_delegation));
+	case STATE_DIR_DELEGATION:
+	    filldir_delegationstate(state,
+				    &(outstate->u.dir_delegation), state->header);
 	    break;
-	case lock:
-	    filllock(state, &(outstate->u.lock));
+	case STATE_LOCK:
+	    filllockstate(state, &(outstate->u.lock), state->header);
 	    break;
-	case layout:
-	    filllayout(state, &(outstate->u.layout));
+#ifdef _USE_FSALMDS
+	case STATE_LAYOUT:
+	    filllayoutstate(state, &(outstate->u.layout),
+			    state->header);
 	    break;
+#endif
 	default:
 	    LogCrit(COMPONENT_STATES,
 		    "filltaggedstate: invalid state (can't happen)!");
 	}
->>>>>>> 10d1be59b652f69fd7de00fe6f675f34d9ed69e9
+}
+
+state_owner_t* acquire_owner(char* name, size_t len,
+			     clientid4 clientid, bool_t lock,
+			     bool_t wantmutex, bool_t* created)
+{
+    hash_buffer_t key, val;
+    owner_key_t okey;
+    state_owner_t* owner = NULL;
+    int rc;
+    hash_table_t* table = lock ? lockownertable : openownertable;
+
+    if (created)
+	*created = 0;
+
+    memset(&okey, 0, sizeof(owner_key_t));
+    memcpy(okey.owner_val, name, len);
+    okey.owner_len = len;
+    okey.clientid = clientid;
+    key.pdata = (caddr_t)&okey;
+    key.len = sizeof(owner_key_t);
+
+    rc = HashTable_Get(table, &key, &val);
+
+    if (rc == HASHTABLE_SUCCESS)
+	{
+	    owner = (state_owner_t*)val.pdata;
+	    if (wantmutex)
+		{
+		    rc = pthread_mutex_lock(&(owner->mutex));
+		    if (rc < 0)
+			return NULL;
+		}
+	    else
+		return owner;
+	}
+    else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
+	{
+	    if (!pthread_mutex_lock(&ownermutex))
+		return NULL;
+
+	    /* Make sure it didn't get created while we were waiting */
+
+	    rc = HashTable_Get(table, &key, &val);
+	    
+	    if (rc == HASHTABLE_SUCCESS)
+		{
+		    owner = (state_owner_t*) val.pdata;
+		    if (wantmutex)
+			{
+			    rc = pthread_mutex_lock(&(owner->mutex));
+			    if (rc < 0)
+				return NULL;
+			}
+		    pthread_mutex_unlock(&ownermutex);
+		    return owner;
+		}
+
+	    if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
+		{
+		    /* Really should be impossible */
+		    pthread_mutex_unlock(&entrymutex);
+		    return NULL;
+		}
+	    
+	    /* We may safely create the entry */
+	    
+	    GET_PREALLOC(owner, ownerpool, 1, state_owner_t,
+			 next_alloc);
+
+	    if (!owner)
+		{
+		    pthread_mutex_unlock(&ownermutex);
+		    return NULL;
+		}
+
+	    owner->key = okey;
+	    key.pdata = (caddr_t)&(owner->key);
+
+	    owner->seqid = 0;
+	    owner->refcount = 0;
+	    owner->lock = lock;
+	    owner->last_response = NULL;
+	    pthread_mutex_init(&(owner->mutex), NULL);
+	    pthread_mutex_lock(&(owner->mutex));
+	    owner->related_owner = NULL;
+
+	    val.pdata = (caddr_t)owner;
+	    val.len = sizeof(state_owner_t);
+	    
+	    rc = HashTable_Test_And_Set(table, &key, &val,
+					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+
+	    if (rc == HASHTABLE_SUCCESS)
+		{
+		    if (wantmutex)
+			{
+			    rc = pthread_mutex_lock(&(owner->mutex));
+			    pthread_mutex_unlock(&ownermutex);
+			    if (rc < 0)
+				{
+				    RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+				    return NULL;
+				}
+			}
+		    if (created)
+			*created = true;
+		    return owner;
+		}
+	    else
+		RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+	}
+    return NULL ;
+}
+
+int killowner(state_owner_t* owner)
+{
+    hash_buffer_t key;
+    hash_table_t* table = owner->lock ? lockownertable : openownertable;
+    
+    key.pdata = (caddr_t) &(owner->key);
+    key.len = sizeof(owner_key_t);
+
+    pthread_mutex_lock(&ownermutex);
+    if (HashTable_Del(table, &key, NULL, NULL) !=
+	HASHTABLE_SUCCESS)
+	LogMajor(COMPONENT_STATES,
+		 "killowner: unable to remove owner from hash table.");
+
+    if (owner->last_response)
+	Mem_Free(owner->last_response);
+
+    pthread_mutex_unlock(&(owner->mutex));
+
+    RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+
+    pthread_mutex_unlock(&ownermutex);
+    return 0;
 }

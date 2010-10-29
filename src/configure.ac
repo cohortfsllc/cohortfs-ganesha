@@ -252,15 +252,22 @@ AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 # FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
 GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
 if test "$enable_fsalmds" == "yes"; then
-	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
+  if [[ $NFS4_MINOR == "0" ]] ; then
+     AC_MSG_ERROR("You must activate NFSv4.1 support to enable FSAL meta-data server support" )
+  fi
+   	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
 	FSALMDS_LIB="\$(top_builddir)/NFS_Protocols/layouttypes/liblayouttypes.la"
 fi
 AM_CONDITIONAL(USE_FSALMDS, test "x$enable_fsalmds" = "xyes")
+
 
 # FSAL based pNFS DS support (requires NFSv4.1, conflicts with DS)
 GA_ENABLE_AM_CONDITION([fsalds],[enable FSAL-based pNFS DS support (NFSv4.1 support is mandatory)],[USE_FSALDS])
 PNFS_LIB=""
 if test "$enable_fsalds" == "yes"; then
+  if [[ $NFS4_MINOR == "0" ]] ; then
+     AC_MSG_ERROR("You must activate NFSv4.1 support to enable FSAL data server support" )
+  fi
 	AC_DEFINE(_USE_FSALDS,1,[enable FSAL based pNFS DS support])
 fi
 AM_CONDITIONAL(USE_FSALDS, test "x$enable_fsalds" = "xyes")

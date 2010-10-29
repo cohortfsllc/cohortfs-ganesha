@@ -98,6 +98,15 @@ cache_inode_commit(cache_entry_t * pentry,
     fsal_boolean_t eof;
     cache_inode_unstable_data_t *udata;
 
+    stateid4 anon =
+      {
+	.seqid = 1,
+	.other = {0xff, 0xff, 0xff,
+		  0xff, 0xff, 0xff,
+		  0xff, 0xff, 0xff,
+		  0xff, 0xff, 0xff}
+      };
+
     udata = &pentry->object.file.unstable_data;
     if(udata->buffer == NULL)
         {
@@ -113,7 +122,7 @@ cache_inode_commit(cache_entry_t * pentry,
             status = cache_inode_rdwr(pentry,
                                       CACHE_INODE_WRITE,
                                       &seek_descriptor, udata->length,
-                                      &size_io_done, pfsal_attr,
+                                      &size_io_done, anon, pfsal_attr,
                                       udata->buffer, &eof, ht,
                                       pclient, pcontext, TRUE, pstatus);
             if (status != CACHE_INODE_SUCCESS)
@@ -142,7 +151,7 @@ cache_inode_commit(cache_entry_t * pentry,
                                     &seek_descriptor,
                                     count,
                                     &size_io_done,
-                                    pfsal_attr,
+                                    anon, pfsal_attr,
                                     (char *)(udata->buffer + offset - udata->offset),
                                     &eof, ht, pclient,
                                     pcontext, TRUE, pstatus);

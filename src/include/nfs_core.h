@@ -106,6 +106,9 @@
 #define NB_PREALLOC_HASH_CACHE_INODE 1000
 #define NB_PREALLOC_LRU_CACHE_INODE 1000
 
+#define PRIME_OPENREF 29
+#define NB_PREALLOC_OPENREF 1024
+
 #define PRIME_IP_NAME            17
 #define NB_PREALLOC_HASH_IP_NAME 10
 #define IP_NAME_EXPIRATION       36000
@@ -259,6 +262,7 @@ typedef struct nfs_rpc_dupreq_param__
 typedef struct nfs_cache_layer_parameter__
 {
   cache_inode_parameter_t cache_param;
+  cache_inode_openref_params_t openref_param;
   cache_inode_client_parameter_t cache_inode_client_param;
   cache_content_client_parameter_t cache_content_client_param;
   cache_inode_gc_policy_t gcpol;
@@ -660,20 +664,6 @@ unsigned long int namemapper_value_hash_func(hash_parameter_t * p_hparam,
 unsigned long idmapper_value_hash_func(hash_parameter_t * p_hparam,
                                        hash_buffer_t * buffclef);
 
-int nfs_convert_open_owner(open_owner4 * pnfsowoner,
-                           cache_inode_open_owner_name_t * pname_owner);
-void nfs_open_owner_PrintAll(void);
-int nfs_open_owner_Del(cache_inode_open_owner_name_t * pname);
-int nfs_open_owner_Update(cache_inode_open_owner_name_t * pname,
-                          cache_inode_open_owner_t * popen_owner);
-int nfs_open_owner_Get_Pointer(cache_inode_open_owner_name_t * pname,
-                               cache_inode_open_owner_t * *popen_owner);
-int nfs_open_owner_Get(cache_inode_open_owner_name_t * pname,
-                       cache_inode_open_owner_t * popen_owner);
-int nfs_open_owner_Set(cache_inode_open_owner_name_t * pname,
-                       cache_inode_open_owner_t * popen_owner);
-int nfs4_Init_open_owner(nfs_open_owner_parameter_t param);
-
 int idmap_populate(char *path, idmap_type_t maptype);
 
 int idmap_gid_init(nfs_idmap_cache_parameter_t param);
@@ -724,14 +714,7 @@ int uidgidmap_remove(unsigned int key);
 void idmap_get_stats(idmap_type_t maptype, hash_stat_t * phstat,
                      hash_stat_t * phstat_reverse);
 
-int nfs4_BuildStateId_Other(cache_entry_t * pentry,
-                            fsal_op_context_t * pcontext,
-                            cache_inode_open_owner_t * popen_owner, char *other);
-int nfs4_Check_Stateid(struct stateid4 *pstate, cache_entry_t * pentry,
-                       clientid4 clientid);
 int nfs4_is_lease_expired(cache_entry_t * pentry);
-int nfs4_Init_state_id(nfs_state_id_parameter_t param);
-
 int fridgethr_get( pthread_t * pthrid, void *(*thrfunc)(void*), void * thrarg ) ;
 fridge_entry_t * fridgethr_freeze( ) ;
 int fridgethr_init() ;

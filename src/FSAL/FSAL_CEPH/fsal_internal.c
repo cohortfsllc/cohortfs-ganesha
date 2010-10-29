@@ -264,7 +264,9 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
                                         fs_common_initinfo_t * fs_common_info)
 {
 
+#ifdef _USE_FSALMDS
   deviceidtable=HashTable_Init(hashparams);
+#endif
   /* sanity check */
   if(!fsal_info || !fs_common_info)
     ReturnCode(ERR_FSAL_FAULT, 0);
@@ -286,8 +288,11 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
 
   /* setting default values. */
   global_fs_info = default_hpss_info;
+
+#ifdef _USE_FSALMODS
   global_fs_info.fs_layout_types.fattr4_fs_layout_types_len=1;
   global_fs_info.fs_layout_types.fattr4_fs_layout_types_val=supportedlayouttypes;
+#endif
 
   /* Analyzing fs_common_info struct */
 

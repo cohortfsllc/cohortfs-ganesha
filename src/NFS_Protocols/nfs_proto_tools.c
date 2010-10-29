@@ -82,6 +82,104 @@ extern nfs_parameter_t nfs_param;
 
 /**
  *
+ * nfs_finduid: Looks up the UID for a given operation
+ *
+ * Look up the UID for a given operation.  (Ideally we should factor
+ * all this stuff out of nfs_build_fsal_context and have it call us.)
+ *
+ * @param ptr_req [IN]  incoming request.
+ * @param pexport_client [IN] related export client
+ * @param pexport [IN]  related export entry
+ * @param uid_t [OUT] The UID
+ * 
+ * @return TRUE if successful, FALSE otherwise 
+ *
+ */
+int nfs_finduid(compound_data_t* data, uid_t* uid)
+{
+  exportlist_client_entry_t related_client;
+  nfs_worker_data_t *pworker = NULL;
+  struct authunix_parms *punix_creds = NULL;
+#ifdef _USE_GSSRPC
+  struct svc_rpc_gss_data *gd = NULL;
+  gss_buffer_desc oidbuff;
+  OM_uint32 maj_stat = 0;
+  OM_uint32 min_stat = 0;
+  char username[MAXNAMLEN];
+  char domainname[MAXNAMLEN];
+#endif
+  uid_t caller_uid = 0;
+  unsigned int caller_glen = 0;
+  unsigned int rpcxid = 0;
+  char *ptr;
+
+
+  pworker = (nfs_worker_data_t *) data->pclient->pworker;
+
+  if(nfs_export_check_access(&pworker->hostaddr,
+                             data->reqp,
+                             data->pexport,
+                             nfs_param.core_param.nfs_program,
+                             nfs_param.core_param.mnt_program,
+                             pworker->ht_ip_stats,
+                             pworker->ip_stats_pool, &related_client) == FALSE)
+    return FALSE;
+
+  rpcxid = get_rpc_xid(data->reqp);
+  switch (data->reqp->rq_cred.oa_flavor)
+    {
+    case AUTH_NONE:
+      /* Nothing to be done here... */
+      break;
+
+    case AUTH_UNIX:
+      /* We map the rq_cred to Authunix_parms */
+      punix_creds = (struct authunix_parms *)data->reqp->rq_clntcred;
+
+      /* Get the uid/gid couple */
+      caller_uid = punix_creds->aup_uid;
+
+      break;
+
+#ifdef _USE_GSSRPC
+    case RPCSEC_GSS:
+      /* Get the gss data to process them */
+      gd = SVCAUTH_PRIVATE(ptr_req->rq_xprt->xp_auth);
+
+
+      if((maj_stat = gss_oid_to_str(&min_stat, gd->sec.mech, &oidbuff)) != GSS_S_COMPLETE)
+        {
+          LogCrit(COMPONENT_DISPATCH, "Error in gss_oid_to_str: %u|%u",
+                  maj_stat, min_stat);
+          exit(1);
+        }
+
+      (void)gss_release_buffer(&min_stat, &oidbuff);
+
+      split_credname(gd->cname, username, domainname);
+
+      /* Convert to uid */
+      if(!name2uid(username, &caller_uid))
+        return FALSE;
+      break;
+#endif                          /* _USE_GSSRPC */
+
+    default:
+      /* Reject the request for weak authentication and return to worker */
+      return FALSE;
+      break;
+    }                           /* switch( ptr_req->rq_cred.oa_flavor ) */
+
+  /* Do we have root access ? */
+  if((caller_uid == 0) && !(related_client.options & EXPORT_OPTION_ROOT))
+    caller_uid = data->pexport->anonymous_uid;
+  
+  return TRUE;
+}                               /* nfs_build_fsal_context */
+
+
+/**
+ *
  * nfs_FhandleToCache: Gets a cache entry using a file handle (v2 or v3) as input.
  * 
  * Gets a cache entry using a file handle (v2 or v3) as input.

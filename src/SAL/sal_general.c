@@ -40,6 +40,9 @@
 #include "log_macros.h"
 #include "fsal_types.h"
 
+uint32_t allzeros[3] = {0, 0, 0};
+uint32_t allones[3] = {0xffffffff, 0xffffffff, 0xffffffff};
+
 uint32_t staterr2nfs4err(uint32_t staterr)
 {
   switch (staterr)
@@ -74,4 +77,22 @@ uint32_t staterr2nfs4err(uint32_t staterr)
 	  return NFS4ERR_SERVERFAULT;
 	  break;
       }
+}
+
+bool_t state_anonymous_stateid(stateid4 stateid)
+{
+  return ((!memcmp(stateid.other, allzeros, 12) && !stateid.seqid) ||
+	  (!memcmp(stateid.other, allones, 12) && !(~stateid.seqid)));
+}
+
+bool_t state_current_stateid(stateid4 stateid)
+{
+  return (!memcmp(stateid.other, allzeros, 12) &&
+	  (stateid.seqid == 1));
+}
+
+bool_t state_invalid_stateid(stateid4 stateid)
+{
+  return (!memcmp(stateid.other, allzeros, 12) &&
+	  (stateid.seqid == NFS4_UINT32_MAX));
 }

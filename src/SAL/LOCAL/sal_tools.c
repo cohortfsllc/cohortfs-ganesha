@@ -25,7 +25,6 @@
 #include "sal.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
-#include "nfs_log.h"
 #include "log_macros.h"
 #include "sal_internal.h"
 
@@ -35,11 +34,11 @@
 
 int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 {
-    entryheader* header;
+    entryheader_t* header;
     
     /* Retrieve or create header for per-filehandle chain */
   
-    if (statelocktype)
+    if (rw)
 	{
 	    if (!(header = header_for_write(handle)))
 		{
@@ -68,22 +67,22 @@ int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 int localstate_unlock_filehandle(fsal_handle_t *handle)
 {
     hash_buffer_t key, val;
-    entryheader* header;
+    entryheader_t* header;
     int rc = 0;
 
-    key.pdata = handle;
+    key.pdata = (caddr_t)handle;
     key.len = sizeof(fsal_handle_t);
 
-    rc = HashTable_get(entrytable, &key, &val);
+    rc = HashTable_Get(entrytable, &key, &val);
 
     if (rc == HASHTABLE_SUCCESS)
 	{
-	    header = val.pdata;
+	    header = (entryheader_t*)val.pdata;
 	    rc = pthread_rwlock_unlock(&(header->lock));
 	    if (rc != 0 || !(header->valid))
 		return ERR_STATE_FAIL;
 	    else
-		return ERR_STATE_SUCCESS;
+		return ERR_STATE_NO_ERROR;
 	}
     else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	return ERR_STATE_NOENT;
@@ -92,12 +91,12 @@ int localstate_unlock_filehandle(fsal_handle_t *handle)
 }
 
 int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
-				     uint64_t* cookie, boolean* finished,
+				     uint64_t* cookie, bool_t* finished,
 				     taggedstate* outstate)
 {
-    entryheader* header;
-    state* cur = NULL;
-    state* next = NULL;
+    entryheader_t* header;
+    state_t* cur = NULL;
+    state_t* next = NULL;
 
     *finished = false;
 
@@ -109,11 +108,11 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 	}
 
     if (*cookie)
-	*cur = (state*) cookie;
+	cur = (state_t*) cookie;
     else
-	*cur = header->states;
+	cur = header->states;
 
-    while (type != any && cur->type != type && cur != NULL)
+    while (type != STATE_ANY && cur->type != type && cur != NULL)
 	cur = cur->nextfh;
 
     if (cur == NULL)
@@ -124,7 +123,9 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 
     next = cur->nextfh;
 
-    while (type != any && next->type != type && next != NULL)
+    while ((type != STATE_ANY) &&
+	   (next->type != type) &&
+	   (next != NULL))
 	next = next->nextfh;
 
     *cookie = (uint64_t)next;
@@ -132,7 +133,7 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
     if (!(*cookie))
 	*finished = true;
 
-    filltaggedstate(state, outstate);
+    filltaggedstate(cur, outstate);
 
     pthread_rwlock_unlock(&(header->lock));
 
@@ -141,21 +142,21 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 
 
 int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
-				   uint64_t* cookie, boolean* finished,
-				   state* outstate)
+				   uint64_t* cookie, bool_t* finished,
+				   taggedstate* outstate)
 {
-    state* cur = NULL;
-    state* next = NULL;
+    state_t* cur = NULL;
+    state_t* next = NULL;
 
     *finished = false;
 
     if (*cookie)
-	*cur = (state*) cookie;
+	cur = (state_t*) cookie;
     else
-	*cur = statechain;
+	cur = statechain;
 
     while ((cur->clientid != clientid) &&
-	   (type != any) &&
+	   (type != STATE_ANY) &&
 	   (cur->type != type) &&
 	   (cur != NULL))
 	cur = cur->next;
@@ -166,7 +167,7 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     next = cur->next;
 
     while ((cur->clientid != clientid) &&
-	   (type != any) &&
+	   (type != STATE_ANY) &&
 	   (cur->type != type) &&
 	   (cur != NULL))
 	next = next->next;
@@ -174,21 +175,82 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     if (!(*cookie))
 	*finished = true;
 
-    filltaggedstate(state, outstate);
+    filltaggedstate(cur, outstate);
 
     return(ERR_STATE_NO_ERROR);
 }
 
 int localstate_retrieve_state(stateid4 stateid, taggedstate* outstate)
 {
-    state* state = NULL;
+    state_t* state = NULL;
     int rc = 0;
 
     rc = lookup_state(stateid, &state);
-    if (rc != STATE_ERR_NO_ERROR)
+    if (rc != ERR_STATE_NO_ERROR)
 	return rc;
 
-    filltaggedstate(state, taggedstate);
+    filltaggedstate(state, outstate);
+
+    return ERR_STATE_NO_ERROR;
+}
+
+int localstate_lock_state_owner(state_owner4 state_owner, bool_t lock,
+				seqid4 seqid, bool_t* new,
+			   nfs_resop4** response)
+{
+    state_owner_t* owner;
+    bool_t created;
+    
+    owner = acquire_owner(state_owner.owner.owner_val,
+			  state_owner.owner.owner_len,
+			  state_owner.clientid, lock,
+			  true, &created);
+
+    if (!owner)
+	return ERR_STATE_FAIL;
+    if (owner->seqid == seqid)
+	{
+	    *response = owner->last_response;
+	    pthread_mutex_unlock(&(owner->mutex));
+	    return ERR_STATE_NO_ERROR;
+	}
+    if ((owner->seqid < seqid) || (owner->seqid > seqid + 1))
+	{
+	    pthread_mutex_unlock(&(owner->mutex));
+	    return ERR_STATE_BADSEQ;
+	}
+
+    return ERR_STATE_NO_ERROR;
+}
+
+int localstate_unlock_state_owner(state_owner4 state_owner,
+				  bool_t lock)
+{
+    state_owner_t* owner;
+
+    owner = acquire_owner(state_owner.owner.owner_val,
+			  state_owner.owner.owner_len,
+			  state_owner.clientid, lock,
+			  false, NULL);
+
+    pthread_mutex_unlock(&(owner->mutex));
+}
+
+int localstate_save_response(state_owner4 state_owner, bool_t lock,
+			     nfs_resop4* response)
+{
+    state_owner_t* owner;
+
+    owner = acquire_owner(state_owner.owner.owner_val,
+			  state_owner.owner.owner_len,
+			  state_owner.clientid, lock,
+			  false, NULL);
+
+    if (!owner->last_response)
+	owner->last_response = (nfs_resop4*)Mem_Alloc(sizeof(nfs_resop4));
+
+    memcpy(owner->last_response, response, sizeof(nfs_resop4));
+    owner->seqid++;
 
     return ERR_STATE_NO_ERROR;
 }

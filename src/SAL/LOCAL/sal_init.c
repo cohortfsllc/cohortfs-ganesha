@@ -25,7 +25,6 @@
 #include "sal.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
-#include "nfs_log.h"
 #include "log_macros.h"
 #include "sal_internal.h"
 
@@ -37,7 +36,7 @@
  * structures are initialised.
  ***********************************************************************/
 
-int state_init(void)
+int localstate_init(void)
 {
     if (!init_entrytable())
 	{
@@ -51,15 +50,52 @@ int state_init(void)
 		     "state_init: could not initialise stateid table.");
 	    return ERR_STATE_FAIL;
 	}
+    if (!init_openownertable())
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not initialise open owner table.");
+	    return ERR_STATE_FAIL;
+	}
+    if (!init_lockownertable())
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not initialise lock owner table.");
+	    return ERR_STATE_FAIL;
+	}
 
-    STUFF_PREALLOC(layoutentrypool, 100, locallayoutentry, next_alloc);
+#ifdef _USE_FSALMDS
+    STUFF_PREALLOC(layoutentrypool, 100, locallayoutentry_t, next_alloc);
     if (!layoutentrypool)
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_init: could not allocate layout entry pool.");
 	    return ERR_STATE_FAIL;
 	}
-    STUFF_PREALLOC(statepool, 1000, localstate, next_alloc);
+#endif
+    
+    STUFF_PREALLOC(statepool, 1000, state_t, next_alloc);
+    if (!statepool)
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not allocate state pool.");
+	    return ERR_STATE_FAIL;
+	}
+
+    STUFF_PREALLOC(entryheaderpool, 1000, entryheader_t, next_alloc);
+    if (!entryheaderpool)
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not allocate entry pool.");
+	    return ERR_STATE_FAIL;
+	}
+
+    STUFF_PREALLOC(ownerpool, 1000, state_owner_t, next_alloc);
+    if (!ownerpool)
+	{
+	    LogMajor(COMPONENT_STATES,
+		     "state_init: could not allocate state owner pool.");
+	    return ERR_STATE_FAIL;
+	}
 
     return ERR_STATE_NO_ERROR;
 }
@@ -70,7 +106,7 @@ int state_init(void)
  * wood.)
  */
 
-int state_shutdown(void)
+int localstate_shutdown(void)
 {
     return ERR_STATE_NO_ERROR;
 }

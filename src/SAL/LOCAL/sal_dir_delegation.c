@@ -25,7 +25,6 @@
 #include "sal.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
-#include "nfs_log.h"
 #include "log_macros.h"
 #include "sal_internal.h"
 
@@ -35,15 +34,15 @@
  * These functions realise delegation state functionality.
  ***********************************************************************/
 
-void update_dir_delegations(entryheader* entry)
+void update_dir_delegations(entryheader_t* entry)
 {
-    state* cur = NULL;
+    state_t* cur = NULL;
     
     entry->dir_delegations = 0;
 
     while (iterate_entry(entry, &cur))
 	{
-	    if (cur->type != dir_delegation)
+	    if (cur->type != STATE_DIR_DELEGATION)
 		continue;
 	    else
 		{
@@ -61,8 +60,8 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				     bitmap4 dir_attributes,
 				     stateid4* stateid)
 {
-    entryheader* header;
-    state* state;
+    entryheader_t* header;
+    state_t* state;
     int rc = 0;
 
     /* Retrieve or create header for per-filehandle chain */
@@ -84,33 +83,30 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 	    return ERR_STATE_FAIL;
 	}
 
-    state->type = dir_delegation;
-    state->u.dir_delegation.notification_types = notification_types;
-    state->u.dir_delegation.child_attr_delay = child_attr_delay;
-    state->u.dir_delegation.dir_attr_delay = dir_attr_delay;
-    state->u.dir_delegation.child_attributes = child_attributes;
-    state->u.dir_delegation.dir_attributes = dir_attributes;
+    state->type = STATE_DIR_DELEGATION;
+    state->state.dir_delegation.notification_types = notification_types;
+    state->state.dir_delegation.child_attr_delay = child_attr_delay;
+    state->state.dir_delegation.dir_attr_delay = dir_attr_delay;
+    state->state.dir_delegation.child_attributes = child_attributes;
+    state->state.dir_delegation.dir_attributes = dir_attributes;
     
-    *stateid = header->stateid;
+    *stateid = state->stateid;
     pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
-int localstate_delete_dir_delegation(stateid4 stateid);
+int localstate_delete_dir_delegation(stateid4 stateid)
 {
-    state* state;
-    entryheader* header;
+    state_t* state;
+    entryheader_t* header;
     int rc;
 
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
-	{
-	    LogError(COMPONENT_STATES,
-		     "state_delete_dir_delegation: could not find state.");
-	}
+      return rc;
 
-    state->type = any;
-    update_dir_delegations(entry);
-    rc = killstate(state);
+    state->type = STATE_ANY;
+    update_dir_delegations(header);
+    killstate(state);
     
     return ERR_STATE_NO_ERROR;
 }
@@ -118,8 +114,8 @@ int localstate_delete_dir_delegation(stateid4 stateid);
 int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				    dir_delegationstate* outdir_delegation)
 {
-    entryheader* header;
-    state* cur = NULL;
+    entryheader_t* header;
+    state_t* cur = NULL;
     int rc = 0;
     
     /* Retrieve or create header for per-filehandle chain */
@@ -133,7 +129,7 @@ int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     while (iterate_entry(header, &cur))
 	{
-	    if ((cur->type = dir_delegation) &&
+	    if ((cur->type = STATE_DIR_DELEGATION) &&
 		(cur->clientid == clientid))
 		break;
 	    else
@@ -155,21 +151,21 @@ int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     return ERR_STATE_NO_ERROR;
 }
 
-void filldir_delegationstate(state* cur,
+void filldir_delegationstate(state_t* cur,
 			     dir_delegationstate* outdir_delegation,
-			     entryheader* header)
+			     entryheader_t* header)
 {
     outdir_delegation->handle = header->handle;
     outdir_delegation->clientid = cur->clientid;
     outdir_delegation->stateid = cur->stateid;
-    outdir_delegation->notification_types = cur->notification_types;
-    outdir_delegation->child_attr_delay = cur->child_attr_delay;
-    outdir_delegation->dir_attr_delay = cur->dir_attr_delay;
+    outdir_delegation->notification_types = cur->state.dir_delegation.notification_types;
+    outdir_delegation->child_attr_delay = cur->state.dir_delegation.child_attr_delay;
+    outdir_delegation->dir_attr_delay = cur->state.dir_delegation.dir_attr_delay;
 }
 
-int localstate_check_delegation(fsal_handle_t *handle)
+int localstate_check_dir_delegation(fsal_handle_t *handle)
 {
-    entryheader* header;
+    entryheader_t* header;
 
     if (!(header = header_for_read(handle)))
 	{
@@ -178,6 +174,6 @@ int localstate_check_delegation(fsal_handle_t *handle)
 	    return 0;
 	}
 
-    unlock(&(header->lock));
-    return header->write_delegations;
+    pthread_rwlock_unlock(&(header->lock));
+    return header->dir_delegations;
 }

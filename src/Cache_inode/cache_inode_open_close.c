@@ -24,11 +24,11 @@
  *
  * \file    cache_inode_open_close.c
  * \author  $Author: deniel $
- * \date    $Date: 2005/11/28 17:02:27 $
+ * \date    $Date: 2010/10/18 14:32:27 $
  * \version $Revision: 1.20 $
- * \brief   Removes an entry of any type.
  *
- * cache_inode_rdwr.c : performs an IO on a REGULAR_FILE.
+ * cache_inode_open_close.c : handles open and close operations on a
+ * regular file
  *
  *
  */
@@ -58,37 +58,229 @@
 #include <time.h>
 #include <pthread.h>
 #include <strings.h>
+#include "sal.h"
+
+hash_table_t* openref_ht = NULL;
+cache_inode_openref_t* openref_pool = NULL;
+
+/**
+ * openref_init: initialise open reference counting
+ */
+
+int openref_init(cache_inode_openref_params_t params)
+{
+  openref_ht = HashTable_Init(params.hparam);
+  if (!openref_ht)
+    return 1;
+  STUFF_PREALLOC(openref_pool, params.nb_openref_prealloc,
+		 cache_inode_openref_t, next_alloc);
+  if (!openref_pool)
+    return 1;
+
+  return 0;
+}
+
+unsigned long cache_inode_openref_hash_func(p_hash_parameter_t param,
+					    hash_buffer_t* key)
+{
+  cache_inode_openref_key_t* okey = (cache_inode_openref_key_t*) key->pdata;
+
+  return FSAL_Handle_to_HashIndex(&(okey->handle), okey->uid,
+				  param->alphabet_length,
+				  param->index_size);
+}
+
+unsigned long cache_inode_openref_rbt_func(p_hash_parameter_t param,
+					   hash_buffer_t* key)
+{
+  cache_inode_openref_key_t* okey = (cache_inode_openref_key_t*) key->pdata;
+
+  return FSAL_Handle_to_RBTIndex(&(okey->handle), okey->uid);
+}
+
+int cache_inode_display_openref(hash_buffer_t* key, char* str)
+{
+  return 0;
+}
+
+int cache_inode_compare_key_openref(hash_buffer_t* key1, hash_buffer_t* key2)
+{
+  cache_inode_openref_key_t* okey1 = (cache_inode_openref_key_t*)
+    key1->pdata;
+  cache_inode_openref_key_t* okey2 = (cache_inode_openref_key_t*)
+    key2->pdata;
+  fsal_status_t status;
+
+  if (okey1->uid == okey2->uid)
+    return FSAL_handlecmp(&(okey1->handle), &(okey2->handle),
+			  &status);
+  else
+    return 1;
+}
+
+cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
+					     uint32_t share_access,
+					     uid_t uid,
+					     fsal_op_context_t*  pcontext,
+					     cache_inode_openref_t** openref)
+{
+  cache_inode_openref_key_t okey;
+  hash_buffer_t key, val;
+  int rc;
+  int currentmode = 0;
+  bool_t tostore = true;
+  fsal_status_t fsal_status;
+
+  *openref = NULL;
+  
+  okey.handle = *handle;
+  okey.uid = uid;
+
+  key.pdata = (caddr_t) &okey;
+  key.len = sizeof(cache_inode_openref_key_t);
+
+  rc = HashTable_Get(openref_ht, &key, &val);
+  if (rc = HASHTABLE_SUCCESS)
+    {
+      currentmode = (*openref)->openflags;
+      *openref = (cache_inode_openref_t*) val.pdata;
+      if ((currentmode == FSAL_O_RDWR) ||
+	  ((currentmode == FSAL_O_RDONLY) &&
+	   (share_access == OPEN4_SHARE_ACCESS_READ)) ||
+	  ((currentmode == FSAL_O_WRONLY) &&
+	   (share_access == OPEN4_SHARE_ACCESS_WRITE)))
+	return CACHE_INODE_SUCCESS;
+      else
+	{
+	  tostore = false;
+	  fsal_status = FSAL_close(&((*openref)->descriptor));
+	  if(FSAL_IS_ERROR(fsal_status))
+	    return cache_inode_error_convert(fsal_status);
+	}
+    }
+  else if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
+    return CACHE_INODE_HASH_TABLE_ERROR;
+
+  if (tostore)
+    {
+      GET_PREALLOC((*openref), openref_pool, 1, cache_inode_openref_t,
+		   next_alloc);
+      if (!(*openref))
+	return CACHE_INODE_MALLOC_ERROR;
+      (*openref)->refcount = 0;
+    }
+
+  if (currentmode != FSAL_O_RDWR)
+    {
+      if (!currentmode)
+	{
+	  if (share_access == OPEN4_SHARE_ACCESS_READ)
+	    currentmode = FSAL_O_RDONLY;
+	  else if (share_access == OPEN4_SHARE_ACCESS_WRITE)
+	    currentmode = FSAL_O_WRONLY;
+	  else
+	    currentmode = FSAL_O_RDWR;
+	}
+      else if (((currentmode == FSAL_O_RDONLY) &&
+		(share_access | OPEN4_SHARE_ACCESS_WRITE)) ||
+	       ((currentmode == FSAL_O_WRONLY) &&
+		(share_access | OPEN4_SHARE_ACCESS_READ)))
+	currentmode = FSAL_O_RDWR;
+    }
+  
+  fsal_status = FSAL_open(handle, pcontext,
+			  currentmode,
+			  &((*openref)->descriptor),
+			  NULL);
+
+  if(FSAL_IS_ERROR(fsal_status))
+    return cache_inode_error_convert(fsal_status);
+
+  (*openref)->openflags = currentmode;
+
+  if (tostore)
+    {
+      (*openref)->key = okey;
+      key.pdata = (caddr_t) &((*openref)->key);
+      rc = HashTable_Test_And_Set(openref_ht, &key, &val,
+				  HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+      if (rc != HASHTABLE_SUCCESS)
+	{
+	  FSAL_close(&((*openref)->descriptor));
+	  RELEASE_PREALLOC((*openref), openref_pool, next_alloc);
+	}
+    }
+  return CACHE_INODE_SUCCESS;
+}
+  
+cache_inode_status_t cache_inode_kill_openref(cache_inode_openref_t* openref)
+{
+  hash_buffer_t key;
+  cache_inode_status_t status = CACHE_INODE_SUCCESS;
+  fsal_status_t fsal_status;
+  
+  if (openref->refcount)
+    return CACHE_INODE_SUCCESS;
+
+  key.pdata = (caddr_t) &(openref->key);
+  key.len = sizeof(cache_inode_openref_key_t);
+
+  if (HashTable_Del(openref_ht, &key, NULL, NULL) !=
+      HASHTABLE_SUCCESS)
+    status = CACHE_INODE_HASH_TABLE_ERROR;
+
+  fsal_status = FSAL_close(&(openref->descriptor));
+  if(FSAL_IS_ERROR(fsal_status))
+    status = cache_inode_error_convert(fsal_status);
+
+  RELEASE_PREALLOC(openref, openref_pool, next_alloc);
+  
+  return status;
+}
 
 /**
  *
- * cache_content_open: opens the local fd on  the cache.
+ * cache_inode_open: opens the local fd on the cache.
  *
  * Opens the fd on  the FSAL
  *
- * @param pentry    [IN]  entry in file content layer whose content is to be accessed.
- * @param pclient   [IN]  ressource allocated by the client for the nfs management.
- * @param openflags [IN]  flags to be used to open the file
- * @param pcontent  [IN]  FSAL operation context
- * @pstatus         [OUT] returned status.
+ * @param pentry       [IN]  entry in file content layer whose content is to be accessed.
+ * @param pclient      [IN]  ressource allocated by the client for the nfs management.
+ * @param share_access [IN]  access requested by the client
+ * @param share_deny   [IN]  access client wants to deny
+ * @param clientid     [IN]  clientid
+ * @param open_owner   [IN]  open_owner
+ * @param stateid      [OUT] stateid
+ * @param pcontext     [IN]  request context
+ * @param uid          [IN]  mapped ID of requesting user
+ * @param pstatus      [OUT] status of operation
  *
- * @return CACHE_CONTENT_SUCCESS is successful .
+ * @return CACHE_INODE_SUCCESS is successful .
  *
  */
 
-cache_inode_status_t cache_inode_open(cache_entry_t * pentry,
-                                      cache_inode_client_t * pclient,
+cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
+                                      cache_inode_client_t* pclient,
 				      uint32_t share_access,
 				      uint32_t share_deny,
 				      clientid4 clientid,
 				      open_owner4 open_owner,
-				      stateid4 *stateid,
-                                      fsal_op_context_t * pcontext,
-                                      cache_inode_status_t * pstatus)
+				      stateid4* stateid,
+                                      fsal_op_context_t*  pcontext,
+				      uid_t uid,
+                                      cache_inode_status_t*  pstatus)
 {
   fsal_status_t fsal_status;
-  cache_inode_openref_t openref;
+  int rc;
+  sharestate existingstate;
+  fsal_handle_t handle = pentry->object.file.handle;
+  bool_t upgrade = false;
+  cache_inode_openref_t* openref = NULL;
 
-  if((pentry == NULL) || (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL))
+  if((pentry == NULL) || (pclient == NULL) || (pcontext == NULL) ||
+     (pstatus == NULL) || !share_access ||
+     (share_access & OPEN4_SHARE_ACCESS_BOTH) ||
+     (share_deny & OPEN4_SHARE_DENY_BOTH))
     return CACHE_INODE_INVALID_ARGUMENT;
 
   if(pentry->internal_md.type != REGULAR_FILE)
@@ -97,46 +289,80 @@ cache_inode_status_t cache_inode_open(cache_entry_t * pentry,
       return *pstatus;
     }
 
-  state_lock_filehandle(pentry->handle, 1)
-
-    if (state_check_share(handle, share_access_share_deny))
+  rc = state_check_share(handle, share_access, share_deny);
+  if (rc == ERR_STATE_CONFLICT)
     {
-      *pstatus = CACHE_INODE_STATE_CONFLICT;
+      rc = state_query_share(&handle, clientid, open_owner,
+			     &existingstate);
+      if (rc == ERR_STATE_NOENT)
+	{
+	  *pstatus = CACHE_INODE_STATE_CONFLICT;
+	  state_unlock_filehandle(&handle);
+	  return *pstatus;
+	}
+      else if (rc == ERR_STATE_NO_ERROR)
+	{
+	  rc = state_query_share(&handle, clientid, open_owner,
+				 &existingstate);
+	  if (rc != ERR_STATE_NO_ERROR)
+	    {
+	      *pstatus = CACHE_INODE_STATE_ERROR;
+	      state_unlock_filehandle(&handle);
+	      return *pstatus;
+	    }
+	  upgrade = true;
+	}
+    }
+  else if (rc != ERR_STATE_NO_ERROR)
+    {
+      state_unlock_filehandle(&handle);
+      *pstatus = CACHE_INODE_STATE_ERROR;
       return *pstatus;
     }
 
-  lookup_openref(pentry, pcontext, &openref);
-  if (openref)
-    ++openref->refcount;
-  else
+  *pstatus = cache_inode_get_openref(&handle, share_access, uid,
+				     pcontext, &openref);
+
+  if (*pstatus != CACHE_INODE_SUCCESS)
     {
-#ifdef _USE_MFSL
-      fsal_status = MFSL_open(&(pentry->mobject),
-			      pcontext,
-			      &pclient->mfsl_context,
-			      openflags,
-			      &pentry->object.file.open_fd.fd,
-			      &(pentry->object.file.attributes));
-#else
-      fsal_status = FSAL_open(&(pentry->object.file.handle),
-			      pcontext,
-			      openflags,
-			      &pentry->object.file.open_fd.fd,
-			      &(pentry->object.file.attributes));
-#endif
-      if(FSAL_IS_ERROR(fsal_status))
+      state_unlock_filehandle(&handle);
+      return *pstatus;
+    }
+
+  if (!upgrade)
+    {
+      rc == state_create_share(&(pentry->object.file.handle), open_owner, clientid,
+			       share_access, share_deny, openref, stateid);
+      if (rc == ERR_STATE_PREEXISTS)
+	upgrade = true;
+      else if (rc == ERR_STATE_NO_ERROR)
 	{
-	  state_unlock_filehandle(pentry->handle);
-	  *pstatus = cache_inode_error_convert(fsal_status);
-	  return *pstatus;
+	  openref->refcount++;
+	  *pstatus = CACHE_INODE_SUCCESS;
+	}
+      else
+	{
+	  if (openref->refcount == 0)
+	    cache_inode_kill_openref(openref);
+	  *pstatus = CACHE_INODE_STATE_ERROR;
+	}
+    }
+
+  if (upgrade)
+      if (!((share_access & ~existingstate.share_access) ||
+	    (share_deny & ~existingstate.share_deny)))
+	{
+	  rc = state_upgrade_share(share_access, share_deny,
+				   stateid);
+	  if (rc == ERR_STATE_CONFLICT)
+	    *pstatus = CACHE_INODE_STATE_CONFLICT;
+	  else if (rc == ERR_STATE_NO_ERROR)
+	    *pstatus = CACHE_INODE_SUCCESS;
+	  else
+	    *pstatus = CACHE_INODE_STATE_ERROR;
 	}
 
-      openref(pentry, pcontext, descriptor, openflags);
-    }
-  state_create_share(pentry->object.file.handle, open_owner, clientid,
-		     share_access, share_deny, &stateid);
-
-  *pstatus = CACHE_INODE_SUCCESS;
+  state_unlock_filehandle(&handle);
   return *pstatus;
 }                               /* cache_inode_open */
 
@@ -158,182 +384,197 @@ cache_inode_status_t cache_inode_open(cache_entry_t * pentry,
  *
  */
 
-cache_inode_status_t cache_inode_open_by_name(cache_entry_t * pentry_dir,
-                                              fsal_name_t * pname,
-                                              cache_entry_t * pentry_file,
-                                              cache_inode_client_t * pclient,
-                                              fsal_openflags_t openflags,
-                                              fsal_op_context_t * pcontext,
-                                              cache_inode_status_t * pstatus)
+cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
+						  fsal_name_t* pname,
+						  cache_entry_t** new_entry,
+						  uint32_t share_access,
+						  uint32_t share_deny,
+						  bool_t exclusive,
+						  fsal_attrib_list_t* attrs,
+						  clientid4 clientid,
+						  open_owner4 open_owner,
+						  stateid4* stateid,
+						  bool_t* created,
+						  bool_t* truncated,
+						  hash_table_t* ht,
+						  fsal_op_context_t*  pcontext,
+						  cache_inode_client_t* pclient,
+						  uid_t uid,
+						  cache_inode_status_t*  pstatus)
 {
   fsal_status_t fsal_status;
-  fsal_size_t save_filesize;
-  fsal_size_t save_spaceused;
-  fsal_time_t save_mtime;
-  int pnfs_status;
+  fsal_handle_t new_handle;
+  fsal_handle_t parent_handle;
+  fsal_attrib_list_t found_attrs;
+  cache_inode_status_t privstatus;
+  cache_inode_fsal_data_t fsal_data;
+  struct cache_inode_dir_begin__ *dir_begin;
+  cache_inode_create_arg_t create_arg;
 
-  if((pentry_dir == NULL) || (pname == NULL) || (pentry_file == NULL) ||
-     (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL))
+  memset(&create_arg, 0, sizeof(cache_inode_create_arg_t));
+
+  if((pentry_parent == NULL) || (pname == NULL) || (new_entry == NULL) ||
+     (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL) ||
+     (ht == NULL) || (stateid == NULL) || (attrs == NULL))
     return CACHE_INODE_INVALID_ARGUMENT;
 
-  if((pentry_dir->internal_md.type != DIR_BEGINNING)
-     && (pentry_dir->internal_md.type != DIR_CONTINUE))
+  if((pentry_parent->internal_md.type != DIR_BEGINNING)
+     && (pentry_parent->internal_md.type != DIR_CONTINUE))
     {
       *pstatus = CACHE_INODE_BAD_TYPE;
       return *pstatus;
     }
 
-  if(pentry_file->internal_md.type != REGULAR_FILE)
+  /* Based on cache_inode_create.  Locking the whole directory is bad,
+     but let's get it Correct first and then make it efficient later */
+
+  /* Get the lock for the parent */
+  P_w(&pentry_parent->lock);
+  
+  if(pentry_parent->internal_md.type == DIR_BEGINNING)
+    parent_handle = pentry_parent->object.dir_begin.handle;
+  
+  if(pentry_parent->internal_md.type == DIR_CONTINUE)
     {
-      *pstatus = CACHE_INODE_BAD_TYPE;
+      P_r(&pentry_parent->object.dir_cont.pdir_begin->lock);
+      parent_handle = pentry_parent->object.dir_cont.pdir_begin->object.dir_begin.handle;
+      V_r(&pentry_parent->object.dir_cont.pdir_begin->lock);
+    }
+
+  *new_entry = cache_inode_lookup(pentry_parent,
+				  pname, &found_attrs,
+				  ht, pclient, pcontext, pstatus);
+  if (new_entry != NULL)
+    {
+      *created = false;
+      if (exclusive) /* GUARDEF4 */
+	{
+	  V_w(&pentry_parent->lock);
+	  *pstatus = CACHE_INODE_ENTRY_EXISTS;
+	  return *pstatus;
+	}
+
+      /* UNCHECKED4 */
+      *truncated = false;
+      if ((*pstatus = cache_inode_open(*new_entry, pclient,
+				       share_access,
+				       share_deny,
+				       clientid,
+				       open_owner,
+				       stateid,
+				       pcontext,
+				       uid,
+				       pstatus)) !=
+	  CACHE_INODE_SUCCESS)
+	{
+	  V_w(&pentry_parent->lock);
+	  return *pstatus;
+	}
+      
+
+      /* If the filesize is set to 0, the file should be truncated,
+	 (unless it's locked, we don't have write access, or someone
+	 has a SHARE_DENY) */
+
+      if ((attrs->asked_attributes & FSAL_ATTR_SIZE) &&
+	  (attrs->filesize == 0))
+	{
+	  memset(attrs, 0, sizeof(fsal_attrib_list_t));
+	  attrs->asked_attributes |= FSAL_ATTR_SIZE;
+	  if ((privstatus = cache_inode_setattr(*new_entry,
+						attrs,
+						ht,
+						pclient,
+						pcontext,
+						*stateid,
+						&privstatus))
+	      == CACHE_INODE_SUCCESS)
+	    *truncated = true;
+	}
+
+      V_w(&pentry_parent->lock);
+      *pstatus = CACHE_INODE_SUCCESS;
       return *pstatus;
     }
 
-  /* Open file need to be close */
-  if((pentry_file->object.file.open_fd.openflags != 0) &&
-     (pentry_file->object.file.open_fd.fileno >= 0) &&
-     (pentry_file->object.file.open_fd.openflags != openflags))
+  fsal_status = FSAL_create(&parent_handle,
+			    pname, pcontext, attrs->mode,
+			    &new_handle, &found_attrs);
+
+
+  if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
     {
-#ifdef _USE_MFSL
-      fsal_status =
-          MFSL_close(&(pentry_file->object.file.open_fd.fd), &pclient->mfsl_context);
-#else
-      fsal_status = FSAL_close(&(pentry_file->object.file.open_fd.fd));
-#endif
-      if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
-        {
-          *pstatus = cache_inode_error_convert(fsal_status);
-
-          return *pstatus;
-        }
-
-      pentry_file->object.file.open_fd.last_op = 0;
-      pentry_file->object.file.open_fd.fileno = 0;
+      *pstatus = cache_inode_error_convert(fsal_status);
+      V_w(&pentry_parent->lock);
+      return *pstatus;
+    }
+  
+  *created = 1;
+  
+  fsal_data.handle = new_handle;
+  fsal_data.cookie = DIR_START;
+  *new_entry = cache_inode_new_entry(&fsal_data, &found_attrs,
+				    REGULAR_FILE, &create_arg, NULL,
+				    ht, pclient, pcontext,
+				    true, /* This is a creation and not a population */
+				    pstatus);
+  if (new_entry == NULL)
+    {
+      *pstatus = CACHE_INODE_INSERT_ERROR;
+      V_w(&pentry_parent->lock);
+      return *pstatus;
     }
 
-  if(pentry_file->object.file.open_fd.last_op == 0
-     || pentry_file->object.file.open_fd.fileno == 0)
+  /* Add this entry to the directory */
+  *pstatus = cache_inode_add_cached_dirent(pentry_parent,
+					   pname, *new_entry,
+					   NULL, ht,
+					   pclient, pcontext,
+					   pstatus);
+  if (*pstatus != CACHE_INODE_SUCCESS)
     {
-      LogFullDebug(COMPONENT_FSAL, "cache_inode_open_by_name: pentry %p: lastop=0", pentry_file);
-
-      /* Keep coherency with the cache_content */
-      if(pentry_file->object.file.pentry_content != NULL)
-        {
-          save_filesize = pentry_file->object.file.attributes.filesize;
-          save_spaceused = pentry_file->object.file.attributes.spaceused;
-          save_mtime = pentry_file->object.file.attributes.mtime;
-        }
-
-      /* opened file is not preserved yet */
-#ifdef _USE_MFSL
-      fsal_status = MFSL_open_by_name(&(pentry_dir->mobject),
-                                      pname,
-                                      &(pentry_file->mobject),
-                                      pcontext,
-                                      &pclient->mfsl_context,
-                                      openflags,
-                                      &pentry_file->object.file.open_fd.fd,
-                                      &(pentry_file->object.file.attributes));
-#else
-      fsal_status = FSAL_open_by_name(&(pentry_dir->object.file.handle),
-                                      pname,
-                                      pcontext,
-                                      openflags,
-                                      &pentry_file->object.file.open_fd.fd,
-                                      &(pentry_file->object.file.attributes));
-#endif
-
-      if(FSAL_IS_ERROR(fsal_status))
-        {
-          *pstatus = cache_inode_error_convert(fsal_status);
-
-          return *pstatus;
-        }
-#ifdef _USE_PROXY
-
-      /* If proxy if used, we should keep the name of the file to do FSAL_rcp if needed */
-      if((pentry_file->object.file.pname =
-          (fsal_name_t *) Mem_Alloc(sizeof(fsal_name_t))) == NULL)
-        {
-          *pstatus = CACHE_INODE_MALLOC_ERROR;
-
-          return *pstatus;
-        }
-
-      pentry_file->object.file.pentry_parent_open = pentry_dir;
-      pentry_file->object.file.pname->len = pname->len;
-      memcpy((char *)(pentry_file->object.file.pname->name), (char *)(pname->name),
-             FSAL_MAX_NAME_LEN);
-
-#endif
-
-      /* Keep coherency with the cache_content */
-      if(pentry_file->object.file.pentry_content != NULL)
-        {
-          pentry_file->object.file.attributes.filesize = save_filesize;
-          pentry_file->object.file.attributes.spaceused = save_spaceused;
-          pentry_file->object.file.attributes.mtime = save_mtime;
-        }
-
-      pentry_file->object.file.open_fd.fileno =
-          (int)FSAL_FILENO(&(pentry_file->object.file.open_fd.fd));
-      pentry_file->object.file.open_fd.last_op = time(NULL);
-      pentry_file->object.file.open_fd.openflags = openflags;
-
-      LogFullDebug(COMPONENT_FSAL, "cache_inode_open_by_name: pentry %p: fd=%u", pentry_file,
-             pentry_file->object.file.open_fd.fileno);
-
+      V_w(&pentry_parent->lock);
+      return *pstatus;
     }
 
-#ifdef _USE_PNFS
-  if((pnfs_status = pnfs_lookup_ds_file(&pclient->pnfsclient,
-                                        pentry_file->object.file.attributes.fileid,
-                                        &pentry_file->object.file.pnfs_file.ds_file)) !=
-     NFS4_OK)
+  /* Update the parent cached attributes */
+  if(pentry_parent->internal_md.type == DIR_BEGINNING)
+    dir_begin = &pentry_parent->object.dir_begin;
+  else
+    dir_begin = &pentry_parent->object.dir_cont.pdir_begin->object.dir_begin;
+  
+  dir_begin->attributes.mtime.seconds = time(NULL);
+  dir_begin->attributes.mtime.nseconds = 0;
+  dir_begin->attributes.ctime = dir_begin->attributes.mtime;
+  
+  /* valid the parent */
+  *pstatus = cache_inode_valid(pentry_parent,
+			       CACHE_INODE_OP_SET,
+			       pclient);
+
+  if ((*pstatus = cache_inode_open(*new_entry, pclient,
+				   share_access,
+				   share_deny,
+				   clientid,
+				   open_owner,
+				   stateid,
+				   pcontext,
+				   uid,
+				   pstatus)) !=
+      CACHE_INODE_SUCCESS)
     {
-      LogDebug(COMPONENT_CACHE_INODE, "OPEN PNFS LOOKUP DS FILE : Error %u", pnfs_status);
-
-      if(pnfs_status == NFS4ERR_NOENT)
-        {
-          if((pnfs_status = pnfs_create_ds_file(&pclient->pnfsclient,
-                                                pentry_file->object.file.attributes.
-                                                fileid,
-                                                &pentry_file->object.file.pnfs_file.
-                                                ds_file)) != NFS4_OK)
-            {
-
-              LogDebug(COMPONENT_CACHE_INODE, "OPEN PNFS CREATE DS FILE : Error %u",
-                              pnfs_status);
-
-              *pstatus = CACHE_INODE_IO_ERROR;
-              return *pstatus;
-            }
-        }
-      else
-        {
-          *pstatus = CACHE_INODE_IO_ERROR;
-          return *pstatus;
-        }
-    }
-#endif
-
-  /* regular exit */
-  pentry_file->object.file.open_fd.last_op = time(NULL);
-
-  /* if file descriptor is too high, garbage collect FDs */
-  if(pclient->use_cache
-     && (pentry_file->object.file.open_fd.fileno > pclient->max_fd_per_thread))
-    {
-      if(cache_inode_gc_fd(pclient, pstatus) != CACHE_INODE_SUCCESS)
-        {
-          LogCrit(COMPONENT_CACHE_INODE_GC, "FAILURE performing FD garbage collection");
-          return *pstatus;
-        }
+      V_w(&pentry_parent->lock);
+      return *pstatus;
     }
 
+  cache_inode_setattr(*new_entry, attrs, ht, pclient,
+	      pcontext, *stateid, &privstatus);
+
+  /* release the lock for the parent */
+  V_w(&pentry_parent->lock);
+  
   *pstatus = CACHE_INODE_SUCCESS;
   return *pstatus;
-
 }                               /* cache_inode_open_by_name */
 
 /**
@@ -354,11 +595,15 @@ cache_inode_status_t cache_inode_open_by_name(cache_entry_t * pentry_dir,
  */
 cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
                                        cache_inode_client_t * pclient,
-                                       cache_inode_status_t * pstatus)
+                                       cache_inode_status_t * pstatus,
+				       stateid4* stateid)
 {
   fsal_status_t fsal_status;
+  taggedstate state;
+  int rc;
 
-  if((pentry == NULL) || (pclient == NULL) || (pstatus == NULL))
+  if((pentry == NULL) || (pclient == NULL) || (pstatus == NULL) ||
+     (stateid == NULL))
     return CACHE_CONTENT_INVALID_ARGUMENT;
 
   if(pentry->internal_md.type != REGULAR_FILE)
@@ -367,49 +612,60 @@ cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
       return *pstatus;
     }
 
-  /* if nothing is opened, do nothing */
-  if(pentry->object.file.open_fd.fileno < 0)
+  rc = state_retrieve_state(*stateid, &state);
+
+  if (rc != ERR_STATE_NO_ERROR)
+    {
+      *pstatus = CACHE_INODE_STATE_ERROR;
+      return *pstatus;
+    }
+
+  if (state_delete_share(state.u.share.stateid) != ERR_STATE_NO_ERROR)
+    {
+      *pstatus = CACHE_INODE_STATE_ERROR;
+      return *pstatus;
+    }
+
+  state.u.share.openref->refcount--;
+
+  if (state.u.share.openref->refcount == 0)
+    cache_inode_kill_openref(state.u.share.openref);
+
+  memset(stateid->other, 12, 0);
+  stateid->seqid = NFS4_UINT32_MAX;
+  
+  *pstatus = CACHE_CONTENT_SUCCESS;
+  return *pstatus;
+}                               /* cache_content_close */
+
+cache_inode_status_t cache_inode_downgrade(cache_entry_t * pentry,
+					   cache_inode_client_t * pclient,
+					   cache_inode_status_t * pstatus,
+					   uint32_t share_access,
+					   uint32_t share_deny,
+					   stateid4* stateid)
+{
+  int rc;
+  taggedstate state;
+
+  rc = state_retrieve_state(*stateid, &state);
+  if (rc != ERR_STATE_NO_ERROR)
+    {
+      *pstatus = CACHE_INODE_STATE_ERROR;
+      return *pstatus;
+    }
+
+  if ((state.u.share.share_access == share_access) &&
+      (state.u.share.share_deny == share_deny))
     {
       *pstatus = CACHE_INODE_SUCCESS;
       return *pstatus;
     }
 
-  if((pclient->use_cache == 0) ||
-     (time(NULL) - pentry->object.file.open_fd.last_op > pclient->retention) ||
-     (pentry->object.file.open_fd.fileno > (int)(pclient->max_fd_per_thread)))
-    {
-
-      LogDebug(COMPONENT_CACHE_INODE, "cache_inode_close: pentry %p, fileno = %d, lastop=%d ago",
-             pentry, pentry->object.file.open_fd.fileno,
-             (int)(time(NULL) - pentry->object.file.open_fd.last_op));
-
-#ifdef _USE_MFSL
-      fsal_status = MFSL_close(&(pentry->object.file.open_fd.fd), &pclient->mfsl_context);
-#else
-      fsal_status = FSAL_close(&(pentry->object.file.open_fd.fd));
-#endif
-
-      pentry->object.file.open_fd.fileno = 0;
-      pentry->object.file.open_fd.last_op = 0;
-
-      if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
-        {
-          *pstatus = cache_inode_error_convert(fsal_status);
-
-          return *pstatus;
-        }
-    }
-#ifdef _USE_PROXY
-  /* If proxy if used, free the name if needed */
-  if(pentry->object.file.pname != NULL)
-    {
-      Mem_Free((char *)(pentry->object.file.pname));
-      pentry->object.file.pname = NULL;
-    }
-  pentry->object.file.pentry_parent_open = NULL;
-#endif
-
-  *pstatus = CACHE_CONTENT_SUCCESS;
+  if (state_downgrade_share(share_access, share_deny, stateid))
+    *pstatus = CACHE_INODE_STATE_ERROR;
+  else
+    *pstatus = CACHE_INODE_SUCCESS;
 
   return *pstatus;
-}                               /* cache_content_close */
+}

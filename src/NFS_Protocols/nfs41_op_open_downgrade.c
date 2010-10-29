@@ -24,11 +24,14 @@
  */
 
 /**
- * \file    nfs41_op_close.c
+ * \file    nfs4_op_open_downgrade.c
  * \author  $Author: deniel $
+ * \date    $Date: 2005/11/28 17:02:51 $
+ * \version $Revision: 1.8 $
  * \brief   Routines used for managing the NFS4 COMPOUND functions.
  *
- * nfs41_op_close.c : Routines used for managing the NFS4 COMPOUND functions.
+ * nfs41_op_open_downgrade.c : Routines used for managing the NFS4 COMPOUND functions.
+ *
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -69,114 +72,99 @@
 #include "nfs_exports.h"
 #include "nfs_creds.h"
 #include "nfs_proto_functions.h"
-#include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "nfs_tools.h"
 
 /**
- *
- * nfs41_op_close: Implemtation of NFS4_OP_CLOSE
+ * nfs41_op_open_downgrade: The NFS4_OP_OPEN_DOWNGRADE
  * 
- * Implemtation of NFS4_OP_CLOSE. Implementation is partial for now, so it always returns NFS4_OK.  
+ * Implements the NFS4_OP_OPEN_DOWNGRADE
  *
  * @param op    [IN]    pointer to nfs4_op arguments
  * @param data  [INOUT] Pointer to the compound request's data
  * @param resp  [IN]    Pointer to nfs4_op results
  * 
- * @return NFS4_OK 
- * 
+ * @return NFS4_OK if ok, any other value show an error.
+ *
  */
+#define arg_OPEN_DOWNGRADE4 op->nfs_argop4_u.opopen_downgrade
+#define res_OPEN_DOWNGRADE4 resp->nfs_resop4_u.opopen_downgrade
 
-#define arg_CLOSE4 op->nfs_argop4_u.opclose
-#define res_CLOSE4 resp->nfs_resop4_u.opclose
-
-int nfs41_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop4 *resp)
+int nfs41_op_open_downgrade(struct nfs_argop4 *op,
+			    compound_data_t * data, struct nfs_resop4 *resp)
 {
-  int rc = 0;
-  char __attribute__ ((__unused__)) funcname[] = "nfs4_op_close";
-  stateid4 stateid = arg_CLOSE4.open_stateid;
+  char __attribute__ ((__unused__)) funcname[] = "nfs4_op_open_downgrade";
+
   cache_inode_status_t cache_status;
+  stateid4 stateid;
 
-  memset(&res_CLOSE4, 0, sizeof(res_CLOSE4));
-  resp->resop = NFS4_OP_CLOSE;
+  resp->resop = NFS4_OP_OPEN_DOWNGRADE;
+  res_OPEN_DOWNGRADE4.status = NFS4_OK;
 
-  /* If the filehandle is Empty */
+  /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {
-      res_CLOSE4.status = NFS4ERR_NOFILEHANDLE;
-      return res_CLOSE4.status;
+      res_OPEN_DOWNGRADE4.status = NFS4ERR_NOFILEHANDLE;
+      return res_OPEN_DOWNGRADE4.status;
     }
 
   /* If the filehandle is invalid */
   if(nfs4_Is_Fh_Invalid(&(data->currentFH)))
     {
-      res_CLOSE4.status = NFS4ERR_BADHANDLE;
-      return res_CLOSE4.status;
-    }
-
-  /* Tests if the Filehandle is expired (for volatile filehandle) */
-  if(nfs4_Is_Fh_Expired(&(data->currentFH)))
-    {
-      res_CLOSE4.status = NFS4ERR_FHEXPIRED;
-      return res_CLOSE4.status;
-    }
-
-  if(data->current_entry == NULL)
-    {
-      res_CLOSE4.status = NFS4ERR_SERVERFAULT;
-      return res_CLOSE4.status;
+      res_OPEN_DOWNGRADE4.status = NFS4ERR_BADHANDLE;
+      return res_OPEN_DOWNGRADE4.status;
     }
 
 #ifdef _USE_FSALDS
   if(nfs4_Is_Fh_DSHandle(&data->currentFH))
     {
-      res_CLOSE4.status = NFS4ERR_NOTSUPP;
-      return res_CLOSE4.status;
+      res_OPEN_DOWNGRADE4.status = NFS4ERR_NOTSUPP;
+      return res_OPEN_DOWNGRADE4.status;
     }
 #endif /* _USE_FSALDS */
 
-  /* Should not operate on directories */
-  if(data->current_entry->internal_md.type == DIR_BEGINNING ||
-     data->current_entry->internal_md.type == DIR_CONTINUE)
+  /* Tests if the Filehandle is expired (for volatile filehandle) */
+  if(nfs4_Is_Fh_Expired(&(data->currentFH)))
     {
-      res_CLOSE4.status = NFS4ERR_ISDIR;
-      return res_CLOSE4.status;
+      res_OPEN_DOWNGRADE4.status = NFS4ERR_FHEXPIRED;
+      return res_OPEN_DOWNGRADE4.status;
     }
 
-  /* Object should be a file */
-  if(data->current_entry->internal_md.type != REGULAR_FILE)
+  /* Commit is done only on a file */
+  if(data->current_filetype != REGULAR_FILE)
     {
-      res_CLOSE4.status = NFS4ERR_INVAL;
-      return res_CLOSE4.status;
+      res_OPEN_DOWNGRADE4.status = NFS4ERR_INVAL;
+      return res_OPEN_DOWNGRADE4.status;
     }
 
+  stateid = arg_OPEN_DOWNGRADE4.open_stateid;
 
-  if(cache_inode_close(data->current_entry,
-                       data->pclient,
-		       &cache_status, &stateid) != CACHE_INODE_SUCCESS)
-    {
-      res_CLOSE4.status = nfs4_Errno(cache_status);
-      return res_CLOSE4.status;
-    }
+  if ((cache_status = cache_inode_downgrade(data->current_entry,
+					    data->pclient,
+					    &cache_status,
+					    arg_OPEN_DOWNGRADE4.share_access,
+					    arg_OPEN_DOWNGRADE4.share_deny,
+					    &stateid))
+      != CACHE_INODE_SUCCESS)
+    res_OPEN_DOWNGRADE4.status = nfs4_Errno(cache_status);
+  else
+    res_OPEN_DOWNGRADE4.status = NFS4_OK;
 
-  res_CLOSE4.CLOSE4res_u.open_stateid = stateid;
-  data->currentstate = stateid;
-
-  res_CLOSE4.status = NFS4_OK;
-  return NFS4_OK;
-}                               /* nfs41_op_close */
+  return res_OPEN_DOWNGRADE4.status;
+}                               /* nfs4_op_opendowngrade */
 
 /**
- * nfs41_op_close_Free: frees what was allocared to handle nfs4_op_close.
+ * nfs4_op_open_downgrade_Free: frees what was allocared to handle nfs4_op_open_downgrade.
  * 
- * Frees what was allocared to handle nfs4_op_close.
+ * Frees what was allocared to handle nfs4_op_open_downgrade.
  *
  * @param resp  [INOUT]    Pointer to nfs4_op results
  *
  * @return nothing (void function )
  * 
  */
-void nfs41_op_close_Free(CLOSE4res * resp)
+void nfs41_op_open_downgrade_Free(OPEN_DOWNGRADE4res * resp)
 {
   /* Nothing to be done */
   return;
-}                               /* nfs41_op_close_Free */
+}                               /* nfs4_op_open_downgrade_Free */

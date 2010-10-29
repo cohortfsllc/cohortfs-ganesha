@@ -119,6 +119,12 @@ int nfs_Read(nfs_arg_t * parg,
   fsal_boolean_t eof_met;
 
   cache_content_policy_data_t datapol;
+  stateid4 anon =
+    {
+      .seqid = 1,
+      .other = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+    };
 
   datapol.UseMaxCacheSize = FALSE;
 
@@ -336,6 +342,7 @@ int nfs_Read(nfs_arg_t * parg,
                           &seek_descriptor,
                           size,
                           &read_size,
+			  anon,
                           &attr,
                           data,
                           &eof_met,

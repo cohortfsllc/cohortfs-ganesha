@@ -110,6 +110,15 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   cache_inode_create_arg_t create_arg;
 
+  stateid4 anon =
+    {
+      .seqid = 1,
+      .other = {0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff}
+    };
+
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_create";
   unsigned int i = 0;
 
@@ -488,6 +497,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                              data->ht,
                                              data->pclient,
                                              data->pcontext,
+					     anon,
                                              &cache_status)) != CACHE_INODE_SUCCESS)
 
         {

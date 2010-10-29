@@ -185,6 +185,12 @@ typedef struct cache_inode_parameter__
   hash_parameter_t hparam;                      /**< Parameter used for hashtable initialization */
 } cache_inode_parameter_t;
 
+typedef struct openref_parameter__
+{
+  size_t nb_openref_prealloc;
+  hash_parameter_t hparam;                      /**< Parameter used for hashtable initialization */
+} cache_inode_openref_params_t;
+
 typedef struct cache_inode_client_parameter__
 {
   LRU_parameter_t lru_param;                           /**< LRU list handle (used for gc)                    */
@@ -377,14 +383,20 @@ typedef struct cache_inode_fsal_data__
   struct cache_inode_fsal_data__ *next_alloc;   /**< For STUFF_ALLOC macro */
 } cache_inode_fsal_data_t;
 
-typedef struct __openref
+typedef struct __cache_inode_openref_key
 {
-    fsal_handle_t handle;
-    fsal_op_context_t context;
-    fsal_file_t* descriptor;
-    fsal_openflags_t openflags;
-    uint32_t refcount;
-} openref_t;
+  fsal_handle_t handle;
+  uid_t uid;
+} cache_inode_openref_key_t;
+
+typedef struct __cache_inode_openref
+{
+  cache_inode_openref_key_t key;
+  fsal_file_t descriptor;
+  fsal_openflags_t openflags;
+  uint32_t refcount;
+  struct __cache_inode_openref* next_alloc;
+} cache_inode_openref_t;
 
 typedef struct cache_inode_client__
 {
@@ -393,9 +405,6 @@ typedef struct cache_inode_client__
   cache_inode_dir_data_t *pool_dir_data;   /**< Worker's preallocad cache directory data pool */
   cache_inode_parent_entry_t *pool_parent; /**< Pool of pointers to the parent entries */
   cache_inode_fsal_data_t *pool_key;       /**< Pool for building hash's keys */
-  openref_t *opernef_pool;                 /**< Pool for reference
-					        counted file
-					        descriptors */
 #ifdef _USE_NFS4_1
   nfs41_session_t *pool_session;           /**< Pool for NFSv4.1 session */
 #ifdef _USE_PNFS
@@ -450,6 +459,8 @@ typedef union cache_inode_create_arg__
   fsal_dev_t dev_spec;
   bool_t use_pnfs;
 } cache_inode_create_arg_t;
+
+extern hash_table_t* openref_ht;
 
 #define DIR_START     0
 
@@ -565,11 +576,16 @@ cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
                                        cache_inode_status_t * pstatus);
 #endif
 
-cache_inode_status_t cache_inode_open(cache_entry_t * pentry,
-                                      cache_inode_client_t * pclient,
-                                      fsal_openflags_t openflags,
-                                      fsal_op_context_t * pcontext,
-                                      cache_inode_status_t * pstatus);
+cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
+                                      cache_inode_client_t* pclient,
+				      uint32_t share_access,
+				      uint32_t share_deny,
+				      clientid4 clientid,
+				      open_owner4 open_owner,
+				      stateid4* stateid,
+                                      fsal_op_context_t*  pcontext,
+				      uid_t uid,
+                                      cache_inode_status_t*  pstatus);
 
 cache_inode_status_t cache_inode_open_by_name(cache_entry_t * pentry,
                                               fsal_name_t * pname,
@@ -581,7 +597,8 @@ cache_inode_status_t cache_inode_open_by_name(cache_entry_t * pentry,
 
 cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
                                        cache_inode_client_t * pclient,
-                                       cache_inode_status_t * pstatus);
+                                       cache_inode_status_t * pstatus,
+				       stateid4* stateid);
 
 cache_entry_t *cache_inode_create(cache_entry_t * pentry_parent,
                                   fsal_name_t * pname,
@@ -714,11 +731,13 @@ cache_inode_status_t cache_inode_rename(cache_entry_t * pentry,
                                         fsal_op_context_t * pcontext,
                                         cache_inode_status_t * pstatus);
 
-cache_inode_status_t cache_inode_setattr(cache_entry_t * pentry, fsal_attrib_list_t * pattr,    /* INOUT */
-                                         hash_table_t * ht,
+cache_inode_status_t cache_inode_setattr(cache_entry_t * pentry,
+					 fsal_attrib_list_t * pattr,
+					 hash_table_t * ht,
                                          cache_inode_client_t * pclient,
                                          fsal_op_context_t * pcontext,
-                                         cache_inode_status_t * pstatus);
+					 stateid4 stateid,
+                                         cache_inode_status_t* pstatus);
 
 cache_inode_status_t cache_inode_truncate_sw(cache_entry_t * pentry,
                                              fsal_size_t length,
@@ -774,14 +793,16 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                                       cache_inode_io_direction_t read_or_write,
                                       fsal_seek_t * seek_descriptor,
                                       fsal_size_t buffer_size,
-                                      fsal_size_t * pread_size,
+                                      fsal_size_t * pio_size,
+				      stateid4 stateid,
                                       fsal_attrib_list_t * pfsal_attr,
                                       caddr_t buffer,
                                       fsal_boolean_t * p_fsal_eof,
                                       hash_table_t * ht,
                                       cache_inode_client_t * pclient,
                                       fsal_op_context_t * pcontext,
-                                      bool_t stable, cache_inode_status_t * pstatus);
+                                      bool_t stable,
+                                      cache_inode_status_t * pstatus);
 
 #define cache_inode_read( a, b, c, d, e, f, g, h, i, j, k ) cache_inode_rdwr( a, CACHE_INODE_READ, b, c, d, e, f, g, h, i, j, k )
 #define cache_inode_write( a, b, c, d, e, f, g, h, i, j, k ) cache_inode_rdwr( a, CACHE_INODE_WRITE, b, c, d, e, f, g, h, i, j. k )
@@ -948,4 +969,12 @@ int display_key(hash_buffer_t * pbuff, char *str);
 int display_not_implemented(hash_buffer_t * pbuff, char *str);
 int display_value(hash_buffer_t * pbuff, char *str);
 
+int openref_init(cache_inode_openref_params_t params);
+unsigned long cache_inode_openref_hash_func(p_hash_parameter_t param,
+					    hash_buffer_t* key);
+unsigned long cache_inode_openref_rbt_func(p_hash_parameter_t param,
+					   hash_buffer_t* key);
+int cache_inode_compare_key_openref(hash_buffer_t* key1,
+				    hash_buffer_t* key2);
+int cache_inode_display_openref(hash_buffer_t* key, char* str);
 #endif                          /*  _CACHE_INODE_H */

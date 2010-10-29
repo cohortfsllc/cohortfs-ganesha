@@ -399,12 +399,6 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
 #endif
       pentry->object.file.attributes = fsal_attributes;
       pentry->object.file.pentry_content = NULL;        /* Not yet a File Content entry associated with this entry */
-      pentry->object.file.pstate_head = NULL;   /* No associated client yet                                */
-      pentry->object.file.pstate_tail = NULL;   /* No associated client yet                                */
-      pentry->object.file.open_fd.fileno = 0;
-      pentry->object.file.open_fd.last_op = 0;
-      pentry->object.file.open_fd.openflags = 0;
-      memset(&(pentry->object.file.open_fd.fd), 0, sizeof(fsal_file_t));
       memset(&(pentry->object.file.unstable_data), 0,
              sizeof(cache_inode_unstable_data_t));
 #ifdef _USE_PROXY
@@ -857,30 +851,8 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
   /* Add a call to the GC counter */
   pclient->call_since_last_gc += 1;
 
-  /* If open/close fd cache is used for FSAL, manage it here */
-    LogFullDebug(COMPONENT_CACHE_INODE, "--------> use_cache=%u fileno=%d last_op=%u time(NULL)=%u delta=%d retention=%u",
-       pclient->use_cache, pentry->object.file.open_fd.fileno,
-       pentry->object.file.open_fd.last_op, time(NULL),
-       time(NULL) - pentry->object.file.open_fd.last_op, pclient->retention);
-
   if(pentry->internal_md.type == REGULAR_FILE)
     {
-      if(pclient->use_cache == 1)
-        {
-          if(pentry->object.file.open_fd.fileno != 0)
-            {
-              if(time(NULL) - pentry->object.file.open_fd.last_op > pclient->retention)
-                {
-                  if(cache_inode_close(pentry, pclient, &cache_status) !=
-                     CACHE_INODE_SUCCESS)
-                    {
-                      /* Bad close */
-                      return cache_status;
-                    }
-                }
-            }
-        }
-
       /* Same of local fd cache */
       pclient_content = (cache_content_client_t *) pclient->pcontent_client;
       pentry_content = (cache_content_entry_t *) pentry->object.file.pentry_content;

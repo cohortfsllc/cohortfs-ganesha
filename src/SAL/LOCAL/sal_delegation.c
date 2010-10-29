@@ -25,7 +25,6 @@
 #include "sal.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
-#include "nfs_log.h"
 #include "log_macros.h"
 #include "sal_internal.h"
 
@@ -35,25 +34,25 @@
  * These functions realise delegation state functionality.
  ***********************************************************************/
 
-void update_delegations(entryheader* entry)
+void update_delegations(entryheader_t* entry)
 {
-    state* cur = NULL;
+    state_t* cur = NULL;
     
     entry->read_delegations = 0;
-    entry->write_delegations = 0;
+    entry->write_delegation = 0;
 
     while (iterate_entry(entry, &cur))
 	{
-	    if (cur->type != delegation)
+	    if (cur->type != STATE_DELEGATION)
 		continue;
-	    if (cur->u.delegation.type == OPEN_DELEGATE_READ)
+	    if (cur->state.delegation.type == OPEN_DELEGATE_READ)
 		{
-		    header->read_delegations = 1;
+		    entry->read_delegations = 1;
 		    break;
 		}
-	    else if (cur->u.delegation.type == OPEN_DELEGATE_WRITE)
+	    else if (cur->state.delegation.type == OPEN_DELEGATE_WRITE)
 		{
-		    header->write_delegations = 1;
+		    entry->write_delegation = 1;
 		    break;
 		}
 	}
@@ -63,8 +62,8 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 				 open_delegation_type4 type,
 				 nfs_space_limit4 limit, stateid4* stateid)
 {
-    entryheader* header;
-    state* state;
+    entryheader_t* header;
+    state_t* state;
     int rc = 0;
 
     if ((type != OPEN_DELEGATE_READ) &&
@@ -87,12 +86,12 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
     /* Check for potential conflicts */
 
     if ((header->max_share & OPEN4_SHARE_ACCESS_WRITE) ||
-	(header->nfs23writers) ||
+	(header->anonwriters) ||
 	(header->max_deny & OPEN4_SHARE_DENY_READ) ||
-	(header->write_delegations) ||
+	(header->write_delegation) ||
 	(type == OPEN_DELEGATE_WRITE &&
 	 (header->max_share ||
-	  header->nfs23writers ||
+	  header->anonwriters ||
 	  header->read_delegations)))
 	{
 	    pthread_rwlock_unlock(&(header->lock));
@@ -111,30 +110,27 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 	    return ERR_STATE_FAIL;
 	}
 
-    state->type = delegation;
-    state->u.delegation.type =  type;
-    state->u.delegation.limit = limit;
+    state->type = STATE_DELEGATION;
+    state->state.delegation.type =  type;
+    state->state.delegation.limit = limit;
 
-    *stateid = header->stateid;
+    *stateid = state->stateid;
     pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
 int localstate_delete_delegation(stateid4 stateid)
 {
-    state* state;
-    entryheader* header;
+    state_t* state;
+    entryheader_t* header;
     int rc;
 
     if (rc = lookup_state_and_lock(stateid, &state, &header, true))
-	{
-	    LogError(COMPONENT_STATES,
-		     "state_delete_delegation: could not find state.");
-	}
+	return rc;
 
-    state->u.delegation.type = 0;
-    update_delegations(entry);
-    rc = killstate(state);
+    state->state.delegation.type = 0;
+    update_delegations(header);
+    killstate(state);
     
     return ERR_STATE_NO_ERROR;
 }
@@ -142,8 +138,8 @@ int localstate_delete_delegation(stateid4 stateid)
 int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 				delegationstate* outdelegation)
 {
-    entryheader* header;
-    state* cur = NULL;
+    entryheader_t* header;
+    state_t* cur = NULL;
     int rc = 0;
     
     /* Retrieve or create header for per-filehandle chain */
@@ -157,7 +153,7 @@ int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     while (iterate_entry(header, &cur))
 	{
-	    if ((cur->type = delegation) &&
+	    if ((cur->type = STATE_DELEGATION) &&
 		(cur->clientid == clientid))
 		break;
 	    else
@@ -172,33 +168,33 @@ int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     memset(outdelegation, 0, sizeof(delegationstate));
 
-    filldelegation(cur, outdelegation, header);
+    filldelegationstate(cur, outdelegation, header);
 
     pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
 
-void filldelegationstate(state* cur, delegationstate outdelegation,
-			 entryheader* header)
+void filldelegationstate(state_t* cur, delegationstate* outdelegation,
+			 entryheader_t* header)
 {
     outdelegation->handle = header->handle;
     outdelegation->stateid = cur->stateid;
     outdelegation->clientid = cur->clientid;
-    outdelegation->u.delegation.type = cur->u.delegation.type;
-    outdelegation->u.delegation.limit = cur->u.delegation.limit;
+    outdelegation->type = cur->state.delegation.type;
+    outdelegation->limit = cur->state.delegation.limit;
 }
 
 int localstate_check_delegation(fsal_handle_t *handle,
 				open_delegation_type4 type)
 {
-    entryheader* header;
+    entryheader_t* header;
     
     if ((type != OPEN_DELEGATE_READ) &&
 	(type != OPEN_DELEGATE_WRITE))
       {
 	LogDebug(COMPONENT_STATES,
-		 "state_check_delegation: attempt to create delegation of invalid type.");
+		 "state_check_delegation: attempt to interrogate delegation of invalid type.");
 	return ERR_STATE_INVAL;
       }
     
@@ -213,8 +209,8 @@ int localstate_check_delegation(fsal_handle_t *handle,
 
     pthread_rwlock_unlock(&(header->lock));
 
-    if (type == OPEN_DLEGATE_READ)
+    if (type == OPEN_DELEGATE_READ)
 	return header->read_delegations;
     else
-	return header->write_delegations;
+	return header->write_delegation;
 }

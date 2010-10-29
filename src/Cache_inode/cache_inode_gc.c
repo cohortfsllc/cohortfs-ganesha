@@ -665,19 +665,6 @@ int cache_inode_gc_fd_func(LRU_entry_t * plru_entry, void *addparam)
   /* Get the entry */
   pentry = (cache_entry_t *) (plru_entry->buffdata.pdata);
 
-  /* check if a file descriptor is opened on the file for a long time */
-
-  if((pentry->internal_md.type == REGULAR_FILE)
-     && (pentry->object.file.open_fd.fileno != 0)
-     && (time(NULL) - pentry->object.file.open_fd.last_op > pgcparam->pclient->retention))
-    {
-      P_w(&pentry->lock);
-      cache_inode_close(pentry, pgcparam->pclient, &status);
-      V_w(&pentry->lock);
-
-      pgcparam->nb_to_be_purged--;
-    }
-
   /* return true for continuing */
   if(pgcparam->nb_to_be_purged == 0)
     return FALSE;

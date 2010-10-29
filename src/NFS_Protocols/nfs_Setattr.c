@@ -112,6 +112,12 @@ int nfs_Setattr(nfs_arg_t * parg,
   cache_inode_status_t cache_status;
   int rc;
   int do_trunc = FALSE;
+  stateid4 anon =
+    {
+      .seqid = 1,
+      .other = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+    };
 
   if(preq->rq_vers == NFS_V3)
     {
@@ -262,7 +268,9 @@ int nfs_Setattr(nfs_arg_t * parg,
             {
               cache_status = cache_inode_setattr(pentry,
                                                  &setattr,
-                                                 ht, pclient, pcontext, &cache_status);
+                                                 ht, pclient,
+						 pcontext, anon,
+						 &cache_status);
             }
           else
             cache_status = CACHE_INODE_SUCCESS;
@@ -273,7 +281,8 @@ int nfs_Setattr(nfs_arg_t * parg,
       else
         cache_status = cache_inode_setattr(pentry,
                                            &setattr,
-                                           ht, pclient, pcontext, &cache_status);
+                                           ht, pclient, pcontext,
+					   anon, &cache_status);
     }
 
   if(cache_status == CACHE_INODE_SUCCESS)

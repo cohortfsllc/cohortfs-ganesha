@@ -1507,6 +1507,8 @@ void FSAL_LoadDSFunctions(void);
 
 /* Callback cookies */
 
+#ifdef _USE_FSALMDS
+
 struct lg_cbc
 {
   void* current_entry;
@@ -1517,6 +1519,7 @@ struct lg_cbc
   void* created_state;
   void* passed_state;
 };
+
 
 int FSALBACK_layout_add_state(fsal_layouttype_t type,
 			      fsal_layoutiomode_t iomode,
@@ -1531,5 +1534,7 @@ int FSALBACK_layout_add_state(fsal_layouttype_t type,
 int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
 			 void* cookie);
 int FSALBACK_layout_remove_state(void* opaque);
+
+#endif
 
 #endif                          /* _FSAL_H */

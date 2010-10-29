@@ -110,8 +110,6 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
   resp->resop = NFS4_OP_COMMIT;
   res_COMMIT4.status = NFS4_OK;
 
-  LogFullDebug(COMPONENT_NFS_V4, "      COMMIT4: Demande de commit sur offset = %llu, size = %llu\n",
-
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

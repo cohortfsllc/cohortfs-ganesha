@@ -6,14 +6,19 @@ noinst_LTLIBRARIES          = libsallocal.la
 libsallocal_la_SOURCES = sal_init.c           \
 			 sal_internal.c       \
 			 sal_internal.h       \
+			 sal_compat.c         \
 			 sal_share.c          \
 			 sal_delegation.c     \
 			 sal_dir_delegation.c \
 			 sal_lock.c           \
-			 sal_layout.c         \
 			 sal_tools.c          \
-			 sal_compat.c          \
-                        ../../include/sal.h
+			 sal_compat.c         \
+			 ../../include/sal.h
+if USE_FSALMDS
+libsallocal_la_SOURCES += sal_layout.c
+endif
+
+
 new: clean all
 
 doc:

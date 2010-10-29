@@ -819,6 +819,10 @@ int nfs41_op_open(struct nfs_argop4 *op,        /* [IN] NFS4 OP arguments */
                   compound_data_t * data,       /* [IN] current data for the compound request */
                   struct nfs_resop4 *resp);     /* [OUT] NFS4 OP results */
 
+int nfs41_op_open_downgrade(struct nfs_argop4 *op,       /* [IN] NFS4 OP arguments */
+			    compound_data_t * data,      /* [IN] current data for the compound request */
+			    struct nfs_resop4 *resp);    /* [OUT] NFS4 OP results */
+
 int nfs41_op_lock(struct nfs_argop4 *op,        /* [IN] NFS4 OP arguments */
                   compound_data_t * data,       /* [IN] current data for the compound request */
                   struct nfs_resop4 *resp);     /* [OUT] NFS4 OP results */
@@ -1504,5 +1508,5 @@ int idmap_compute_hash_value(char *name, uint32_t * phashval);
 
 int nfs4_Is_Fh_Referral(nfs_fh4 * pfh);
 int nfs4_Set_Fh_Referral(nfs_fh4 * pfh);
-
+int nfs4_finduid(compound_data_t* data, uid_t* uid);
 #endif
