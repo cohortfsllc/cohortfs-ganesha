@@ -35,31 +35,108 @@
 int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 {
     entryheader_t* header;
+    hash_buffer_t key, val;
+    int rc = 0;
     
-    /* Retrieve or create header for per-filehandle chain */
+    key.pdata = (caddr_t)handle;
+    key.len = sizeof(fsal_handle_t);
+    
+    rc = HashTable_Get(entrytable, &key, &val);
+    
+    /* First, try to fetch and lock */
   
-    if (rw)
+    if (rc == HASHTABLE_SUCCESS)
 	{
-	    if (!(header = header_for_write(handle)))
+	    header = (entryheader_t*)val.pdata;
+	    if (rw == readlock)
+		rc = pthread_rwlock_rdlock(&(header->lock));
+	    else if (rw == writelock)
+		rc = pthread_rwlock_wrlock(&(header->lock));
+	    else
+		return ERR_STATE_INVAL;
+	    if (rc != 0)
+		return ERR_STATE_FAIL;
+
+	    return ERR_STATE_NO_ERROR;
+	}
+    else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
+	{
+	    /* Create,for a write lock */
+	    if (rw == writelock)
 		{
-		    LogMajor(COMPONENT_STATES,
-			     "state_lock_filehandle: could not find/create header entry.");
-		    return ERR_STATE_FAIL;
+		    if (!pthread_mutex_lock(&entrymutex))
+			return ERR_STATE_FAIL;
+		    
+		    /* Make sure no one created the entry while we were
+		       waiting for the mutex */
+		    
+		    rc = HashTable_Get(entrytable, &key, &val);
+		    
+		    if (rc == HASHTABLE_SUCCESS)
+			{
+			    header = (entryheader_t*) val.pdata;
+			    rc = pthread_rwlock_wrlock(&(header->lock));
+			    pthread_mutex_unlock(&entrymutex);
+			    if (rc != 0)
+				return ERR_STATE_FAIL;
+			    else
+				return ERR_STATE_NO_ERROR;
+			}
+		    if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
+			{
+			    /* Really should be impossible */
+			    pthread_mutex_unlock(&entrymutex);
+			    return ERR_STATE_FAIL;
+			}
+		    
+		    /* We may safely create the entry */
+		    
+		    GET_PREALLOC(header, entryheaderpool, 1, entryheader_t,
+				 next_alloc);
+		    
+		    if (!header)
+			{
+			    pthread_mutex_unlock(&entrymutex);
+			    return ERR_STATE_FAIL;
+			}
+		    
+		    /* Copy, since it looks like the HashTable code depends on
+		       keys not going away */
+		    
+		    header->handle = *handle;
+		    key.pdata = (caddr_t)&(header->handle);
+		    
+		    pthread_rwlock_init(&(header->lock), NULL);
+		    
+		    pthread_rwlock_wrlock(&(header->lock));
+		    
+		    val.pdata = (caddr_t)header;
+		    val.len = sizeof(entryheader_t);
+		    
+		    rc = HashTable_Test_And_Set(entrytable, &key, &val,
+						HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+		    
+		    pthread_mutex_unlock(&entrymutex);
+		    
+		    if (rc == HASHTABLE_SUCCESS)
+			return ERR_STATE_NO_ERROR;
+		    else
+			{
+			    pthread_rwlock_unlock(&(header->lock));
+			    RELEASE_PREALLOC(header, entryheaderpool, next_alloc);
+			    return ERR_STATE_FAIL;
+			}
 		}
+	    /* For a readlock, return not found */
+	    else if (rw == readlock)
+		return ERR_STATE_NOENT;
+	    else
+		return ERR_STATE_INVAL;
 	}
     else
-	{
-	    if (!(header = header_for_read(handle)))
-		{
-		    LogMajor(COMPONENT_STATES,
-			     "state_lock_filehandle: could not find/create header entry.");
-		    return ERR_STATE_FAIL;
-		}
-	}
-
-    return ERR_STATE_NO_ERROR;
+	return ERR_STATE_FAIL;
 }
-
+    
 /*
  * Unlocks the filehandle.
  */
@@ -78,11 +155,21 @@ int localstate_unlock_filehandle(fsal_handle_t *handle)
     if (rc == HASHTABLE_SUCCESS)
 	{
 	    header = (entryheader_t*)val.pdata;
-	    rc = pthread_rwlock_unlock(&(header->lock));
-	    if (rc != 0 || !(header->valid))
-		return ERR_STATE_FAIL;
+	    if (!(header->states))
+		{
+		    key.pdata = (caddr_t)&(header->handle);
+		    key.len = sizeof(fsal_handle_t);
+		    if (HashTable_Del(entrytable, &key, NULL, NULL) !=
+			HASHTABLE_SUCCESS)
+			LogMajor(COMPONENT_STATES,
+				 "killstate: unable to remove header from hash table.");
+		    rc = pthread_rwlock_unlock(&(header->lock));
+		    RELEASE_PREALLOC(header, entryheaderpool,
+				     next_alloc);
+		}
 	    else
-		return ERR_STATE_NO_ERROR;
+		rc = pthread_rwlock_unlock(&(header->lock));
+	    return rc ? ERR_STATE_FAIL : ERR_STATE_NO_ERROR;
 	}
     else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	return ERR_STATE_NOENT;
@@ -100,7 +187,7 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 
     *finished = false;
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_iterate_by_filehandle: could not find/create header entry.");
@@ -116,10 +203,7 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 	cur = cur->nextfh;
 
     if (cur == NULL)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_NOENT;
-	}
+      return ERR_STATE_NOENT;
 
     next = cur->nextfh;
 
@@ -134,8 +218,6 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
 	*finished = true;
 
     filltaggedstate(cur, outstate);
-
-    pthread_rwlock_unlock(&(header->lock));
 
     return(ERR_STATE_NO_ERROR);
 }

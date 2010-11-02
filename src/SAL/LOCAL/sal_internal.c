@@ -274,12 +274,7 @@ hash_table_t* init_lockownertable(void)
     return lockownertable;
 }
 
-/*
- * Fetches an entry header and write locks it.  If the header does not
- * exist, creates it in the table.
- */
-
-entryheader_t* header_for_write(fsal_handle_t* handle)
+entryheader_t* lookupheader(fsal_handle_t* handle)
 {
     hash_buffer_t key, val;
     entryheader_t* header;
@@ -293,99 +288,7 @@ entryheader_t* header_for_write(fsal_handle_t* handle)
     if (rc == HASHTABLE_SUCCESS)
 	{
 	    header = (entryheader_t*)val.pdata;
-	    rc = pthread_rwlock_wrlock(&(header->lock));
-	    if (rc != 0 || !(header->valid))
-		return NULL;
-	    else
-		return header;
-	}
-    else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
-	{
-	    if (!pthread_mutex_lock(&entrymutex))
-		return NULL;
-
-	    /* Make sure no one created the entry while we were
-	       waiting for the mutex */
-
-	    rc = HashTable_Get(entrytable, &key, &val);
-	    
-	    if (rc == HASHTABLE_SUCCESS)
-		{
-		    header = (entryheader_t*) val.pdata;
-		    rc = pthread_rwlock_wrlock(&(header->lock));
-		    pthread_mutex_unlock(&entrymutex);
-		    if (rc != 0 || !(header->valid))
-			return NULL;
-		    else
-			return header;
-		}
-	    if (rc != HASHTABLE_ERROR_NO_SUCH_KEY)
-		{
-		    /* Really should be impossible */
-		    pthread_mutex_unlock(&entrymutex);
-		    return NULL;
-		}
-
-	    /* We may safely create the entry */
-	    
-	    GET_PREALLOC(header, entryheaderpool, 1, entryheader_t,
-			 next_alloc);
-
-	    if (!header)
-		{
-		    pthread_mutex_unlock(&entrymutex);
-		    return NULL;
-		}
-
-	    /* Copy, since it looks like the HashTable code depends on
-	       keys not going away */
-	    
-	    header->handle = *handle;
-	    key.pdata = (caddr_t)&(header->handle);
-
-	    pthread_rwlock_init(&(header->lock), NULL);
-
-	    pthread_rwlock_wrlock(&(header->lock));
-
-	    header->valid = 1;
-	    val.pdata = (caddr_t)header;
-	    val.len = sizeof(entryheader_t);
-	    
-	    rc = HashTable_Test_And_Set(entrytable, &key, &val,
-					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
-
-	    pthread_mutex_unlock(&entrymutex);
-	    if (rc == HASHTABLE_SUCCESS)
-		return header;
-	    else
-		{
-		    pthread_rwlock_unlock(&(header->lock));
-		    header->valid = 0;
-		    RELEASE_PREALLOC(header, entryheaderpool, next_alloc);
-		}
-	}
-    return NULL ;
-}
-
-entryheader_t* header_for_read(fsal_handle_t* handle)
-{
-    hash_buffer_t key, val;
-    entryheader_t* header;
-    int rc = 0;
-
-    key.pdata = (caddr_t)handle;
-    key.len = sizeof(fsal_handle_t);
-
-    rc = HashTable_Get(entrytable, &key, &val);
-
-    if (rc == HASHTABLE_SUCCESS)
-	{
-	    header = (entryheader_t*)val.pdata;
-	    rc = pthread_rwlock_wrlock(&(header->lock));
-	    if (rc != 0 || !(header->valid))
-		return NULL;
-	    else
-		return header;
+	    return header;
 	}
     return NULL;
 }
@@ -469,29 +372,6 @@ state_t* iterate_entry(entryheader_t* entry, state_t** state)
     return *state;
 }
 
-int lookup_state_and_lock(stateid4 stateid, state_t** state,
-			  entryheader_t** header, bool_t write)
-{
-    int rc = 0;
-    
-    rc = lookup_state(stateid, state);
-    if (rc != ERR_STATE_NO_ERROR)
-	return rc;
-	
-    rc = 0;
-    if (write)
-	rc = pthread_rwlock_wrlock(&((*state)->header->lock));
-    else
-	rc = pthread_rwlock_rdlock(&((*state)->header->lock));
-
-    *header = (*state)->header;
-
-    if (rc || !((*state)->header->valid))
-	return ERR_STATE_NOENT;
-
-    return ERR_STATE_NO_ERROR;
-}
-
 int lookup_state(stateid4 stateid, state_t** state)
 {
     int rc = 0;
@@ -520,7 +400,7 @@ int lookup_state(stateid4 stateid, state_t** state)
     else if (stateid.seqid > (*state)->stateid.seqid)
 	return ERR_STATE_BADSEQ;
     else
-	return ERR_STATE_NO_ERROR;
+      return ERR_STATE_NO_ERROR;
 }
 
 void unchain(state_t* state)
@@ -563,21 +443,6 @@ void killstate(state_t* state)
 		 "killstate: unable to remove stateid from hash table.");
 	
     RELEASE_PREALLOC(state, statepool, next_alloc);
-
-    if (!(header->states))
-	{
-	    header->valid = 0;
-	    key.pdata = (caddr_t)&(header->handle);
-	    key.len = sizeof(fsal_handle_t);
-	    if (HashTable_Del(entrytable, &key, NULL, NULL) !=
-		HASHTABLE_SUCCESS)
-		LogMajor(COMPONENT_STATES,
-			 "killstate: unable to remove header from hash table.");
-	    pthread_rwlock_unlock(&(header->lock));
-	    RELEASE_PREALLOC(header, entryheaderpool, next_alloc);
-	}
-    else
-	pthread_rwlock_unlock(&(header->lock));
 }
 
 void filltaggedstate(state_t* state, taggedstate* outstate)

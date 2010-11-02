@@ -49,7 +49,7 @@ int localstate_create_lock_state(fsal_handle_t *handle,
 
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_lock_state: could not find/create header entry.");
@@ -59,10 +59,7 @@ int localstate_create_lock_state(fsal_handle_t *handle,
     rc = lookup_state(open_stateid, &openstate);
 
     if (rc == ERR_STATE_NO_ERROR)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return rc;
-	}
+      return rc;
 
     if (!(owner
 	  = acquire_owner(lock_owner.owner.owner_val,
@@ -75,16 +72,12 @@ int localstate_create_lock_state(fsal_handle_t *handle,
 	}
 
     if (!(state->type != STATE_SHARE))
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_INVAL;
-	}
+      return ERR_STATE_INVAL;
 
     /* Create and fill in new entry */
     
     if (!(state = newstate(clientid, header)))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_lock_state: Unable to create new state.");
 	    return ERR_STATE_FAIL;
@@ -102,7 +95,6 @@ int localstate_create_lock_state(fsal_handle_t *handle,
     state->state.lock.lockdata = lockdata;
     
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -113,8 +105,10 @@ int localstate_delete_lock_state(stateid4 stateid)
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state(stateid, &state))
 	return rc;
+
+    header = state->header;
 
     state->type = STATE_ANY;
 
@@ -152,7 +146,7 @@ int localstate_query_lock_state(fsal_handle_t* handle,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_query_lock: could not find header entry.");
@@ -186,14 +180,9 @@ int localstate_query_lock_state(fsal_handle_t* handle,
 	}
 
     if (!cur)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_NOENT;
-	}
+      return ERR_STATE_NOENT;
 
     memset(outlockstate, 0, sizeof(lockstate));
-
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -219,19 +208,17 @@ int localstate_lock_inc_state(stateid4* stateid)
     entryheader_t* header;
     int rc;
     
-    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
+    if (rc = lookup_state(*stateid, &state))
 	return ERR_STATE_FAIL;
 
+    header = state->header;
+
     if (state->type != STATE_LOCK)
-	{
-	    pthread_rwlock_unlock(&(state->header->lock));
-	    return ERR_STATE_INVAL;
-	}
+      return ERR_STATE_INVAL;
 
     ++state->stateid.seqid;
 
     *stateid = state->stateid;
 
-    pthread_rwlock_unlock(&(state->header->lock));
     return ERR_STATE_NO_ERROR;
 }

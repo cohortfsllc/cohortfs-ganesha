@@ -468,7 +468,7 @@ int open_name41(struct nfs_argop4* op, compound_data_t* data,
 	}
     }
 
-  if (cache_inode_open(data->current_entry,
+  if (cache_inode_open(pentry,
 		       data->pclient,
 		       arg_OPEN4.share_access & OPEN4_SHARE_ACCESS_BOTH,
 		       arg_OPEN4.share_deny & OPEN4_SHARE_DENY_BOTH,
@@ -592,7 +592,7 @@ int create_name41(struct nfs_argop4* op, compound_data_t* data,
       sattr.mode = FSAL_MODE_RUSR | FSAL_MODE_WUSR;
     }
 
-  if ((status = cache_inode_getattr(pentry,
+  if ((status = cache_inode_getattr(pentry_parent,
 				    &attr,
 				    data->ht,
 				    data->pclient,

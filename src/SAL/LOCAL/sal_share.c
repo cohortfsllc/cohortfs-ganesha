@@ -94,7 +94,7 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_share: could not find/create header entry.");
@@ -116,7 +116,6 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
 
     if (rc = share_conflict(header, owner, share_access, share_deny))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_share: share conflict.");
 	    return rc;
@@ -126,7 +125,6 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
 
     if (!(state = newstate(clientid, header)))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_share: Unable to create new state.");
 	    return ERR_STATE_FAIL;
@@ -145,7 +143,6 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
     owner->refcount++;
 
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -153,14 +150,15 @@ int localstate_check_share(fsal_handle_t handle, uint32_t share_access,
 		      uint32_t share_deny)
 {
   entryheader_t* header;
+  int rc;
 
-  if (!(header = header_for_read(&handle)))
+  if (!(header = lookupheader(&handle)))
     {
-      LogMajor(COMPONENT_STATES,
-	       "state_check_share: could not find/create header entry.");
-      return ERR_STATE_FAIL;
+      /* No header, no conflict */
+      return ERR_STATE_NO_ERROR;
     }
-  return share_conflict(header, NULL, share_access, share_deny);
+  rc = share_conflict(header, NULL, share_access, share_deny);
+  return rc;
 }
 
 int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
@@ -170,17 +168,15 @@ int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
+    if (rc = lookup_state(*stateid, &state))
 	{
 	    LogDebug(COMPONENT_STATES,
 		     "state_upgrade_share: could not find state.");
 	}
 
+    header = state->header;
     if (rc = share_conflict(header, NULL, share_access, share_deny))
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return rc;
-	}
+      return rc;
     state->state.share.share_access |= share_access;
     state->state.share.share_deny |= share_deny;
     state->stateid.seqid++;
@@ -190,7 +186,6 @@ int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
     header->max_deny |= share_deny;
     
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -201,15 +196,13 @@ int localstate_downgrade_share(uint32_t share_access, uint32_t share_deny,
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
+    if (rc = lookup_state(*stateid, &state))
 	    return rc;
 
+    header = state->header;
     if ((share_access & ~state->state.share.share_access) ||
 	(share_deny & ~state->state.share.share_deny))
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_INVAL;
-	}
+      return ERR_STATE_INVAL;
 
     state->state.share.share_access = share_access;
     state->state.share.share_deny = share_deny;
@@ -220,7 +213,6 @@ int localstate_downgrade_share(uint32_t share_access, uint32_t share_deny,
     updatemax(header);
     
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -230,14 +222,12 @@ int localstate_delete_share(stateid4 stateid)
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state(stateid, &state))
 	return rc;
 
+    header = state->header;
     if (state->state.share.locks)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_LOCKSHELD;
-	}
+      return ERR_STATE_LOCKSHELD;
 
     state->state.share.share_access = 0;
     state->state.share.share_deny = 0;
@@ -265,11 +255,10 @@ int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
-	    LogMajor(COMPONENT_STATES,
-		     "state_query_share: could not find header entry.");
-	    return ERR_STATE_FAIL;
+	  /* No header, no state */
+	  return ERR_STATE_NOENT;
 	}
 
     if (!(owner
@@ -298,16 +287,11 @@ int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
 	}
 
     if (!cur)
-    {
-	pthread_rwlock_unlock(&(header->lock));
-	return ERR_STATE_NOENT;
-    }
+      return ERR_STATE_NOENT;
 
     memset(outshare, 0, sizeof(sharestate));
     
     fillsharestate(cur, outshare, header);
-
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -336,7 +320,7 @@ int localstate_start_32read(fsal_handle_t *handle)
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_start_32read: could not find/create header entry.");
@@ -350,7 +334,6 @@ int localstate_start_32read(fsal_handle_t *handle)
 	return ERR_STATE_CONFLICT;
 
     header->anonreaders++;
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -361,7 +344,7 @@ int localstate_start_32write(fsal_handle_t *handle)
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_start_32write: could not find/create header entry.");
@@ -376,7 +359,6 @@ int localstate_start_32write(fsal_handle_t *handle)
 	return ERR_STATE_CONFLICT;
 
     header->anonwriters++;
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -387,7 +369,7 @@ int localstate_end_32read(fsal_handle_t *handle)
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_end_32read: could not find/create header entry.");
@@ -397,7 +379,6 @@ int localstate_end_32read(fsal_handle_t *handle)
     /* Check for potential conflicts */
 
     header->anonreaders ? header->anonreaders-- : 0;
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -408,7 +389,7 @@ int localstate_end_32write(fsal_handle_t *handle)
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_end_32write: could not find/create header entry.");
@@ -416,7 +397,6 @@ int localstate_end_32write(fsal_handle_t *handle)
 	}
 
     header->anonwriters ? header->anonwriters-- : 0;
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }

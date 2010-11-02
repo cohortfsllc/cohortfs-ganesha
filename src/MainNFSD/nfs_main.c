@@ -400,6 +400,8 @@ int main(int argc, char *argv[])
   FSAL_LoadDSFunctions();
 #endif
 
+  state_loadfunctions();
+
   LogEvent(COMPONENT_INIT,
 	   ">>>>>>>>>> Starting GANESHA NFS Daemon on FSAL/%s <<<<<<<<<<",
 	   FSAL_GetFSName());

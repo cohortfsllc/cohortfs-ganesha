@@ -361,10 +361,21 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 	  else
 	    {
 	      int rc = 0;
+	      if (state_lock_filehandle(&pentry->object.file.handle,
+					writelock)
+		  != ERR_STATE_NO_ERROR)
+		{
+		  V_w(&pentry->lock);
+		  *pstatus == CACHE_INODE_STATE_ERROR;
+		  /* stats */
+		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
+		  return *pstatus;
+		}
 	      if (read_or_write == CACHE_INODE_READ)
 		rc = state_start_32read(&pentry->object.file.handle);
 	      else
 		rc = state_start_32write(&pentry->object.file.handle);
+	      state_unlock_filehandle(&pentry->object.file.handle);
 	      if (rc != ERR_STATE_NO_ERROR)
 		{
 		  V_w(&pentry->lock);
@@ -447,10 +458,13 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 	  if (state_anonymous_stateid(stateid))
 	    {
 	      FSAL_close(&descriptor);
+	      state_lock_filehandle(&pentry->object.file.handle,
+				    writelock);
 	      if (read_or_write == CACHE_INODE_READ)
 		state_end_32read(&pentry->object.file.handle);
 	      else
 		state_end_32write(&pentry->object.file.handle);
+	      state_unlock_filehandle(&pentry->object.file.handle);
 	    }
 
           LogFullDebug(COMPONENT_CACHE_INODE,

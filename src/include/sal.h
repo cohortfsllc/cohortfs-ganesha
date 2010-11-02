@@ -944,6 +944,9 @@ int state_iter_layout_entries(stateid4 stateid,
  * modifying state on success.)
  *
  * \retval ERR_STATE_NO_ERROR Success
+ * \retval ERR_STATE_NOENT There is no state information stored for
+ *                         this filehandle and a read-lock was
+ *                         requested.
  */
 
 int state_lock_filehandle(fsal_handle_t *handle,

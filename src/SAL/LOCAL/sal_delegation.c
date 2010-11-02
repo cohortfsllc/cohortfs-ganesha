@@ -76,7 +76,7 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_delegation: could not find/create header entry.");
@@ -94,7 +94,6 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 	  header->anonwriters ||
 	  header->read_delegations)))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_delegation: share conflict.");
 	    return rc;
@@ -104,7 +103,6 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     if (!(state = newstate(clientid, header)))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_share: Unable to create new state.");
 	    return ERR_STATE_FAIL;
@@ -115,7 +113,6 @@ int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
     state->state.delegation.limit = limit;
 
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -125,9 +122,10 @@ int localstate_delete_delegation(stateid4 stateid)
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state(stateid, &state))
 	return rc;
 
+    header = state->header;
     state->state.delegation.type = 0;
     update_delegations(header);
     killstate(state);
@@ -144,7 +142,7 @@ int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_query_delegation: could not find header entry.");
@@ -161,16 +159,11 @@ int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 	}
 
     if (!cur)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_NOENT;
-	}
+      return ERR_STATE_NOENT;
 
     memset(outdelegation, 0, sizeof(delegationstate));
 
     filldelegationstate(cur, outdelegation, header);
-
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -200,14 +193,12 @@ int localstate_check_delegation(fsal_handle_t *handle,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_check_delegation: could not find header entry.");
 	    return 0;
 	}
-
-    pthread_rwlock_unlock(&(header->lock));
 
     if (type == OPEN_DELEGATE_READ)
 	return header->read_delegations;

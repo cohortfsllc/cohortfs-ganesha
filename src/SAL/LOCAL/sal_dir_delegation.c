@@ -66,7 +66,7 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_write(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_dir_delegation: could not find/create header entry.");
@@ -77,7 +77,6 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 
     if (!(state = newstate(clientid, header)))
 	{
-	    pthread_rwlock_unlock(&(header->lock));
 	    LogDebug(COMPONENT_STATES,
 		     "state_create_dir_delegation: Unable to create new state.");
 	    return ERR_STATE_FAIL;
@@ -91,7 +90,6 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     state->state.dir_delegation.dir_attributes = dir_attributes;
     
     *stateid = state->stateid;
-    pthread_rwlock_unlock(&(header->lock));
     return ERR_STATE_NO_ERROR;
 }
 
@@ -101,8 +99,10 @@ int localstate_delete_dir_delegation(stateid4 stateid)
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state(stateid, &state))
       return rc;
+
+    header = state->header;
 
     state->type = STATE_ANY;
     update_dir_delegations(header);
@@ -120,7 +120,7 @@ int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     
     /* Retrieve or create header for per-filehandle chain */
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_query_dir_delegation: could not find header entry.");
@@ -137,16 +137,11 @@ int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 	}
 
     if (!cur)
-	{
-	    pthread_rwlock_unlock(&(header->lock));
-	    return ERR_STATE_NOENT;
-	}
+      return ERR_STATE_NOENT;
 
     memset(outdir_delegation, 0, sizeof(dir_delegationstate));
 
     filldir_delegationstate(cur, outdir_delegation, header);
-
-    pthread_rwlock_unlock(&(header->lock));
 
     return ERR_STATE_NO_ERROR;
 }
@@ -167,13 +162,12 @@ int localstate_check_dir_delegation(fsal_handle_t *handle)
 {
     entryheader_t* header;
 
-    if (!(header = header_for_read(handle)))
+    if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_check_dir_delegation: could not find header entry.");
 	    return 0;
 	}
 
-    pthread_rwlock_unlock(&(header->lock));
     return header->dir_delegations;
 }

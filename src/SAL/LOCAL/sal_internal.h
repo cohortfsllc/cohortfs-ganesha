@@ -139,7 +139,6 @@ typedef struct __entryheader
 {
     fsal_handle_t handle; /* Filehandle */
     pthread_rwlock_t lock; /* Per-filehandle read/write lock */
-    bool_t valid;         /* A check */
     uint32_t max_share; /* Most expansive share */
     uint32_t max_deny; /* Most restrictive deny */
     uint32_t anonreaders; /* Number of anonymous readers (old NFS or
@@ -184,13 +183,10 @@ hash_table_t* init_stateidtable(void);
 hash_table_t* init_entrytable(void);
 hash_table_t* init_openownertable(void);
 hash_table_t* init_lockownertable(void);
-entryheader_t* header_for_write(fsal_handle_t* handle);
-entryheader_t* header_for_read(fsal_handle_t* handle);
+entryheader_t* lookupheader(fsal_handle_t* handle);
 state_t* newstate(clientid4 clientid, entryheader_t* header);
 void chain(state_t* state, entryheader_t* header);
 state_t* iterate_entry(entryheader_t* entry, state_t** state);
-int lookup_state_and_lock(stateid4 stateid, state_t** state,
-			  entryheader_t** header, bool_t write);
 int lookup_state(stateid4 stateid, state_t** state);
 void killstate(state_t* state);
 void filltaggedstate(state_t* state, taggedstate* outstate);

@@ -550,11 +550,11 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
     }
 
   if ((status = cache_inode_getattr(pentry_parent,
-					  &attr,
-					  data->ht,
-					  data->pclient,
-					  data->pcontext,
-					  &status)) != CACHE_INODE_SUCCESS)
+				    &attr,
+				    data->ht,
+				    data->pclient,
+				    data->pcontext,
+				    &status)) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
       state_save_response(arg_OPEN4.owner, false, resp);
