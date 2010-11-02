@@ -512,7 +512,7 @@ state_owner_t* acquire_owner(char* name, size_t len,
 	}
     else if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	{
-	    if (!pthread_mutex_lock(&ownermutex))
+	    if (pthread_mutex_lock(&ownermutex) != 0)
 		return NULL;
 
 	    /* Make sure it didn't get created while we were waiting */
@@ -558,33 +558,35 @@ state_owner_t* acquire_owner(char* name, size_t len,
 	    owner->lock = lock;
 	    owner->last_response = NULL;
 	    pthread_mutex_init(&(owner->mutex), NULL);
-	    pthread_mutex_lock(&(owner->mutex));
 	    owner->related_owner = NULL;
 
 	    val.pdata = (caddr_t)owner;
 	    val.len = sizeof(state_owner_t);
+	    if (wantmutex)
+		{
+		    rc = pthread_mutex_lock(&(owner->mutex));
+		    pthread_mutex_unlock(&ownermutex);
+		    if (rc < 0)
+			{
+			    RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+			    return NULL;
+			}
+		}
 	    
 	    rc = HashTable_Test_And_Set(table, &key, &val,
 					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
-
+	    pthread_mutex_unlock(&ownermutex);
 	    if (rc == HASHTABLE_SUCCESS)
 		{
-		    if (wantmutex)
-			{
-			    rc = pthread_mutex_lock(&(owner->mutex));
-			    pthread_mutex_unlock(&ownermutex);
-			    if (rc < 0)
-				{
-				    RELEASE_PREALLOC(owner, ownerpool, next_alloc);
-				    return NULL;
-				}
-			}
 		    if (created)
 			*created = true;
 		    return owner;
 		}
 	    else
-		RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+		{
+		    pthread_mutex_unlock(&(owner->mutex));
+		    RELEASE_PREALLOC(owner, ownerpool, next_alloc);
+		}
 	}
     return NULL ;
 }

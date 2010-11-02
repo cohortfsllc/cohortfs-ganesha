@@ -27,6 +27,8 @@
 #include "nfs_core.h"
 #include "log_macros.h"
 #include "sal_internal.h"
+#include <errno.h>
+#include <stdio.h>
 
 /************************************************************************
  * General state functions
@@ -64,8 +66,11 @@ int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 	    /* Create,for a write lock */
 	    if (rw == writelock)
 		{
-		    if (!pthread_mutex_lock(&entrymutex))
-			return ERR_STATE_FAIL;
+		  if ((errno = pthread_mutex_lock(&entrymutex)) != 0)
+		    {
+		      perror("pthread_mutex_lock");
+		      return ERR_STATE_FAIL;
+		    }
 		    
 		    /* Make sure no one created the entry while we were
 		       waiting for the mutex */
