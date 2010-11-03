@@ -338,11 +338,12 @@ state_t* newstate(clientid4 clientid, entryheader_t* header)
 	{
 	    newstateidother(clientid, state->stateid.other);
 	    key.pdata = (caddr_t) state->stateid.other;
-	    rc = HashTable_Test_And_Set(entrytable, &key, &val,
+	    rc = HashTable_Test_And_Set(stateidtable, &key, &val,
 					HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 	}
-    while ((rc != HASHTABLE_ERROR_KEY_ALREADY_EXISTS) && rc <= 100);
+    while ((rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS) && ++counter <= 100);
 
+    state->header = header;
     state->clientid = clientid;
     state->stateid.seqid = 1;
 
@@ -356,7 +357,7 @@ state_t* newstate(clientid4 clientid, entryheader_t* header)
 	    ERR_STATE_FAIL;
 	}
 
-    return ERR_STATE_NO_ERROR;
+    return state;
 }
 
 /* Removes a state from relevant hash tables and deallocates resources
@@ -408,21 +409,25 @@ void unchain(state_t* state)
     if (state->prevfh == NULL)
 	{
 	    state->header->states = state->nextfh;
-	    state->nextfh->prevfh = NULL;
+	    if (state->nextfh)
+		state->nextfh->prevfh = NULL;
 	}
     else
 	{
-	    state->nextfh->prevfh = state->prevfh;
+	    if (state->nextfh)
+		state->nextfh->prevfh = state->prevfh;
 	    state->prevfh->nextfh = state->nextfh;
 	}
     if (state->prev == NULL)
 	{
 	    statechain = state->next;
-	    state->next->prev = NULL;
+	    if (state->next)
+		state->next->prev = NULL;
 	}
     else
 	{
-	    state->next->prev = state->prev;
+	    if (state->next)
+		state->next->prev = state->prev;
 	    state->prev->next = state->next;
 	}
 }

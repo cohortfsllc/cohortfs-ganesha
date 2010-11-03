@@ -131,8 +131,9 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
 	}
     state->type = STATE_SHARE;
     state->state.share.share_access = share_access;
-    state->state.share.open_owner = NULL;
+    state->state.share.open_owner = owner;
     state->state.share.share_deny = share_deny;
+    state->state.share.openref = openref;
 
 
     /* Update maxima for quick lookups */
@@ -302,11 +303,10 @@ void fillsharestate(state_t* cur, sharestate* outshare,
     outshare->handle = header->handle;
     outshare->stateid = cur->stateid;
     outshare->clientid = cur->clientid;
-    memcpy(outshare->open_owner.owner.owner_val,
-	   cur->state.share.open_owner->key.owner_val,
-	   cur->state.share.open_owner->key.owner_len);
+    outshare->open_owner.owner.owner_val
+        = cur->state.share.open_owner->key.owner_val;
     outshare->open_owner.owner.owner_len
-	= cur->state.share.open_owner->key.owner_len;
+        = cur->state.share.open_owner->key.owner_len;
     outshare->open_owner.clientid = cur->clientid;
     outshare->share_access = cur->state.share.share_access;
     outshare->share_deny = cur->state.share.share_deny;

@@ -337,8 +337,8 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
 
   if (!upgrade)
     {
-      rc == state_create_share(&(pentry->object.file.handle), open_owner, clientid,
-			       share_access, share_deny, openref, stateid);
+      rc = state_create_share(&(pentry->object.file.handle), open_owner, clientid,
+			      share_access, share_deny, openref, stateid);
       if (rc == ERR_STATE_PREEXISTS)
 	upgrade = true;
       else if (rc == ERR_STATE_NO_ERROR)
@@ -430,14 +430,13 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   cache_inode_status_t privstatus;
   cache_inode_fsal_data_t fsal_data;
   struct cache_inode_dir_begin__ *dir_begin;
-  cache_inode_create_arg_t create_arg;
-
-  memset(&create_arg, 0, sizeof(cache_inode_create_arg_t));
 
   if((pentry_parent == NULL) || (pname == NULL) || (new_entry == NULL) ||
      (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL) ||
      (ht == NULL) || (stateid == NULL) || (attrs == NULL))
     return CACHE_INODE_INVALID_ARGUMENT;
+
+  found_attrs.asked_attributes = pclient->attrmask;  
 
   if((pentry_parent->internal_md.type != DIR_BEGINNING)
      && (pentry_parent->internal_md.type != DIR_CONTINUE))
@@ -537,7 +536,7 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   fsal_data.handle = new_handle;
   fsal_data.cookie = DIR_START;
   *new_entry = cache_inode_new_entry(&fsal_data, &found_attrs,
-				    REGULAR_FILE, &create_arg, NULL,
+				    REGULAR_FILE, NULL, NULL,
 				    ht, pclient, pcontext,
 				    true, /* This is a creation and not a population */
 				    pstatus);

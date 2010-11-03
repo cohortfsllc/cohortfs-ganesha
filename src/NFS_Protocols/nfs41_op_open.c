@@ -648,11 +648,6 @@ int create_name41(struct nfs_argop4* op, compound_data_t* data,
 
   res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
   
-  {
-    res_OPEN4.status = NFS4ERR_SERVERFAULT;
-    return res_OPEN4.status;
-  }
-    
   if (created)
     {
       res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len =
