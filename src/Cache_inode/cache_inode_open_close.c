@@ -412,6 +412,7 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 						  uint32_t share_deny,
 						  bool_t exclusive,
 						  fsal_attrib_list_t* attrs,
+						  verifier4* verf,
 						  clientid4 clientid,
 						  open_owner4 open_owner,
 						  stateid4* stateid,
@@ -430,13 +431,15 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   cache_inode_status_t privstatus;
   cache_inode_fsal_data_t fsal_data;
   struct cache_inode_dir_begin__ *dir_begin;
+  uint32_t* verfpieces = (uint32_t*) verf;
 
   if((pentry_parent == NULL) || (pname == NULL) || (new_entry == NULL) ||
      (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL) ||
      (ht == NULL) || (stateid == NULL) || (attrs == NULL))
     return CACHE_INODE_INVALID_ARGUMENT;
 
-  found_attrs.asked_attributes = pclient->attrmask;  
+  found_attrs.asked_attributes = pclient->attrmask | (FSAL_ATTR_ATIME |
+						      FSAL_ATTR_MTIME);
 
   if((pentry_parent->internal_md.type != DIR_BEGINNING)
      && (pentry_parent->internal_md.type != DIR_CONTINUE))
@@ -468,55 +471,67 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   if (*new_entry != NULL)
     {
       *created = false;
-      if (exclusive) /* GUARDEF4 */
+      if (exclusive)
 	{
-	  V_w(&pentry_parent->lock);
-	  *pstatus = CACHE_INODE_ENTRY_EXISTS;
-	  return *pstatus;
-	}
-      else
-	{
-	  /* UNCHECKED4 */
-	  *truncated = false;
-	  if ((*pstatus = cache_inode_open(*new_entry, pclient,
-					   share_access,
-					   share_deny,
-					   clientid,
-					   open_owner,
-					   stateid,
-					   pcontext,
-					   uid,
-					   pstatus)) !=
-	      CACHE_INODE_SUCCESS)
+	  if (!verf) /* GUARDEF4 */
 	    {
 	      V_w(&pentry_parent->lock);
+	      *pstatus = CACHE_INODE_ENTRY_EXISTS;
 	      return *pstatus;
 	    }
-
-	  /* If the filesize is set to 0, the file should be truncated,
-	     (unless it's locked, we don't have write access, or someone
-	     has a SHARE_DENY) */
-	  
-	  if ((attrs->asked_attributes & FSAL_ATTR_SIZE) &&
-	      (attrs->filesize == 0))
+	  else
 	    {
-	      memset(attrs, 0, sizeof(fsal_attrib_list_t));
-	      attrs->asked_attributes |= FSAL_ATTR_SIZE;
-	      if ((privstatus = cache_inode_setattr(*new_entry,
-						    attrs,
-						    ht,
-						    pclient,
-						    pcontext,
-						    *stateid,
-						    &privstatus))
-		  == CACHE_INODE_SUCCESS)
-		*truncated = true;
+	      if (!((found_attrs.atime.seconds == verfpieces[0]) &&
+		    (found_attrs.mtime.seconds == verfpieces[1])))
+		{
+		  V_w(&pentry_parent->lock);
+		  *pstatus = CACHE_INODE_ENTRY_EXISTS;
+		  return *pstatus;
+		}
 	    }
-	  
+	}
+
+      /* UNCHECKED4 or EXCLUSIVE4/EXCLUSIVE4_1 with matching verifier */
+      *truncated = false;
+      if ((*pstatus = cache_inode_open(*new_entry, pclient,
+				       share_access,
+				       share_deny,
+				       clientid,
+				       open_owner,
+				       stateid,
+				       pcontext,
+				       uid,
+				       pstatus)) !=
+	  CACHE_INODE_SUCCESS)
+	{
 	  V_w(&pentry_parent->lock);
-	  *pstatus = CACHE_INODE_SUCCESS;
 	  return *pstatus;
 	}
+
+      /* If the filesize is set to 0 for UNCHECKED4, the file should
+	 be truncated, (unless it's locked, we don't have write
+	 access, or someone has a SHARE_DENY) */
+      
+      if (!verf &&
+	  (attrs->asked_attributes & FSAL_ATTR_SIZE) &&
+	  (attrs->filesize == 0))
+	{
+	  memset(attrs, 0, sizeof(fsal_attrib_list_t));
+	  attrs->asked_attributes |= FSAL_ATTR_SIZE;
+	  if ((privstatus = cache_inode_setattr(*new_entry,
+						attrs,
+						ht,
+						pclient,
+						pcontext,
+						*stateid,
+						&privstatus))
+	      == CACHE_INODE_SUCCESS)
+	    *truncated = true;
+	}
+      
+      V_w(&pentry_parent->lock);
+      *pstatus = CACHE_INODE_SUCCESS;
+      return *pstatus;
     }
 
   fsal_status = FSAL_create(&parent_handle,
@@ -589,8 +604,15 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
       return *pstatus;
     }
 
+  if (verf)
+    {
+      attrs->asked_attributes |= (FSAL_ATTR_ATIME | FSAL_ATTR_MTIME);
+      attrs->atime.seconds = verfpieces[0];
+      attrs->mtime.seconds = verfpieces[1];
+    }
+  
   cache_inode_setattr(*new_entry, attrs, ht, pclient,
-	      pcontext, *stateid, &privstatus);
+		      pcontext, *stateid, &privstatus);
 
   /* release the lock for the parent */
   V_w(&pentry_parent->lock);

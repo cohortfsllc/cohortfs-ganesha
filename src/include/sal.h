@@ -1155,6 +1155,7 @@ int state_shutdown(void);
 /* Function to load library module if shared */
 
 int state_loadlibrary(char* path);
+void state_loadfunctions(void);
 
 /* Error return codes */
 

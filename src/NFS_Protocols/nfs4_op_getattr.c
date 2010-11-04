@@ -124,7 +124,7 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
       return NFS4ERR_BADHANDLE;
     }
 
-  /* Tests if teh Filehandle is expired (for volatile filehandle) */
+  /* Tests if the Filehandle is expired (for volatile filehandle) */
   if(nfs4_Is_Fh_Expired(&(data->currentFH)))
     {
       res_GETATTR4.status = NFS4ERR_FHEXPIRED;
@@ -162,7 +162,7 @@ int nfs4_op_getattr(struct nfs_argop4 *op,
 
   if( !nfs4_bitmap4_Remove_Unsupported( &arg_GETATTR4.attr_request ) )
     {
-      res_GETATTR4.status = NFS4ERR_SERVERFAULT ;
+      res_GETATTR4.status = NFS4ERR_INVAL ;
       return res_GETATTR4.status;
     }
    

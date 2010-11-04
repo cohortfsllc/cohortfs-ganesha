@@ -87,7 +87,7 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 int create_name4(struct nfs_argop4* op, compound_data_t* data,
 		 struct nfs_resop4* resp, uid_t uid,
 		 cache_entry_t* pentry_parent, fsal_name_t* filename,
-		 bool_t exclusive);
+		 fattr4* createattrs, verifier4* verf, bool_t exclusive);
 
 /**
  * nfs4_op_open: NFS4_OP_OPEN, opens and eventually creates a regular file.
@@ -286,12 +286,19 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 		exclusive = true;
 	    case UNCHECKED4:
 	      return create_name4(op, data, resp, uid, pentry_parent,
-				  &filename, exclusive);
+				  &filename,
+				  &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createattrs,
+				  NULL,
+				  exclusive);
+
 	      break;
 
 	    case EXCLUSIVE4:
-	      res_OPEN4.status = NFS4ERR_INVAL;
-	      return res_OPEN4.status;
+	      return create_name4(op, data, resp, uid, pentry_parent,
+				  &filename,
+				  NULL,
+				  &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createverf,
+				  exclusive);
 	      break;
 
 	    default:
@@ -314,7 +321,6 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
       break;
 
     default:
-
       res_OPEN4.status = NFS4ERR_INVAL;
       return res_OPEN4.status;
       break;
@@ -614,15 +620,14 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   return res_OPEN4.status;
 }
 
-
 int create_name4(struct nfs_argop4* op, compound_data_t* data,
-		  struct nfs_resop4* resp, uid_t uid,
-		  cache_entry_t* pentry_parent, fsal_name_t* filename,
-		  bool_t exclusive)
+		 struct nfs_resop4* resp, uid_t uid,
+		 cache_entry_t* pentry_parent, fsal_name_t* filename,
+		 fattr4* createattrs, verifier4* verf, bool_t exclusive)
 {
   cache_inode_status_t status;
   fsal_attrib_list_t sattr, attr;
-  cache_entry_t *pentry_newfile = NULL;
+  cache_entry_t *pentry = NULL;
   int convrc = 0;
   bool_t created = false;
   bool_t truncated = false;
@@ -654,44 +659,47 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
 
   /* CLient may have provided fattr4 to set attributes at creation time */
 
-  if(!nfs4_Fattr_Supported
-     (&arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createattrs))
+  memset(&sattr, 0, sizeof(fsal_attrib_list_t));
+
+  if (createattrs)
     {
-      res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
+      if(!nfs4_Fattr_Supported(createattrs))
+	{
+	  res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
+	  state_save_response(arg_OPEN4.owner, false, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  return res_OPEN4.status;
+	}
+      
+      /* Do not use READ attr, use WRITE attr */
+      if(!nfs4_Fattr_Check_Access(createattrs, FATTR4_ATTR_WRITE))
+	{
+	  res_OPEN4.status = NFS4ERR_ACCESS;
+	  state_save_response(arg_OPEN4.owner, false, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  return res_OPEN4.status;
+	}
+      
+      /* Convert fattr4 so nfs4_sattr */
+      convrc = nfs4_Fattr_To_FSAL_attr(&sattr, createattrs);
+
+      if(convrc == 0)
+	{
+	  res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
+	  state_save_response(arg_OPEN4.owner, false, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  return res_OPEN4.status;
+	}
+      if(convrc == -1)
+	{
+	  res_OPEN4.status = NFS4ERR_BADXDR;
+	  state_save_response(arg_OPEN4.owner, false, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  return res_OPEN4.status;
+	}
     }
 
-  /* Do not use READ attr, use WRITE attr */
-  if(!nfs4_Fattr_Check_Access
-     (&arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createattrs,
-      FATTR4_ATTR_WRITE))
-    {
-      res_OPEN4.status = NFS4ERR_ACCESS;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
-    }
-
-  /* Convert fattr4 so nfs4_sattr */
-  convrc = nfs4_Fattr_To_FSAL_attr(&sattr,
-				   &(arg_OPEN4.openhow.openflag4_u.how.
-				     createhow4_u.createattrs));
-  if(convrc == 0)
-    {
-      res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
-    }
-  if(convrc == -1)
-    {
-      res_OPEN4.status = NFS4ERR_BADXDR;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
-    }
+  /* We must provide a valid mode */
       
   if (!(sattr.asked_attributes & FSAL_ATTR_MODE))
     {
@@ -718,14 +726,15 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   if ((status =
        cache_inode_open_create_name(pentry_parent,
 				    filename,
-				    &pentry_newfile,
+				    &pentry,
 				    (arg_OPEN4.share_access &
 				     OPEN4_SHARE_ACCESS_BOTH),
 				    (arg_OPEN4.share_deny &
 				     OPEN4_SHARE_DENY_BOTH),
 				    exclusive,
 				    &sattr,
-				    arg_OPEN4.owner.clientid,
+				    verf,
+				    data->psession->clientid,
 				    arg_OPEN4.owner,
 				    &res_OPEN4.OPEN4res_u.resok4.stateid,
 				    &created,
@@ -760,28 +769,32 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
     (changeid4) data->current_entry->internal_md.mod_time;
 
   res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
-  
-    
+
   if (created)
     {
       res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len =
-	arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createattrs.attrmask.bitmap4_len;
+	createattrs->attrmask.bitmap4_len;
       if((res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val =
-	  (uint32_t *) Mem_Alloc(res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len *
-				 sizeof(uint32_t))) == NULL)
-	{
-	  res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 0;
-	}
+	  (uint32_t *) Mem_Alloc(4 * sizeof(uint32_t))) == NULL)
+	res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 0;
       else
 	{
 	  memset((char *)res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val, 0,
 		 res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len * sizeof(u_int));
-	  memcpy(res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val,
-		 arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createattrs.attrmask.bitmap4_val,
-		 res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len * sizeof(u_int));
+	  if (createattrs && createattrs->attrmask.bitmap4_val)
+	    memcpy(res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val,
+		   createattrs->attrmask.bitmap4_val,
+		   res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len * sizeof(u_int));
 	  /* We always set the mode on create */
 	  res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val[1] |= (1 << 2); 
-	}
+	  if (verf)
+	      {
+		res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val[1] |=
+		  (1 << 17); 
+		res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val[1] |=
+		  (1 << 23); 
+	      }
+	  }
     }
   else if (truncated)
     {
@@ -804,7 +817,7 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
     
   /* Now produce the filehandle to this file */
   if((pnewfsal_handle =
-      cache_inode_get_fsal_handle(pentry_newfile, &status)) == NULL)
+      cache_inode_get_fsal_handle(pentry, &status)) == NULL)
     res_OPEN4.status = nfs4_Errno(status);
   
   /* Allocation of a new file handle */
@@ -829,7 +842,7 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   data->currentFH.nfs_fh4_len = newfh4.nfs_fh4_len;
   memcpy(data->currentFH.nfs_fh4_val, newfh4.nfs_fh4_val, newfh4.nfs_fh4_len);
   
-  data->current_entry = pentry_newfile;
+  data->current_entry = pentry;
   data->current_filetype = REGULAR_FILE;
   
   /* No do not need newfh any more */
