@@ -44,9 +44,11 @@ sal_functions_t localsal_functions =
       .state_delete_delegation = localstate_delete_delegation,
       .state_query_delegation = localstate_query_delegation,
       .state_check_delegation = localstate_check_delegation,
+#ifdef _USE_NFS4_1
       .state_create_dir_delegation = localstate_create_dir_delegation,
       .state_delete_dir_delegation = localstate_delete_dir_delegation,
       .state_query_dir_delegation = localstate_query_dir_delegation,
+#endif
       .state_check_delegation = localstate_check_delegation,
       .state_create_lock_state = localstate_create_lock_state,
       .state_delete_lock_state = localstate_delete_lock_state,

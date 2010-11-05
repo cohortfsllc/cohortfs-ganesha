@@ -707,44 +707,36 @@ fsal_status_t FSAL_getextattrs( fsal_handle_t * p_filehandle, /* IN */
 fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_layouttype_t type,
 			     fsal_layoutiomode_t iomode,
-			     fsal_off_t offset,
-			     fsal_size_t length,
+			     fsal_off_t offset, fsal_size_t length,
 			     fsal_size_t minlength,
 			     fsal_layout_t** layouts,
 			     int *numlayouts,
 			     fsal_boolean_t *return_on_close,
 			     fsal_op_context_t *context,
-			     void* cbcookie)
+			     stateid4* stateid,
+			     void* opaque)
 {
   return fsal_mdsfunctions.fsal_layoutget(filehandle, type, iomode,
-					  offset, length, minlength,
-					  layouts, numlayouts,
-					  return_on_close,
-					  context, cbcookie);
+					  offset, length,
+					  minlength, layouts,
+					  numlayouts, return_on_close,
+					  context, stateid, opaque);
 }
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
-				fsal_layoutiomode_t passed_iomode,
-				fsal_off_t passed_offset,
-				fsal_size_t passed_length,
-				fsal_layoutiomode_t found_iomode,
-				fsal_off_t found_offset,
-				fsal_size_t found_length,
-				fsal_layoutdata_t ldata,
+				fsal_layoutiomode_t iomode,
+				fsal_off_t offset,
+				fsal_size_t length,
 				fsal_op_context_t* context,
-				void* cbcookie)
+				bool_t* nomore,
+				stateid4* stateid)
 {
-  return fsal_mdsfunctions.fsal_layoutreturn(filehandle,
-					     type, passed_iomode,
-					     passed_offset,
-					     passed_length,
-					     found_iomode,
-					     found_offset,
-					     found_length,
-					     ldata, context,
-					     cbcookie);
+  return fsal_mdsfunctions.fsal_layoutreturn(filehandle, type, iomode,
+					     offset, length, context, nomore,
+					     stateid);
 }
+
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,

@@ -75,6 +75,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_proto_tools.h"
+#include "sal.h"
 
 /**
  *
@@ -122,12 +123,6 @@ int nfs_Write(nfs_arg_t * parg,
   cache_inode_file_type_t filetype;
   fsal_boolean_t eof_met;
   bool_t stable_flag = TRUE;
-  stateid4 anon =
-    {
-      .seqid = 1,
-      .other = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-		0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
-    };
 
   cache_content_policy_data_t datapol;
 
@@ -382,7 +377,7 @@ int nfs_Write(nfs_arg_t * parg,
                           &seek_descriptor,
                           size,
                           &written_size,
-			  anon,
+			  state_anonymous_stateid,
                           &attr,
                           data,
                           &eof_met,

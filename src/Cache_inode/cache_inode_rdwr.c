@@ -332,7 +332,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 
 	  /* If we have a non-anonymous stateid, use that */
 
-	  if (!state_anonymous_stateid(stateid))
+	  if (!state_anonymous_check(stateid))
 	    {
 	      if(state_retrieve_state(stateid, &state) !=
 		 ERR_STATE_NO_ERROR)
@@ -455,7 +455,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
               return *pstatus;
             }
 
-	  if (state_anonymous_stateid(stateid))
+	  if (state_anonymous_check(stateid))
 	    {
 	      FSAL_close(&descriptor);
 	      state_lock_filehandle(&pentry->object.file.handle,

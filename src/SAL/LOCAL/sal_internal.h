@@ -73,6 +73,8 @@ typedef struct __localdelegation
     nfs_space_limit4 limit;
 } localdelegation_t;
 
+#ifdef _USE_NFS4_1
+
 typedef struct __localdir_delegation
 {
     bitmap4 notification_types;
@@ -81,6 +83,8 @@ typedef struct __localdir_delegation
     bitmap4 child_attributes;
     bitmap4 dir_attributes;
 } localdir_delegation_t;
+
+#endif
 
 typedef struct __locallock
 {
@@ -104,7 +108,7 @@ typedef struct __locallayoutentry
     offset4 offset;
     length4 length;
     bool_t return_on_close;
-    fsal_layout_t* layoutdata;
+    fsal_layoutdata_t* layoutdata;
     struct __locallayoutentry* next;
     struct __locallayoutentry* prev;
     struct __locallayoutentry* next_alloc;
@@ -123,7 +127,9 @@ typedef struct __state
 	localshare_t share;
 	locallock_t lock;
 	localdelegation_t delegation;
+#ifdef _USE_NFS4_1
 	localdir_delegation_t dir_delegation;
+#endif
 #ifdef _USE_FSALMDS
 	locallayout_t layout;
 #endif
@@ -194,9 +200,11 @@ void fillsharestate(state_t* cur, sharestate* outshare,
 		    entryheader_t* header);
 void filldelegationstate(state_t* cur, delegationstate* outdelegation,
 			 entryheader_t* header);
+#ifdef _USE_NFS4_1
 void filldir_delegationstate(state_t* cur,
 			     dir_delegationstate* outdir_delegation,
 			     entryheader_t* header);
+#endif
 void filllockstate(state_t* cur, lockstate* outdir_delegation,
 		   entryheader_t* header);
 state_owner_t* acquire_owner(char* name, size_t len,
@@ -235,6 +243,7 @@ int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 				delegationstate* outdelegation);
 int localstate_check_delegation(fsal_handle_t *handle,
 				open_delegation_type4 type);
+#ifdef _USE_NFS4_1
 int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				     bitmap4 notification_types,
 				     attr_notice4 child_attr_delay,
@@ -245,6 +254,7 @@ int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 int localstate_delete_dir_delegation(stateid4 stateid);
 int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				    dir_delegationstate* outdir_delegation);
+#endif
 int localstate_check_delegation(fsal_handle_t *handle,
 				open_delegation_type4 type);
 int localstate_create_lock_state(fsal_handle_t *handle,
@@ -268,19 +278,20 @@ int localstate_create_layout_state(fsal_handle_t* handle,
 				   stateid4* stateid);
 int localstate_delete_layout_state(stateid4 stateid);
 int localstate_query_layout_state(fsal_handle_t *handle,
+				  clientid4 clientid,
 				  layouttype4 type,
-				  lockstate* outlayoutstate);
+				  layoutstate* outlayoutstate);
 int localstate_add_layout_segment(layouttype4 type,
 				  layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
 				  bool_t return_on_close,
-				  fsal_layout_t* layoutdata,
-				  stateid4* stateid);
+				  fsal_layoutdata_t* layoutdata,
+				  stateid4 stateid);
 int localstate_mod_layout_segment(layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
-				  fsal_layout_t* layoutdata,
+				  fsal_layoutdata_t* layoutdata,
 				  stateid4 stateid,
 				  uint64_t segid);
 int localstate_free_layout_segment(stateid4 stateid,

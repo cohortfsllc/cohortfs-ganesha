@@ -1,4 +1,4 @@
-#include "nfsv41.h"
+#include "nfs4.h"
 #include "nfs23.h"
 #include "fsal_types.h"
 #include "nfs_exports.h"
@@ -26,19 +26,19 @@
  */
 
 int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
-			 void* cookie)
+			 void* opaque)
 {
-  struct lg_cbc* cbc=(struct lg_cbc*) cookie;
+  compound_data_t* data = (compound_data_t*) opaque;
   nfs_fh4 fhk;
   int rc;
   file_handle_v4_t* fhs;
 
-  fhk.nfs_fh4_val=fhout->nfs_fh4_val;
+  fhk.nfs_fh4_val = fhout->nfs_fh4_val;
   
-  rc=nfs4_FSALToFhandle(&fhk, fhin, (compound_data_t*) cbc->data);
-  fhout->nfs_fh4_len=fhk.nfs_fh4_len;
-  fhs=(file_handle_v4_t *) fhout->nfs_fh4_val;
-  fhs->ds_flag=1;
+  rc = nfs4_FSALToFhandle(&fhk, fhin, data);
+  fhout->nfs_fh4_len = fhk.nfs_fh4_len;
+  fhs = (file_handle_v4_t *) fhout->nfs_fh4_val;
+  fhs->ds_flag = 1;
   return rc;
 }
 #endif

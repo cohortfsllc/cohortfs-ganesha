@@ -37,8 +37,8 @@
 typedef struct __layoutfuncs
 {
   layouttype4 type;
-  int (*encode_layout) (layouttype4, layout_content4*, size_t, void*);
-  int (*encode_device) (layouttype4, device_addr4*, size_t*, void*);
+  int (*encode_layout) (layouttype4, layout_content4*, size_t, caddr_t);
+  int (*encode_device) (layouttype4, device_addr4*, size_t, caddr_t);
 } layoutfunctions;
 
 extern layoutfunctions layoutfuncs[];

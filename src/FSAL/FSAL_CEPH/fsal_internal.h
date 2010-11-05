@@ -448,20 +448,17 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 int *numlayouts,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
-				 void* cbcookie);
-
+				 stateid4* stateid,
+				 void* opaque);
 
 fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t passed_iomode,
-				    fsal_off_t passed_offset,
-				    fsal_size_t passed_length,
-				    fsal_size_t found_iomode,
-				    fsal_off_t found_offset,
-				    fsal_size_t found_length,
-				    cephfsal_layoutdata_t ldata,
-				    fsal_op_context_t* context,
-				    void* cbcookie);
+				    fsal_layoutiomode_t iomode,
+				    fsal_off_t offset,
+				    fsal_size_t length,
+				    cephfsal_op_context_t* context,
+				    bool_t* nomore,
+				    stateid4* stateid);
 
 fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,

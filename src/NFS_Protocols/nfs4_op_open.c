@@ -79,8 +79,6 @@
 
 extern nfs_parameter_t nfs_param;
 
-int open_fh4(struct nfs_argop4 *op, compound_data_t * data,
-	     struct nfs_resop4* resp, uid_t uid);
 int open_name4(struct nfs_argop4* op, compound_data_t* data,
 	       struct nfs_resop4* resp, uid_t uid,
 	       cache_entry_t* pentry_parent, fsal_name_t* filename);
@@ -223,16 +221,6 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
       return res_OPEN4.status;
       break;
 
-    case CLAIM_FH:
-      /* We can't create without a filename */
-      if (arg_OPEN4.openhow.opentype == OPEN4_CREATE)
-	{
-	  res_OPEN4.status = NFS4ERR_INVAL;
-	  return res_OPEN4.status;
-	}
-      return open_fh4(op, data, resp, uid);
-      break;
-
     case CLAIM_NULL:
       /* Set parent */
       pentry_parent = data->current_entry;
@@ -298,7 +286,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 				  &filename,
 				  NULL,
 				  &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createverf,
-				  exclusive);
+				  true);
 	      break;
 
 	    default:
@@ -350,99 +338,6 @@ void nfs4_op_open_Free(OPEN4res * resp)
   
   return;
 }                               /* nfs4_op_open_Free */
-
-int open_fh4(struct nfs_argop4 *op, compound_data_t * data,
-	     struct nfs_resop4* resp, uid_t uid)
-{
-  cache_inode_status_t status;
-  fsal_attrib_list_t attrs;
-  bool_t new = false;
-  nfs_resop4* saved = NULL;
-  int rc = 0;
-
-  /* OPEN4 is to be done on a file */
-  if(data->current_entry->internal_md.type != REGULAR_FILE)
-    {
-      if(data->current_entry->internal_md.type == DIR_BEGINNING ||
-	 data->current_entry->internal_md.type == DIR_CONTINUE)
-	{
-	  res_OPEN4.status = NFS4ERR_ISDIR;
-	  return res_OPEN4.status;
-	}
-      else if(data->current_entry->internal_md.type == SYMBOLIC_LINK)
-	{
-	  res_OPEN4.status = NFS4ERR_SYMLINK;
-	  return res_OPEN4.status;
-	}
-      else
-	{
-	  res_OPEN4.status = NFS4ERR_INVAL;
-	  return res_OPEN4.status;
-	}
-    }
-
-  rc = state_lock_state_owner(arg_OPEN4.owner, false, arg_OPEN4.seqid,
-			      &new, &saved);
-
-  if (rc == ERR_STATE_BADSEQ)
-    {
-      res_OPEN4.status = NFS4ERR_BAD_SEQID;
-      return res_OPEN4.status;
-    }
-  else if (rc != ERR_STATE_NO_ERROR)
-    {
-      res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      return res_OPEN4.status;
-    }
-  else if (saved)
-    {
-      memcpy(resp, saved, sizeof(nfs_resop4));
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
-    }
-  
-  status = cache_inode_getattr(data->current_entry,
-			       &attrs,
-			       data->ht,
-			       data->pclient,
-			       data->pcontext,
-			       &status);
-  
-  res_OPEN4.OPEN4res_u.resok4.cinfo.before =
-    (changeid4) data->current_entry->internal_md.mod_time;
-
-  if (cache_inode_open(data->current_entry,
-		       data->pclient,
-		       arg_OPEN4.share_access & OPEN4_SHARE_ACCESS_BOTH,
-		       arg_OPEN4.share_deny & OPEN4_SHARE_DENY_BOTH,
-		       arg_OPEN4.owner.clientid,
-		       arg_OPEN4.owner,
-		       &res_OPEN4.OPEN4res_u.resok4.stateid,
-		       data->pcontext,
-		       uid,
-		       &status) != CACHE_INODE_SUCCESS)
-    {
-      res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false,
-			  resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
-      return res_OPEN4.status;
-    }
-  
-  res_OPEN4.OPEN4res_u.resok4.cinfo.after =
-    (changeid4) data->current_entry->internal_md.mod_time;
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
-
-  res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
-  res_OPEN4.OPEN4res_u.resok4.rflags = new ? OPEN4_RESULT_CONFIRM : 0;
-
-  data->currentstate = res_OPEN4.OPEN4res_u.resok4.stateid;
-  state_save_response(arg_OPEN4.owner, false, resp);
-  state_unlock_state_owner(arg_OPEN4.owner, false);
-
-  res_OPEN4.status = NFS4_OK;
-  return res_OPEN4.status;
-}
 
 int open_name4(struct nfs_argop4* op, compound_data_t* data,
 		struct nfs_resop4* resp, uid_t uid,
@@ -537,7 +432,7 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 	}
     }
 
-  if (cache_inode_open(data->current_entry,
+  if (cache_inode_open(pentry,
 		       data->pclient,
 		       arg_OPEN4.share_access & OPEN4_SHARE_ACCESS_BOTH,
 		       arg_OPEN4.share_deny & OPEN4_SHARE_DENY_BOTH,
@@ -606,8 +501,6 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   
   /* No do not need newfh any more */
   Mem_Free((char *)newfh4.nfs_fh4_val);
-
-  data->currentstate = res_OPEN4.OPEN4res_u.resok4.stateid;
 
   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
   res_OPEN4.OPEN4res_u.resok4.rflags = new ? OPEN4_RESULT_CONFIRM : 0;
@@ -734,7 +627,7 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
 				    exclusive,
 				    &sattr,
 				    verf,
-				    data->psession->clientid,
+				    arg_OPEN4.owner.clientid,
 				    arg_OPEN4.owner,
 				    &res_OPEN4.OPEN4res_u.resok4.stateid,
 				    &created,
@@ -772,8 +665,7 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
 
   if (created)
     {
-      res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len =
-	createattrs->attrmask.bitmap4_len;
+      res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 4;
       if((res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val =
 	  (uint32_t *) Mem_Alloc(4 * sizeof(uint32_t))) == NULL)
 	res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 0;
@@ -847,8 +739,6 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   
   /* No do not need newfh any more */
   Mem_Free((char *)newfh4.nfs_fh4_val);
-
-  data->currentstate = res_OPEN4.OPEN4res_u.resok4.stateid;
 
   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
   res_OPEN4.OPEN4res_u.resok4.rflags = new ? OPEN4_RESULT_CONFIRM : 0;

@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * 
@@ -100,7 +101,148 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
 
-  /* Reimlement with SAL */
+#ifdef _USE_FSALMDS
+  switch (arg_LAYOUTRETURN4.lora_layoutreturn.lr_returntype)
+    {
+      bool_t nomore = false;
+      fsal_status_t fsal_status;
+      cache_inode_status_t cache_status;
+      stateid4 stateid;
+      taggedstate state;
+      int rc;
+      uint64_t statecookie = 0;
+      fsal_attrib_list_t attrs;
+      fsal_fsid_t fsid;
+      cache_entry_t* pentry;
+      bool_t finished = false;
+
+    case LAYOUTRETURN4_FILE:
+      stateid =
+	arg_LAYOUTRETURN4.lora_layoutreturn.layoutreturn4_u.lr_layout.lrf_stateid;
+      if (stateid.seqid == 0)
+	{
+	  res_LAYOUTRETURN4.lorr_status = NFS4ERR_BAD_STATEID;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+
+      /* The client specifies a range, this may encompass several
+	 granted layout segments or sub-segments */
+      state_lock_filehandle(&(data->current_entry->object.file.handle),
+			    writelock);
+      fsal_status =
+	FSAL_layoutreturn(&(data->current_entry->object.file.handle),
+			  arg_LAYOUTRETURN4.lora_layout_type,
+			  arg_LAYOUTRETURN4.lora_iomode,
+			  arg_LAYOUTRETURN4.lora_layoutreturn.layoutreturn4_u.lr_layout.lrf_offset,
+			  arg_LAYOUTRETURN4.lora_layoutreturn.layoutreturn4_u.lr_layout.lrf_length,
+			  data->pcontext,
+			  &nomore,
+			  &stateid);
+      state_unlock_filehandle(&(data->current_entry->object.file.handle));
+
+      if (FSAL_IS_ERROR(fsal_status))
+	{
+	  res_LAYOUTRETURN4.lorr_status = fsal_status.major;
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+
+      if (nomore)
+	{
+	  state_delete_layout_state(stateid);
+	  data->currentstate = state_anonymous_stateid;
+	  res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.lrs_present
+	    = 0;
+	}
+      else
+	{
+	  data->currentstate = stateid;
+	  res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.lrs_present
+	    = 1;
+	  res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.layoutreturn_stateid_u.lrs_stateid
+	    = stateid;
+	}
+      res_LAYOUTRETURN4.lorr_status = NFS4_OK;
+      return res_LAYOUTRETURN4.lorr_status;
+      break;
+
+    case LAYOUTRETURN4_FSID:
+      memset(&attrs, 0, sizeof(fsal_attrib_list_t));
+      attrs.asked_attributes |= FSAL_ATTR_FSID;
+      cache_status = cache_inode_getattr(data->current_entry,
+					 &attrs,
+					 data->ht,
+					 data->pclient,
+					 data->pcontext,
+					 &cache_status);
+      if (cache_status != CACHE_INODE_SUCCESS)
+	{
+	  res_LAYOUTRETURN4.lorr_status = nfs4_Errno(cache_status);
+	  return res_LAYOUTRETURN4.lorr_status;
+	}
+      fsid = attrs.fsid;
+    case LAYOUTRETURN4_ALL:
+      while (rc = state_iterate_by_clientid(data->psession->clientid,
+					    STATE_LAYOUT, &statecookie,
+					    &finished, &state),
+	     !finished)
+	{
+	  if (state.u.layout.type
+	      != arg_LAYOUTRETURN4.lora_layout_type)
+	    continue;
+
+	  if (arg_LAYOUTRETURN4.lora_layoutreturn.lr_returntype
+		   == LAYOUTRETURN4_FSID)
+	    {
+	      cache_inode_fsal_data_t fsdata;
+
+	      fsdata.handle = state.u.layout.handle;
+	      fsdata.cookie = 0;
+	      memset(&attrs, 0, sizeof(fsal_attrib_list_t));
+	      attrs.asked_attributes |= FSAL_ATTR_FSID;
+
+	      pentry = cache_inode_get(&fsdata, &attrs,
+					     data->ht, data->pclient,
+					     data->pcontext,
+					     &cache_status);
+	      if (cache_status != CACHE_INODE_SUCCESS)
+		{
+		  res_LAYOUTRETURN4.lorr_status =
+		    nfs4_Errno(cache_status);
+		  return res_LAYOUTRETURN4.lorr_status;
+		}
+	      if (memcmp(&fsid, &(attrs.fsid), sizeof(fsal_fsid_t)))
+		continue;
+	    }
+
+	  stateid = state.u.layout.stateid;
+	  state_lock_filehandle(&(state.u.layout.handle),
+				writelock);
+	  fsal_status =
+	    FSAL_layoutreturn(&(state.u.layout.handle),
+			      arg_LAYOUTRETURN4.lora_layout_type,
+			      arg_LAYOUTRETURN4.lora_iomode,
+			      0,
+			      NFS4_UINT64_MAX,
+			      data->pcontext,
+			      &nomore,
+			      &stateid);
+	  state_unlock_filehandle(&(data->current_entry->object.file.handle));
+	  if (FSAL_IS_ERROR(fsal_status))
+	    {
+	      res_LAYOUTRETURN4.lorr_status = fsal_status.major;
+	      return res_LAYOUTRETURN4.lorr_status;
+	    }
+	  state_delete_layout_state(stateid);
+	  data->currentstate = state_anonymous_stateid;
+	  res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.lrs_present
+	    = 0;
+	}
+
+    default:
+      res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
+      return res_LAYOUTRETURN4.lorr_status;
+    }
+#endif
 
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;
   return res_LAYOUTRETURN4.lorr_status;
@@ -122,37 +264,3 @@ void nfs41_op_layoutreturn_Free(LOCK4res * resp)
   return;
 }                               /* nfs41_op_layoutreturn_Free */
 
-#ifdef _USE_FSALMDS
-
-#if 0
-
-#endif /* 0 */
-
-/**
- * 
- * FSALBACK_layout_remove_state:
- * Callback from FSAL_layoutreturn to attempt to remove the layout
- * state for which FSAL_layoutreturn was called.
- *
- * @param opaque   [IN]    A pointer, opaque to the FSAL.
- * 
- * @return Zero on success, nonzero on failure.
- *
- *
- */
-
-int FSALBACK_layout_remove_state(void* opaque)
-{
-  struct lg_cbc* cbc=(struct lg_cbc*) opaque;
-
-  cache_inode_state_t* state = cbc->passed_state;
-  cache_inode_status_t status;
-
-
-  cache_inode_del_state(cbc->passed_state,
-			     cbc->pclient,
-			     &status);
-  
-  return (status != CACHE_INODE_SUCCESS);
-}
-#endif                          /* _USE_FSALMDS */

@@ -48,6 +48,7 @@
 #include <pthread.h>
 #include <signal.h>             /* for sigaction */
 #include <errno.h>
+#include "sal.h"
 
 /* parameters for NFSd startup and default values */
 

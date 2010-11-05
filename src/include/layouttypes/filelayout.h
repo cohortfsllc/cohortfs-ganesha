@@ -31,20 +31,13 @@
  */
 
 #ifndef __FILELAYOUT_H
+#define __FILELAYOUT_H
+
 #include "nfsv41.h"
 #include "fsal_types.h"
 #include "layouttypes/fsal_layout.h"
 
 typedef nfsv4_1_file_layout_ds_addr4 fsal_file_dsaddr_t;
-
-typedef struct __deviceaddrlink {
-  uint64_t inode;
-  uint64_t generation;
-  fsal_file_dsaddr_t* addrinfo;
-  size_t entry_size;
-  struct __deviceaddrlink* next;
-} deviceaddrinfo;
-
 
 typedef struct __filelayout
 {

@@ -59,6 +59,15 @@ int localstate_create_layout_state(fsal_handle_t* handle,
     if (rc != ERR_STATE_NO_ERROR)
       return rc;
 
+    if (openstate->type == STATE_LAYOUT)
+      if (ostateid.seqid == 0)
+	return ERR_STATE_BADSEQ;
+      else
+	{
+	  *stateid = ostateid;
+	  return ERR_STATE_NO_ERROR;
+	}
+
     if (!((openstate->type == STATE_SHARE) ||
 	  (openstate->type == STATE_DELEGATION) ||
 	  (openstate->type == STATE_LOCK)))
@@ -75,11 +84,10 @@ int localstate_create_layout_state(fsal_handle_t* handle,
 	}
 
     if (state)
-	{
-	    LogDebug(COMPONENT_STATES,
-		     "state_create_layout_state: corresponding layout state already exists.");
-	    return ERR_STATE_PREEXISTS;
-	}
+      {
+	*stateid = state->stateid;
+	return ERR_STATE_NO_ERROR;
+      }
     
 
     /* Create and fill in new entry */
@@ -93,6 +101,8 @@ int localstate_create_layout_state(fsal_handle_t* handle,
 
     state->type = STATE_LAYOUT;
     state->state.layout.type = type;
+    state->stateid.seqid = 0; /* The addition of the first segment
+				 will bump this */
     
     *stateid = state->stateid;
     return ERR_STATE_NO_ERROR;
@@ -104,9 +114,11 @@ int localstate_delete_layout_state(stateid4 stateid)
     entryheader_t* header;
     int rc;
 
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
-	return ERR_STATE_FAIL;
+    if (rc = lookup_state(stateid, &state))
+      return ERR_STATE_FAIL;
 
+    header = state->header;
+    
     if (state->state.layout.layoutentries)
 	{
 	    LogDebug(COMPONENT_STATES,
@@ -120,10 +132,10 @@ int localstate_delete_layout_state(stateid4 stateid)
     return ERR_STATE_NO_ERROR;
 }
 
-int state_query_layout_state(fsal_handle_t *handle,
-			     clientid4 clientid,
-			     layouttype4 type,
-			     layoutstate* outlayoutstate)
+int localstate_query_layout_state(fsal_handle_t *handle,
+				  clientid4 clientid,
+				  layouttype4 type,
+				  layoutstate* outlayoutstate)
 {
     entryheader_t* header;
     state_t* cur = NULL;
@@ -174,7 +186,7 @@ int localstate_add_layout_segment(layouttype4 type,
 				  offset4 offset,
 				  length4 length,
 				  bool_t return_on_close,
-				  fsal_layout_t* layoutdata,
+				  fsal_layoutdata_t* layoutdata,
 				  stateid4 stateid)
 {
     state_t* state;
@@ -192,8 +204,10 @@ int localstate_add_layout_segment(layouttype4 type,
 	    return ERR_STATE_FAIL;
 	}
 
-    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
-	    return ERR_STATE_FAIL;
+    if (rc = lookup_state(stateid, &state))
+      return ERR_STATE_FAIL;
+
+    header = state->header;
 
     if (state->type != STATE_LAYOUT)
 	{
@@ -218,7 +232,7 @@ int localstate_add_layout_segment(layouttype4 type,
 int localstate_mod_layout_segment(layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
-				  fsal_layout_t* layoutdata,
+				  fsal_layoutdata_t* layoutdata,
 				  stateid4 stateid,
 				  uint64_t segid)
 {
@@ -232,7 +246,7 @@ int localstate_mod_layout_segment(layoutiomode4 iomode,
     return ERR_STATE_NO_ERROR;
 }
 
-int state_free_layout_segment(stateid4 stateid,
+int localstate_free_layout_segment(stateid4 stateid,
 			      uint64_t segid)
 {
     locallayoutentry_t* layoutentry = (locallayoutentry_t*)segid;
@@ -240,12 +254,15 @@ int state_free_layout_segment(stateid4 stateid,
     state_t* state;
     int rc = 0;
     
-    if (rc = lookup_state_and_lock(stateid, &state, &header, true))
+    if (rc = lookup_state(stateid, &state))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_free_layout_segment: could not find state.");
 	    return ERR_STATE_FAIL;
 	}
+
+    header = state->header;
+    
     if (state->type != STATE_LAYOUT)
 	{
 	    LogMajor(COMPONENT_STATES,
@@ -277,12 +294,15 @@ int localstate_layout_inc_state(stateid4* stateid)
     entryheader_t* header;
     int rc = 0;
     
-    if (rc = lookup_state_and_lock(*stateid, &state, &header, true))
+    if (rc = lookup_state(*stateid, &state))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_inc_layout_state: could not find state.");
 	    return ERR_STATE_FAIL;
 	}
+
+    header = state->header;
+    
     if (state->type != STATE_LAYOUT)
 	{
 	    LogMajor(COMPONENT_STATES,
@@ -313,24 +333,24 @@ int localstate_iter_layout_entries(stateid4 stateid,
 	layoutentry = (locallayoutentry_t*)cookie;
     else
 	{
-	    if (rc = lookup_state_and_lock(stateid, &state, &header,
-					   false))
-		{
-		    LogMajor(COMPONENT_STATES,
-			     "state_inc_layout_state: could not find state.");
-		    return rc;
-		}
-	    if (state->type != STATE_LAYOUT)
-		{
-		    LogMajor(COMPONENT_STATES,
-			     "state_inc_layout_state: supplied state of wrong type.");
-		    return ERR_STATE_INVAL;
-		}
-	    layoutentry = state->state.layout.layoutentries;
-	    if (!layoutentry)
-		return ERR_STATE_NOENT;
+	  if (rc = lookup_state(stateid, &state))
+	    {
+	      LogMajor(COMPONENT_STATES,
+		       "state_inc_layout_state: could not find state.");
+	      return rc;
+	    }
+	  header = state->header;
+	  if (state->type != STATE_LAYOUT)
+	    {
+	      LogMajor(COMPONENT_STATES,
+		       "state_inc_layout_state: supplied state of wrong type.");
+	      return ERR_STATE_INVAL;
+	    }
+	  layoutentry = state->state.layout.layoutentries;
+	  if (!layoutentry)
+	    return ERR_STATE_NOENT;
 	}
-
+    
     segment->type = layoutentry->type;
     segment->iomode = layoutentry->iomode;
     segment->offset = layoutentry->offset;
@@ -339,10 +359,10 @@ int localstate_iter_layout_entries(stateid4 stateid,
     segment->layoutdata = layoutentry->layoutdata;
     segment->segid = (uint64_t) layoutentry;
     *cookie = (uint64_t) (layoutentry->next);
-
+    
     if (*cookie == 0)
-	*finished = true;
-
+      *finished = true;
+    
     return ERR_STATE_NO_ERROR;
 }
 

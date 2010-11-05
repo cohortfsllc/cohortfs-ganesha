@@ -40,9 +40,37 @@
 #include "log_macros.h"
 #include "fsal_types.h"
 
-uint32_t allzeros[3] = {0, 0, 0};
-uint32_t allones[3] = {0xffffffff, 0xffffffff, 0xffffffff};
+#define allzeros  {0x00, 0x00, 0x00, 0x00, \
+                   0x00, 0x00, 0x00, 0x00, \
+		   0x00, 0x00, 0x00, 0x00}
+#define allones {0xff, 0xff, 0xff, 0xff, \
+                 0xff, 0xff, 0xff, 0xff,			\
+		 0xff, 0xff, 0xff, 0xff}
 
+stateid4 state_anonymous_stateid =
+  {
+    .seqid = 0,
+    .other = allzeros
+  };
+
+stateid4 state_bypass_stateid =
+  {
+    .seqid = NFS4_UINT32_MAX,
+    .other = allones
+  };
+
+stateid4 state_current_stateid =
+  {
+    .seqid = 1,
+    .other = allzeros
+  };
+
+stateid4 state_invalid_stateid =
+  {
+    .seqid = NFS4_UINT32_MAX,
+    .other = allzeros
+  };
+  
 uint32_t staterr2nfs4err(uint32_t staterr)
 {
   switch (staterr)
@@ -68,7 +96,11 @@ uint32_t staterr2nfs4err(uint32_t staterr)
 	  return NFS4ERR_STALE_STATEID;
 	  break;
       case ERR_STATE_OBJTYPE:
+#ifdef _USE_NFS4_1
 	  return NFS4ERR_WRONG_TYPE;
+#else
+	  return NFS4ERR_INVAL;
+#endif
 	  break;
       case ERR_STATE_NOMUTATE:
       case ERR_STATE_PREEXISTS:
@@ -79,20 +111,28 @@ uint32_t staterr2nfs4err(uint32_t staterr)
       }
 }
 
-bool_t state_anonymous_stateid(stateid4 stateid)
+bool_t state_anonymous_check(stateid4 stateid)
 {
-  return ((!memcmp(stateid.other, allzeros, 12) && !stateid.seqid) ||
-	  (!memcmp(stateid.other, allones, 12) && !(~stateid.seqid)));
+  return (state_anonymous_exact_check(stateid) ||
+	  state_bypass_check(stateid));
 }
 
-bool_t state_current_stateid(stateid4 stateid)
+bool_t state_anonymous_exact_check(stateid4 stateid)
 {
-  return (!memcmp(stateid.other, allzeros, 12) &&
-	  (stateid.seqid == 1));
+  return !memcmp(&stateid, &state_anonymous_stateid, sizeof(stateid4));
 }
 
-bool_t state_invalid_stateid(stateid4 stateid)
+bool_t state_bypass_check(stateid4 stateid)
 {
-  return (!memcmp(stateid.other, allzeros, 12) &&
-	  (stateid.seqid == NFS4_UINT32_MAX));
+  return !memcmp(&stateid, &state_bypass_stateid, sizeof(stateid4));
+}
+
+bool_t state_current_check(stateid4 stateid)
+{
+  return !memcmp(&stateid, &state_current_stateid, sizeof(stateid4));
+}
+
+bool_t state_invalid_check(stateid4 stateid)
+{
+  return !memcmp(&stateid, &state_invalid_stateid, sizeof(stateid4));
 }

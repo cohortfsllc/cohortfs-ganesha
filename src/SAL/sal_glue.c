@@ -143,6 +143,7 @@ int state_check_delegation(fsal_handle_t *handle,
 						type);
 }
 
+#ifdef _USE_NFS4_1
 int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 				bitmap4 notification_types,
 				attr_notice4 child_attr_delay,
@@ -171,6 +172,7 @@ int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
     return sal_functions.state_query_dir_delegation(handle, clientid,
 						    outdir_delegation);
 }
+#endif
 
 int state_create_lock_state(fsal_handle_t *handle,
 			    stateid4 open_stateid,
@@ -236,11 +238,13 @@ int state_delete_layout_state(stateid4 stateid)
 }
 
 int state_query_layout_state(fsal_handle_t *handle,
+			     clientid4 clientid,
 			     layouttype4 type,
-			     lockstate* outlayoutstate)
+			     layoutstate* outlayoutstate)
 {
     return sal_functions.state_query_layout_state(handle,
 						  type,
+						  clientid,
 						  outlayoutstate);
 }
 
@@ -249,7 +253,7 @@ int state_add_layout_segment(layouttype4 type,
 			     offset4 offset,
 			     length4 length,
 			     bool_t return_on_close,
-			     fsal_layout_t* layoutdata,
+			     fsal_layoutdata_t* layoutdata,
 			     stateid4 stateid)
 {
     return sal_functions.state_add_layout_segment(type, iomode, offset,
@@ -261,7 +265,7 @@ int state_add_layout_segment(layouttype4 type,
 int state_mod_layout_segment(layoutiomode4 iomode,
 			     offset4 offset,
 			     length4 length,
-			     fsal_layout_t* layoutdata,
+			     fsal_layoutdata_t* layoutdata,
 			     stateid4 stateid,
 			     uint64_t segid)
 {

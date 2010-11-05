@@ -57,6 +57,18 @@
  * between these and their own internal formats.
  */
 
+/* These defines are for compatibility between NFSv4.0 and NFSv4.1 */
+
+#ifdef _USE_NFS4_0
+typedef open_owner4 state_owner4;
+#define NFS4_UINT32_MAX 0xffffffff
+#endif
+
+extern stateid4 state_anonymous_stateid;
+extern stateid4 state_bypass_stateid;
+extern stateid4 state_current_stateid;
+extern stateid4 state_invalid_stateid;
+
 /**
  * \typedef sharestate
  *
@@ -105,6 +117,8 @@ typedef struct __delegationstate
 				 overcommitted.) */
 } delegationstate;
 
+#ifdef _USE_NFS4_1
+
 /**
  * \typedef dir_delegationstate
  *
@@ -135,6 +149,8 @@ typedef struct __dir_delegationstate
     bitmap4 dir_attributes; /*!< Attributes of the directory itself
 			         about which the client cares. */
 } dir_delegationstate;
+
+#endif
 
 /**
  * \typedef lockstate
@@ -194,7 +210,7 @@ typedef struct __layoutsegment
     length4 length; /*!< The length of the specified range */
     bool_t return_on_close; /*!< Whether the layout should be returned
 			         on file close. */
-    fsal_layout_t* layoutdata; /*!< FSAL specific data associated with
+    fsal_layoutdata_t* layoutdata; /*!< FSAL specific data associated with
 				    the layout */
     uint64_t segid; /*!< An opaque 64 bit value the SAL uses to
 		         identify the layout. */
@@ -260,8 +276,10 @@ typedef struct __taggedstate
     {
 	sharestate share; /*!< The share */
 	delegationstate delegation; /*!< The delegation */
+#ifdef _USE_NFS4_1
 	dir_delegationstate dir_delegation; /*!< The directory
 					         delegation */
+#endif
 	lockstate lock; /*!< The lock state */
 #ifdef _USE_FSALMDS
 	layoutstate layout; /*!< The collection of layouts */
@@ -588,6 +606,7 @@ int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
 int state_check_delegation(fsal_handle_t *handle,
 			   open_delegation_type4 type);
 
+#ifdef _USE_NFS4_1
 
 /**
  * \subsection DIRECTORY DELEGATION FUNCTIONS
@@ -684,6 +703,8 @@ int state_query_dir_delegation(fsal_handle_t *handle,
  */ 
 
 int state_check_dir_delegation(fsal_handle_t *handle);
+
+#endif
 
 /**
  * \subsection LOCKS
@@ -819,6 +840,30 @@ int state_create_layout_state(fsal_handle_t* handle,
 int state_delete_layout_state(stateid4 stateid);
 
 /**
+ * state_query_layout_state: Looks up layout state information
+ * \param handle (in)
+ *        The handle in question
+ * \param clientid (in)
+ *        The client
+ * \param type (in)
+ *        The layout type
+ * \param outlayoutstate (out)
+ *        Pointer to a structure to which information will be written.
+ *
+ * This function fills outlockstate with the information appropriate to
+ * the state identified by the tuple (handle, clientid, open_stateid,
+ * lock_owner).
+ *
+ * \retval ERR_STATE_NO_ERRO Success
+ * \retval ERR_STATE_NOENT No such state exists
+ */ 
+
+int state_query_layout_state(fsal_handle_t *handle,
+			     clientid4 clientid,
+			     layouttype4 type,
+			     layoutstate* outlayoutstate);
+
+/**
  * state_add_layout_segment: Add a new layout segment
  * \param type (in)
  *        Layout type
@@ -849,7 +894,7 @@ int state_add_layout_segment(layouttype4 type,
 			     offset4 offset,
 			     length4 length,
 			     bool_t return_on_close,
-			     fsal_layout_t* layoutdata,
+			     fsal_layoutdata_t* layoutdata,
 			     stateid4 stateid);
 
 /**
@@ -874,7 +919,7 @@ int state_add_layout_segment(layouttype4 type,
 int state_mod_layout_segment(layoutiomode4 iomode,
 			     offset4 offset,
 			     length4 length,
-			     fsal_layout_t* layoutdata,
+			     fsal_layoutdata_t* layoutdata,
 			     stateid4 stateid,
 			     uint64_t segid);
 /**
@@ -1098,7 +1143,7 @@ int state_save_response(state_owner4 state_owner, bool_t lock,
 int state_retrieve_state(stateid4 stateid, taggedstate* state);
 
 /**
- * state_anonymous_stateid: Check for anonymous state
+ * state_anonymous_check: Check for anonymous state
  * \param stateid (in)
  *
  * Returns true if the supplied stateid is either the anonymous or the
@@ -1107,10 +1152,32 @@ int state_retrieve_state(stateid4 stateid, taggedstate* state);
  * \returns true or false as appropriate
  */
 
-bool_t state_anonymous_stateid(stateid4 stateid);
+bool_t state_anonymous_check(stateid4 stateid);
 
 /**
- * state_current_stateid: Check for current state
+ * state_anonymous_exact_check: Check for anonymous state
+ * \param stateid (in)
+ *
+ * Returns true if the supplied stateid is the anonymous staateid.
+ *
+ * \returns true or false as appropriate
+ */
+
+bool_t state_anonymous_exact_check(stateid4 stateid);
+
+/**
+ * state_anonymous_check: Check for bypass state
+ * \param stateid (in)
+ *
+ * Returns true if the supplied stateid is the read-bypass stateid.
+ *
+ * \returns true or false as appropriate
+ */
+
+bool_t state_bypass_check(stateid4 stateid);
+
+/**
+ * state_current_check: Check for current state
  * \param stateid (in)
  *
  * Returns true if the supplied stateid is the special stateid
@@ -1119,10 +1186,10 @@ bool_t state_anonymous_stateid(stateid4 stateid);
  * \returns true or false as appropriate
  */
 
-bool_t state_current_stateid(stateid4 stateid);
+bool_t state_current_check(stateid4 stateid);
 
 /**
- * state_invalid_stateid: Check for invalid state
+ * state_invalid_check: Check for invalid state
  * \param stateid (in)
  *
  * Returns true if the supplied stateid is the special invalid
@@ -1131,7 +1198,7 @@ bool_t state_current_stateid(stateid4 stateid);
  * \returns true or false as appropriate
  */
 
-bool_t state_invalid_stateid(stateid4 stateid);
+bool_t state_invalid_check(stateid4 stateid);
 
 /**
  * state_init: Initialises the state realisation
@@ -1222,6 +1289,7 @@ typedef struct __sal_functions
 				delegationstate* outdelegation);
   int (*state_check_delegation)(fsal_handle_t *handle,
 				open_delegation_type4 type);
+#ifdef _USE_NFS4_1
   int (*state_create_dir_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				     bitmap4 notification_types,
 				     attr_notice4 child_attr_delay,
@@ -1232,6 +1300,7 @@ typedef struct __sal_functions
   int (*state_delete_dir_delegation)(stateid4 stateid);
   int (*state_query_dir_delegation)(fsal_handle_t *handle, clientid4 clientid,
 				    dir_delegationstate* outdir_delegation);
+#endif
   int (*state_create_lock_state)(fsal_handle_t *handle,
 				 stateid4 open_stateid,
 				 lock_owner4 lock_owner,
@@ -1254,19 +1323,20 @@ typedef struct __sal_functions
 				   stateid4* stateid);
   int (*state_delete_layout_state)(stateid4 stateid);
   int (*state_query_layout_state)(fsal_handle_t *handle,
+				  clientid4 clientid,
 				  layouttype4 type,
-				  lockstate* outlayoutstate);
+				  layoutstate* outlayoutstate);
   int (*state_add_layout_segment)(layouttype4 type,
 				  layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
 				  bool_t return_on_close,
-				  fsal_layout_t* layoutdata,
+				  fsal_layoutdata_t* layoutdata,
 				  stateid4 stateid);
   int (*state_mod_layout_segment)(layoutiomode4 iomode,
 				  offset4 offset,
 				  length4 length,
-				  fsal_layout_t* layoutdata,
+				  fsal_layoutdata_t* layoutdata,
 				  stateid4 stateid,
 				  uint64_t segid);
   int (*state_free_layout_segment)(stateid4 stateid,

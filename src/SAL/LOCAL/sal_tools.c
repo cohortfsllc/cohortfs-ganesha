@@ -107,13 +107,22 @@ int localstate_lock_filehandle(fsal_handle_t *handle, statelocktype rw)
 		    
 		    /* Copy, since it looks like the HashTable code depends on
 		       keys not going away */
-		    
+
 		    header->handle = *handle;
 		    key.pdata = (caddr_t)&(header->handle);
 		    
 		    pthread_rwlock_init(&(header->lock), NULL);
 		    
 		    pthread_rwlock_wrlock(&(header->lock));
+
+		    header->max_share = 0;
+		    header->max_deny = 0;
+		    header->anonreaders = 0;
+		    header->anonwriters = 0;
+		    header->read_delegations = 0;
+		    header->write_delegation = 0;
+		    header->dir_delegations = 0;
+		    header->states = NULL;
 		    
 		    val.pdata = (caddr_t)header;
 		    val.len = sizeof(entryheader_t);

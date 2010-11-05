@@ -77,7 +77,7 @@ int encodefileslayout(layouttype4 type,
 int encodefilesdevice(layouttype4 type,
 		      device_addr4* dest,
 		      size_t length,
-		      void* source)
+		      caddr_t source)
 {
   nfsv4_1_file_layout_ds_addr4* lsrc=(nfsv4_1_file_layout_ds_addr4*) source;
   XDR xdrs;

@@ -346,6 +346,12 @@ state_t* newstate(clientid4 clientid, entryheader_t* header)
     state->header = header;
     state->clientid = clientid;
     state->stateid.seqid = 1;
+    state->prev = NULL;
+    state->next = NULL;
+    state->prevfh = NULL;
+    state->nextfh = NULL;
+    state->type = -1;
+    memset(&(state->state), 0, sizeof(state->state));
 
     if (rc != HASHTABLE_SUCCESS)
 	{
@@ -462,10 +468,12 @@ void filltaggedstate(state_t* state, taggedstate* outstate)
 	    filldelegationstate(state, &(outstate->u.delegation),
 				state->header);
 	    break;
+#ifdef _USE_NFS4_1
 	case STATE_DIR_DELEGATION:
 	    filldir_delegationstate(state,
 				    &(outstate->u.dir_delegation), state->header);
 	    break;
+#endif
 	case STATE_LOCK:
 	    filllockstate(state, &(outstate->u.lock), state->header);
 	    break;

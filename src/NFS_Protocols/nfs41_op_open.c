@@ -297,13 +297,13 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 				   &filename,
 				   NULL,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createverf,
-				   exclusive);
+				   true);
 	    case EXCLUSIVE4_1:
 	      return create_name41(op, data, resp, uid, pentry_parent,
 				   &filename,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.ch_createboth.cva_attrs,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.ch_createboth.cva_verf,
-				   exclusive);
+				   true);
 	      break;
 
 	    default:
@@ -672,8 +672,7 @@ int create_name41(struct nfs_argop4* op, compound_data_t* data,
   
   if (created)
     {
-      res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len =
-	createattrs->attrmask.bitmap4_len;
+      res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 4;
       if((res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val =
 	  (uint32_t *) Mem_Alloc(4 * sizeof(uint32_t))) == NULL)
 	res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len = 0;

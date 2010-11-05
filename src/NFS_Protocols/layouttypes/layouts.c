@@ -44,12 +44,12 @@
 int encodefileslayout(layouttype4 type,
 		      layout_content4* dest,
 		      size_t size,
-		      void* source);
+		      caddr_t source);
 
 int encodefilesdevice(layouttype4 type,
 		      device_addr4* dest,
 		      size_t length,
-		      void* source);
+		      caddr_t source);
 
 layoutfunctions layoutfuncs[]={
   {LAYOUT4_NFSV4_1_FILES,

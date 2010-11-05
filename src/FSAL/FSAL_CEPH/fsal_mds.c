@@ -48,6 +48,7 @@
 #include "stuff_alloc.h"
 #include "fsal_types.h"
 #include <alloca.h>
+#include "sal.h"
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
@@ -264,8 +265,8 @@ deviceaddrinfo* get_entry(uint64_t inode, uint64_t generation)
  *        would need a means to trigger a layoutrecall.
  * \param context (input):
  *        Credential information
- * \param cbcookie (input):
- *        Opaque, passed to callbacks.
+ * \param opaque (input):
+ *        Passed to FSALBACK function to create filehandle
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  */
@@ -279,7 +280,8 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 int *numlayouts,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
-				 void* cbcookie)
+				 stateid4* stateid,
+				 void* opaque)
 {
   struct stat_precise st;
   char name[255];
@@ -411,8 +413,8 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   /* Add the layout to the state for the file */
   
-  if (FSALBACK_layout_add_state(type, iomode, offset, length,
-				entry, *return_on_close, cbcookie) != 0)
+  if (state_add_layout_segment(type, iomode, offset, length,
+			       *return_on_close, entry, *stateid) != 0)
     {
       remove_entry(entry);
       Mem_Free(entry);
@@ -472,7 +474,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   /* Give the client a filehandle that may be sent to the DS */
   
-  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, cbcookie);
+  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, opaque);
 
   if (!(encode_lo_content(LAYOUT4_NFSV4_1_FILES,
 			  &((*layouts)->lo_content),
@@ -485,6 +487,10 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     }
 			
 
+  /* On success, bump the seqid */
+
+  state_layout_inc_state(stateid);
+
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
 
@@ -492,32 +498,24 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
  *
  * FSAL_layoutreturn: The NFSv4.1 LAYOUTRETURN operation
  *
- * Free a layout on a given file.  This routine will always be
- * passed exactly a layout granted by LAYOUTGET (retrieved from the
- * state table.)
+ * Free a client specified layout range on a file.
  *
  * \param filehandle (input):
  *        The handle upon which the layout was granted
  * \param type (input):
  *        The layout type
- * \param passed_iomode (input):
+ * \param iomode (input):
  *        The iomode passed by the client (in case it's ANY)
- * \param passed_offset (input):
+ * \param offset (input):
  *        The offset (specified by the client)
- * \param passed_length (input):
+ * \param length (input):
  *        The length (specified by the client)
- * \param found_iomode (input):
- *        The iomode (of the layout found in the state table)
- * \param found_offset (input):
- *        The offset (of the layout found in the state table)
- * \param found_length (input):
- *        The length (of the layout found in the state table)
- * \param ldata (input):
- *        FSAL-specific layout data
  * \param context (input):
  *        The authentication context
- * \param cbcookie (input):
- *        Opaque to be passed to callbacks
+ * \param nomore (output):
+ *        Set to true if the last layout segment has been freed.
+ * \param stateid (input/output):
+ *        The layout stateid.
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
@@ -525,34 +523,60 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t passed_iomode,
-				    fsal_off_t passed_offset,
-				    fsal_size_t passed_length,
-				    fsal_size_t found_iomode,
-				    fsal_off_t found_offset,
-				    fsal_size_t found_length,
-				    cephfsal_layoutdata_t ldata,
-				    fsal_op_context_t* context,
-				    void* cbcookie)
+				    fsal_layoutiomode_t iomode,
+				    fsal_off_t offset,
+				    fsal_size_t length,
+				    cephfsal_op_context_t* context,
+				    bool_t* nomore,
+				    stateid4* stateid)
 {
-  /* Perform FSAL specific tasks to release the layout */
+  uint64_t layoutcookie = 0;
+  bool_t finished = false;
+  layoutsegment segment;
+  int remaining = 0;
+  int rc = 0;
+  *nomore = false;
 
-  if ((passed_offset > found_offset) ||
-      (passed_length < found_length))
-    Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
-    
-  if (remove_entry(ldata) != 0)
-    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+  /* We iterate over all segments returning those falling completely
+     within the client's range */
+  
+  while (rc = state_iter_layout_entries(*stateid, &layoutcookie,
+					&finished, &segment),
+	 !finished)
+    {
+      if (rc != ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
 
-  if (FSALBACK_layout_remove_state(cbcookie) != 0)
-    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+      ++remaining;
+
+      if ((segment.type != type) || /* This should never happen */
+	  !(segment.iomode & iomode) || /* iomode should match ro be
+					   ANY */
+	  (segment.offset < offset) ||
+	  ((segment.offset + segment.length) >
+	   (offset + length)))
+	continue;
+
+      if (remove_entry(segment.layoutdata) != 0)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+
+      if (state_free_layout_segment(*stateid, segment.segid) !=
+	  ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+      --remaining;
+    }
+  
+  if (!remaining)
+    *nomore = true;
+
+  state_layout_inc_state(stateid);
   
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
 }
 
 /**
  *
- * FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
+* FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
  *
  * Commit changes made on the DSs to the MDS
  *
