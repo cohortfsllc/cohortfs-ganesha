@@ -145,7 +145,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
       res_SETCLIENTID4.status = NFS4ERR_SERVERFAULT;
       return res_SETCLIENTID4.status;
     }
-  LogDebug(COMPONENT_NFS_V4, "SETCLIENTID computed clientid4=%llx for name='%s'",
+  LogDebug(COMPONENT_NFS_V4, "SETCLIENTID computed clientid4=%"PRIx64" for name='%s'",
                   clientid, str_client);
 
   /* Does this id already exists ? */
@@ -153,7 +153,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
     {
       /* Client id already in use */
       LogDebug(COMPONENT_NFS_V4,
-                      "SETCLIENTID ClientId %llx already in use for client '%s', check if same",
+                      "SETCLIENTID ClientId %"PRIx64" already in use for client '%s', check if same",
                       clientid, nfs_clientid.client_name);
 
       /* Principals are the same, check content of the setclientid request */
@@ -165,7 +165,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
              FALSE)
             {
               LogDebug(COMPONENT_NFS_V4,
-                              "SETCLIENTID Confirmed ClientId %llx -> '%s': Credential do not match... Return NFS4ERR_CLID_INUSE",
+                              "SETCLIENTID Confirmed ClientId %"PRIx64" -> '%s': Credential do not match... Return NFS4ERR_CLID_INUSE",
                               clientid, nfs_clientid.client_name);
 
               res_SETCLIENTID4.status = NFS4ERR_CLID_INUSE;
@@ -184,13 +184,13 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
             }
           else
             LogDebug(COMPONENT_NFS_V4,
-                            "SETCLIENTID ClientId %llx is set again by same principal",
+                            "SETCLIENTID ClientId %"PRIx64" is set again by same principal",
                             clientid);
 #endif
 
           /* Ask for a different client with the same client id... returns an error if different client */
           LogDebug(COMPONENT_NFS_V4,
-                          "SETCLIENTID Confirmed ClientId %llx already in use for client '%s'",
+                          "SETCLIENTID Confirmed ClientId %"PRIx64" already in use for client '%s'",
                           clientid, nfs_clientid.client_name);
 
           if(strncmp
@@ -198,7 +198,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
               NFS4_VERIFIER_SIZE))
             {
               LogDebug(COMPONENT_NFS_V4,
-                              "SETCLIENTID Confirmed ClientId %llx already in use for client '%s', verifier do not match...",
+                              "SETCLIENTID Confirmed ClientId %"PRIx64" already in use for client '%s', verifier do not match...",
                               clientid, nfs_clientid.client_name);
 
               /* A client has rebooted and rebuilds its state */
@@ -229,7 +229,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
               nfs_clientid.clientid = clientid;
               nfs_clientid.last_renew = 0;
 
-              if(nfs_client_id_set(clientid, nfs_clientid, pworker->clientid_pool) !=
+              if(nfs_client_id_set(clientid, nfs_clientid, &pworker->clientid_pool) !=
                  CLIENT_ID_SUCCESS)
                 {
                   res_SETCLIENTID4.status = NFS4ERR_SERVERFAULT;
@@ -240,7 +240,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
           else
             {
               LogDebug(COMPONENT_NFS_V4,
-                              "SETCLIENTID Confirmed ClientId %llx already in use for client '%s', verifier matches. Now check callback",
+                              "SETCLIENTID Confirmed ClientId %"PRIx64" already in use for client '%s', verifier matches. Now check callback",
                               clientid, nfs_clientid.client_name);
 
               if(nfs_clientid.cb_program == arg_SETCLIENTID4.callback.cb_program)
@@ -249,7 +249,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
                                   "SETCLIENTID with same arguments for aleady confirmed client '%s'",
                                   nfs_clientid.client_name);
                   LogDebug(COMPONENT_NFS_V4,
-                                  "SETCLIENTID will set the client UNCONFIRMED and returns NFS4_OK",
+                                  "SETCLIENTID '%s' will set the client UNCONFIRMED and returns NFS4_OK",
                                   nfs_clientid.client_name);
 
                   /* Set the client UNCONFIRMED */
@@ -258,7 +258,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
                   res_SETCLIENTID4.status = NFS4_OK;
 
                   /* Update the stateid hash */
-                  if(nfs_client_id_set(clientid, nfs_clientid, pworker->clientid_pool) !=
+                  if(nfs_client_id_set(clientid, nfs_clientid, &pworker->clientid_pool) !=
                      CLIENT_ID_SUCCESS)
                     {
                       res_SETCLIENTID4.status = NFS4ERR_SERVERFAULT;
@@ -269,7 +269,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
               else
                 {
                   LogDebug(COMPONENT_NFS_V4,
-                                  "SETCLIENTID Confirmed ClientId %llx already in use for client '%s', verifier matches. Different callback program 0x%x != 0x%x",
+                                  "SETCLIENTID Confirmed ClientId %"PRIx64" already in use for client '%s', verifier matches. Different callback program 0x%x != 0x%x",
                                   clientid, nfs_clientid.client_name,
                                   nfs_clientid.cb_program,
                                   arg_SETCLIENTID4.callback.cb_program);
@@ -278,7 +278,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
         }
       else
         LogDebug(COMPONENT_NFS_V4,
-                        "SETCLIENTID ClientId %llx already in use for client '%s', but unconfirmed",
+                        "SETCLIENTID ClientId %"PRIx64" already in use for client '%s', but unconfirmed",
                         clientid, nfs_clientid.client_name);
     }
   else
@@ -308,7 +308,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
       nfs_clientid.last_renew = 0;
       nfs_clientid.credential = data->credential;
 
-      if(nfs_client_id_add(clientid, nfs_clientid, pworker->clientid_pool) !=
+      if(nfs_client_id_add(clientid, nfs_clientid, &pworker->clientid_pool) !=
          CLIENT_ID_SUCCESS)
         {
           res_SETCLIENTID4.status = NFS4ERR_SERVERFAULT;

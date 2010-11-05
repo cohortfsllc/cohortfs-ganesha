@@ -58,7 +58,6 @@ fsal_status_t ZFSFSAL_unlink(zfsfsal_handle_t * parentdir_handle,     /* IN */
   fsal_status_t st;
   int rc, type;
   inogen_t object;
-  zfsfsal_handle_t obj_handle;
 
   /* sanity checks.
    * note : parentdir_attributes are optional.
@@ -67,6 +66,13 @@ fsal_status_t ZFSFSAL_unlink(zfsfsal_handle_t * parentdir_handle,     /* IN */
    */
   if(!parentdir_handle || !p_context || !p_object_name)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_unlink);
+
+  /* Hook to prevent removing anything from snapshots */
+  if(parentdir_handle->data.i_snap != 0)
+  {
+    LogDebug(COMPONENT_FSAL, "Trying to remove an object from a snapshot");
+    Return(ERR_FSAL_ROFS, 0, INDEX_FSAL_unlink);
+  }
 
   TakeTokenFSCall();
 

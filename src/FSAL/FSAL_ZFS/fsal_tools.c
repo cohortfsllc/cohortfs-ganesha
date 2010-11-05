@@ -50,8 +50,6 @@ int ZFSFSAL_handlecmp(zfsfsal_handle_t * handle1, zfsfsal_handle_t * handle2,
                    fsal_status_t * status)
 {
 
-  fsal_u64_t fileid1, fileid2;
-
   *status = FSAL_STATUS_NO_ERROR;
 
   if(!handle1 || !handle2)
@@ -83,7 +81,7 @@ unsigned int ZFSFSAL_Handle_to_HashIndex(zfsfsal_handle_t * p_handle,
 {
 
   /* >> here must be your implementation of your zfsfsal_handle_t hashing */
-  return (3 * (unsigned int)(p_handle->data.zfs_handle.inode*p_handle->data.zfs_handle.generation) + 1999 + cookie) % index_size;
+  return (3 * (unsigned int)(p_handle->data.zfs_handle.inode*p_handle->data.zfs_handle.generation*(p_handle->data.i_snap+1)) + 1999 + cookie) % index_size;
 
 }
 
@@ -102,7 +100,7 @@ unsigned int ZFSFSAL_Handle_to_HashIndex(zfsfsal_handle_t * p_handle,
 unsigned int ZFSFSAL_Handle_to_RBTIndex(zfsfsal_handle_t * p_handle, unsigned int cookie)
 {
   /* >> here must be your implementation of your zfsfsal_handle_t hashing << */
-  return (unsigned int)(0xABCD1234 ^ (p_handle->data.zfs_handle.inode*p_handle->data.zfs_handle.generation) ^ cookie);
+  return (unsigned int)(0xABCD1234 ^ (p_handle->data.zfs_handle.inode*p_handle->data.zfs_handle.generation*(p_handle->data.i_snap+1)) ^ cookie);
 
 }
 
@@ -654,7 +652,6 @@ fsal_status_t ZFSFSAL_load_FS_specific_parameter_from_conf(config_file_t in_conf
                                                         fsal_parameter_t * out_parameter)
 {
   int err;
-  int blk_index;
   int var_max, var_index;
   char *key_name;
   char *key_value;
@@ -697,10 +694,22 @@ fsal_status_t ZFSFSAL_load_FS_specific_parameter_from_conf(config_file_t in_conf
 
       /* what parameter is it ? */
 
-      if(!STRCMP(key_name, "Zpool"))
-        {
+      if(!STRCMP(key_name, "zpool"))
           strncpy(out_parameter->fs_specific_info.psz_zpool, key_value, 256);
-        }
+      else if(!STRCMP(key_name, "auto_snapshots"))
+          out_parameter->fs_specific_info.auto_snapshots = !STRCMP(key_value, "TRUE");
+      else if(!STRCMP(key_name, "snap_hourly_prefix"))
+          strncpy(out_parameter->fs_specific_info.psz_snap_hourly_prefix, key_value, 256);
+      else if(!STRCMP(key_name, "snap_hourly_time"))
+          out_parameter->fs_specific_info.snap_hourly_time = atoi(key_value);
+      else if(!STRCMP(key_name, "snap_hourly_number"))
+          out_parameter->fs_specific_info.snap_hourly_number = atoi(key_value);
+      else if(!STRCMP(key_name, "snap_daily_prefix"))
+          strncpy(out_parameter->fs_specific_info.psz_snap_daily_prefix, key_value, 256);
+      else if(!STRCMP(key_name, "snap_daily_time"))
+          out_parameter->fs_specific_info.snap_daily_time = atoi(key_value);
+      else if(!STRCMP(key_name, "snap_daily_number"))
+          out_parameter->fs_specific_info.snap_daily_number = atoi(key_value);
       else
         {
           LogCrit(COMPONENT_FSAL,

@@ -186,6 +186,8 @@ fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
         Return(posix2fsal_error(errsv), errsv, INDEX_FSAL_open);
     }
 
+#if 0
+  /* No required, the open would have failed if not permitted */
   status =
       fsal_internal_testAccess(p_context,
                                openflags & FSAL_O_RDONLY ? FSAL_R_OK : FSAL_W_OK,
@@ -195,6 +197,7 @@ fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
       close(fd);
       ReturnStatus(status, INDEX_FSAL_open);
     }
+#endif
 
   TakeTokenFSCall();
   p_file_descriptor->fd = fd;
@@ -304,7 +307,7 @@ fsal_status_t XFSFSAL_read(xfsfsal_file_t * p_file_descriptor,  /* IN */
       if(rc)
         {
           LogEvent(COMPONENT_FSAL,
-                            "Error in posix fseek operation (whence=%s, offset=%lld)",
+                            "Error in posix fseek operation (whence=%s, offset=%"PRId64")",
                             (p_seek_descriptor->whence == FSAL_SEEK_CUR ? "SEEK_CUR" :
                              (p_seek_descriptor->whence == FSAL_SEEK_SET ? "SEEK_SET" :
                               (p_seek_descriptor->whence ==
@@ -424,7 +427,7 @@ fsal_status_t XFSFSAL_write(xfsfsal_file_t * p_file_descriptor, /* IN */
       if(rc)
         {
 	  LogEvent(COMPONENT_FSAL,
-                            "Error in posix fseek operation (whence=%s, offset=%lld)",
+                            "Error in posix fseek operation (whence=%s, offset=%"PRId64")",
                             (p_seek_descriptor->whence == FSAL_SEEK_CUR ? "SEEK_CUR" :
                              (p_seek_descriptor->whence == FSAL_SEEK_SET ? "SEEK_SET" :
                               (p_seek_descriptor->whence ==
@@ -436,7 +439,7 @@ fsal_status_t XFSFSAL_write(xfsfsal_file_t * p_file_descriptor, /* IN */
         }
 
       LogFullDebug(COMPONENT_FSAL,
-                        "Write operation (whence=%s, offset=%lld, size=%lld)",
+                        "Write operation (whence=%s, offset=%"PRId64", size=%llu)",
                         (p_seek_descriptor->whence ==
                          FSAL_SEEK_CUR ? "SEEK_CUR" : (p_seek_descriptor->whence ==
                                                        FSAL_SEEK_SET ? "SEEK_SET"
@@ -463,7 +466,7 @@ fsal_status_t XFSFSAL_write(xfsfsal_file_t * p_file_descriptor, /* IN */
   if(nb_written <= 0)
     {
       LogDebug(COMPONENT_FSAL,
-                        "Write operation of size %llu at offset %lld failed. fd=%d, errno=%d.",
+                        "Write operation of size %zu at offset %"PRId64" failed. fd=%d, errno=%d.",
                         i_size, p_seek_descriptor->offset, p_file_descriptor->fd, errsv);
       Return(posix2fsal_error(errsv), errsv, INDEX_FSAL_write);
     }

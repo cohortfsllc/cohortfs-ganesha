@@ -44,6 +44,12 @@ STAT_SNMP_FILES =
 STAT_SNMP_LIB_FLAGS =
 endif
 
+if USE_STAT_EXPORTER
+STAT_EXPORTER_FILE = nfs_stat_exporter_thread.c
+else
+STAT_EXPORTER_FILE = 
+endif
+
 if USE_FSAL_FUSE
 noinst_LTLIBRARIES           = libMainServices.la
 lib_LTLIBRARIES              = libganeshaNFS.la
@@ -68,6 +74,7 @@ endif
 
 libMainServices_la_SOURCES = nfs_admin_thread.c                   \
                              nfs_stats_thread.c                   \
+                             $(STAT_EXPORTER_FILE)                \
                              nfs_worker_thread.c                  \
                              nfs_file_content_gc_thread.c         \
                              nfs_rpc_dispatcher_thread.c          \
@@ -154,8 +161,7 @@ bin_PROGRAMS               = $(FS_NAME).ganesha.nfsd
 __FS_NAME__ganesha_nfsd_SOURCES    = nfs_main.c  \
                                      nfs_init.h
 __FS_NAME__ganesha_nfsd_LDADD      =  ./libMainServices.la \
-                                      $(FSAL_LDFLAGS) $(EXT_LDADD) \
-				      $(libMainServices_la_LIBADD) \
+                                      $(FSAL_LDFLAGS) $(EXT_LDADD)  \
                                       $(SEC_LIB_FLAGS) @EFENCE@ @EXTRA_LIB@
 
 endif

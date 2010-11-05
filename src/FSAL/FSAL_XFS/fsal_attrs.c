@@ -39,6 +39,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <utime.h>
+#include <inttypes.h>
 
 /**
  * FSAL_getattrs:
@@ -235,6 +236,7 @@ fsal_status_t XFSFSAL_setattrs(xfsfsal_handle_t * p_filehandle, /* IN */
           TakeTokenFSCall();
           rc = fchmod(fd, fsal2unix_mode(attrs.mode));
           errsv = errno;
+
           ReleaseTokenFSCall();
 
           if(rc)
@@ -307,7 +309,7 @@ fsal_status_t XFSFSAL_setattrs(xfsfsal_handle_t * p_filehandle, /* IN */
   if(FSAL_TEST_MASK(attrs.asked_attributes, FSAL_ATTR_OWNER | FSAL_ATTR_GROUP))
     {
 
-      LogFullDebug(COMPONENT_FSAL, "Performing chown(inode=%u, %d,%d)",
+      LogFullDebug(COMPONENT_FSAL, "Performing chown(inode=%"PRIu64", %d,%d)",
                         buffstat.st_ino, FSAL_TEST_MASK(attrs.asked_attributes,
                                                       FSAL_ATTR_OWNER) ? (int)attrs.owner
                         : -1, FSAL_TEST_MASK(attrs.asked_attributes,

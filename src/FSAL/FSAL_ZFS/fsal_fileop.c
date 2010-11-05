@@ -15,6 +15,7 @@
 #endif
 
 #include "fsal.h"
+#include "fsal_common.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
 
@@ -69,11 +70,18 @@ fsal_status_t ZFSFSAL_open(zfsfsal_handle_t * filehandle,     /* IN */
   if(!filehandle || !p_context || !file_descriptor)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open);
 
-  /* >> you can check if this is a file if the information
-   * is stored into the handle << */
-
+  /* Check if this is a file */
   if(filehandle->data.type != FSAL_TYPE_FILE)
     Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_open);
+
+  /* Get the right VFS */
+  ZFSFSAL_VFS_RDLock();
+  libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(filehandle);
+  if(!p_vfs)
+  {
+    ZFSFSAL_VFS_Unlock();
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_open);
+  }
 
   /* >> convert fsal open flags to your FS open flags
    * Take care of conflicting flags << */
@@ -86,21 +94,21 @@ fsal_status_t ZFSFSAL_open(zfsfsal_handle_t * filehandle,     /* IN */
 
   /* >> call your FS open function << */
   libzfswrap_vnode_t *p_vnode;
-  rc = libzfswrap_open(p_context->export_context->p_vfs, &p_context->user_credential.cred,
+  rc = libzfswrap_open(p_vfs, &p_context->user_credential.cred,
                        filehandle->data.zfs_handle, posix_flags, &p_vnode);
 
   ReleaseTokenFSCall();
+  ZFSFSAL_VFS_Unlock();
 
   /* >> interpret returned status << */
   if(rc)
-    Return(posix2fsal_error(rc), rc, INDEX_FSAL_open);
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
 
   /* >> fill output struct << */
-  file_descriptor->p_vfs = p_context->export_context->p_vfs;
   file_descriptor->flags = posix_flags;
   file_descriptor->current_offset = 0;
   file_descriptor->p_vnode = p_vnode;
-  file_descriptor->zfs_handle = filehandle->data.zfs_handle;
+  file_descriptor->handle = *filehandle;
   file_descriptor->cred = p_context->user_credential.cred;
   file_descriptor->is_closed = 0;
 
@@ -241,7 +249,18 @@ fsal_status_t ZFSFSAL_read(zfsfsal_file_t * file_descriptor,  /* IN */
     }
   }
 
-  rc = libzfswrap_read(file_descriptor->p_vfs, &file_descriptor->cred, file_descriptor->p_vnode, buffer, buffer_size, behind, offset);
+  /* Test that the vfs still exist */
+  ZFSFSAL_VFS_RDLock();
+  libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(&file_descriptor->handle);
+  if(!p_vfs)
+  {
+    ZFSFSAL_VFS_Unlock();
+    ReleaseTokenFSCall();
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_read);
+  }
+
+  rc = libzfswrap_read(p_vfs, &file_descriptor->cred, file_descriptor->p_vnode, buffer, buffer_size, behind, offset);
+  ZFSFSAL_VFS_Unlock();
 
   ReleaseTokenFSCall();
 
@@ -295,6 +314,13 @@ fsal_status_t ZFSFSAL_write(zfsfsal_file_t * file_descriptor, /* IN */
   if(!file_descriptor || !buffer || !write_amount)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_write);
 
+  /* Hook to prevent writing into a snapshot */
+  if(file_descriptor->handle.data.i_snap != 0)
+  {
+    LogDebug(COMPONENT_FSAL, "Trying to write to a file inside a snapshot");
+    Return(ERR_FSAL_ROFS, 0, INDEX_FSAL_write);
+  }
+
   TakeTokenFSCall();
 
   if(seek_descriptor)
@@ -313,9 +339,19 @@ fsal_status_t ZFSFSAL_write(zfsfsal_file_t * file_descriptor, /* IN */
       break;
     }
   }
+  /* Test that the vfs still exist */
+  ZFSFSAL_VFS_RDLock();
+  libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(&file_descriptor->handle);
+  if(!p_vfs)
+  {
+    ZFSFSAL_VFS_Unlock();
+    ReleaseTokenFSCall();
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_write);
+  }
 
-  rc = libzfswrap_write(file_descriptor->p_vfs, &file_descriptor->cred, file_descriptor->p_vnode, buffer, buffer_size, behind, offset);
 
+  rc = libzfswrap_write(p_vfs, &file_descriptor->cred, file_descriptor->p_vnode, buffer, buffer_size, behind, offset);
+  ZFSFSAL_VFS_Unlock();
 
   ReleaseTokenFSCall();
 
@@ -357,8 +393,19 @@ fsal_status_t ZFSFSAL_close(zfsfsal_file_t * file_descriptor  /* IN */
 
   if(!file_descriptor->is_closed)
   {
-    rc = libzfswrap_close(file_descriptor->p_vfs, &file_descriptor->cred,
-                          file_descriptor->p_vnode, file_descriptor->flags);
+    /* Test that the vfs still exist */
+    ZFSFSAL_VFS_RDLock();
+    libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(&file_descriptor->handle);
+    if(!p_vfs)
+    {
+      ZFSFSAL_VFS_Unlock();
+      ReleaseTokenFSCall();
+      Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_close);
+    }
+
+    rc = libzfswrap_close(p_vfs, &file_descriptor->cred, file_descriptor->p_vnode,
+                          file_descriptor->flags);
+    ZFSFSAL_VFS_Unlock();
     file_descriptor->is_closed = 1;
   }
 
@@ -390,5 +437,5 @@ fsal_status_t ZFSFSAL_close_by_fileid(zfsfsal_file_t * file_descriptor /* IN */ 
 
 unsigned int ZFSFSAL_GetFileno(fsal_file_t * pfile)
 {
-  return ((zfsfsal_file_t *) pfile)->zfs_handle.inode;
+  return ((zfsfsal_file_t *) pfile)->handle.data.zfs_handle.inode;
 }

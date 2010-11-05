@@ -150,7 +150,7 @@ void fsal_increment_nbcall(int function_index, fsal_status_t status)
     {
       int i;
 
-      bythread_stat = (fsal_statistics_t *) Mem_Alloc(sizeof(fsal_statistics_t));
+      bythread_stat = (fsal_statistics_t *) Mem_Alloc_Label(sizeof(fsal_statistics_t), "fsal_statistics_t");
 
       if(bythread_stat == NULL)
         {
@@ -222,7 +222,7 @@ void fsal_internal_getstats(fsal_statistics_t * output_stats)
       int i;
 
       if((bythread_stat =
-          (fsal_statistics_t *) Mem_Alloc(sizeof(fsal_statistics_t))) == NULL)
+          (fsal_statistics_t *) Mem_Alloc_Label(sizeof(fsal_statistics_t), "fsal_statistics_t")) == NULL)
       {
         /* we don't have working memory, bail */
         LogError(COMPONENT_FSAL, ERR_SYS, ERR_MALLOC, Mem_Errno);
@@ -547,8 +547,8 @@ fsal_status_t fsal_internal_handle2fd_at(int dirfd,
 
   oarg.mountdirfd = dirfd;
 
-  phandle->handle.handle_size = OPENHANDLE_HANDLE_LEN;
-  oarg.handle = &phandle->handle;
+  phandle->data.handle.handle_size = OPENHANDLE_HANDLE_LEN;
+  oarg.handle = &phandle->data.handle;
   oarg.flags = oflags;
 
   if((rc = ioctl(open_by_handle_fd, OPENHANDLE_OPEN_BY_HANDLE, &oarg)) < 0)
@@ -583,7 +583,7 @@ fsal_status_t fsal_internal_get_handle(fsal_op_context_t * p_context,   /* IN */
   if(!p_context || !p_handle || !p_fsalpath)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
-  harg.handle = &p_handle->handle;
+  harg.handle = &p_handle->data.handle;
   harg.handle->handle_size = OPENHANDLE_HANDLE_LEN;
   harg.name = p_fsalpath->path;
   harg.dfd = AT_FDCWD;
@@ -623,7 +623,7 @@ fsal_status_t fsal_internal_get_handle_at(int dfd,      /* IN */
   if(!p_handle || !p_fsalname)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
-  harg.handle = &p_handle->handle;
+  harg.handle = &p_handle->data.handle;
   harg.handle->handle_size = OPENHANDLE_HANDLE_LEN;
   harg.name = p_fsalname->name;
   harg.dfd = dfd;
@@ -653,11 +653,11 @@ fsal_status_t fsal_internal_fd2handle(int fd, fsal_handle_t * p_handle)
   int rc;
   struct name_handle_arg harg;
 
-  if(!p_handle || !&p_handle->handle)
+  if(!p_handle || !&p_handle->data.handle)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
-  harg.handle = &p_handle->handle;
-  memset(&p_handle->handle, 0, sizeof(struct file_handle));
+  harg.handle = &p_handle->data.handle;
+  memset(&p_handle->data.handle, 0, sizeof(struct file_handle));
 
   harg.handle->handle_size = 20;
   harg.name = NULL;
@@ -721,7 +721,7 @@ fsal_status_t fsal_readlink_by_handle(fsal_op_context_t * p_context,
   fsal_status_t status;
   struct readlink_arg readlinkarg;
 
-  p_handle->handle.handle_size = OPENHANDLE_HANDLE_LEN;
+  p_handle->data.handle.handle_size = OPENHANDLE_HANDLE_LEN;
 
   status = fsal_internal_handle2fd(p_context, p_handle, &fd, O_RDONLY);
 
@@ -885,4 +885,36 @@ fsal_status_t fsal_internal_testAccess(fsal_op_context_t * p_context,   /* IN */
   else
     ReturnCode(ERR_FSAL_ACCESS, 0);
 
+}
+
+/**
+ * fsal_stat_by_handle:
+ * get the stat value
+ *
+ *
+ * \return status of operation
+ */
+
+fsal_status_t fsal_stat_by_handle(fsal_op_context_t * p_context,
+                                  fsal_handle_t * p_handle, struct stat64 *buf)
+{
+  int rc;
+  int dirfd = 0;
+  struct stat_arg statarg;
+
+  if(!p_handle || !p_context || !p_context->export_context)
+      ReturnCode(ERR_FSAL_FAULT, 0);
+
+  dirfd = p_context->export_context->mount_root_fd;
+
+  statarg.mountdirfd = dirfd;
+
+  p_handle->data.handle.handle_size = OPENHANDLE_HANDLE_LEN;
+  statarg.handle = &p_handle->data.handle;
+  statarg.buf = buf;
+
+  if((rc = ioctl(open_by_handle_fd, OPENHANDLE_STAT_BY_HANDLE, &statarg)) < 0)
+      ReturnCode(posix2fsal_error(errno), errno);
+
+  ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }

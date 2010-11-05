@@ -71,7 +71,7 @@ void fsal_interval_proxy_fsalattr2bitmap4(fsal_attrib_list_t * pfsalattr,
     tmpattrlist[attrlen++] = FATTR4_TIME_MODIFY_SET;
   if(FSAL_TEST_MASK(pfsalattr->asked_attributes, FSAL_ATTR_CTIME))
     tmpattrlist[attrlen++] = FATTR4_TIME_METADATA;
-
+ 
   nfs4_list_to_bitmap4(pbitmap, &attrlen, tmpattrlist);
 }                               /* fsal_interval_proxy_fsalattr2bitmap4 */
 
@@ -491,22 +491,14 @@ int fsal_internal_proxy_fsal_name_2_utf8(fsal_name_t * pname, utf8string * utf8s
   if(fsal_status.major != ERR_FSAL_NO_ERROR)
     return FALSE;
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("fsal_internal_proxy_fsal_name_2_utf8");
-#endif
-
   if(utf8str->utf8string_len == 0)
     {
-      if((utf8str->utf8string_val = (char *)Mem_Alloc(pname->len)) == NULL)
+      if((utf8str->utf8string_val = (char *)Mem_Alloc_Label(pname->len,
+                                                            "fsal_internal_proxy_fsal_name_2_utf8")) == NULL)
         return FALSE;
       else
         utf8str->utf8string_len = pname->len;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   if(str2utf8(tmpstr, utf8str) == -1)
     return FALSE;
@@ -537,22 +529,14 @@ int fsal_internal_proxy_fsal_path_2_utf8(fsal_path_t * ppath, utf8string * utf8s
   if(fsal_status.major != ERR_FSAL_NO_ERROR)
     return FALSE;
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("fsal_internal_proxy_fsal_path_2_utf8");
-#endif
-
   if(utf8str->utf8string_len == 0)
     {
-      if((utf8str->utf8string_val = (char *)Mem_Alloc(ppath->len)) == NULL)
+      if((utf8str->utf8string_val = (char *)Mem_Alloc_Label(ppath->len,
+                                                            "fsal_internal_proxy_fsal_path_2_utf8")) == NULL)
         return FALSE;
       else
         utf8str->utf8string_len = ppath->len;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   if(str2utf8(tmpstr, utf8str) == -1)
     return FALSE;
@@ -867,7 +851,7 @@ int proxy_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr,
 
           pFSAL_attr->asked_attributes |= FSAL_ATTR_TYPE;
           LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          LogFullDebug(COMPONENT_NFS_V4, "SATTR: On voit le type %d\n", pFSAL_attr->filesize);
+          LogFullDebug(COMPONENT_NFS_V4, "SATTR: On voit le type %d\n", (int)pFSAL_attr->filesize);
           break;
 
         case FATTR4_FILEID:    /* Used only by FSAL_PROXY to reverse convert */
@@ -916,7 +900,7 @@ int proxy_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr,
 
           pFSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
           LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          LogFullDebug(COMPONENT_NFS_V4, "SATTR: On voit la taille %d\n", pFSAL_attr->filesize);
+          LogFullDebug(COMPONENT_NFS_V4, "SATTR: On voit la taille %d\n", (int)pFSAL_attr->filesize);
           break;
 
         case FATTR4_MODE:

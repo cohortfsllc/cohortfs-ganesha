@@ -156,7 +156,7 @@ int nfs_Readdir(nfs_arg_t * parg,
       space_used = sizeof(READDIR2resok);
       estimated_num_entries = count / sizeof(entry2);
 
-      LogFullDebug(COMPONENT_NFS_READDIR, "-- Readdir2 -> count=%d  cookie = %d  estimated_num_entries=%d", count,
+      LogFullDebug(COMPONENT_NFS_READDIR, "-- Readdir2 -> count=%lu  cookie = %u  estimated_num_entries=%lu", count,
              cookie, estimated_num_entries);
 
       if(estimated_num_entries == 0)
@@ -175,7 +175,7 @@ int nfs_Readdir(nfs_arg_t * parg,
         estimated_num_entries = count / sizeof(entry3);
 
         LogFullDebug(COMPONENT_NFS_READDIR,
-            "---> nfs3_Readdir: count=%d  cookie=%d  space_used=%d  estimated_num_entries=%d",
+            "---> nfs3_Readdir: count=%lu  cookie=%u  space_used=%lu  estimated_num_entries=%lu",
              count, cookie, space_used, estimated_num_entries);
 
         if(estimated_num_entries == 0)
@@ -257,19 +257,11 @@ int nfs_Readdir(nfs_arg_t * parg,
 
       return NFS_REQ_OK;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("cache_inode_dir_entry_t in nfs_Readdir");
-#endif
 
   dirent_array =
-      (cache_inode_dir_entry_t *) Mem_Alloc(estimated_num_entries *
-                                            sizeof(cache_inode_dir_entry_t));
-
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
+      (cache_inode_dir_entry_t *) Mem_Alloc_Label(estimated_num_entries *
+                                                  sizeof(cache_inode_dir_entry_t),
+                                                  "cache_inode_dir_entry_t in nfs_Readdir");
 
   if(dirent_array == NULL)
     {
@@ -289,13 +281,10 @@ int nfs_Readdir(nfs_arg_t * parg,
         }                       /* switch */
       return NFS_REQ_DROP;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("cookie array in nfs_Readdir");
-#endif
 
   if((cookie_array =
-      (unsigned int *)Mem_Alloc(estimated_num_entries * sizeof(unsigned int))) == NULL)
+      (unsigned int *)Mem_Alloc_Label(estimated_num_entries * sizeof(unsigned int),
+                                      "cookie array in nfs_Readdir")) == NULL)
     {
       switch (preq->rq_vers)
         {
@@ -315,10 +304,6 @@ int nfs_Readdir(nfs_arg_t * parg,
       Mem_Free(dirent_array);
       return NFS_REQ_DROP;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   /* How many entries will we retry from cache_inode ? */
 
@@ -359,7 +344,7 @@ int nfs_Readdir(nfs_arg_t * parg,
     {
 
       LogFullDebug(COMPONENT_NFS_READDIR,
-          "-- Readdir -> Call to cache_inode_readdir( cookie=%d, asked=%d ) -> num_entries = %d",
+          "-- Readdir -> Call to cache_inode_readdir( cookie=%d, asked=%lu ) -> num_entries = %u",
            cache_inode_cookie, asked_num_entries, num_entries);
 
       if(eod_met == END_OF_DIR)
@@ -393,20 +378,10 @@ int nfs_Readdir(nfs_arg_t * parg,
           typedef char entry_name_array_item_t[FSAL_MAX_NAME_LEN];
           entry_name_array_item_t *entry_name_array;
 
-#ifdef _DEBUG_MEMLEAKS
-          /* For debugging memory leaks */
-          BuddySetDebugLabel("entry_name_array in nfs_Readdir");
-#endif
-
           entry_name_array =
-              (entry_name_array_item_t *) Mem_Alloc(estimated_num_entries *
-                                                    (FSAL_MAX_NAME_LEN + 1));
-
-#ifdef _DEBUG_MEMLEAKS
-          /* For debugging memory leaks */
-          BuddySetDebugLabel("N/A");
-#endif
-
+              (entry_name_array_item_t *) Mem_Alloc_Label(estimated_num_entries *
+                                                          (FSAL_MAX_NAME_LEN + 1),
+                                                          "entry_name_array in nfs_Readdir");
           if(entry_name_array == NULL)
             {
               Mem_Free(dirent_array);
@@ -418,18 +393,10 @@ int nfs_Readdir(nfs_arg_t * parg,
             {
             case NFS_V2:
 
-#ifdef _DEBUG_MEMLEAKS
-              /* For debugging memory leaks */
-              BuddySetDebugLabel("RES_READDIR2_OK.entries");
-#endif
-
               RES_READDIR2_OK.entries =
-                  (entry2 *) Mem_Alloc(estimated_num_entries * sizeof(entry2));
+                  (entry2 *) Mem_Alloc_Label(estimated_num_entries * sizeof(entry2),
+                                             "RES_READDIR2_OK.entries");
 
-#ifdef _DEBUG_MEMLEAKS
-              /* For debugging memory leaks */
-              BuddySetDebugLabel("N/A");
-#endif
               if(RES_READDIR2_OK.entries == NULL)
                 {
                   Mem_Free(dirent_array);
@@ -603,18 +570,10 @@ int nfs_Readdir(nfs_arg_t * parg,
 
             case NFS_V3:
 
-#ifdef _DEBUG_MEMLEAKS
-              /* For debugging memory leaks */
-              BuddySetDebugLabel("RES_READDIR3_OK.reply.entries");
-#endif
-
               RES_READDIR3_OK.reply.entries =
-                  (entry3 *) Mem_Alloc(estimated_num_entries * sizeof(entry3));
+                  (entry3 *) Mem_Alloc_Label(estimated_num_entries * sizeof(entry3),
+                                             "RES_READDIR3_OK.reply.entries");
 
-#ifdef _DEBUG_MEMLEAKS
-              /* For debugging memory leaks */
-              BuddySetDebugLabel("N/A");
-#endif
               if(RES_READDIR3_OK.reply.entries == NULL)
                 {
                   Mem_Free(dirent_array);

@@ -74,6 +74,7 @@ typedef enum log_components
   COMPONENT_PNFS,
   COMPONENT_RPC_CACHE,
   COMPONENT_RW_LOCK,
+  COMPONENT_MFSL,
   
   COMPONENT_COUNT
 } log_components_t;
@@ -82,7 +83,8 @@ int SetComponentLogFile(log_components_t component, char *name);
 void SetComponentLogBuffer(log_components_t component, char *buffer);
 void SetComponentLogLevel(log_components_t component, int level_to_set);
 #define SetLogLevel(level_to_set) SetComponentLogLevel(COMPONENT_ALL, level_to_set)
-int DisplayLogComponentLevel(log_components_t component, int level, char *format, ...);
+int DisplayLogComponentLevel(log_components_t component, int level, char *format, ...)
+__attribute__((format(printf, 3, 4))); /* 3=format 4=params */ ;
 int DisplayErrorComponentLogLine(log_components_t component, int num_family, int num_error, int status, int ma_ligne);
 
 enum log_type
@@ -150,7 +152,7 @@ log_component_info __attribute__ ((__unused__)) LogComponents[COMPONENT_COUNT];
 #define LogFullDebug(component, format, args...) \
   do { \
     if (LogComponents[component].comp_log_level >= NIV_FULL_DEBUG) \
-      DisplayLogComponentLevel(component, NIV_FULL_DEBUG, "%s: DEBUG: " format, LogComponents[component].comp_str, ## args ); \
+      DisplayLogComponentLevel(component, NIV_FULL_DEBUG, "%s: FULLDEBUG: " format, LogComponents[component].comp_str, ## args ); \
   } while (0)
 
 #define LogError( component, a, b, c ) \

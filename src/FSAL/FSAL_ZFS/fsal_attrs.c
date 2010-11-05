@@ -18,7 +18,9 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
+#include "fsal_common.h"
 
+#include <string.h>
 #include <fcntl.h>
 
 /**
@@ -48,7 +50,6 @@ fsal_status_t ZFSFSAL_getattrs(zfsfsal_handle_t * filehandle, /* IN */
     )
 {
   int rc, type;
-  fsal_status_t status;
   struct stat fstat;
 
   /* sanity checks.
@@ -59,8 +60,33 @@ fsal_status_t ZFSFSAL_getattrs(zfsfsal_handle_t * filehandle, /* IN */
 
   TakeTokenFSCall();
 
-  rc = libzfswrap_getattr(p_context->export_context->p_vfs, &p_context->user_credential.cred,
-                          filehandle->data.zfs_handle, &fstat, &type);
+  if(filehandle->data.zfs_handle.inode == ZFS_SNAP_DIR_INODE &&
+     filehandle->data.zfs_handle.generation == 0)
+  {
+    memset(&fstat, 0, sizeof(fstat));
+    fstat.st_mode = S_IFDIR | 0755;
+    fstat.st_ino = ZFS_SNAP_DIR_INODE;
+    fstat.st_nlink = 2;
+    fstat.st_ctime = time(NULL);
+    fstat.st_atime = fstat.st_ctime;
+    fstat.st_mtime = fstat.st_ctime;
+    rc = 0;
+  }
+  else
+  {
+    /* Get the right VFS */
+    ZFSFSAL_VFS_RDLock();
+    libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(filehandle);
+    if(!p_vfs)
+      rc = ENOENT;
+    else
+      rc = libzfswrap_getattr(p_vfs, &p_context->user_credential.cred,
+                              filehandle->data.zfs_handle, &fstat, &type);
+    ZFSFSAL_VFS_Unlock();
+  }
+
+  // Set st_dev to be the snapshot number.
+  fstat.st_dev = filehandle->data.i_snap;
 
   ReleaseTokenFSCall();
 
@@ -129,6 +155,12 @@ fsal_status_t ZFSFSAL_setattrs(zfsfsal_handle_t * filehandle, /* IN */
    */
   if(!filehandle || !p_context || !attrib_set)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_setattrs);
+
+  if(filehandle->data.i_snap != 0)
+  {
+    LogDebug(COMPONENT_FSAL, "Trying to change the attributes of an object inside a snapshot");
+    Return(ERR_FSAL_ROFS, 0, INDEX_FSAL_setattrs);
+  }
 
   /* local copy of attributes */
   attrs = *attrib_set;
@@ -246,6 +278,12 @@ fsal_status_t ZFSFSAL_getextattrs(zfsfsal_handle_t * p_filehandle, /* IN */
                                   fsal_extattrib_list_t * p_object_attributes /* OUT */
     )
 {
+  /* sanity checks.
+   * note : object_attributes is mandatory in FSAL_getattrs.
+   */
+  if(!p_filehandle || !p_context || !p_object_attributes)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getattrs);
+
   if( p_object_attributes->asked_attributes & FSAL_ATTR_GENERATION )
     p_object_attributes->generation = p_filehandle->data.zfs_handle.generation;
 

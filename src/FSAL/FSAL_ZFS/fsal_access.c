@@ -18,6 +18,7 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
+#include "fsal_common.h"
 
 /**
  * FSAL_access :
@@ -59,22 +60,29 @@ fsal_status_t ZFSFSAL_access(zfsfsal_handle_t * object_handle,        /* IN */
                              fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     )
 {
-
-  fsal_status_t st;
-
   /* sanity checks.
    * note : object_attributes is optional in FSAL_access.
    */
   if(!object_handle || !p_context)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_access);
 
+  /* Get the right VFS */
+  ZFSFSAL_VFS_RDLock();
+  libzfswrap_vfs_t *p_vfs = ZFSFSAL_GetVFS(object_handle);
+  if(!p_vfs)
+  {
+    ZFSFSAL_VFS_Unlock();
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_access);
+  }
+
   /* >> convert your fsal access type to your FS access type << */
   int mask = fsal2posix_testperm(access_type);
 
   TakeTokenFSCall();
-  int rc = libzfswrap_access(p_context->export_context->p_vfs, &p_context->user_credential.cred,
+  int rc = libzfswrap_access(p_vfs, &p_context->user_credential.cred,
                              object_handle->data.zfs_handle, mask);
   ReleaseTokenFSCall();
+  ZFSFSAL_VFS_Unlock();
 
   /* >> convert the returned code, an return it on error << */
   if(rc)
@@ -99,5 +107,4 @@ fsal_status_t ZFSFSAL_access(zfsfsal_handle_t * object_handle,        /* IN */
     }
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_access);
-
 }

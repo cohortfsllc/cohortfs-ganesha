@@ -611,15 +611,11 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
                 }
             }
 
-#ifdef _DEBUG_MEMLEAKS
-          /* For debugging memory leaks */
-          BuddySetDebugLabel("FSALattr_To_Fattr:supported_bitmap");
-#endif
-
           /* Let set the reply bitmap */
 #ifdef _USE_NFS4_1
           if((supported_attrs.bitmap4_val =
-              (uint32_t *) Mem_Alloc(3 * sizeof(uint32_t))) == NULL)
+              (uint32_t *) Mem_Alloc_Label(3 * sizeof(uint32_t),
+                                           "FSALattr_To_Fattr:supported_bitmap")) == NULL)
             return -1;
           memset(supported_attrs.bitmap4_val, 0, 3 * sizeof(uint32_t));
 #else
@@ -630,11 +626,6 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 #endif
 
           nfs4_list_to_bitmap4(&supported_attrs, &c, attrvalslist_supported);
-
-#ifdef _DEBUG_MEMLEAKS
-          /* For debugging memory leaks */
-          BuddySetDebugLabel("N/A");
-#endif
 
           LogFullDebug(COMPONENT_NFS_V4,
                           "Fattr (regular) supported_attrs(len)=%u -> %u|%u",
@@ -1590,20 +1581,11 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
 
     }                           /* for i */
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("FSALattr_To_Fattr:bitmap");
-#endif
-
   /* Set the bitmap for result */
-  if((Fattr->attrmask.bitmap4_val = (uint32_t *) Mem_Alloc(2 * sizeof(uint32_t))) == NULL)
+  if((Fattr->attrmask.bitmap4_val = (uint32_t *) Mem_Alloc_Label(2 * sizeof(uint32_t),
+                                                                 "FSALattr_To_Fattr:bitmap")) == NULL)
     return -1;
   memset((char *)Fattr->attrmask.bitmap4_val, 0, 2 * sizeof(uint32_t));
-
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   nfs4_list_to_bitmap4(&(Fattr->attrmask), &j, attrvalslist);
 
@@ -1611,22 +1593,13 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
   Fattr->attr_vals.attrlist4_len = LastOffset;
   if(LastOffset != 0)           /* No need to allocate an empty buffer */
     {
-#ifdef _DEBUG_MEMLEAKS
-      /* For debugging memory leaks */
-      BuddySetDebugLabel("FSALattr_To_Fattr:attrvals");
-#endif
-
       if((Fattr->attr_vals.attrlist4_val =
-          Mem_Alloc(Fattr->attr_vals.attrlist4_len)) == NULL)
+          Mem_Alloc_Label(Fattr->attr_vals.attrlist4_len,
+                          "FSALattr_To_Fattr:attrvals")) == NULL)
         return -1;
       memset((char *)Fattr->attr_vals.attrlist4_val, 0, Fattr->attr_vals.attrlist4_len);
       memcpy(Fattr->attr_vals.attrlist4_val, attrvalsBuffer,
              Fattr->attr_vals.attrlist4_len);
-#ifdef _DEBUG_MEMLEAKS
-      /* For debugging memory leaks */
-      BuddySetDebugLabel("N/A");
-#endif
-
     }
   /* LastOffset contains the length of the attrvalsBuffer usefull data */
 
@@ -1948,19 +1921,9 @@ int utf82str(char *str, utf8string * utf8str)
   /* BUGAZOMEU: TO BE DONE: use STUFF ALLOCATOR here */
   if(str == NULL)
     {
-#ifdef _DEBUG_MEMLEAKS
-      /* For debugging memory leaks */
-      BuddySetDebugLabel("utf82str");
-#endif
-
-      if((str = (char *)Mem_Alloc(utf8str->utf8string_len + 1)) == NULL)
+      if((str = (char *)Mem_Alloc_Label(utf8str->utf8string_len + 1,
+                                        "utf82str")) == NULL)
         return NFS4ERR_SERVERFAULT;
-
-#ifdef _DEBUG_MEMLEAKS
-      /* For debugging memory leaks */
-      BuddySetDebugLabel("N/A");
-#endif
-
     }
 
   strncpy(str, utf8str->utf8string_val, utf8str->utf8string_len);
@@ -2459,6 +2422,59 @@ int nfs4_Fattr_Check_Access_Bitmap(bitmap4 * pbitmap, int access)
 
 /**
  *
+ * nfs4_bitmap4_Remove_Unsupported: removes unsupported attributes from bitmap4
+ *
+ * Removes unsupported attributes from bitmap4
+ *
+ * @param pbitmap    [IN] pointer to NFSv4 attributes's bitmap.
+ *
+ * @return 1 if successful, 0 otherwise.
+ *
+ */
+int nfs4_bitmap4_Remove_Unsupported(bitmap4 * pbitmap )
+{
+  uint_t i = 0;
+  uint_t val = 0;
+  uint_t index = 0;
+  uint_t offset = 0;
+
+  uint32_t bitmap_val[2] ;
+  bitmap4 bout ;
+
+  bout.bitmap4_val = bitmap_val ;
+  bout.bitmap4_len = pbitmap->bitmap4_len  ;
+
+  if(pbitmap->bitmap4_len > 0)
+    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u Val = %u|%u", pbitmap->bitmap4_len, pbitmap->bitmap4_val[0],
+           pbitmap->bitmap4_val[1]);
+  else
+    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u ... ", pbitmap->bitmap4_len);
+
+  bout.bitmap4_val[0] = 0 ;
+  bout.bitmap4_val[1] = 0 ;
+
+  for(offset = 0; offset < pbitmap->bitmap4_len; offset++)
+    {
+      for(i = 0; i < 32; i++)
+        {
+          val = 1 << i;         /* Compute 2**i */
+          if(pbitmap->bitmap4_val[offset] & val)
+           {
+             if( fattr4tab[i+32*offset].supported ) /* keep only supported stuff */
+               bout.bitmap4_val[offset] |= val ; 
+           }
+        }
+    }
+
+  pbitmap->bitmap4_val[0] = bout.bitmap4_val[0] ;  
+  pbitmap->bitmap4_val[1] = bout.bitmap4_val[1] ;  
+
+  return 1 ;
+}                               /* nfs4_Fattr_Bitmap_Remove_Unsupported */
+
+
+/**
+ *
  * nfs4_Fattr_Supported: Checks if an attribute is supported.
  *
  * Checks if an attribute is supported.
@@ -2494,7 +2510,7 @@ int nfs4_Fattr_Supported(fattr4 * Fattr)
         }
 #endif
 
-      LogFullDebug(COMPONENT_NFS_V4, "nfs4_Fattr_Supported  ==============> %s supported flag=%u",
+      LogFullDebug(COMPONENT_NFS_V4, "nfs4_Fattr_Supported  ==============> %s supported flag=%u | ",
              fattr4tab[attrmasklist[i]].name, fattr4tab[attrmasklist[i]].supported);
 
       if(!fattr4tab[attrmasklist[i]].supported)
@@ -2540,7 +2556,7 @@ int nfs4_Fattr_Supported_Bitmap(bitmap4 * pbitmap)
           continue;
         }
 #endif
-
+      
       LogFullDebug(COMPONENT_NFS_V4, "nfs4_Fattr_Supported  ==============> %s supported flag=%u",
              fattr4tab[attrmasklist[i]].name, fattr4tab[attrmasklist[i]].supported);
       if(!fattr4tab[attrmasklist[i]].supported)
@@ -2837,7 +2853,6 @@ int nfs4_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr)
 
           pFSAL_attr->asked_attributes |= FSAL_ATTR_TYPE;
           LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          LogFullDebug(COMPONENT_NFS_V4, "      SATTR: On voit le type %d", pFSAL_attr->filesize);
           break;
 
         case FATTR4_FILEID:    /* Used only by FSAL_PROXY to reverse convert */
@@ -2886,7 +2901,7 @@ int nfs4_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr)
 
           pFSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
           LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-	  LogFullDebug(COMPONENT_NFS_V4, "      SATTR: On voit la taille %d", pFSAL_attr->filesize);
+	  LogFullDebug(COMPONENT_NFS_V4, "      SATTR: size seen %zu", (size_t)pFSAL_attr->filesize);
           break;
 
         case FATTR4_MODE:
@@ -3483,22 +3498,14 @@ int nfs4_AllocateFH(nfs_fh4 * fh)
   if(fh == NULL)
     return NFS4ERR_SERVERFAULT;
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("nfs4_AllocateFH");
-#endif
-
   /* Allocating the filehandle in memory */
   fh->nfs_fh4_len = sizeof(file_handle_v4_t);
-  if((fh->nfs_fh4_val = (char *)Mem_Alloc(fh->nfs_fh4_len)) == NULL)
+  if((fh->nfs_fh4_val = (char *)Mem_Alloc_Label(fh->nfs_fh4_len,
+                                                "nfs4_AllocateFH")) == NULL)
     {
       LogError(COMPONENT_NFS_V4, ERR_SYS, ERR_MALLOC, errno);
       return NFS4ERR_RESOURCE;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   memset((char *)fh->nfs_fh4_val, 0, fh->nfs_fh4_len);
 
@@ -3529,7 +3536,7 @@ int nfs4_MakeCred(compound_data_t * data)
                              nfs_param.core_param.nfs_program,
                              nfs_param.core_param.mnt_program,
                              pworker->ht_ip_stats,
-                             pworker->ip_stats_pool, &related_client) == FALSE)
+                             &pworker->ip_stats_pool, &related_client) == FALSE)
     return NFS4ERR_WRONGSEC;
 
   if(nfs_build_fsal_context(data->reqp, &related_client, data->pexport, data->pcontext)

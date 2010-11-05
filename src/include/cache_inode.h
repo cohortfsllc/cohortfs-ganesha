@@ -52,6 +52,7 @@
 #include <rpc/rpc.h>
 #endif
 
+#include "stuff_alloc.h"
 #include "RW_Lock.h"
 #include "LRU_List.h"
 #include "HashData.h"
@@ -389,7 +390,6 @@ typedef struct cache_entry__
           struct cache_entry__ *pentry;                 /**< Pointer to the cached entry (if direntry is active) */
           fsal_name_t name;                             /**< Name of the entry                                   */
         } dir_entries[CHILDREN_ARRAY_SIZE];             /**< Array of cached directory entries                   */
-        struct cache_inode_dir_data__ *next_alloc;      /**< for stuff allocator                                 */
       } *pdir_data;
 
     } dir_begin;                                /**< DIR_BEGINNING related field                               */
@@ -418,14 +418,12 @@ typedef struct cache_entry__
   cache_inode_internal_md_t internal_md;      /**< My metadata (from this cache's point of view)      */
   LRU_entry_t *gc_lru_entry;                  /**< related LRU entry in the LRU list used for GC      */
   LRU_list_t *gc_lru;                         /**< related LRU list for GC                            */
-  struct cache_entry__ *next_alloc;           /**< Required for STUFF ALLOCATOR                       */
 
   struct cache_inode_parent_entry__
   {
     unsigned int subdirpos;                           /**< Position of the entry in the dirent array          */
     struct cache_entry__ *parent;                     /**< Parent entry (a dir_begin or a dir_count)          */
     struct cache_inode_parent_entry__ *next_parent;   /**< Next parent (for gc, in case of a hard link)       */
-    struct cache_inode_parent_entry__ *next_alloc;    /**< Next parent (for gc, in case of a hard link)       */
   } *parent_list;
 #ifdef _USE_MFSL
   mfsl_object_t mobject;
@@ -437,7 +435,6 @@ typedef struct cache_inode_open_owner_name__
   clientid4 clientid;
   unsigned int owner_len;
   char owner_val[MAXNAMLEN];
-  struct cache_inode_open_owner_name__ *next;
 } cache_inode_open_owner_name_t;
 
 typedef struct cache_inode_open_owner__
@@ -450,7 +447,6 @@ typedef struct cache_inode_open_owner__
   pthread_mutex_t lock;
   uint32_t counter;                           /** < Counter is used to build unique stateids */
   struct cache_inode_open_owner__ *related_owner;
-  struct cache_inode_open_owner__ *next;
 } cache_inode_open_owner_t;
 
 typedef struct cache_inode_state__
@@ -485,21 +481,20 @@ typedef struct cache_inode_fsal_data__
 {
   fsal_handle_t handle;                         /**< FSAL handle           */
   unsigned int cookie;                          /**< Cache inode cookie    */
-  struct cache_inode_fsal_data__ *next_alloc;   /**< For STUFF_ALLOC macro */
 } cache_inode_fsal_data_t;
 
 typedef struct cache_inode_client__
 {
   LRU_list_t *lru_gc;                                              /**< Pointer to the worker's LRU used for Garbagge collection */
-  cache_entry_t *pool_entry;                                       /**< Worker's preallocad cache entries pool                   */
-  cache_inode_dir_data_t *pool_dir_data;                           /**< Worker's preallocad cache directory data pool            */
-  cache_inode_parent_entry_t *pool_parent;                         /**< Pool of pointers to the parent entries                   */
-  cache_inode_fsal_data_t *pool_key;                               /**< Pool for building hash's keys                            */
-  cache_inode_state_t *pool_state_v4;                              /**< Pool for NFSv4 files's states                            */
-  cache_inode_open_owner_t *pool_open_owner;                       /**< Pool for NFSv4 files's open owner                        */
-  cache_inode_open_owner_name_t *pool_open_owner_name;             /**< Pool for NFSv4 files's open_owner                        */
+  struct prealloc_pool pool_entry;                                 /**< Worker's preallocad cache entries pool                   */
+  struct prealloc_pool pool_dir_data;                              /**< Worker's preallocad cache directory data pool            */
+  struct prealloc_pool pool_parent;                                /**< Pool of pointers to the parent entries                   */
+  struct prealloc_pool pool_key;                                   /**< Pool for building hash's keys                            */
+  struct prealloc_pool pool_state_v4;                              /**< Pool for NFSv4 files's states                            */
+  struct prealloc_pool pool_open_owner;                            /**< Pool for NFSv4 files's open owner                        */
+  struct prealloc_pool pool_open_owner_name;                       /**< Pool for NFSv4 files's open_owner                        */
 #ifdef _USE_NFS4_1
-  nfs41_session_t *pool_session;                                   /**< Pool for NFSv4.1 session                                 */
+  struct prealloc_pool pool_session;                               /**< Pool for NFSv4.1 session                                 */
 #ifdef _USE_PNFS
   pnfs_client_t pnfsclient;                                        /**< pNFS client structure                                    */
 #endif                          /* _USE_PNFS */
@@ -635,6 +630,14 @@ cache_entry_t *cache_inode_get(cache_inode_fsal_data_t * pfsdata,
                                cache_inode_client_t * pclient,
                                fsal_op_context_t * pcontext,
                                cache_inode_status_t * pstatus);
+
+cache_entry_t *cache_inode_get_located(cache_inode_fsal_data_t * pfsdata,
+                                       cache_entry_t * plocation,
+                                       fsal_attrib_list_t * pattr,
+                                       hash_table_t * ht,
+                                       cache_inode_client_t * pclient,
+                                       fsal_op_context_t * pcontext,
+                                       cache_inode_status_t * pstatus) ;
 
 cache_inode_status_t cache_inode_access_sw(cache_entry_t * pentry,
                                            fsal_accessflags_t access_type,
@@ -1100,6 +1103,9 @@ unsigned long cache_inode_fsal_hash_func(hash_parameter_t * p_hparam,
                                          hash_buffer_t * buffclef);
 unsigned long cache_inode_fsal_rbt_func(hash_parameter_t * p_hparam,
                                         hash_buffer_t * buffclef);
+unsigned int cache_inode_fsal_rbt_both( hash_parameter_t * p_hparam,
+				        hash_buffer_t    * buffclef, 
+				        uint32_t * phashval, uint32_t * prbtval ) ;
 int display_key(hash_buffer_t * pbuff, char *str);
 int display_not_implemented(hash_buffer_t * pbuff, char *str);
 int display_value(hash_buffer_t * pbuff, char *str);

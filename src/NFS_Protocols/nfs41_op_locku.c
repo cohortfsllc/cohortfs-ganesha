@@ -106,7 +106,7 @@ int nfs41_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* Lock are not supported */
   resp->resop = NFS4_OP_LOCKU;
 
-#ifndef _WITH_NFSV4_LOCKS
+#ifdef _WITH_NO_NFSV4_LOCKS
   res_LOCKU4.status = NFS4ERR_LOCK_NOTSUPP;
   return res_LOCKU4.status;
 #else
@@ -198,6 +198,9 @@ int nfs41_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   pstate_open = (cache_inode_state_t *) (pstate_found->state_data.lock.popenstate);
   memcpy(res_LOCKU4.LOCKU4res_u.lock_stateid.other, pstate_found->stateid_other, 12);
+
+  /* update the lock counter in the related open-stateid */
+  pstate_open->state_data.share.lockheld -= 1;
 
   /* Remove the state associated with the lock */
   if(cache_inode_del_state(pstate_found,

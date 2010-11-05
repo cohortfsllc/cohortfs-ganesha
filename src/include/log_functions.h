@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <syslog.h>
+#include <inttypes.h>
 
 #ifndef LIBLOG_NO_THREAD
 #include <errno.h>
@@ -452,6 +453,7 @@ void SetNamePgm(char *nom);
 void SetNameHost(char *nom);
 void SetDefaultLogging(char *name);
 void SetNameFunction(char *nom); /* thread safe */
+void GetNameFunction(char *name, int len);
 
 /* AddFamilyError : not thread safe */
 int AddFamilyError(int num_family, char *nom_family, family_error_t * tab_err);

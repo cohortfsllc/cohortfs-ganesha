@@ -35,6 +35,9 @@
 #include "solaris_port.h"
 #endif
 
+#include "log_macros.h"
+int fridgethr_get( pthread_t * pthrid, void *(*thrfunc)(void*), void * thrarg ) ;
+
 /*
  * svc_tcp.c, Server side for TCP/IP based RPC. 
  *
@@ -73,9 +76,9 @@ extern errno;
 void Xprt_register(SVCXPRT * xprt);
 void Xprt_unregister(SVCXPRT * xprt);
 
-pthread_mutex_t mutex_cond_xprt[FD_SETSIZE];
-pthread_cond_t condvar_xprt[FD_SETSIZE];
-int etat_xprt[FD_SETSIZE];
+pthread_mutex_t *mutex_cond_xprt;
+pthread_cond_t *condvar_xprt;
+int *etat_xprt;
 
 /*
  * Ops vector for TCP/IP based rpc service handle
@@ -116,7 +119,6 @@ static struct xp_ops Svctcp_rendezvous_op = {
 };
 
 static int Readtcp(char *, caddr_t, int), Writetcp(char *, caddr_t, int);
-static SVCXPRT *Makefd_xprt(int, u_int, u_int);
 
 struct tcp_rendezvous
 {                               /* kept in xprt->xp_p1 */
@@ -221,14 +223,9 @@ SVCXPRT *Svctcp_create(register int sock, u_int sendsize, u_int recvsize)
 
 /*
  * Like svtcp_create(), except the routine takes any *open* UNIX file
- * descriptor as its first input.
+ * descriptor as its first input. It is only called by Rendezvous_request
+ * which will use poll() not select() so it doesn't need to call Xprt_register.
  */
-SVCXPRT *Svcfd_create(int fd, u_int sendsize, u_int recvsize)
-{
-
-  return (Makefd_xprt(fd, sendsize, recvsize));
-}
-
 static SVCXPRT *Makefd_xprt(int fd, u_int sendsize, u_int recvsize)
 {
   register SVCXPRT *xprt;
@@ -259,7 +256,7 @@ static SVCXPRT *Makefd_xprt(int fd, u_int sendsize, u_int recvsize)
   xprt->xp_ops = &Svctcp_op;    /* truely deals with calls */
   xprt->xp_port = 0;            /* this is a connection, not a rendezvouser */
   xprt->xp_sock = fd;
-  Xprt_register(xprt);
+  Xports[sock] = xprt;
  done:
   return (xprt);
 }
@@ -309,7 +306,7 @@ static bool_t Rendezvous_request(register SVCXPRT * xprt, struct rpc_msg *msg)
   etat_xprt[xprt->xp_sock] = 0;
 
   if((rc =
-      fridge_get(&sockmgr_thrid, rpc_tcp_socket_manager_thread,
+      fridgethr_get(&sockmgr_thrid, rpc_tcp_socket_manager_thread,
                      (void *)(xprt->xp_sock))) != 0)
     {
       return FALSE;

@@ -183,7 +183,7 @@ int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam)
 {
   hash_buffer_t buffkey;
   nfs_function_desc_t funcdesc;
-  dupreq_entry_t **dupreq_pool = (dupreq_entry_t **) addparam;
+  struct prealloc_pool *dupreq_pool = (struct prealloc_pool *) addparam;
   dupreq_entry_t *pdupreq = (dupreq_entry_t *) (pentry->buffdata.pdata);
   int rc;
 
@@ -191,7 +191,7 @@ int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam)
   buffkey.pdata = (caddr_t) pdupreq->xid;
   buffkey.len = 0;
 
-  LogDebug(COMPONENT_DUPREQ, "NFS DUPREQ: Garbage collection on xid=%u", pdupreq->xid);
+  LogDebug(COMPONENT_DUPREQ, "NFS DUPREQ: Garbage collection on xid=%ld", pdupreq->xid);
 
   rc = HashTable_Del(ht_dupreq, &buffkey, NULL, NULL);
 
@@ -221,7 +221,7 @@ int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam)
         default:
           /* We should never go there (this situation is filtered in nfs_rpc_getreq) */
           LogMajor(COMPONENT_DUPREQ, "NFS DUPREQ: NFS Protocol version %d unknown in dupreq_gc",
-                   pdupreq->rq_vers);
+                   (int)pdupreq->rq_vers);
           funcdesc = nfs2_func_desc[0]; /* free function for PROC_NULL does nothing */
           break;
         }
@@ -241,7 +241,7 @@ int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam)
         default:
           /* We should never go there (this situation is filtered in nfs_rpc_getreq) */
           LogMajor(COMPONENT_DUPREQ, "NFS DUPREQ: MOUNT Protocol version %d unknown in dupreq_gc",
-                   pdupreq->rq_vers);
+                   (int)pdupreq->rq_vers);
           break;
 
         }                       /* switch( pdupreq->vers ) */
@@ -278,14 +278,14 @@ int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam)
   else
     {
       /* We should never go there (this situation is filtered in nfs_rpc_getreq) */
-      LogMajor(COMPONENT_DUPREQ, "NFS DUPREQ: protocol %d is not managed", pdupreq->rq_prog);
+      LogMajor(COMPONENT_DUPREQ, "NFS DUPREQ: protocol %d is not managed", (int)pdupreq->rq_prog);
     }
 
   /* Call the free function */
   funcdesc.free_function(&(pdupreq->res_nfs));
 
   /* Send the entry back to the pool */
-  RELEASE_PREALLOC(pdupreq, *dupreq_pool, next_alloc);
+  ReleaseToPool(pdupreq, dupreq_pool);
 
   return 0;
 }                               /* clean_entry_dupreq */
@@ -412,7 +412,7 @@ int nfs_Init_dupreq(nfs_rpc_dupreq_parameter_t param)
 int nfs_dupreq_add(long xid,
                    struct svc_req *ptr_req,
                    nfs_res_t * p_res_nfs,
-                   LRU_list_t * lru_dupreq, dupreq_entry_t ** p_dupreq_pool)
+                   LRU_list_t * lru_dupreq, struct prealloc_pool *dupreq_pool)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffdata;
@@ -420,23 +420,11 @@ int nfs_dupreq_add(long xid,
   LRU_entry_t *pentry = NULL;
   LRU_status_t lru_status;
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("dupreq_entry_t");
-#endif
-
   /* Entry to be cached */
-  GET_PREALLOC(pdupreq,
-               (*p_dupreq_pool),
-               nfs_param.worker_param.nb_dupreq_prealloc, dupreq_entry_t, next_alloc);
+  GetFromPool(pdupreq, dupreq_pool, dupreq_entry_t);
 
   if(pdupreq == NULL)
     return DUPREQ_INSERT_MALLOC_ERROR;
-
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   /* I have to keep an integer as key, I wil use the pointer buffkey->pdata for this, 
    * this also means that buffkey->len will be 0 */
@@ -496,7 +484,7 @@ nfs_res_t nfs_dupreq_get(long xid, int *pstatus)
 
       *pstatus = DUPREQ_SUCCESS;
       res_nfs = ((dupreq_entry_t *) buffval.pdata)->res_nfs;
-      LogDebug(COMPONENT_DUPREQ, "NFS DUPREQ: Hit in the dupreq cache for xid=%u", xid);
+      LogDebug(COMPONENT_DUPREQ, "NFS DUPREQ: Hit in the dupreq cache for xid=%ld", xid);
     }
   else
     {

@@ -2,11 +2,14 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT( [nfs-ganesha], [1.0.2], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr] )
+AC_INIT( [nfs-ganesha], [1.0.3], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr] )
+
+AC_SUBST(RELEASE, [0.beta1])
+
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
-AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE(all prod)/XFS/GPFS/CEPH(alpha)/ZFS(dev) .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod), MFSL_ASYNC(beta) Early pNFS (alpha) ])
+AC_REVISION([Compiles:  i386/x86_64. FSAL: POSIX/SNMP/PROXY/HPSS/FUSELIKE/LUSTRE/XFS/GPFS/ZFS/CEPH .xattr ghost dir support. RPCSEC_GSS/KRB5, TI-RPC (prod),  Early pNFS (alpha) ])
 
 # Init Automake
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
@@ -182,7 +185,7 @@ GA_ENABLE_AM_CONDITION([gssrpc],[enable GSSRPC security management (from MIT ker
 if test "$enable_gssrpc" == "yes"; then
         AC_DEFINE(_USE_GSSRPC,1,[enable security management with GSSRPC])
 	# ==> Add here libraries needed for GSSRPC
-        AC_CHECK_LIB([gssapi], [gss_import_name], [AC_DEFINE( _HAVE_GSSAPI,1,[enable GSSAPI support] ) ], [AC_MSG_ERROR( [GSSAPI could not be found...] ) ] )
+        AC_CHECK_LIB([gssapi_krb5], [gss_import_name], [AC_DEFINE( _HAVE_GSSAPI,1,[enable GSSAPI support] ) ], [AC_MSG_ERROR( [GSSAPI could not be found...] ) ] )
         AC_CHECK_LIB([gssrpc], [gssrpc_authunix_create_default], [AC_DEFINE( _HAVE_GSSRPC,1,[enable GSSRPC support] ) ], [AC_MSG_ERROR( [GSSRPC_KRB5 could not be found...] ) ] )
 fi
 
@@ -233,7 +236,7 @@ GA_ENABLE_AM_CONDITION([pnfs],[enable pNFS support (NFSv4.1 support is mandatory
 PNFS_LIB=""
 if test "$enable_pnfs" == "yes"; then
 	AC_DEFINE(_USE_PNFS,1,[enable NFSv4.1/pNFS support])
-	PNFS_LIB="\$(top_builddir)/NFS_Protocols/PNFS/LAYOUT4_NFSV4_1_FILES/libpnfslayoutfile.la"
+	PNFS_LIB="\$(top_builddir)/PNFS/libpnfs.la"
 fi
 AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 
@@ -292,7 +295,13 @@ if test "$enable_snmp_adm" == "yes"; then
 fi
 
 AC_SUBST(EXT_LDADD)
-	
+
+# statistics exporter thread
+GA_ENABLE_AM_CONDITION([stat-exporter], [export GANESHA NFS request statistics with a dedicated thread and socket], [USE_STAT_EXPORTER])
+if test "$enable_stat_exporter" == "yes"; then
+	AC_DEFINE(_USE_STAT_EXPORTER,1,[export GANESHA NFS request statistics with a dedicated thread and socket])
+fi
+
 
 GA_ENABLE_AM_CONDITION([efence],[link with efence memory debug library],[USE_EFENCE])
 
@@ -311,8 +320,6 @@ GA_DISABLE_FLAG( [tcp-register], 	 [disable registration of tcp services on port
 GA_DISABLE_FLAG( [portmapper], 	         [disable registration on portmapper], 				 [-D_NO_PORTMAPPER] )
 GA_DISABLE_FLAG( [xattr-directory],      [disable ghost xattr directory and files support],              [-D_NO_XATTRD])
 
-GA_ENABLE_FLAG(  [debug-memcorrupt],     [enable debugging for memory corruption],                       [-D_DEBUG_MEMCORRUPT] )
-GA_ENABLE_FLAG(  [debug-memalloc],       [enable debug traces in memory allocator],                      [-D_DEBUG_MEMALLOC] )
 GA_ENABLE_FLAG(  [debug-memleaks],       [enable allocator features for tracking memory usage],          [-D_DEBUG_MEMLEAKS] )
 GA_ENABLE_FLAG(  [debug-nfsshell],       [enable extended debug traces for ganeshell utility],           [-D_DEBUG_NFS_SHELL] )
 
@@ -320,6 +327,7 @@ GA_ENABLE_FLAG(  [pl-pgsql],		 [enable PGSQL stored procedures (POSIX FSAL)],		 
 GA_ENABLE_FLAG(  [cache-path],		 [Enable entry path caching in POSIX FSAL],	                 [-D_ENABLE_CACHE_PATH])
 GA_ENABLE_FLAG(  [handle-mapping],	 [enable NFSv2/3 handle mapping for PROXY FSAL],	         [-D_HANDLE_MAPPING])
 GA_ENABLE_FLAG(  [nfs4-locks],	         [enable NFSv4 locks],                                           [-D_WITH_NFSV4_LOCKS])
+GA_DISABLE_FLAG( [nfs41-locks],          [disable NFSv4 locks],                                          [-D_WITH_NO_NFSV41_LOCKS])
 
 
 # for using it in makefiles
@@ -375,10 +383,6 @@ AM_CONDITIONAL(USE_MFSL_ASYNC,           test "$MFSL" = "ASYNC")
 AM_CONDITIONAL(USE_MFSL_PROXY_RPCSECGSS, test "$MFSL" = "PROXY_RPCSECGSS")
 AM_CONDITIONAL(USE_MFSL,                 test "$MFSL" != "NONE" ) 
 
-# HPSS version switch 
-AC_ARG_WITH( [hpss-version], AS_HELP_STRING([--with-hpss-version=5.1|6.2|6.2.2|7.1|7.3 (default=6.2.2)],[specify HPSS version] ),
-		HPSS="$withval", HPSS="6.2.2" )
-
 # Database switch (for POSIX FSAL)
 AC_ARG_WITH( [db], AS_HELP_STRING([--with-db=MYSQL|PGSQL (default=MYSQL)],[specify the database engine for POSIX FSAL] ),
 	     DBTYPE="$withval", DBTYPE="MYSQL" )
@@ -413,6 +417,12 @@ AC_DEFINE([_NO_MOUNT_LIST], 1, [Don't use MOUNT PROTOCOL's client list])
 
 case $FSAL in
 	HPSS)
+		# HPSS specific options
+		AC_ARG_WITH( [hpss-version], AS_HELP_STRING([--with-hpss-version=5.1|6.2|6.2.2|7.1|7.3 (default=6.2.2)],
+			[specify HPSS version] ), HPSS="$withval", HPSS="6.2.2" )
+		GA_ENABLE_FLAG(  [strip-cs-uuid], [Strip core server UUID from handle (shorter NFS handle)],
+				 [-D_STRIP_CORESERVER_UUID])
+
 		AC_DEFINE([_USE_HPSS], 1, [GANESHA is compiled with HPSS FSAL])
 		FSAL_CFLAGS="-I/opt/hpss/include"
 		FSAL_LDFLAGS="-L/opt/hpss/lib -Wl,-rpath,/opt/hpss/lib -lhpss"
@@ -460,11 +470,19 @@ case $FSAL in
 		FS_NAME="fuse"
 		;;
 	LUSTRE)
+		AC_CHECK_HEADERS([attr/xattr.h], [], [AC_MSG_ERROR(missing xattr header files)])
 		AC_CHECK_LIB([lustreapi], [llapi_fid2path], [have_lustre2_api="yes"])
 		if test "x$have_lustre2_api" != "xyes" ; then
 	            AC_MSG_ERROR([Lustre 2.x and liblustreapi are required])
 		fi
 		AC_DEFINE([_USE_LUSTRE], 1, [GANESHA exports Lustre Filesystem])
+
+		# check if this Lustre version has HSM functions
+    		AC_CHECK_LIB([lustreapi], [llapi_hsm_state_get], [lustre_hsm="yes"])
+		if test "x$lustre_hsm" == "xyes"; then
+			AC_DEFINE([_LUSTRE_HSM], 1, [Lustre version supports HSM binding])
+		fi
+
 		FSAL_CFLAGS=
                 FSAL_LDFLAGS="-llustreapi"
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_LUSTRE/libfsallustre.la"
@@ -474,6 +492,7 @@ case $FSAL in
 		AC_DEFINE([_USE_XFS], 1, [GANESHA exports XFS Filesystem])
  		AC_CHECK_HEADERS([xfs/xfs.h], [], [AC_MSG_ERROR( missing xfs include files)])
                 AC_CHECK_HEADERS([xfs/handle.h], [], [AC_MSG_ERROR(missimg xfs include files)])
+		AC_CHECK_HEADERS([attr/xattr.h], [], [AC_MSG_ERROR(missing xattr header files)])
 		FSAL_CFLAGS=
                 FSAL_LDFLAGS="-lhandle"
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_XFS/libfsalxfs.la"
@@ -705,9 +724,14 @@ AC_CONFIG_FILES([include/Makefile
                  File_Content/Makefile
                  File_Content_Policy/Makefile
 		 NFS_Protocols/Makefile
+<<<<<<< HEAD
 		 NFS_Protocols/PNFS/Makefile
 		 NFS_Protocols/PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
 		 NFS_Protocols/layouttypes/Makefile
+=======
+		 PNFS/Makefile
+		 PNFS/LAYOUT4_NFSV4_1_FILES/Makefile
+>>>>>>> f8bf8cf9e4275388b064c0c44b6e43ac3d205b22
                  XDR/Makefile
 		 FSAL/Makefile
 		 FSAL/FSAL_HPSS/Makefile

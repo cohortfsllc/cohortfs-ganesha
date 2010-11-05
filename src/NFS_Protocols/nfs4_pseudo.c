@@ -1731,8 +1731,9 @@ int nfs4_op_readdir_pseudo(struct nfs_argop4 *op,
   estimated_num_entries = maxcount / sizeof(entry4);
 
   LogFullDebug(COMPONENT_NFS_V4_PSEUDO,
-                    "PSEUDOFS READDIR: dircount=%d, maxcount=%d, cookie=%d, sizeof(entry4)=%d num_entries=%d",
-                    dircount, maxcount, cookie, space_used, estimated_num_entries);
+                    "PSEUDOFS READDIR: dircount=%lu, maxcount=%lu, cookie=%"PRIu64", sizeof(entry4)=%lu num_entries=%lu",
+
+                    dircount, maxcount, (uint64_t)cookie, space_used, estimated_num_entries);
 
   /* If maxcount is too short, return NFS4ERR_TOOSMALL */
   if(maxcount < sizeof(entry4) || estimated_num_entries == 0)
@@ -1987,7 +1988,8 @@ int nfs4_op_readdir_pseudo(struct nfs_argop4 *op,
   /* @todo : Is this reallocation actually needed ? */
 #ifdef BUGAZOMEU
   if(i < estimated_num_entries)
-    if((entry_nfs_array = Mem_Realloc(entry_nfs_array, i * sizeof(entry4))) == NULL)
+    if((entry_nfs_array = Mem_Realloc_Label(entry_nfs_array, i * sizeof(entry4),
+                                            "entry4")) == NULL)
       {
         LogError(COMPONENT_NFS_V4_PSEUDO, ERR_SYS, ERR_MALLOC, errno);
         res_READDIR4.status = NFS4ERR_SERVERFAULT;

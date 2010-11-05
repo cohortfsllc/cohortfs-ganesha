@@ -126,16 +126,9 @@ int cache_inode_fsaldata_2_key(hash_buffer_t * pkey, cache_inode_fsal_data_t * p
   /* Allocate a new key for storing data, if this a set, not a get
    * in the case of a 'get' key, pclient == NULL and * pfsdata is used */
 
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("cache_inode_fsal_data_t:conversion");
-#endif
-
   if(pclient != NULL)
     {
-      GET_PREALLOC(ppoolfsdata,
-                   pclient->pool_key,
-                   pclient->nb_prealloc, cache_inode_fsal_data_t, next_alloc);
+      GetFromPool(ppoolfsdata, &pclient->pool_key, cache_inode_fsal_data_t);
       if(ppoolfsdata == NULL)
         {
           LogDebug(COMPONENT_CACHE_INODE,
@@ -149,11 +142,6 @@ int cache_inode_fsaldata_2_key(hash_buffer_t * pkey, cache_inode_fsal_data_t * p
     }
   else
     pkey->pdata = (caddr_t) pfsdata;
-
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   pkey->len = sizeof(cache_inode_fsal_data_t);
 
@@ -179,7 +167,7 @@ void cache_inode_release_fsaldata_key(hash_buffer_t * pkey,
 
   ppoolfsdata = (cache_inode_fsal_data_t *) pkey->pdata;
 
-  RELEASE_PREALLOC(ppoolfsdata, pclient->pool_key, next_alloc);
+  ReleaseToPool(ppoolfsdata, &pclient->pool_key);
 }                               /* cache_inode_release_fsaldata_key */
 
 /**
@@ -219,10 +207,10 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
   hash_buffer_t key, value;
   fsal_attrib_list_t fsal_attributes;
   fsal_status_t fsal_status;
-  cache_content_status_t cache_content_status;
   int i = 0;
   int rc = 0;
   off_t size_in_cache;
+  cache_content_status_t cache_content_status ;
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
@@ -259,13 +247,8 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
 
       return pentry;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("cache_entry_t");
-#endif
 
-  GET_PREALLOC(pentry,
-               pclient->pool_entry, pclient->nb_prealloc, cache_entry_t, next_alloc);
+  GetFromPool(pentry, &pclient->pool_entry, cache_entry_t);
   if(pentry == NULL)
     {
       LogDebug(COMPONENT_CACHE_INODE,
@@ -277,17 +260,11 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
 
       return NULL;
     }
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("cache_inode_dir_data_t");
-#endif
 
   /* if entry is of tyep DIR_CONTINUE or DIR_BEGINNING, it should have a pdir_data */
-  if(type == DIR_BEGINNING || type == DIR_CONTINUE)
+  if(type == DIR_BEGINNING || type == DIR_CONTINUE || type == FS_JUNCTION )
     {
-      GET_PREALLOC(pdir_data,
-                   pclient->pool_dir_data,
-                   pclient->nb_pre_dir_data, cache_inode_dir_data_t, next_alloc);
+      GetFromPool(pdir_data, &pclient->pool_dir_data, cache_inode_dir_data_t);
       if(pdir_data == NULL)
         {
           LogDebug(COMPONENT_CACHE_INODE,
@@ -300,21 +277,17 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
           return NULL;
         }
 
-      if(type == DIR_BEGINNING)
+      if(type == DIR_BEGINNING || type == FS_JUNCTION )
         pentry->object.dir_begin.pdir_data = pdir_data;
       else
         pentry->object.dir_cont.pdir_data = pdir_data;
     }
 
   /*  if( type == DIR_BEGINNING || type == DIR_CONTINUE ) */
-#ifdef _DEBUG_MEMLEAKS
-  /* For debugging memory leaks */
-  BuddySetDebugLabel("N/A");
-#endif
 
   if(rw_lock_init(&(pentry->lock)) != 0)
     {
-      RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+      ReleaseToPool(pentry, &pclient->pool_entry);
       LogError(COMPONENT_CACHE_INODE, ERR_SYS, ERR_PTHREAD_MUTEX_INIT, errno);
       *pstatus = CACHE_INODE_INIT_ENTRY_FAILED;
 
@@ -340,7 +313,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
               /* Put the entry back in its pool */
               LogDebug(COMPONENT_CACHE_INODE,
                                 "cache_inode_new_entry: FSAL_getattrs failed");
-              RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+              ReleaseToPool(pentry, &pclient->pool_entry);
               *pstatus = cache_inode_error_convert(fsal_status);
 
               if(fsal_status.major == ERR_FSAL_STALE)
@@ -469,7 +442,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
 
         default:
           *pstatus = CACHE_INODE_NOT_A_DIRECTORY;
-          RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+          ReleaseToPool(pentry, &pclient->pool_entry);
 
           /* stat */
           pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_NEW_ENTRY] += 1;
@@ -505,7 +478,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
           *pstatus = cache_inode_error_convert(fsal_status);
           LogDebug(COMPONENT_CACHE_INODE,
                             "cache_inode_new_entry: FSAL_pathcpy failed");
-          RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+          ReleaseToPool(pentry, &pclient->pool_entry);
         }
 
       break;
@@ -554,12 +527,62 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
       pentry->object.special_obj.attributes = fsal_attributes;
       break;
 
+    case FS_JUNCTION:
+        LogFullDebug(COMPONENT_CACHE_INODE,
+                     "cache_inode_new_entry: Adding a FS_JUNCTION");
+
+        fsal_status = FSAL_lookupJunction( &pfsdata->handle, pcontext, &pentry->object.dir_begin.handle, NULL); 
+        if( FSAL_IS_ERROR( fsal_status ) )
+         {
+           *pstatus = cache_inode_error_convert(fsal_status);
+           LogDebug(COMPONENT_CACHE_INODE,
+                            "cache_inode_new_entry: FSAL_lookupJunction failed");
+           ReleaseToPool(pentry, &pclient->pool_entry);
+         }
+       
+      fsal_attributes.asked_attributes = pclient->attrmask;
+      fsal_status = FSAL_getattrs( &pentry->object.dir_begin.handle, pcontext, &fsal_attributes);
+      if( FSAL_IS_ERROR( fsal_status ) )
+         {
+           *pstatus = cache_inode_error_convert(fsal_status);
+           LogDebug(COMPONENT_CACHE_INODE,
+                            "cache_inode_new_entry: FSAL_getattrs on junction fh failed");
+           ReleaseToPool(pentry, &pclient->pool_entry);
+         }
+
+
+      /* Fake FS_JUNCTION into directory */
+      pentry->internal_md.type = DIR_BEGINNING;
+
+#ifdef _USE_MFSL
+      pentry->mobject.handle = pentry->object.dir_begin.handle;
+#endif
+      pentry->object.dir_begin.attributes = fsal_attributes;
+
+      pentry->object.dir_begin.has_been_readdir = CACHE_INODE_NO;
+      pentry->object.dir_begin.end_of_dir = END_OF_DIR;
+      pentry->object.dir_begin.pdir_cont = NULL;
+      pentry->object.dir_begin.pdir_last = pentry;
+      pentry->object.dir_begin.nbactive = 0;
+      pentry->object.dir_begin.nbdircont = 0;
+      pentry->object.dir_begin.referral = NULL;
+
+      for(i = 0; i < CHILDREN_ARRAY_SIZE; i++)
+        {
+          pentry->object.dir_begin.pdir_data->dir_entries[i].active = INVALID;
+          pentry->object.dir_begin.pdir_data->dir_entries[i].pentry = NULL;
+          FSAL_str2name("", 1, &pentry->object.dir_begin.pdir_data->dir_entries[i].name);
+        }
+
+
+      break ;
+
     default:
       /* Should never happen */
       *pstatus = CACHE_INODE_INCONSISTENT_ENTRY;
       LogMajor(COMPONENT_CACHE_INODE,
-                        "/!\\ | cache_inode_new_entry: unknown type provided");
-      RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+                        "/!\\ | cache_inode_new_entry: unknown type %u provided", type);
+      ReleaseToPool(pentry, &pclient->pool_entry);
 
       /* stat */
       pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_NEW_ENTRY] += 1;
@@ -588,7 +611,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t * pfsdata,
                              HASHTABLE_SET_HOW_SET_NO_OVERWRITE)) != HASHTABLE_SUCCESS)
     {
       /* Put the entry back in its pool */
-      RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+      ReleaseToPool(pentry, &pclient->pool_entry);
       LogEvent(COMPONENT_CACHE_INODE,
                         "cache_inode_new_entry: entry could not be added to hash, rc=%d",
                         rc);
@@ -775,7 +798,7 @@ cache_inode_status_t cache_inode_error_convert(fsal_status_t fsal_status)
 
   /* We should never reach this line, this may produce a warning with certain compiler */
   LogEvent(COMPONENT_CACHE_INODE,
-      "cache_inode_error_convert: default conversion to CACHE_INODE_FSAL_ERROR for error %d, this line should never be reached",
+      "cache_inode_error_convert: default conversion to CACHE_INODE_FSAL_ERROR for error %d, line %u should never be reached",
        fsal_status.major, __LINE__);
   return CACHE_INODE_FSAL_ERROR;
 }                               /* cache_inode_error_convert */
@@ -825,14 +848,14 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
     {
       if(LRU_invalidate(pentry->gc_lru, pentry->gc_lru_entry) != LRU_LIST_SUCCESS)
         {
-          RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+          ReleaseToPool(pentry, &pclient->pool_entry);
           return CACHE_INODE_LRU_ERROR;
         }
     }
 
   if((plru_entry = LRU_new_entry(pclient->lru_gc, &lru_status)) == NULL)
     {
-      RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+      ReleaseToPool(pentry, &pclient->pool_entry);
       return CACHE_INODE_LRU_ERROR;
     }
   plru_entry->buffdata.pdata = (caddr_t) pentry;
@@ -858,10 +881,10 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
   pclient->call_since_last_gc += 1;
 
   /* If open/close fd cache is used for FSAL, manage it here */
-    LogFullDebug(COMPONENT_CACHE_INODE, "--------> use_cache=%u fileno=%d last_op=%u time(NULL)=%u delta=%d retention=%u",
+    LogFullDebug(COMPONENT_CACHE_INODE, "--------> use_cache=%u fileno=%d last_op=%u time(NULL)=%u delta=%u retention=%u",
        pclient->use_cache, pentry->object.file.open_fd.fileno,
-       pentry->object.file.open_fd.last_op, time(NULL),
-       time(NULL) - pentry->object.file.open_fd.last_op, pclient->retention);
+       (unsigned int)pentry->object.file.open_fd.last_op, (unsigned int)time(NULL),
+       (unsigned int)(time(NULL) - pentry->object.file.open_fd.last_op), (unsigned int)pclient->retention);
 
   if(pentry->internal_md.type == REGULAR_FILE)
     {
@@ -909,8 +932,8 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
 
 #endif
   LogFullDebug(COMPONENT_CACHE_INODE,
-      "(pthread_self=%u) LRU GC state: nb_entries=%d nb_invalid=%d nb_call_gc=%d param.nb_call_gc_invalid=%d",
-       pthread_self(), pclient->lru_gc->nb_entry, pclient->lru_gc->nb_invalid,
+      "(pthread_self=%p) LRU GC state: nb_entries=%d nb_invalid=%d nb_call_gc=%d param.nb_call_gc_invalid=%d",
+       (caddr_t)pthread_self(), pclient->lru_gc->nb_entry, pclient->lru_gc->nb_invalid,
        pclient->lru_gc->nb_call_gc, pclient->lru_gc->parameter.nb_call_gc_invalid);
 
   LogFullDebug(COMPONENT_CACHE_INODE,
@@ -957,6 +980,7 @@ void cache_inode_get_attributes(cache_entry_t * pentry, fsal_attrib_list_t * pat
       *pattr = pentry->object.symlink.attributes;
       break;
 
+    case FS_JUNCTION:
     case DIR_BEGINNING:
       *pattr = pentry->object.dir_begin.attributes;
       break;
@@ -1003,6 +1027,7 @@ void cache_inode_set_attributes(cache_entry_t * pentry, fsal_attrib_list_t * pat
       pentry->object.symlink.attributes = *pattr;
       break;
 
+    case FS_JUNCTION:
     case DIR_BEGINNING:
       pentry->object.dir_begin.attributes = *pattr;
       break;
@@ -1069,6 +1094,10 @@ cache_inode_file_type_t cache_inode_fsal_type_convert(fsal_nodetype_t type)
       rctype = SOCKET_FILE;
       break;
 
+    case FSAL_TYPE_JUNCTION:
+      rctype = FS_JUNCTION ;
+      break ;
+ 
     default:
       rctype = UNASSIGNED;
       break;
@@ -1351,6 +1380,7 @@ cache_inode_status_t cache_inode_reload_content(char *path, cache_entry_t * pent
           "Error recovering cache content index %s: Invalid handle length. Expected length=%u, Found=%u",
            path, (unsigned int)(2 * sizeof(fsal_handle_t)), (unsigned int)strlen(buff));
 
+      fclose(stream);
       return CACHE_INODE_INCONSISTENT_ENTRY;
     }
 
@@ -1591,7 +1621,7 @@ cache_inode_status_t cache_inode_kill_entry(cache_entry_t * pentry,
     {
       parent_iter_next = parent_iter->next_parent;
 
-      RELEASE_PREALLOC(parent_iter, pclient->pool_parent, next_alloc);
+      ReleaseToPool(parent_iter, &pclient->pool_parent);
 
       parent_iter = parent_iter_next;
     }
@@ -1619,8 +1649,7 @@ cache_inode_status_t cache_inode_kill_entry(cache_entry_t * pentry,
           pentry->object.dir_begin.pdir_data->dir_entries[i].pentry = NULL;
         }
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(pentry->object.dir_begin.pdir_data, pclient->pool_dir_data,
-                       next_alloc);
+      ReleaseToPool(pentry->object.dir_begin.pdir_data, &pclient->pool_dir_data);
     }
 
   if(pentry->internal_md.type == DIR_CONTINUE)
@@ -1631,15 +1660,14 @@ cache_inode_status_t cache_inode_kill_entry(cache_entry_t * pentry,
           pentry->object.dir_cont.pdir_data->dir_entries[i].pentry = NULL;
         }
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(pentry->object.dir_cont.pdir_data, pclient->pool_dir_data,
-                       next_alloc);
+      ReleaseToPool(pentry->object.dir_cont.pdir_data, &pclient->pool_dir_data);
     }
 
   /* Destroy the mutex associated with the pentry */
   cache_inode_mutex_destroy(pentry);
 
   /* Put the pentry back to the pool */
-  RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+  ReleaseToPool(pentry, &pclient->pool_entry);
 
   *pstatus = CACHE_INODE_SUCCESS;
   return *pstatus;

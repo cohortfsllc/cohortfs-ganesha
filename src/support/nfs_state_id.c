@@ -155,6 +155,25 @@ unsigned long state_id_rbt_hash_func(hash_parameter_t * p_hparam,
   return (unsigned long)(i1 ^ i2 ^ i3);
 }                               /* state_id_rbt_hash_func */
 
+unsigned int state_id_hash_both( hash_parameter_t * p_hparam,
+				 hash_buffer_t    * buffclef, 
+				 uint32_t * phashval, uint32_t * prbtval )
+{
+   uint32_t h1 = 0 ;
+   uint32_t h2 = 0 ;
+
+   Lookup3_hash_buff_dual( (char *)(buffclef->pdata), 12, &h1, &h2 ) ;
+
+    h1 = h1 % p_hparam->index_size ;
+
+    *phashval = h1 ;
+    *prbtval = h2 ; 
+
+   /* Success */
+   return 1 ;
+} /* state_id_hash_both */
+
+
 /**
  *
  * nfs4_Init_state_id: Init the hashtable for Client Id cache.
@@ -234,7 +253,7 @@ int nfs4_BuildStateId_Other(cache_entry_t * pentry,
   open_owner_digest = popen_owner->counter;
 
   LogFullDebug(COMPONENT_STATES,
-         "----  nfs4_BuildStateId_Other : pentry=%p fileid=%llu open_owner_digest=%u",
+         "----  nfs4_BuildStateId_Other : pentry=%p fileid=%"PRIu64" open_owner_digest=%u",
          pentry, fileid_digest, open_owner_digest);
 
   /* Now, let's do the time's warp again.... Well, in fact we'll just build the stateid.other field */
@@ -269,7 +288,7 @@ int nfs4_State_Set(char other[12], cache_inode_state_t * pstate_data)
       LogFullDebug(COMPONENT_SESSIONS, "         ----- SetStateid : %s", str);
     }
 
-  if((buffkey.pdata = (caddr_t) Mem_Alloc(12)) == NULL)
+  if((buffkey.pdata = (caddr_t) Mem_Alloc_Label(12, "nfs4_State_Set")) == NULL)
     return 0;
   memcpy(buffkey.pdata, other, 12);
   buffkey.len = 12;

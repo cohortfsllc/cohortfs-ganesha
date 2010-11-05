@@ -90,7 +90,7 @@ static int cache_inode_gc_clean_entry(cache_entry_t * pentry,
   hash_buffer_t key, old_key, old_value;
   int rc;
 
-  LogFullDebug(COMPONENT_CACHE_INODE_GC, "(pthread_self=%p): About to remove pentry=%p, type=%d", pthread_self(),
+  LogFullDebug(COMPONENT_CACHE_INODE_GC, "(pthread_self=%p): About to remove pentry=%p, type=%d", (caddr_t)pthread_self(),
          pentry, pentry->internal_md.type);
 
   /* sanity check */
@@ -179,7 +179,7 @@ static int cache_inode_gc_clean_entry(cache_entry_t * pentry,
     {
       parent_iter_next = parent_iter->next_parent;
 
-      RELEASE_PREALLOC(parent_iter, pgcparam->pclient->pool_parent, next_alloc);
+      ReleaseToPool(parent_iter, &pgcparam->pclient->pool_parent);
 
       parent_iter = parent_iter_next;
     }
@@ -190,15 +190,13 @@ static int cache_inode_gc_clean_entry(cache_entry_t * pentry,
   if(pentry->internal_md.type == DIR_BEGINNING)
     {
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(pentry->object.dir_begin.pdir_data,
-                       pgcparam->pclient->pool_dir_data, next_alloc);
+      ReleaseToPool(pentry->object.dir_begin.pdir_data, &pgcparam->pclient->pool_dir_data);
     }
 
   if(pentry->internal_md.type == DIR_CONTINUE)
     {
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(pentry->object.dir_cont.pdir_data,
-                       pgcparam->pclient->pool_dir_data, next_alloc);
+      ReleaseToPool(pentry->object.dir_cont.pdir_data, &pgcparam->pclient->pool_dir_data);
     }
   LogFullDebug(COMPONENT_CACHE_INODE_GC,"++++> pdir_data (if needed) sent back to pool");
 
@@ -208,7 +206,7 @@ static int cache_inode_gc_clean_entry(cache_entry_t * pentry,
   cache_inode_mutex_destroy(pentry);
 
   /* Put the pentry back to the pool */
-  RELEASE_PREALLOC(pentry, pgcparam->pclient->pool_entry, next_alloc);
+  ReleaseToPool(pentry, &pgcparam->pclient->pool_entry);
 
   /* Regular exit */
   pgcparam->nb_to_be_purged = pgcparam->nb_to_be_purged - 1;
@@ -329,7 +327,7 @@ int cache_inode_gc_suppress_file(cache_entry_t * pentry,
   P_w(&pentry->lock);
 
   LogFullDebug(COMPONENT_CACHE_INODE_GC,
-                    "Entry %p (REGULAR_FILE/SYMBOLIC_LINK) will be garbaged");
+                    "Entry %p (REGULAR_FILE/SYMBOLIC_LINK) will be garbaged", pentry);
 
   /* Set the entry as invalid */
   pentry->internal_md.valid_state = INVALID;
@@ -483,7 +481,7 @@ int cache_inode_gc_function(LRU_entry_t * plru_entry, void *addparam)
           else
             LogFullDebug(COMPONENT_CACHE_INODE_GC,
                               "No garbage on dir entry %p used:%d allocated:%d %d",
-                              pentry, current_time - entry_time, current_time - allocated,
+                              pentry, (int)(current_time - entry_time), (int)(current_time - allocated),
                               cache_inode_gc_policy.directory_expiration_delay);
         }
       else if((pentry->internal_md.type == REGULAR_FILE
@@ -501,7 +499,7 @@ int cache_inode_gc_function(LRU_entry_t * plru_entry, void *addparam)
           else
             LogFullDebug(COMPONENT_CACHE_INODE_GC,
                               "No garbage on regular/symlink entry %p used:%d allocated:%d %d",
-                              pentry, current_time - entry_time, current_time - allocated,
+                              pentry, (int)(current_time - entry_time), (int)(current_time - allocated),
                               cache_inode_gc_policy.file_expiration_delay);
         }
     }

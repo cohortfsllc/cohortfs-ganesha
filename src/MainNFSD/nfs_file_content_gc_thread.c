@@ -113,7 +113,7 @@ int ___cache_content_invalidate_flushed(LRU_entry_t * plru_entry, void *addparam
   V_w(&pentry->pentry_inode->lock);
 
   /* Release the entry */
-  RELEASE_PREALLOC(pentry, pclient->pool_entry, next_alloc);
+  ReleaseToPool(pentry, &pclient->content_pool);
 
   /* Retour de la pentry dans le pool */
   return LRU_LIST_SET_INVALID;
@@ -198,7 +198,7 @@ void *file_content_gc_thread(void *IndexArg)
                   if(is_hw_reached)
                     {
                       LogEvent(COMPONENT_MAIN,
-                               "NFS FILE CONTENT GARBAGE COLLECTION : High Water Mark is  reached, %llu blocks to be removed",
+                               "NFS FILE CONTENT GARBAGE COLLECTION : High Water Mark is  reached, %lu blocks to be removed",
                                nb_blocks_to_manage);
                       some_flush_to_do = TRUE;
                       break;

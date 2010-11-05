@@ -203,7 +203,7 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
     {
       parent_iter_next = parent_iter->next_parent;
 
-      RELEASE_PREALLOC(parent_iter, pclient->pool_parent, next_alloc);
+      ReleaseToPool(parent_iter, &pclient->pool_parent);
 
       parent_iter = parent_iter_next;
     }
@@ -212,15 +212,13 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
   if(to_remove_entry->internal_md.type == DIR_BEGINNING)
     {
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(to_remove_entry->object.dir_begin.pdir_data,
-                       pclient->pool_dir_data, next_alloc);
+      ReleaseToPool(to_remove_entry->object.dir_begin.pdir_data, &pclient->pool_dir_data);
     }
 
   if(to_remove_entry->internal_md.type == DIR_CONTINUE)
     {
       /* Put the pentry back to the pool */
-      RELEASE_PREALLOC(to_remove_entry->object.dir_cont.pdir_data,
-                       pclient->pool_dir_data, next_alloc);
+      ReleaseToPool(to_remove_entry->object.dir_cont.pdir_data, &pclient->pool_dir_data);
     }
 
   return CACHE_INODE_SUCCESS;
@@ -263,7 +261,9 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
   cache_inode_status_t status;
   cache_content_status_t cache_content_status;
   int to_remove_numlinks = 0;
+#ifdef _USE_PNFS
   int pnfs_status;
+#endif
 
   /* stats */
   pclient->stat.nb_call_total += 1;
@@ -526,13 +526,10 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
             }
 #ifdef _USE_PNFS
           if(to_remove_entry->object.file.pnfs_file.ds_file.allocated == TRUE)
-            {
-              if((pnfs_status = pnfs_unlink_ds_file(&pclient->pnfsclient,
-                                                    to_remove_entry->object.file.
-                                                    attributes.fileid,
-                                                    &to_remove_entry->object.file.
-                                                    pnfs_file.ds_file)) != NFS4_OK)
-                {
+           {
+              if((pnfs_status = pnfs_remove_file( &pclient->pnfsclient,
+                                                  &to_remove_entry->object.file.pnfs_file ) ) != NFS4_OK )
+                  {
                   LogDebug(COMPONENT_CACHE_INODE, "OPEN PNFS CREATE DS FILE : Error %u",
                                   pnfs_status);
 
@@ -588,7 +585,7 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
               /*  can destroy mutex and put back entry to memory pool */
               cache_inode_mutex_destroy(pentry_iter);
 
-              RELEASE_PREALLOC(pentry_iter, pclient->pool_entry, next_alloc);
+              ReleaseToPool(pentry_iter, &pclient->pool_entry);
             }
           else                  /* not a directory, exiting loop */
             pentry_next = NULL;
@@ -603,7 +600,7 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
       /* Destroy the mutex associated with the pentry */
       cache_inode_mutex_destroy(to_remove_entry);
 
-      RELEASE_PREALLOC(to_remove_entry, pclient->pool_entry, next_alloc);
+      ReleaseToPool(to_remove_entry, &pclient->pool_entry);
     }
 
   /* Validate the entries */
