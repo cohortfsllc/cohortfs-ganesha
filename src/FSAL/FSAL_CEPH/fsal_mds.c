@@ -81,9 +81,9 @@ int add_entry(deviceaddrinfo* thentry)
   hash_buffer_t key, value;
   deviceaddrinfo* cur;
 
-  thentry->next=NULL;
+  thentry->next = NULL;
 
-  rc=pthread_mutex_lock(&deviceidtablemutex);
+  rc = pthread_mutex_lock(&deviceidtablemutex);
   if (rc != 0)
     return rc;
 
@@ -95,13 +95,12 @@ int add_entry(deviceaddrinfo* thentry)
     {
       /* No entries for this inode, we're the first */
 
-      thentry->generation=0;
-      thentry->next=NULL;
-      value.pdata=(caddr_t) thentry;
-      value.len=thentry->entry_size + sizeof(deviceaddrinfo);
+      thentry->generation = 0;
+      value.pdata = (caddr_t) thentry;
+      value.len = thentry->entry_size + sizeof(deviceaddrinfo);
 
       rc = HashTable_Test_And_Set(deviceidtable, &key, &value,
-				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+				  HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 
       if (rc != HASHTABLE_SUCCESS)
 	{
@@ -117,6 +116,8 @@ int add_entry(deviceaddrinfo* thentry)
   else
     {
       /* Find the last entry and be one after */
+
+      cur = value.pdata;
 
       while (cur->next != NULL)
 	cur = cur->next;
