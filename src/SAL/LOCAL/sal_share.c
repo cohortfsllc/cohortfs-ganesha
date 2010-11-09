@@ -38,7 +38,7 @@
 
 void updatemax(entryheader_t* header)
 {
-    state_t* cur;
+    state_t* cur = NULL;
     
     header->max_share = 0;
     header->max_deny = 0;

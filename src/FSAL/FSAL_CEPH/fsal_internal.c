@@ -91,7 +91,8 @@ static fsal_staticfsinfo_t default_hpss_info = {
   0400                         /* default access rights for xattrs: root=RW, owner=R */
 };
 
-layouttype4 supportedlayouttypes[]={LAYOUT4_NFSV4_1_FILES};
+layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES};
+fsal_size_t layout_blksize = 4096 * 1024;
 
 /*
  *  Log Descriptor
@@ -289,9 +290,12 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
   /* setting default values. */
   global_fs_info = default_hpss_info;
 
-#ifdef _USE_FSALMODS
-  global_fs_info.fs_layout_types.fattr4_fs_layout_types_len=1;
-  global_fs_info.fs_layout_types.fattr4_fs_layout_types_val=supportedlayouttypes;
+#ifdef _USE_FSALMDS
+  global_fs_info.fs_layout_types.fattr4_fs_layout_types_len
+    = sizeof(supportedlayouttypes) / sizeof(layouttype4);
+  global_fs_info.fs_layout_types.fattr4_fs_layout_types_val = supportedlayouttypes;
+
+  global_fs_info.layout_blksize = layout_blksize;
 #endif
 
   /* Analyzing fs_common_info struct */

@@ -603,6 +603,7 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
   fattr4_suppattr_exclcreat suppattr_exclcreat;
   fattr4_fs_layout_types layout_types;
   layouttype4 layouts[1];
+  fattr4_layout_blksize layout_blksize;
 #endif
 
   u_int tmp_int;
@@ -1641,19 +1642,21 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
                 statfscalled = 1;
             }
 	  *((uint32_t*)(attrvalsBuffer+LastOffset))
-	    =htonl(staticinfo.fs_layout_types
-		   .fattr4_fs_layout_types_len);
+	    = htonl(staticinfo.fs_layout_types
+		    .fattr4_fs_layout_types_len);
 
-	  LastOffset+=sizeof(uint32_t);
-	  for (i=0; i < (staticinfo.fs_layout_types
-			  .fattr4_fs_layout_types_len); i++)
+	  LastOffset += sizeof(uint32_t);
+	  for (k = 0; k < (staticinfo.fs_layout_types
+			   .fattr4_fs_layout_types_len); k++)
 	    {
 	      *((layouttype4*)(attrvalsBuffer+LastOffset))
-		=htonl((staticinfo.fs_layout_types
-			.fattr4_fs_layout_types_val[i]));
-	      LastOffset+=sizeof(layouttype4);
+		= htonl((staticinfo.fs_layout_types
+			 .fattr4_fs_layout_types_val[k]));
+	      LastOffset += sizeof(layouttype4);
 	    }
 
+          op_attr_success = 1;
+          break;
 #else                                        /* _USE_FSALMDS */
 
           layout_types.fattr4_fs_layout_types_len = htonl(1);
@@ -1666,11 +1669,38 @@ int nfs4_FSALattr_To_Fattr(exportlist_t * pexport,
           memcpy((char *)(attrvalsBuffer + LastOffset),
                  layout_types.fattr4_fs_layout_types_val, sizeof(layouttype4));
           LastOffset += sizeof(layouttype4);
-
-#endif                                    /* _USE_PNFS */
           op_attr_success = 1;
           break;
-#endif
+
+#endif                                    /* _USE_PNFS */
+
+#ifdef _USE_FSALMDS
+        case FATTR4_LAYOUT_BLKSIZE:
+          if(!statfscalled)
+            {
+              if((cache_status = cache_inode_statfs(data->current_entry,
+                                                    &staticinfo,
+                                                    &dynamicinfo,
+                                                    data->pcontext,
+                                                    &cache_status)) !=
+                 CACHE_INODE_SUCCESS)
+                {
+                  op_attr_success = 0;
+                  break;
+                }
+              else
+                statfscalled = 1;
+            }
+          layout_blksize
+	    = htonl((fattr4_layout_blksize) staticinfo.layout_blksize);
+          memcpy((char *)(attrvalsBuffer + LastOffset),
+		 &layout_blksize, sizeof(fattr4_layout_blksize));
+          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
+
+          op_attr_success = 1;
+          break;
+#endif                                    /* _USE_PNFS */
+#endif                                    /* _USE_NFS4_1 */
 
 #ifdef _USE_NFS4_1
         case FATTR4_SUPPATTR_EXCLCREAT:

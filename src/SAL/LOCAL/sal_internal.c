@@ -363,6 +363,16 @@ state_t* newstate(clientid4 clientid, entryheader_t* header)
 	    ERR_STATE_FAIL;
 	}
 
+    state->nextfh = header->states;
+    header->states = state;
+    state->next = statechain;
+    statechain = state;
+
+    if (state->nextfh)
+      state->nextfh->prevfh = state;
+    if (state->next)
+      state->next->prev = state;
+
     return state;
 }
 
@@ -375,7 +385,7 @@ state_t* iterate_entry(entryheader_t* entry, state_t** state)
     if (*state == NULL)
 	*state = entry->states;
     else
-	*state = (*state)->next;
+	*state = (*state)->nextfh;
     return *state;
 }
 

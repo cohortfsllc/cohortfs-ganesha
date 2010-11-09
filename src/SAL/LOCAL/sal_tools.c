@@ -292,7 +292,7 @@ int localstate_retrieve_state(stateid4 stateid, taggedstate* outstate)
 
 int localstate_lock_state_owner(state_owner4 state_owner, bool_t lock,
 				seqid4 seqid, bool_t* new,
-			   nfs_resop4** response)
+				nfs_resop4** response)
 {
     state_owner_t* owner;
     bool_t created;
