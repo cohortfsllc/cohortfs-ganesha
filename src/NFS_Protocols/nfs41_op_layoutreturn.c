@@ -99,24 +99,23 @@
 int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
                           struct nfs_resop4 *resp)
 {
+  bool_t nomore = false;
+  fsal_status_t fsal_status;
+  cache_inode_status_t cache_status;
+  stateid4 stateid;
+  taggedstate state;
+  int rc;
+  uint64_t statecookie = 0;
+  fsal_attrib_list_t attrs;
+  fsal_fsid_t fsid;
+  cache_entry_t* pentry;
+  bool_t finished = false;
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
 
   resp->resop = NFS4_OP_LAYOUTGET;
 #ifdef _USE_FSALMDS
   switch (arg_LAYOUTRETURN4.lora_layoutreturn.lr_returntype)
     {
-      bool_t nomore = false;
-      fsal_status_t fsal_status;
-      cache_inode_status_t cache_status;
-      stateid4 stateid;
-      taggedstate state;
-      int rc;
-      uint64_t statecookie = 0;
-      fsal_attrib_list_t attrs;
-      fsal_fsid_t fsid;
-      cache_entry_t* pentry;
-      bool_t finished = false;
-
     case LAYOUTRETURN4_FILE:
       stateid =
 	arg_LAYOUTRETURN4.lora_layoutreturn.layoutreturn4_u.lr_layout.lrf_stateid;
@@ -182,11 +181,19 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 	}
       fsid = attrs.fsid;
     case LAYOUTRETURN4_ALL:
-      while (rc = state_iterate_by_clientid(data->psession->clientid,
-					    STATE_LAYOUT, &statecookie,
-					    &finished, &state),
-	     !finished)
+      do
 	{
+	  rc = state_iterate_by_clientid(data->psession->clientid,
+					 STATE_LAYOUT, &statecookie,
+					 &finished, &state);
+	  if (rc == ERR_STATE_NOENT)
+	    break;
+	  else if (rc != ERR_STATE_NO_ERROR)
+	    {
+	      res_LAYOUTRETURN4.lorr_status = staterr2nfs4err(rc);
+	      return res_LAYOUTRETURN4.lorr_status;
+	    }
+	  
 	  if (state.u.layout.type
 	      != arg_LAYOUTRETURN4.lora_layout_type)
 	    continue;
@@ -227,17 +234,17 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 			      data->pcontext,
 			      &nomore,
 			      &stateid);
-	  state_unlock_filehandle(&(data->current_entry->object.file.handle));
 	  if (FSAL_IS_ERROR(fsal_status))
 	    {
 	      res_LAYOUTRETURN4.lorr_status = fsal_status.major;
 	      return res_LAYOUTRETURN4.lorr_status;
 	    }
 	  state_delete_layout_state(stateid);
-	  data->currentstate = state_anonymous_stateid;
-	  res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.lrs_present
-	    = 0;
-	}
+	  state_unlock_filehandle(&(data->current_entry->object.file.handle));
+	} while (!finished);
+      data->currentstate = state_anonymous_stateid;
+      res_LAYOUTRETURN4.LAYOUTRETURN4res_u.lorr_stateid.lrs_present = 0;
+      break;
 
     default:
       res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;

@@ -213,18 +213,20 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
     else
 	cur = header->states;
 
-    while (type != STATE_ANY && cur->type != type && cur != NULL)
-	cur = cur->nextfh;
+    while ((cur != NULL) &&
+	   (type != STATE_ANY) &&
+	   (cur->type != type))
+      cur = cur->nextfh;
 
     if (cur == NULL)
       return ERR_STATE_NOENT;
 
     next = cur->nextfh;
 
-    while ((type != STATE_ANY) &&
-	   (next->type != type) &&
-	   (next != NULL))
-	next = next->nextfh;
+    while ((next != NULL) &&
+	   (type != STATE_ANY) &&
+	   (next->type != type))
+      next = next->nextfh;
 
     *cookie = (uint64_t)next;
 
@@ -251,25 +253,27 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     else
 	cur = statechain;
 
-    while ((cur->clientid != clientid) &&
+    while ((cur != NULL) &&
 	   (type != STATE_ANY) &&
 	   (cur->type != type) &&
-	   (cur != NULL))
-	cur = cur->next;
+	   (cur->clientid != clientid))
+      cur = cur->next;
 
     if (cur == NULL)
 	return ERR_STATE_NOENT;
 
     next = cur->next;
 
-    while ((cur->clientid != clientid) &&
-	   (type != STATE_ANY) &&
-	   (cur->type != type) &&
-	   (cur != NULL))
-	next = next->next;
+    while ((next != NULL) &&
+	   (type == STATE_ANY) &&
+	   (next->type != type) &&
+	   (next->clientid != clientid))
+         next = next->next;
 	
+    *cookie = (uint64_t)next;
+
     if (!(*cookie))
-	*finished = true;
+      *finished = true;
 
     filltaggedstate(cur, outstate);
 

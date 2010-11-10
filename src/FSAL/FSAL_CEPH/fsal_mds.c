@@ -2,23 +2,8 @@
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
  * Copyright (C) 2010 The Linux Box Corporation
+ * All Rights Reserved
  * Contributor: Adam C. Emerson
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
- * ---------------------------------------
  */
 
 /**
@@ -288,7 +273,6 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   char name[255];
   int rc;
   uint32_t su;
-  off_t filesize;
   deviceaddrinfo* entry;
   uint64_t stripes;
   int num_osds;
@@ -315,18 +299,10 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   *return_on_close = false;
   offset -= offset % su;
 
-  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
+  /* Since the Linux kernel supports a maximum of 4096 as the stripe
+     count, we will never return a layout longer than 4096*su */
 
-  if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
-  
-  filesize=st.st_size;
-
-  /* With the address hack we're using now, we want to put a brake on
-     how large a layout someone can request */
-
-  biggest = max((2 * filesize),
-		((fsal_size_t) 1 << 0x1e));
+  biggest = 4096 * su;
 
   if (minlength > biggest)
     Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
@@ -541,10 +517,11 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
   /* We iterate over all segments returning those falling completely
      within the client's range */
   
-  while (rc = state_iter_layout_entries(*stateid, &layoutcookie,
-					&finished, &segment),
-	 !finished)
+  do 
     {
+      rc = state_iter_layout_entries(*stateid, &layoutcookie,
+				     &finished, &segment);
+      
       if (rc != ERR_STATE_NO_ERROR)
 	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
 
@@ -565,7 +542,7 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 	  ERR_STATE_NO_ERROR)
 	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
       --remaining;
-    }
+    } while (!finished);
   
   if (!remaining)
     *nomore = true;

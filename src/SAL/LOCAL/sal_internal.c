@@ -469,6 +469,7 @@ void killstate(state_t* state)
 void filltaggedstate(state_t* state, taggedstate* outstate)
 {
     memset(outstate, 0, sizeof(taggedstate));
+    outstate->tag = state->type;
     switch (state->type)
 	{
 	case STATE_SHARE:
