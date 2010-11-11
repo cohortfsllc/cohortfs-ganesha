@@ -1,25 +1,9 @@
 /*
  *
  * Copyright (C) 2010, The Linux Box, inc.
+ * All Rights Reserved
  *
  * Contributor: Adam C. Emerson
- *
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
- * ---------------------------------------
  */
 
 #include "sal.h"
@@ -213,20 +197,26 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
     else
 	cur = header->states;
 
-    while ((cur != NULL) &&
-	   (type != STATE_ANY) &&
-	   (cur->type != type))
-      cur = cur->nextfh;
+    while (cur != NULL)
+      {
+	if ((type == STATE_ANY) || (cur->type == type))
+	  break;
+	else
+	  cur = cur->nextfh;
+      }
 
     if (cur == NULL)
       return ERR_STATE_NOENT;
 
     next = cur->nextfh;
 
-    while ((next != NULL) &&
-	   (type != STATE_ANY) &&
-	   (next->type != type))
-      next = next->nextfh;
+    while (next != NULL)
+      {
+	if ((type == STATE_ANY) || (next->type == type))
+	  break;
+	else
+	  next = next->nextfh;
+      }
 
     *cookie = (uint64_t)next;
 
@@ -253,22 +243,30 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     else
 	cur = statechain;
 
-    while ((cur != NULL) &&
-	   (type != STATE_ANY) &&
-	   (cur->type != type) &&
-	   (cur->clientid != clientid))
-      cur = cur->next;
+    while (cur != NULL)
+      {
+	if ((type == STATE_ANY) || (cur->type == type))
+	  break;
+	else if (cur->clientid == clientid)
+	  break;
+	else
+	  cur = cur->next;
+      }
 
     if (cur == NULL)
 	return ERR_STATE_NOENT;
 
     next = cur->next;
 
-    while ((next != NULL) &&
-	   (type == STATE_ANY) &&
-	   (next->type != type) &&
-	   (next->clientid != clientid))
-         next = next->next;
+    while (next != NULL)
+      {
+	if ((type == STATE_ANY) || (next->type == type))
+	  break;
+	else if (next->clientid == clientid)
+	  break;
+	else
+	  next = next->next;
+      }
 	
     *cookie = (uint64_t)next;
 

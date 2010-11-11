@@ -272,7 +272,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   struct stat_precise st;
   char name[255];
   int rc;
-  uint32_t su;
+  uint64_t su;
   deviceaddrinfo* entry;
   uint64_t stripes;
   int num_osds;
@@ -284,7 +284,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   netaddr4* hosts;
   char* stringwritepos;
   fsal_filelayout_t* fileloc;
-  fsal_size_t biggest;
+  uint64_t biggest;
   
   /* Align the layout to ceph stripe boundaries */
   
@@ -305,17 +305,17 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   biggest = 4096 * su;
 
   if (minlength > biggest)
-    Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
+    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_layoutget);
   
   if (length > biggest) 
     length = biggest;
 
-  length -= (length % su);
+  length += (su - (length % su));
 
   /* Constants needed to populate anything */
   
-  num_osds=ceph_ll_num_osds();
-  stripes=(length-offset)/su;
+  num_osds = ceph_ll_num_osds();
+  stripes = (length-offset)/su;
 
   /* Populate the device info */
 

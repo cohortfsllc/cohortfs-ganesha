@@ -245,9 +245,9 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   fsal_status_t status;
   fsal_layout_t *layouts;
   int numlayouts;
-  layoutiomode4 iomode=arg_LAYOUTGET4.loga_iomode;
-  offset4 offset=arg_LAYOUTGET4.loga_offset;
-  length4 length=arg_LAYOUTGET4.loga_length;
+  layoutiomode4 iomode = arg_LAYOUTGET4.loga_iomode;
+  offset4 offset = arg_LAYOUTGET4.loga_offset;
+  length4 length = arg_LAYOUTGET4.loga_length;
   fsal_handle_t* fsalh;
   int i;
   stateid4 lstateid;
