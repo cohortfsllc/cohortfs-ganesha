@@ -31,7 +31,8 @@ SUBDIRS = include             \
           config_samples      \
           check               \
 	  debian              \
-          rpm
+          rpm                 \
+          cppcheck-xml
 
 if USE_FSAL_FUSE
 SUBDIRS += example-fuse
@@ -82,7 +83,8 @@ deb: prepare-deb-control
 rpms: rpm srpm
 
 codecheck:
-	 cppcheck -v --force --enable=all -I`pwd`/include . 2>cppcheck.log
+	rm -f cppcheck-xml/cppcheck.xml
+	 cppcheck -j12 -v --force --xml --enable=unusedFunction -I`pwd`/include $(FSAL_CFLAGS) $(SEC_CFLAGS) $(SVC_FLAGS) . 2>cppcheck-xml/cppcheck.xml
 
 cscope:
 	find . -type f -name "*.[ch]" | grep -v rpm/ > cscope.namefile
