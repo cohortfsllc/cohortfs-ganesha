@@ -12,6 +12,7 @@ SUBDIRS = include             \
           HashTable           \
 	  NodeList	      \
           FSAL                \
+	  SAL                 \
           MFSL                \
           Cache_inode         \
           File_Content        \

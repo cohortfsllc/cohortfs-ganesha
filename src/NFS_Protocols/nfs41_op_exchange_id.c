@@ -137,6 +137,7 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
       res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
       return res_EXCHANGE_ID4.eir_status;
     }
+<<<<<<< HEAD
   LogDebug(COMPONENT_NFS_V4, "EXCHANGE_ID computed clientid4=%llux for name='%s'",
                   (long long unsigned int)clientid, str_client);
 
@@ -148,7 +149,6 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
       res_EXCHANGE_ID4.eir_status = NFS4ERR_INVAL;
       return res_EXCHANGE_ID4.eir_status;
     }
-<<<<<<< HEAD
 #else
 #ifdef DEBUG_NFSV4
   { /* XXX move */
@@ -165,9 +165,6 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
                (flags & EXCHGID4_FLAG_CONFIRMED_R) ? " EXCHGID4_FLAG_UPD_CONFIRMED_REC_A" : "");
 #endif
 #endif
-=======
-#endif 
->>>>>>> f8bf8cf9e4275388b064c0c44b6e43ac3d205b22
 
   /* Does this id already exists ? */
   if(nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS)

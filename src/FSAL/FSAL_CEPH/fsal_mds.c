@@ -2,23 +2,8 @@
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
  * Copyright (C) 2010 The Linux Box Corporation
+ * All Rights Reserved
  * Contributor: Adam C. Emerson
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
- * ---------------------------------------
  */
 
 /**
@@ -48,6 +33,7 @@
 #include "stuff_alloc.h"
 #include "fsal_types.h"
 #include <alloca.h>
+#include "sal.h"
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
@@ -80,9 +66,9 @@ int add_entry(deviceaddrinfo* thentry)
   hash_buffer_t key, value;
   deviceaddrinfo* cur;
 
-  thentry->next=NULL;
+  thentry->next = NULL;
 
-  rc=pthread_mutex_lock(&deviceidtablemutex);
+  rc = pthread_mutex_lock(&deviceidtablemutex);
   if (rc != 0)
     return rc;
 
@@ -94,13 +80,12 @@ int add_entry(deviceaddrinfo* thentry)
     {
       /* No entries for this inode, we're the first */
 
-      thentry->generation=0;
-      thentry->next=NULL;
-      value.pdata=(caddr_t) thentry;
-      value.len=thentry->entry_size + sizeof(deviceaddrinfo);
+      thentry->generation = 0;
+      value.pdata = (caddr_t) thentry;
+      value.len = thentry->entry_size + sizeof(deviceaddrinfo);
 
       rc = HashTable_Test_And_Set(deviceidtable, &key, &value,
-				 HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
+				  HASHTABLE_SET_HOW_SET_NO_OVERWRITE);
 
       if (rc != HASHTABLE_SUCCESS)
 	{
@@ -116,6 +101,8 @@ int add_entry(deviceaddrinfo* thentry)
   else
     {
       /* Find the last entry and be one after */
+
+      cur = (deviceaddrinfo*) value.pdata;
 
       while (cur->next != NULL)
 	cur = cur->next;
@@ -264,8 +251,8 @@ deviceaddrinfo* get_entry(uint64_t inode, uint64_t generation)
  *        would need a means to trigger a layoutrecall.
  * \param context (input):
  *        Credential information
- * \param cbcookie (input):
- *        Opaque, passed to callbacks.
+ * \param opaque (input):
+ *        Passed to FSALBACK function to create filehandle
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  */
@@ -279,13 +266,13 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 int *numlayouts,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
-				 void* cbcookie)
+				 stateid4* stateid,
+				 void* opaque)
 {
   struct stat_precise st;
   char name[255];
   int rc;
-  uint32_t su;
-  off_t filesize;
+  uint64_t su;
   deviceaddrinfo* entry;
   uint64_t stripes;
   int num_osds;
@@ -297,7 +284,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   netaddr4* hosts;
   char* stringwritepos;
   fsal_filelayout_t* fileloc;
-  fsal_size_t biggest;
+  uint64_t biggest;
   
   /* Align the layout to ceph stripe boundaries */
   
@@ -312,31 +299,23 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   *return_on_close = false;
   offset -= offset % su;
 
-  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
+  /* Since the Linux kernel supports a maximum of 4096 as the stripe
+     count, we will never return a layout longer than 4096*su */
 
-  if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
-  
-  filesize=st.st_size;
-
-  /* With the address hack we're using now, we want to put a brake on
-     how large a layout someone can request */
-
-  biggest = max((2 * filesize),
-		((fsal_size_t) 1 << 0x1e));
+  biggest = 4096 * su;
 
   if (minlength > biggest)
-    Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
+    Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_layoutget);
   
   if (length > biggest) 
     length = biggest;
 
-  length -= (length % su);
+  length += (su - (length % su));
 
   /* Constants needed to populate anything */
   
-  num_osds=ceph_ll_num_osds();
-  stripes=(length-offset)/su;
+  num_osds = ceph_ll_num_osds();
+  stripes = (length-offset)/su;
 
   /* Populate the device info */
 
@@ -411,8 +390,8 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   /* Add the layout to the state for the file */
   
-  if (FSALBACK_layout_add_state(type, iomode, offset, length,
-				entry, *return_on_close, cbcookie) != 0)
+  if (state_add_layout_segment(type, iomode, offset, length,
+			       *return_on_close, entry, *stateid) != 0)
     {
       remove_entry(entry);
       Mem_Free(entry);
@@ -472,7 +451,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   /* Give the client a filehandle that may be sent to the DS */
   
-  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, cbcookie);
+  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, opaque);
 
   if (!(encode_lo_content(LAYOUT4_NFSV4_1_FILES,
 			  &((*layouts)->lo_content),
@@ -485,6 +464,10 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     }
 			
 
+  /* On success, bump the seqid */
+
+  state_layout_inc_state(stateid);
+
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
 
@@ -492,32 +475,24 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
  *
  * FSAL_layoutreturn: The NFSv4.1 LAYOUTRETURN operation
  *
- * Free a layout on a given file.  This routine will always be
- * passed exactly a layout granted by LAYOUTGET (retrieved from the
- * state table.)
+ * Free a client specified layout range on a file.
  *
  * \param filehandle (input):
  *        The handle upon which the layout was granted
  * \param type (input):
  *        The layout type
- * \param passed_iomode (input):
+ * \param iomode (input):
  *        The iomode passed by the client (in case it's ANY)
- * \param passed_offset (input):
+ * \param offset (input):
  *        The offset (specified by the client)
- * \param passed_length (input):
+ * \param length (input):
  *        The length (specified by the client)
- * \param found_iomode (input):
- *        The iomode (of the layout found in the state table)
- * \param found_offset (input):
- *        The offset (of the layout found in the state table)
- * \param found_length (input):
- *        The length (of the layout found in the state table)
- * \param ldata (input):
- *        FSAL-specific layout data
  * \param context (input):
  *        The authentication context
- * \param cbcookie (input):
- *        Opaque to be passed to callbacks
+ * \param nomore (output):
+ *        Set to true if the last layout segment has been freed.
+ * \param stateid (input/output):
+ *        The layout stateid.
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
@@ -525,34 +500,61 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
 fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t passed_iomode,
-				    fsal_off_t passed_offset,
-				    fsal_size_t passed_length,
-				    fsal_size_t found_iomode,
-				    fsal_off_t found_offset,
-				    fsal_size_t found_length,
-				    cephfsal_layoutdata_t ldata,
-				    fsal_op_context_t* context,
-				    void* cbcookie)
+				    fsal_layoutiomode_t iomode,
+				    fsal_off_t offset,
+				    fsal_size_t length,
+				    cephfsal_op_context_t* context,
+				    bool_t* nomore,
+				    stateid4* stateid)
 {
-  /* Perform FSAL specific tasks to release the layout */
+  uint64_t layoutcookie = 0;
+  bool_t finished = false;
+  layoutsegment segment;
+  int remaining = 0;
+  int rc = 0;
+  *nomore = false;
 
-  if ((passed_offset > found_offset) ||
-      (passed_length < found_length))
-    Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
-    
-  if (remove_entry(ldata) != 0)
-    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+  /* We iterate over all segments returning those falling completely
+     within the client's range */
+  
+  do 
+    {
+      rc = state_iter_layout_entries(*stateid, &layoutcookie,
+				     &finished, &segment);
+      
+      if (rc != ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
 
-  if (FSALBACK_layout_remove_state(cbcookie) != 0)
-    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+      ++remaining;
+
+      if ((segment.type != type) || /* This should never happen */
+	  !(segment.iomode & iomode) || /* iomode should match ro be
+					   ANY */
+	  (segment.offset < offset) ||
+	  ((segment.offset + segment.length) >
+	   (offset + length)))
+	continue;
+
+      if (remove_entry(segment.layoutdata) != 0)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+
+      if (state_free_layout_segment(*stateid, segment.segid) !=
+	  ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+      --remaining;
+    } while (!finished);
+  
+  if (!remaining)
+    *nomore = true;
+
+  state_layout_inc_state(stateid);
   
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
 }
 
 /**
  *
- * FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
+* FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
  *
  * Commit changes made on the DSs to the MDS
  *

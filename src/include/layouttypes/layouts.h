@@ -2,23 +2,9 @@
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
  * Copyright (C) 2010 The Linux Box Corporation
- * Contributor: Adam C. Emerson
+ * All Rights Reserved
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
- * ---------------------------------------
+ * Contributor: Adam C. Emerson
  */
 
 #ifndef _LAYOUTS_H
@@ -37,8 +23,8 @@
 typedef struct __layoutfuncs
 {
   layouttype4 type;
-  int (*encode_layout) (layouttype4, layout_content4*, size_t, void*);
-  int (*encode_device) (layouttype4, device_addr4*, size_t*, void*);
+  int (*encode_layout) (layouttype4, layout_content4*, size_t, caddr_t);
+  int (*encode_device) (layouttype4, device_addr4*, size_t, caddr_t);
 } layoutfunctions;
 
 extern layoutfunctions layoutfuncs[];

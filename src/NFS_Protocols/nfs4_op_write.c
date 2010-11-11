@@ -111,12 +111,9 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   caddr_t bufferdata;
   stable_how4 stable_how;
   cache_content_status_t content_status;
-  cache_inode_state_t *pstate_found = NULL;
   cache_inode_status_t cache_status;
   fsal_attrib_list_t attr;
   cache_entry_t *entry = NULL;
-  cache_inode_state_t *pstate_iterate = NULL;
-  cache_inode_state_t *pstate_previous_iterate = NULL;
 
   int rc = 0;
 
@@ -162,92 +159,6 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
   /* vnode to manage is the current one */
   entry = data->current_entry;
-
-  /* Check for special stateid */
-  if(!memcmp((char *)all_zero, arg_WRITE4.stateid.other, 12) &&
-     arg_WRITE4.stateid.seqid == 0)
-    {
-      /* "All 0 stateid special case", see RFC3530 page 220-221 for details 
-       * This will be treated as a client that held no lock at all,
-       * I set pstate_found to NULL to remember this situation later */
-      pstate_found = NULL;
-    }
-  else if(!memcmp((char *)all_one, arg_WRITE4.stateid.other, 12) &&
-          arg_WRITE4.stateid.seqid == 0xFFFFFFFF)
-    {
-      /* "All 1 stateid special case", see RFC3530 page 220-221 for details 
-       * This will be treated as a client that held no lock at all,
-       * I set pstate_found to NULL to remember this situation later */
-      pstate_found = NULL;
-    }
-  /* Check for correctness of the provided stateid */
-  else if((rc = nfs4_Check_Stateid(&arg_WRITE4.stateid, data->current_entry, 0LL)) ==
-          NFS4_OK)
-    {
-      /* Get the related state */
-      if(cache_inode_get_state(arg_WRITE4.stateid.other,
-                               &pstate_found,
-                               data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-        {
-          res_WRITE4.status = nfs4_Errno(cache_status);
-          return res_WRITE4.status;
-        }
-
-      /* This is a read operation, this means that the file MUST have been opened for reading */
-      if((pstate_found->state_data.share.share_deny & OPEN4_SHARE_DENY_WRITE) &&
-         !(pstate_found->state_data.share.share_access & OPEN4_SHARE_ACCESS_WRITE))
-        {
-          /* Bad open mode, return NFS4ERR_OPENMODE */
-          res_WRITE4.status = NFS4ERR_OPENMODE;
-          return res_WRITE4.status;
-        }
-    }                           /* else if( ( rc = nfs4_Check_Stateid( &arg_WRITE4.stateid, data->current_entry ) ) == NFS4_OK ) */
-  else
-    {
-      res_WRITE4.status = rc;
-      return res_WRITE4.status;
-    }
-
-  /* NB: After this points, if pstate_found == NULL, then the stateid is all-0 or all-1 */
-
-  /* Iterate through file's state to look for conflicts */
-  pstate_iterate = NULL;
-  pstate_previous_iterate = NULL;
-  do
-    {
-      cache_inode_state_iterate(data->current_entry,
-                                &pstate_iterate,
-                                pstate_previous_iterate,
-                                data->pclient, data->pcontext, &cache_status);
-      if(cache_status == CACHE_INODE_STATE_ERROR)
-        break;                  /* Get out of the loop */
-
-      if(cache_status == CACHE_INODE_INVALID_ARGUMENT)
-        {
-          res_WRITE4.status = NFS4ERR_INVAL;
-          return res_WRITE4.status;
-        }
-
-      if(pstate_iterate != NULL)
-        {
-          switch (pstate_iterate->state_type)
-            {
-            case CACHE_INODE_STATE_SHARE:
-              if(pstate_found != pstate_iterate)
-                {
-                  if(pstate_iterate->state_data.share.share_deny & OPEN4_SHARE_DENY_WRITE)
-                    {
-                      /* Writing to this file if prohibited, file is write-denied */
-                      res_WRITE4.status = NFS4ERR_LOCKED;
-                      return res_WRITE4.status;
-                    }
-                }
-              break;
-            }
-        }
-      pstate_previous_iterate = pstate_iterate;
-    }
-  while(pstate_iterate != NULL);
 
   /* Only files can be written */
   if(data->current_filetype != REGULAR_FILE)
@@ -357,6 +268,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                       &seek_descriptor,
                       size,
                       &written_size,
+		      arg_WRITE4.stateid,
                       &attr,
                       bufferdata,
                       &eof_met,

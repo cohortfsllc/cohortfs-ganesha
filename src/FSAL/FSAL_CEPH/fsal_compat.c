@@ -685,7 +685,8 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 				      int *numlayouts,
 				      fsal_boolean_t *return_on_close,
 				      fsal_op_context_t *context,
-				      void* cbcookie)
+				      stateid4* stateid,
+				      void* opaque)
 {
   return CEPHFSAL_layoutget((cephfsal_handle_t *) filehandle,
 			    type, iomode, offset, length,
@@ -693,29 +694,23 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 			    numlayouts,
 			    return_on_close,
 			    (cephfsal_op_context_t *) context,
-			    cbcookie);
+			    stateid,
+			    opaque);
 }
 
 fsal_status_t WRAP_CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
 					 fsal_layouttype_t type,
-					 fsal_layoutiomode_t passed_iomode,
-					 fsal_off_t passed_offset,
-					 fsal_size_t passed_length,
-					 fsal_layoutiomode_t found_iomode,
-					 fsal_off_t found_offset,
-					 fsal_size_t found_length,
-					 fsal_layoutdata_t ldata,
+					 fsal_layoutiomode_t iomode,
+					 fsal_off_t offset,
+					 fsal_size_t length,
 					 fsal_op_context_t* context,
-					 void* cbcookie)
+					 bool_t* nomore,
+					 stateid4* stateid)
 {
-  return CEPHFSAL_layoutreturn((cephfsal_handle_t* )filehandle,
-			       type, passed_iomode, passed_offset,
-			       passed_length, found_iomode,
-			       found_offset,
-			       found_length,
-			       (cephfsal_layoutdata_t) ldata,
-			       (cephfsal_op_context_t* )context,
-			       cbcookie);
+  return CEPHFSAL_layoutreturn((cephfsal_handle_t*) filehandle,
+			       type, iomode, offset,
+			       length, (cephfsal_op_context_t*)context,
+			       nomore, stateid);
 }
 
 fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,

@@ -102,8 +102,6 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
   cache_inode_status_t cache_status;
 
 #ifdef _USE_FSALMDS
-  cache_inode_state_t *pstate_iterate;
-  cache_inode_state_t *pstate_previous_iterate;
   fsal_status_t status;
   fsal_handle_t fsalh;
 #endif /* _USE_FSALMDS */
@@ -111,9 +109,6 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
   /* for the moment, read/write are not done asynchronously, no commit is necessary */
   resp->resop = NFS4_OP_COMMIT;
   res_COMMIT4.status = NFS4_OK;
-
-  LogFullDebug(COMPONENT_NFS_V4, "      COMMIT4: Demande de commit sur offset = %llu, size = %llu\n",
-         arg_COMMIT4.offset, arg_COMMIT4.count);
 
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -159,45 +154,6 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
 
   /* See if we have a layout */
   
-  pstate_iterate = NULL;
-  pstate_previous_iterate = NULL;
-  do
-    {
-      cache_inode_state_iterate(data->current_entry,
-                                &pstate_iterate,
-                                pstate_previous_iterate,
-                                data->pclient, data->pcontext, &cache_status);
-      if(cache_status == CACHE_INODE_STATE_ERROR)
-        break;                  /* Get out of the loop */
-
-      if(cache_status == CACHE_INODE_INVALID_ARGUMENT)
-        {
-          res_COMMIT4.status = NFS4ERR_INVAL;
-          return res_COMMIT4.status;
-        }
-
-      if((pstate_iterate != NULL) &&
-	 (pstate_iterate->state_type == CACHE_INODE_STATE_LAYOUT))
-	break;
-    }
-  while(pstate_iterate != NULL);
-
-  if (pstate_iterate != NULL)
-    {
-      nfs4_FhandleToFSAL(&(data->currentFH), &fsalh, data->pcontext);
-      /* status = FSAL_mdscommit(&fsalh, arg_COMMIT4.offset,
-	 arg_COMMIT4.count); */
-      if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
-	{
-	  res_COMMIT4.status = nfs4_Errno(cache_status);
-	  return res_COMMIT4.status;
-	}
-      else
-	{
-	  res_COMMIT4.status = NFS4_OK;
-	  return res_COMMIT4.status;
-	}
-    }
 #endif /* _USE_FSALMDS */
 #ifdef _USE_FSALDS
 

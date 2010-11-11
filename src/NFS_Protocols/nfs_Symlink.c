@@ -123,6 +123,12 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
   cache_inode_status_t cache_status;
   cache_inode_status_t cache_status_parent;
   fsal_handle_t *pfsal_handle;
+  stateid4 anon =
+    {
+      .seqid = 1,
+      .other = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+    };
 
   if(preq->rq_vers == NFS_V3)
     {
@@ -256,7 +262,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                                          &attributes_symlink,
                                          ht,
                                          pclient,
-                                         pcontext, &cache_status) != CACHE_INODE_SUCCESS)
+                                         pcontext, anon,
+					 &cache_status) != CACHE_INODE_SUCCESS)
                     {
                       /* If we are here, there was an error */
                       nfs_SetFailedStatus(pcontext, pexport,

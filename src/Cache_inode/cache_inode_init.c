@@ -153,34 +153,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
       return 1;
     }
 
-  MakePool(&pclient->pool_state_v4, pclient->nb_pre_state_v4, cache_inode_state_t, NULL, NULL);
-  NamePool(&pclient->pool_state_v4, "Cache Inode Client State V4 Pool for Worker %d", thread_index);
-  if(!IsPoolPreallocated(&pclient->pool_state_v4))
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client state v4 pool Worker %d", thread_index);
-      return 1;
-    }
-
-  /* TODO: warning - entries in this pool are never released! */
-  MakePool(&pclient->pool_open_owner, pclient->nb_pre_state_v4, cache_inode_open_owner_t, NULL, NULL);
-  NamePool(&pclient->pool_open_owner, "Cache Inode Client Open Owner Pool for Worker %d", thread_index);
-  if(!IsPoolPreallocated(&pclient->pool_open_owner))
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client open owner pool Worker %d", thread_index);
-      return 1;
-    }
-
-  /* TODO: warning - entries in this pool are never released! */
-  MakePool(&pclient->pool_open_owner_name, pclient->nb_pre_state_v4, cache_inode_open_owner_name_t, NULL, NULL);
-  NamePool(&pclient->pool_open_owner_name, "Cache Inode Client Open Owner Name Pool for Worker %d", thread_index);
-  if(!IsPoolPreallocated(&pclient->pool_open_owner_name))
-    {
-      LogCrit(COMPONENT_CACHE_INODE,
-                   "Error : can't init cache_inode client open owner name pool Worker %d", thread_index);
-      return 1;
-    }
 #ifdef _USE_NFS4_1
   /* TODO: warning - entries in this pool are never released! */
   MakePool(&pclient->pool_session, pclient->nb_pre_state_v4, nfs41_session_t, NULL, NULL);
@@ -191,7 +163,6 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client session pool Worker %d", thread_index);
       return 1;
     }
-#endif                          /* _USE_NFS4_1 */
 
   MakePool(&pclient->pool_key, pclient->nb_prealloc, cache_inode_fsal_data_t, NULL, NULL);
   NamePool(&pclient->pool_key, "Cache Inode Client Key Pool for Worker %d", thread_index);

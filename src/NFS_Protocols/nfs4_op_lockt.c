@@ -101,7 +101,6 @@ int nfs4_op_lockt(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
   cache_inode_status_t cache_status;
   nfs_client_id_t nfs_client_id;
-  cache_inode_state_t *pstate_found = NULL;
   uint64_t a, b, a1, b1;
   unsigned int overlap = FALSE;
 

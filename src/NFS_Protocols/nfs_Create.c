@@ -120,6 +120,12 @@ int nfs_Create(nfs_arg_t * parg,
   cache_inode_status_t cache_status_lookup;
   cache_inode_file_type_t parent_filetype;
   fsal_handle_t *pfsal_handle;
+  stateid4 anon =
+    {
+      .seqid = 1,
+      .other = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+    };
 
   if((preq->rq_vers == NFS_V3) && (nfs3_Is_Fh_Xattr(&(parg->arg_create3.where.dir))))
     {
@@ -311,6 +317,7 @@ int nfs_Create(nfs_arg_t * parg,
                                              ht,
                                              pclient,
                                              pcontext,
+					     anon,
                                              &cache_status) != CACHE_INODE_SUCCESS)
                         {
                           /* If we are here, there was an error */

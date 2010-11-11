@@ -78,6 +78,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <string.h>
+#include "sal.h"
 
 /* global information exported to all layers (as extern vars) */
 
@@ -494,18 +495,6 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->client_id_param.hash_param_reverse.val_to_str = display_client_id_val;
   p_nfs_param->client_id_param.hash_param_reverse.name = "Client ID Reverse";
 
-  /* NFSv4 State Id hash */
-  p_nfs_param->state_id_param.hash_param.index_size = PRIME_STATE_ID;
-  p_nfs_param->state_id_param.hash_param.alphabet_length = 10;  /* ipaddr is a numerical decimal value */
-  p_nfs_param->state_id_param.hash_param.nb_node_prealloc = NB_PREALLOC_HASH_STATE_ID;
-  p_nfs_param->state_id_param.hash_param.hash_func_key = NULL ;
-  p_nfs_param->state_id_param.hash_param.hash_func_rbt = NULL ;
-  p_nfs_param->state_id_param.hash_param.hash_func_both = state_id_hash_both ;
-  p_nfs_param->state_id_param.hash_param.compare_key = compare_state_id;
-  p_nfs_param->state_id_param.hash_param.key_to_str = display_state_id_key;
-  p_nfs_param->state_id_param.hash_param.val_to_str = display_state_id_val;
-  p_nfs_param->state_id_param.hash_param.name = "State ID";
-
 #ifdef _USE_NFS4_1
   /* NFSv4 State Id hash */
   p_nfs_param->session_id_param.hash_param.index_size = PRIME_STATE_ID;
@@ -541,17 +530,6 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
 
 #endif                          /* _USE_NFS4_1 */
 
-  /* NFSv4 Open Owner hash */
-  p_nfs_param->open_owner_param.hash_param.index_size = PRIME_STATE_ID;
-  p_nfs_param->open_owner_param.hash_param.alphabet_length = 10;        /* ipaddr is a numerical decimal value */
-  p_nfs_param->open_owner_param.hash_param.nb_node_prealloc = NB_PREALLOC_HASH_STATE_ID;
-  p_nfs_param->open_owner_param.hash_param.hash_func_key = open_owner_value_hash_func;
-  p_nfs_param->open_owner_param.hash_param.hash_func_rbt = open_owner_rbt_hash_func;
-  p_nfs_param->open_owner_param.hash_param.compare_key = compare_open_owner;
-  p_nfs_param->open_owner_param.hash_param.key_to_str = display_open_owner_key;
-  p_nfs_param->open_owner_param.hash_param.val_to_str = display_open_owner_val;
-  p_nfs_param->open_owner_param.hash_param.name = "Open Owner";
-
   /* Cache inode parameters : hash table */
   p_nfs_param->cache_layers_param.cache_param.hparam.index_size = PRIME_CACHE_INODE;
   p_nfs_param->cache_layers_param.cache_param.hparam.alphabet_length = 10;      /* Buffer seen as a decimal polynom */
@@ -566,6 +544,22 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->cache_layers_param.cache_param.hparam.key_to_str = display_cache;
   p_nfs_param->cache_layers_param.cache_param.hparam.val_to_str = display_cache;
   p_nfs_param->cache_layers_param.cache_param.hparam.name = "Cache Inode";
+
+  p_nfs_param->cache_layers_param.openref_param.nb_openref_prealloc
+    = NB_PREALLOC_OPENREF;
+  p_nfs_param->cache_layers_param.openref_param.hparam.index_size
+    = PRIME_OPENREF;
+  p_nfs_param->cache_layers_param.openref_param.hparam.alphabet_length = 10;
+  p_nfs_param->cache_layers_param.openref_param.hparam.hash_func_key
+    = cache_inode_openref_hash_func;
+  p_nfs_param->cache_layers_param.openref_param.hparam.hash_func_rbt
+    = cache_inode_openref_rbt_func;
+  p_nfs_param->cache_layers_param.openref_param.hparam.compare_key
+    = cache_inode_compare_key_openref;
+  p_nfs_param->cache_layers_param.openref_param.hparam.key_to_str
+    = cache_inode_display_openref;
+  p_nfs_param->cache_layers_param.openref_param.hparam.val_to_str
+    = cache_inode_display_openref;
 
   /* Cache inode parameters : Garbage collection policy */
   p_nfs_param->cache_layers_param.gcpol.file_expiration_delay = -1;     /* No gc */
@@ -918,23 +912,6 @@ int nfs_set_param_from_conf(nfs_parameter_t * p_nfs_param,
       else
         LogDebug(COMPONENT_INIT,
 		 "Client id configuration read from config file");
-    }
-
-  /* Worker paramters: state_id hash table */
-  if((rc = nfs_read_state_id_conf(config_struct, &p_nfs_param->state_id_param)) < 0)
-    {
-      LogCrit(COMPONENT_INIT, "Error while parsing State id configuration");
-      return -1;
-    }
-  else
-    {
-      /* No such stanza in configuration file */
-      if(rc == 1)
-        LogDebug(COMPONENT_INIT,
-		 "No state id configuration found in config file, using default");
-      else
-        LogDebug(COMPONENT_INIT,
-		 "state id configuration read from config file");
     }
 
 #ifdef _USE_NFS4_1
@@ -1454,6 +1431,14 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
   char GssError[MAXNAMLEN];
 #endif
 
+  rc = state_init();
+  if (rc != ERR_STATE_NO_ERROR)
+      {
+	  /* Failed init */
+	  LogMajor(COMPONENT_INIT, "NFS_INIT: SAL library could not be initialized");
+	  exit(1);
+      }
+
   /* FSAL Initialisation */
   fsal_status = FSAL_Init(&nfs_param.fsal_param);
   if(FSAL_IS_ERROR(fsal_status))
@@ -1485,6 +1470,13 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
       exit(1);
     }
   LogEvent(COMPONENT_INIT, "NFS_INIT: Cache Inode library successfully initialized");
+
+  /* Openref initialization */
+  if (openref_init(nfs_param.cache_layers_param.openref_param))
+    {
+      LogMajor(COMPONENT_INIT, "NFS_INIT: Openref Layer could not be initialized.");
+      exit(1);
+    }
 
   /* Set the cache inode GC policy */
   cache_inode_set_gc_policy(nfs_param.cache_layers_param.gcpol);
@@ -1780,24 +1772,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
     }
   LogEvent(COMPONENT_INIT, 
                   "NFS_INIT: NFSv4 clientid cache reverse successfully initialized");
-
-  /* Init The NFSv4 State id cache */
-  LogDebug(COMPONENT_INIT, "NFS_INIT: Now building NFSv4 State Id cache");
-  if(nfs4_Init_state_id(nfs_param.state_id_param) != 0)
-    {
-      LogCrit(COMPONENT_INIT, "NFS_INIT: Error while initializing NFSv4 State Id cache");
-      exit(1);
-    }
-  LogEvent(COMPONENT_INIT, "NFS_INIT: NFSv4 State Id cache successfully initialized");
-
-  /* Init The NFSv4 Open Owner cache */
-  LogDebug(COMPONENT_INIT, "NFS_INIT: Now building NFSv4 Open Owner cache");
-  if(nfs4_Init_open_owner(nfs_param.open_owner_param) != 0)
-    {
-      LogCrit(COMPONENT_INIT, "NFS_INIT: Error while initializing NFSv4 Open Owner cache");
-      exit(1);
-    }
-  LogEvent(COMPONENT_INIT, "NFS_INIT: NFSv4 Open Owner cache successfully initialized");
 
 #ifdef _USE_NFS4_1
   LogDebug(COMPONENT_INIT, "NFS_INIT: Now building NFSv4 Session Id cache");

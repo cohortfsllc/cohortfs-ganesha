@@ -661,8 +661,10 @@ typedef struct fsal_staticfsinfo__
                                            */
 #ifdef _USE_FSALMDS
   fsal_layout_types fs_layout_types;      /**< The supported layout
-					   *   types
-					   */
+					   *   types */
+  
+  fsal_size_t layout_blksize;             /**< Preferred blocksize for
+					       I/O on layouts*/
 #endif                                     /* _USE_FSALMDS */
 } fsal_staticfsinfo_t;
 

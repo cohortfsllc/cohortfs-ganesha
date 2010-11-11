@@ -75,6 +75,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_proto_tools.h"
+#include "sal.h"
 
 /**
  *
@@ -376,6 +377,7 @@ int nfs_Write(nfs_arg_t * parg,
                           &seek_descriptor,
                           size,
                           &written_size,
+			  state_anonymous_stateid,
                           &attr,
                           data,
                           &eof_met,

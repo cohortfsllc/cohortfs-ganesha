@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_proto_tools.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  *
@@ -336,6 +337,7 @@ int nfs_Read(nfs_arg_t * parg,
                           &seek_descriptor,
                           size,
                           &read_size,
+			  state_anonymous_stateid,
                           &attr,
                           data,
                           &eof_met,

@@ -95,7 +95,6 @@ int nfs4_op_open_downgrade(struct nfs_argop4 *op,
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_open_downgrade";
 
-  cache_inode_state_t *pstate_found = NULL;
   cache_inode_status_t cache_status;
 
   resp->resop = NFS4_OP_OPEN_DOWNGRADE;
@@ -137,24 +136,8 @@ int nfs4_op_open_downgrade(struct nfs_argop4 *op,
       return res_OPEN_DOWNGRADE4.status;
     }
 
-  /* Get the state */
-  if(cache_inode_get_state(arg_OPEN_DOWNGRADE4.open_stateid.other,
-                           &pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      res_OPEN_DOWNGRADE4.status = nfs4_Errno(cache_status);
-      return res_OPEN_DOWNGRADE4.status;
-    }
-
-  /* Update the state */
-  pstate_found->seqid += 1;
-
   /* Successful exit */
   res_OPEN_DOWNGRADE4.status = NFS4_OK;
-  res_OPEN_DOWNGRADE4.OPEN_DOWNGRADE4res_u.resok4.open_stateid.seqid =
-      pstate_found->seqid;
-  memcpy(res_OPEN_DOWNGRADE4.OPEN_DOWNGRADE4res_u.resok4.open_stateid.other,
-         pstate_found->stateid_other, 12);
 
   return res_OPEN_DOWNGRADE4.status;
 }                               /* nfs4_op_opendowngrade */

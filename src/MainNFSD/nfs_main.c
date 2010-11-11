@@ -48,6 +48,7 @@
 #include <pthread.h>
 #include <signal.h>             /* for sigaction */
 #include <errno.h>
+#include "sal.h"
 
 /* parameters for NFSd startup and default values */
 
@@ -348,7 +349,6 @@ int main(int argc, char *argv[])
     LogEvent(COMPONENT_INIT,
                     "Signal SIGHUP (daemon export reload) is ready to be used");
 
-
 #ifdef _USE_SHARED_FSAL
   if(nfs_get_fsalpathlib_conf(my_config_path, fsal_path_lib))
     {
@@ -377,6 +377,8 @@ int main(int argc, char *argv[])
 #ifdef _USE_FSALDS
   FSAL_LoadDSFunctions();
 #endif
+
+  state_loadfunctions();
 
   LogEvent(COMPONENT_INIT,
 	   ">>>>>>>>>> Starting GANESHA NFS Daemon on FSAL/%s <<<<<<<<<<",

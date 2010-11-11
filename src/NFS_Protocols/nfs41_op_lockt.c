@@ -100,7 +100,6 @@ int nfs41_op_lockt(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_lockt";
 
   cache_inode_status_t cache_status;
-  cache_inode_state_t *pstate_found = NULL;
   uint64_t a, b, a1, b1;
   unsigned int overlap = FALSE;
 

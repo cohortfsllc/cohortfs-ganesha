@@ -44,7 +44,7 @@
 #include "err_fsal.h"
 #include <ceph/libceph.h>
 #include <pthread.h>
-
+#include "layouttypes/filelayout.h"
 #include "fsal_glue_const.h"
 
 #define fsal_handle_t cephfsal_handle_t
@@ -128,7 +128,16 @@ typedef struct {
 
 #ifdef _USE_FSALMDS
 
-typedef void* cephfsal_layoutdata_t;
+typedef struct __deviceaddrlink {
+  uint64_t inode;
+  uint64_t generation;
+  fsal_file_dsaddr_t* addrinfo;
+  size_t entry_size;
+  struct __deviceaddrlink* next;
+} deviceaddrinfo;
+
+
+typedef deviceaddrinfo cephfsal_layoutdata_t;
 
 #endif /* _USE_FSALMDS */
 

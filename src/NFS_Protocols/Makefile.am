@@ -1,7 +1,6 @@
 AM_CFLAGS                     = $(FSAL_CFLAGS) $(SEC_CFLAGS)
 
-SUBDIRS = PNFS \
-          layouttypes
+SUBDIRS = layouttypes
 
 noinst_LTLIBRARIES            = libnfsproto.la
 
@@ -143,6 +142,7 @@ libnfsproto_la_SOURCES += nfs41_op_exchange_id.c      \
                           nfs41_op_lock.c             \
                           nfs41_op_lockt.c            \
                           nfs41_op_locku.c            \
+			  nfs41_op_open_downgrade.c   \
                           nfs41_op_read.c             \
                           nfs41_op_reclaim_complete.c \
                           nfs41_op_sequence.c         \

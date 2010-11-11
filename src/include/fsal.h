@@ -838,26 +838,23 @@ fsal_status_t FSAL_set_quota(fsal_path_t * pfsal_path,  /* IN */
 fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_layouttype_t type,
 			     fsal_layoutiomode_t iomode,
-			     fsal_off_t offset,
-			     fsal_size_t length,
+			     fsal_off_t offset, fsal_size_t length,
 			     fsal_size_t minlength,
 			     fsal_layout_t** layouts,
-			     int* numlayouts,
-			     fsal_boolean_t* return_on_close,
-			     fsal_op_context_t* context,
-			     void* cbcookie);
+			     int *numlayouts,
+			     fsal_boolean_t *return_on_close,
+			     fsal_op_context_t *context,
+			     stateid4* stateid,
+			     void* opaque);
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
-				fsal_layoutiomode_t passed_iomode,
-				fsal_off_t passed_offset,
-				fsal_size_t passed_length,
-				fsal_layoutiomode_t found_iomode,
-				fsal_off_t found_offset,
-				fsal_size_t found_length,
-				fsal_layoutdata_t ldata,
+				fsal_layoutiomode_t iomode,
+				fsal_off_t offset,
+				fsal_size_t length,
 				fsal_op_context_t* context,
-				void* cbcookie);
+				bool_t* nomore,
+				stateid4* stateid);
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
@@ -1397,25 +1394,22 @@ typedef struct __fsal_mdsfunctions
   fsal_status_t (*fsal_layoutget)(fsal_handle_t* filehandle,
 				  fsal_layouttype_t type,
 				  fsal_layoutiomode_t iomode,
-				  fsal_off_t offset,
-				  fsal_size_t length,
+				  fsal_off_t offset, fsal_size_t length,
 				  fsal_size_t minlength,
 				  fsal_layout_t** layouts,
-				  int* numlayouts,
-				  fsal_boolean_t* return_on_close,
-				  fsal_op_context_t* context,
-				  void* cbcookie);
+				  int *numlayouts,
+				  fsal_boolean_t *return_on_close,
+				  fsal_op_context_t *context,
+				  stateid4* stateid,
+				  void* opaque);
   fsal_status_t (*fsal_layoutreturn)(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,
-				     fsal_layoutiomode_t passed_iomode,
-				     fsal_off_t passed_offset,
-				     fsal_size_t passed_length,
-				     fsal_layoutiomode_t found_iomode,
-				     fsal_off_t found_offset,
-				     fsal_size_t found_length,
-				     fsal_layoutdata_t ldata,
+				     fsal_layoutiomode_t iomode,
+				     fsal_off_t offset,
+				     fsal_size_t length,
 				     fsal_op_context_t* context,
-				     void* cbcookie);
+				     bool_t* nomore,
+				     stateid4* stateid);
   fsal_status_t (*fsal_layoutcommit)(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,
 				     char* layout,
@@ -1507,29 +1501,11 @@ void FSAL_LoadDSFunctions(void);
 
 /* Callback cookies */
 
-struct lg_cbc
-{
-  void* current_entry;
-  void* powner;
-  void* pclient;
-  fsal_op_context_t* pcontext;
-  void* data;
-  void* created_state;
-  void* passed_state;
-};
-
-int FSALBACK_layout_add_state(fsal_layouttype_t type,
-			      fsal_layoutiomode_t iomode,
-			      fsal_off_t offset,
-			      fsal_size_t length,
-			      fsal_layoutdata_t fsaldata,
-			      int return_on_close,
-			      void* opaque);
-			      
-
+#ifdef _USE_FSALMDS
 
 int FSALBACK_fh2dshandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
 			 void* cookie);
-int FSALBACK_layout_remove_state(void* opaque);
+
+#endif
 
 #endif                          /* _FSAL_H */
