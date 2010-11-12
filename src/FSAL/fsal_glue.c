@@ -737,21 +737,19 @@ fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 					     stateid);
 }
 
-
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
-				fsal_layouttype_t type,
-				char* layout,
-				size_t layout_length,
 				fsal_off_t offset,
 				fsal_size_t length,
 				fsal_off_t* newoff,
-				fsal_boolean_t* changed,
-				fsal_time_t* newtime)
+				fsal_time_t* newtime,
+				stateid4 stateid,
+				layoutupdate4 layoutupdate,
+				fsal_op_context_t* pcontext)
 {
-  return fsal_mdsfunctions.fsal_layoutcommit(filehandle, type,
-					     layout, layout_length,
-					     offset, length, newoff,
-					     changed, newtime);
+  return fsal_mdsfunctions.fsal_layoutcommit(filehandle, offset,
+					     length, newoff, newtime,
+					     stateid, layoutupdate,
+					     pcontext);
 }
 
 fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,

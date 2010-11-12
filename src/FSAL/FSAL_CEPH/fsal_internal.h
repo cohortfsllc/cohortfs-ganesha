@@ -461,15 +461,13 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    stateid4* stateid);
 
 fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
-				    fsal_layouttype_t type,
-				    char* layout,
-				    size_t layout_length,
 				    fsal_off_t offset,
 				    fsal_size_t length,
 				    fsal_off_t* newoff,
-				    fsal_boolean_t* changed,
-				    fsal_time_t* newtime);
-  
+				    fsal_time_t* newtime,
+				    stateid4 stateid,
+				    layoutupdate4 layoutupdate,
+				    cephfsal_op_context_t* pcontext);
 
 fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
 				     fsal_deviceid_t id,

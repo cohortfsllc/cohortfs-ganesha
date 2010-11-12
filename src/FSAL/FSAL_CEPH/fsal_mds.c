@@ -102,7 +102,7 @@ int add_entry(deviceaddrinfo* thentry)
     {
       /* Find the last entry and be one after */
 
-      cur = value.pdata;
+      cur = (deviceaddrinfo*) value.pdata;
 
       while (cur->next != NULL)
 	cur = cur->next;
@@ -560,63 +560,86 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
  *
  * \param filehandle (input):
  *        The filehandle in question
- * \param type (input):
- *        The layout type
- * \param layout (input):
- *        The layout itself
- * \param layout_length (input):
- *        Length of the layout
  * \param offset (input):
  *        Offset into the file of the changed portion
  * \param length (input):
  *        Length of the changed portion
- * \param newoff (input/output):
+ * \param last_offset (input/output):
  *        Client suggested offset for the length of the file (NULL if
- *        none)/
- *        FSAL supplied offset for the length of the file (if changed
- *        true)
- * \param changed (output)
- *        True if MDS returns a new file length
- * \param newtime (input)
- *        Client suggested modification time
+ *        none)/FSAL supplied offset for the length of the file
+ * \param time (input/output)
+ *        Client suggested modification time/actually adopted.
+ * \param stateid (input)
+ *        Stateid of the given layout
+ * \param layoutupdate (input)
+ *        Type specific update data
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
  */
 
-fsal_status_t CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
-				    fsal_layouttype_t type,
-				    char* layout,
-				    size_t layout_length,
+fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
 				    fsal_off_t offset,
 				    fsal_size_t length,
 				    fsal_off_t* newoff,
-				    fsal_boolean_t* changed,
-				    fsal_time_t* newtime)
+				    fsal_time_t* newtime,
+				    stateid4 stateid,
+				    layoutupdate4 layoutupdate,
+				    cephfsal_op_context_t* pcontext)
 {
-  /* Commit data */
-  if (newtime)
-    {
-      /* Check that time does not run backward, follow suggestion if
-	 we wish */
-    }
+  int uid = FSAL_OP_CONTEXT_TO_UID(pcontext);
+  int gid = FSAL_OP_CONTEXT_TO_GID(pcontext);
+  struct stat_precise stold, stnew;
+  int rc = 0;
+  int attrmask = 0;
+
+  /* For file layouts, we just update the metadata */
+  
+  if (!filehandle)
+      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutcommit);
+
+  if (!(newoff || newtime))
+    Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+
+  memset(&stnew, 0, sizeof(struct stat_precise));
+    
+  if ((rc = ceph_ll_getattr_precise(VINODE(filehandle), &stold, uid,
+				    gid)) < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
 
   if (newoff)
     {
-      /* File may only grow, follow suggestion if we wish */
+      if (stold.st_size > *newoff + 1)
+	*newoff = stold.st_size - 1;
+      else
+	{
+	  attrmask |= CEPH_SETATTR_SIZE;
+	  stnew.st_size = *newoff + 1;
+	}
     }
 
-  if (0) /* Some test for a new filesize */
+  if (newtime)
     {
-      *changed=1;
-    }
-  else
-    {
-      *changed=0;
+      if (((newtime->seconds == stold.st_mtime_sec) &&
+	   (newtime->nseconds <= stold.st_mtime_micro * 1000)) ||
+	  (newtime->seconds < stold.st_mtime_sec))
+	{
+	  newtime->seconds = stold.st_mtime_sec;
+	  newtime->nseconds = stold.st_mtime_micro * 1000;
+	}
+      else
+	{
+	  attrmask |= CEPH_SETATTR_MTIME;
+	  stnew.st_mtime_sec = newtime->seconds;
+	  stnew.st_mtime_micro = newtime->nseconds / 1000;
+	}
     }
 
-  /* Obviously, change this when real code is added */
-
+  if (attrmask)
+    if ((rc = ceph_ll_setattr_precise(VINODE(filehandle), &stnew,
+				      attrmask, uid, gid)) < 0)
+      Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
+	
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
 }
 
@@ -664,7 +687,7 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
       Mem_Free(xdrbuff);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
     }
-	
+
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
 }
 

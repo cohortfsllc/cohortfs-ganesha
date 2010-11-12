@@ -330,8 +330,9 @@ int op_dsread(struct nfs_argop4 *op,
      RFC 5661, 13.9.1, pp. 329-330 */
 
   if ((arg_READ4.stateid.seqid != 0) ||
-      (memcmp((char *)all_zero, arg_READ4.stateid.other, 12) == 0) ||
-      (memcmp((char *)all_one, arg_READ4.stateid.other, 12) == 0))
+      state_anonymous_check(arg_READ4.stateid) ||
+      state_current_check(arg_READ4.stateid) ||
+      state_invalid_check(arg_READ4.stateid))
     {
       res_READ4.status = NFS4ERR_BAD_STATEID;
       return res_READ4.status;
