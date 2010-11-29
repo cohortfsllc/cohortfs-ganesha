@@ -366,10 +366,9 @@ typedef struct cache_entry__
 
   struct cache_inode_parent_entry__
   {
-    unsigned int subdirpos;                     /**< Position of the entry in the dirent array */
-    struct cache_entry__ *parent;               /**< Parent entry (a dir_begin or a dir_count) */
-    struct cache_inode_parent_entry__ *next_parent; /**< Next parent (for gc, in case of a hard link) */
-    struct cache_inode_parent_entry__ *next_alloc;/**< Next parent (for gc, in case of a hard link)       */
+    unsigned int subdirpos;                           /**< Position of the entry in the dirent array          */
+    struct cache_entry__ *parent;                     /**< Parent entry (a dir_begin or a dir_count)          */
+    struct cache_inode_parent_entry__ *next_parent;   /**< Next parent (for gc, in case of a hard link)       */
   } *parent_list;
 #ifdef _USE_MFSL
   mfsl_object_t mobject;
