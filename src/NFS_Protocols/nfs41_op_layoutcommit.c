@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * 
@@ -176,37 +177,140 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 
   return res_LAYOUTCOMMIT4.locr_status;
 #elif defined(_USE_FSALMDS)
-  int found=0;
-  fsal_status_t status;
-  offset4 last_write=(arg_LAYOUTCOMMIT4.loca_last_write_offset
-		      .newoffset4_u.no_offset);
-  nfstime4 last_time=(arg_LAYOUTCOMMIT4.loca_time_modify
-		      .newtime4_u.nt_time);
+  fsal_status_t fsal_status;
+  taggedstate state;
+  int rc = 0;
+  bool_t goodlayout = false;
+  fsal_off_t newoff;
+  uint64_t cookie;
+  bool_t done;
+  fsal_time_t newtime;
+  layoutsegment segment;
+  fsal_attrib_list_t attrs;
 
-  fsal_boolean_t size_changed=(arg_LAYOUTCOMMIT4.loca_last_write_offset
-			    .no_newoffset);
-  fsal_handle_t fsalh;
-
-  /* Is the layout actually held? */
-
-  if (arg_LAYOUTCOMMIT4.loca_reclaim)
+  if ((rc = state_retrieve_state(arg_LAYOUTCOMMIT4.loca_stateid,
+				 &state)) != ERR_STATE_NO_ERROR)
     {
-      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_NO_GRACE;
+      res_LAYOUTCOMMIT4.locr_status = staterr2nfs4err(rc);
       return res_LAYOUTCOMMIT4.locr_status;
     }
+
+  /* Check to see if the layout is valid */
+
+  if ((state.tag != STATE_LAYOUT) ||
+      (state.u.layout.clientid != data->psession->clientid) ||
+      !(FSAL_handlecmp(&(state.u.layout.handle),
+		       &(data->current_entry->object.file.handle),
+		       &fsal_status)))
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+      
+  do
+    {
+      rc = state_iter_layout_entries(arg_LAYOUTCOMMIT4.loca_stateid,
+				     &cookie,
+				     &done,
+				     &segment);
+      if (rc != ERR_STATE_NO_ERROR)
+	{
+	  res_LAYOUTCOMMIT4.locr_status = staterr2nfs4err(rc);
+	  return res_LAYOUTCOMMIT4.locr_status;
+	}
+      if ((segment.iomode == LAYOUTIOMODE4_RW) &&
+	  (segment.offset <= arg_LAYOUTCOMMIT4.loca_offset) &&
+	  ((segment.offset + segment.length) >=
+	   (arg_LAYOUTCOMMIT4.loca_offset +
+	    arg_LAYOUTCOMMIT4.loca_length)))
+	goodlayout = true;
+    } while (!done && !goodlayout);
+
+  if (!goodlayout)
+    {
+      res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
+      return res_LAYOUTCOMMIT4.locr_status;
+    }
+
+  if (arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset)
+    if ((arg_LAYOUTCOMMIT4.loca_last_write_offset.newoffset4_u.no_offset
+	 < arg_LAYOUTCOMMIT4.loca_offset) ||
+	(arg_LAYOUTCOMMIT4.loca_last_write_offset.newoffset4_u.no_offset
+	 > (arg_LAYOUTCOMMIT4.loca_offset +
+	    arg_LAYOUTCOMMIT4.loca_length)))
+      {
+	res_LAYOUTCOMMIT4.locr_status = NFS4ERR_INVAL;
+	return res_LAYOUTCOMMIT4.locr_status;
+      }
+    else
+      newoff =
+	arg_LAYOUTCOMMIT4.loca_last_write_offset.newoffset4_u.no_offset;
   
-  if (FSAL_IS_ERROR(status))
+  if (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged)
     {
-      res_LAYOUTCOMMIT4.locr_status = status.major;
+      newtime.seconds =
+	arg_LAYOUTCOMMIT4.loca_time_modify.newtime4_u.nt_time.seconds;
+      newtime.nseconds =
+	arg_LAYOUTCOMMIT4.loca_time_modify.newtime4_u.nt_time.nseconds;
+    }
+
+  if (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged ||
+      arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset)
+    P_w(&data->current_entry->lock);
+    
+  fsal_status =
+    FSAL_layoutcommit(&(data->current_entry->object.file.handle),
+		      arg_LAYOUTCOMMIT4.loca_offset,
+		      arg_LAYOUTCOMMIT4.loca_length,
+		      (arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset ?
+		       &newoff : NULL),
+		      (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged ?
+		       &newtime : NULL),
+		      arg_LAYOUTCOMMIT4.loca_stateid,
+		      arg_LAYOUTCOMMIT4.loca_layoutupdate,
+		      data->pcontext);
+
+  if ((cache_status = cache_inode_error_convert(fsal_status))
+      != CACHE_INODE_SUCCESS)
+    {
+      if (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged ||
+	  arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset)
+	V_w(&data->current_entry->lock);
+      res_LAYOUTCOMMIT4.locr_status = nfs4_Errno(cache_status);
       return res_LAYOUTCOMMIT4.locr_status;
     }
 
-  res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
-  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
-   .locr_newsize.ns_sizechanged)=size_changed;
-  (res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4
-   .locr_newsize.newsize4_u.ns_size)=last_write;
+  if (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged ||
+      arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset)
+    {
+      cache_inode_get_attributes(data->current_entry,
+				 &attrs);
+      
+      if (arg_LAYOUTCOMMIT4.loca_last_write_offset.no_newoffset)
+	{
+	  attrs.asked_attributes |= FSAL_ATTR_SIZE;
+	  attrs.filesize = newoff + 1; /* There is one byte AFTER the
+					  offset */
+	  res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4.locr_newsize.ns_sizechanged
+	    = true;
+	  res_LAYOUTCOMMIT4.LAYOUTCOMMIT4res_u.locr_resok4.locr_newsize.newsize4_u.ns_size
+	    = attrs.filesize;
+	}
+      if (arg_LAYOUTCOMMIT4.loca_time_modify.nt_timechanged)
+	{
+	  attrs.asked_attributes |= (FSAL_ATTR_MTIME |
+				     FSAL_ATTR_CHGTIME);
+	  
+	  attrs.mtime = newtime;
+	  attrs.chgtime = newtime;
+	}
+      cache_inode_set_attributes(data->current_entry,
+				 &attrs);
+      V_w(&data->current_entry->lock);
+    }
 
+    
+  res_LAYOUTCOMMIT4.locr_status = NFS4_OK;
   return res_LAYOUTCOMMIT4.locr_status;
 #endif                          /* _USE_FSALMDS */
 }                               /* nfs41_op_layoutcommit */

@@ -214,12 +214,7 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
 
   while ((left != 0)  && (resp == 0))
     {
-      off_t filesize;
       struct stat_precise st;
-      rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
-      filesize=st.st_size;
-      if (rc < 0)
-	Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_write);
 
       uint64_t towrite=min((su - internal_offset),
 			   (left - internal_offset));
@@ -237,17 +232,6 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
 	  left -= written;
 	  pos += written;
 	  ++stripe;
-	  if (pos > filesize)
-	    {
-	      st.st_size = pos;
-	      rc = ceph_ll_setattr_precise(VINODE(filehandle),
-					   &st,
-					   CEPH_SETATTR_SIZE,
-					   -1,
-					   -1);
-	      if (rc < 0)
-		Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_write);
-	    }
 	}
       *write_amount=written;
     }

@@ -714,18 +714,17 @@ fsal_status_t WRAP_CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
 }
 
 fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,
-					 fsal_layouttype_t type,
-					 char* layout,
-					 size_t layout_length,
 					 fsal_off_t offset,
 					 fsal_size_t length,
 					 fsal_off_t* newoff,
-					 fsal_boolean_t* changed,
-					 fsal_time_t* newtime)
+					 fsal_time_t* newtime,
+					 stateid4 stateid,
+					 layoutupdate4 layoutupdate,
+					 fsal_op_context_t* pcontext)
 {
-  return CEPHFSAL_layoutcommit((cephfsal_handle_t* )filehandle,
-			       type, layout, layout_length, offset,
-			       length, newoff, changed, newtime);
+  CEPHFSAL_layoutcommit((cephfsal_handle_t*)filehandle, offset,
+			length, newoff, newtime, stateid,
+			layoutupdate, (cephfsal_op_context_t*) pcontext);
 }
 
 fsal_status_t WRAP_CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,

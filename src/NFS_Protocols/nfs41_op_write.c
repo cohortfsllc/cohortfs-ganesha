@@ -95,9 +95,6 @@ extern verifier4 NFS4_write_verifier;   /* NFS V4 write verifier from nfs_Main.c
 #define arg_WRITE4 op->nfs_argop4_u.opwrite
 #define res_WRITE4 resp->nfs_resop4_u.opwrite
 
-extern char all_zero[];
-extern char all_one[12];
-
 int nfs41_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop4 *resp)
 {
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_write";
@@ -338,10 +335,10 @@ int op_dswrite(struct nfs_argop4 *op,
 
   /* Special stateids are not permitted, nor is any non-zero seqid, by
      RFC 5661, 13.9.1, pp. 329-330 */
-
   if ((arg_WRITE4.stateid.seqid != 0) ||
-      (memcmp((char *)all_zero, arg_WRITE4.stateid.other, 12) == 0) ||
-      (memcmp((char *)all_one, arg_WRITE4.stateid.other, 12) == 0))
+      state_anonymous_check(arg_WRITE4.stateid) ||
+      state_current_check(arg_WRITE4.stateid) ||
+      state_invalid_check(arg_WRITE4.stateid))
     {
       res_WRITE4.status = NFS4ERR_BAD_STATEID;
       return res_WRITE4.status;
