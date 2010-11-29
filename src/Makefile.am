@@ -32,15 +32,21 @@ SUBDIRS = include             \
           check               \
 	  debian              \
           rpm                 \
-          cppcheck-xml
+          cppcheck-xml        \
+          testres-xml
 
 if USE_FSAL_FUSE
 SUBDIRS += example-fuse
 endif
 
 DOCDIRS = Cache_inode ConfigParsing File_Content File_Content_Policy HashTable IdMapper LRU Log MainNFSD NFS_Protocols SemN StuffAlloc shell support \
-          FSAL/FSAL_HPSS FSAL/FSAL_POSIX FSAL/FSAL_PROXY FSAL/FSAL_SNMP FSAL/FSAL_FUSE FSAL/FSAL_ZFS FSAL/FSAL_CEPH \
-          MFSL/MFSL_NULL MFSL/MFSL_ASYNC MFSL/MFSL_PROXY_RPCSECGSS
+          FSAL/FSAL_HPSS FSAL/FSAL_POSIX FSAL/FSAL_PROXY FSAL/FSAL_SNMP FSAL/FSAL_FUSE FSAL/FSAL_ZFS \
+          FSAL/FSAL_CEPH MFSL/MFSL_NULL MFSL/MFSL_ASYNC MFSL/MFSL_PROXY_RPCSECGSS MFSL/MFSL_AIO
+
+TESTRUNNER_DIRS = BuddyMalloc HashTable LRU Log RW_Lock
+
+testrunner: 
+	for i in $(TESTRUNNER_DIRS) ; do cd $$i ; make testrunner ; cd .. ; done
 
 new: clean all
 

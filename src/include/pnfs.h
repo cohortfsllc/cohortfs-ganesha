@@ -82,6 +82,16 @@ typedef union pnfs_file_loc__
   pnfs_ds_loc_t ds_loc ;
 } pnfs_fileloc_t ;
 
+typedef union pnfs_hints__
+{
+  pnfs_ds_hints_t ds_hints ;
+} pnfs_hints_t ;
+
+int pnfs_get_location(  pnfs_client_t      * pnfsclient,
+                        fsal_handle_t      * phandle, 
+                        pnfs_hints_t       * phints,
+	                pnfs_fileloc_t * pnfs_fileloc ) ;
+
 int pnfs_create_file( pnfs_client_t  * pnfsclient,
 	              pnfs_fileloc_t * pnfs_fileloc,
 		      pnfs_file_t    * pnfs_file ) ;
@@ -92,6 +102,10 @@ int pnfs_remove_file( pnfs_client_t  * pnfsclient,
 int pnfs_lookup_file( pnfs_client_t  * pnfsclient,
 	              pnfs_fileloc_t * pnfs_fileloc,
 		      pnfs_file_t    * pnfs_file ) ;
+
+int pnfs_truncate_file( pnfs_client_t * pnfsclient,
+			size_t newsize,
+			pnfs_file_t * pnfs_file ) ;
 
 void pnfs_encode_getdeviceinfo( char *buff, unsigned int *plen) ;
 

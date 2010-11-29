@@ -164,6 +164,12 @@ static char *cache_inode_function_names[] = {
 
 #define CACHE_INODE_NB_COMMAND      27
 
+typedef enum cache_inode_expire_type__
+{ CACHE_INODE_EXPIRE = 0,
+  CACHE_INODE_EXPIRE_NEVER = 1,
+  CACHE_INODE_EXPIRE_IMMEDIATE = 2
+} cache_inode_expire_type_t;
+
 typedef struct cache_inode_stat__
 {
   unsigned int nb_gc_lru_active;        /**< Number of active entries in Garbagge collecting list */
@@ -201,6 +207,9 @@ typedef struct cache_inode_client_parameter__
   unsigned int nb_pre_parent;                          /**< number of preallocated parent link               */
   unsigned int nb_pre_state_v4;                        /**< number of preallocated State_v4                  */
   unsigned int nb_pre_lock;                            /**< number of preallocated file lock                 */
+  cache_inode_expire_type_t expire_type_attr;          /**< Cache inode expiration type for attributes       */
+  cache_inode_expire_type_t expire_type_link;          /**< Cache inode expiration type for symbolic links   */
+  cache_inode_expire_type_t expire_type_dirent;        /**< Cache inode expiration type for directory entries*/
   time_t grace_period_attr;                            /**< Cached attributes grace period                   */
   time_t grace_period_link;                            /**< Cached link grace period                         */
   time_t grace_period_dirent;                          /**< Cached dirent grace period                       */

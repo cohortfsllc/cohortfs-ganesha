@@ -283,7 +283,6 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
      (pstatus == NULL) || !share_access ||
      (share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
      (share_deny & ~OPEN4_SHARE_DENY_BOTH))
->>>>>>> sal
     return CACHE_INODE_INVALID_ARGUMENT;
   
   if(pentry->internal_md.type != REGULAR_FILE)

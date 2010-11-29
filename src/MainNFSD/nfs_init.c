@@ -256,6 +256,7 @@ int nfs_print_param_config(nfs_parameter_t * p_nfs_param)
   printf("\tNFS_Program = %u ;\n", p_nfs_param->core_param.nfs_program);
   printf("\tMNT_Program = %u ;\n", p_nfs_param->core_param.mnt_program);
   printf("\tNb_Worker = %u ; \n", p_nfs_param->core_param.nb_worker);
+  printf("\tb_Call_Before_Queue_Avg = %u ; \n", p_nfs_param->core_param.nb_call_before_queue_avg);
   printf("\tNb_MaxConcurrentGC = %u ; \n", p_nfs_param->core_param.nb_max_concurrent_gc);
   printf("\tDupReq_Expiration = %lu ; \n", p_nfs_param->core_param.expiration_dupreq);
   printf("\tCore_Dump_Size = %ld ; \n", p_nfs_param->core_param.core_dump_size);
@@ -303,6 +304,7 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
 
   /* Core parameters */
   p_nfs_param->core_param.nb_worker = NB_WORKER_THREAD_DEFAULT;
+  p_nfs_param->core_param.nb_call_before_queue_avg = NB_REQUEST_BEFORE_QUEUE_AVG;
   p_nfs_param->core_param.nb_max_concurrent_gc = NB_MAX_CONCURRENT_GC;
   p_nfs_param->core_param.expiration_dupreq = DUPREQ_EXPIRATION;
   p_nfs_param->core_param.nfs_port = NFS_PORT;
@@ -321,6 +323,12 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->core_param.nb_max_fd = -1;       /* Use OS's default */
   p_nfs_param->core_param.stats_update_delay = 60;
   p_nfs_param->core_param.tcp_fridge_expiration_delay = -1;
+/* only NFSv4 is supported for the FSAL_PROXY */
+#if ! defined( _USE_PROXY ) || defined ( _HANDLE_MAPPING )
+  p_nfs_param->core_param.core_options = CORE_OPTION_NFSV3 | CORE_OPTION_NFSV4;
+#else
+  p_nfs_param->core_param.core_options = CORE_OPTION_NFSV4;
+#endif                          /* _USE_PROXY */
 
   p_nfs_param->core_param.use_nfs_commit = FALSE;
   strncpy(p_nfs_param->core_param.stats_file_path, "/tmp/ganesha.stat", MAXPATHLEN);
@@ -380,7 +388,7 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->dupreq_param.hash_param.nb_node_prealloc = NB_PREALLOC_HASH_DUPREQ;
   p_nfs_param->dupreq_param.hash_param.hash_func_key = dupreq_value_hash_func;
   p_nfs_param->dupreq_param.hash_param.hash_func_rbt = dupreq_rbt_hash_func;
-  p_nfs_param->dupreq_param.hash_param.compare_key = compare_xid;
+  p_nfs_param->dupreq_param.hash_param.compare_key = compare_req;
   p_nfs_param->dupreq_param.hash_param.key_to_str = display_xid;
   p_nfs_param->dupreq_param.hash_param.val_to_str = display_xid;
   p_nfs_param->dupreq_param.hash_param.name = "Duplicate Request Cache";
@@ -580,9 +588,12 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->cache_layers_param.cache_inode_client_param.nb_pre_dir_data = 256;
   p_nfs_param->cache_layers_param.cache_inode_client_param.nb_pre_parent = 2048;
   p_nfs_param->cache_layers_param.cache_inode_client_param.nb_pre_state_v4 = 512;
-  p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_link = 0;
-  p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_attr = 0;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_attr   = 0;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_link   = 0;
   p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_dirent = 0;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_attr    = CACHE_INODE_EXPIRE_NEVER;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_link    = CACHE_INODE_EXPIRE_NEVER;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_dirent  = CACHE_INODE_EXPIRE_NEVER;
   p_nfs_param->cache_layers_param.cache_inode_client_param.use_test_access = 1;
   p_nfs_param->cache_layers_param.cache_inode_client_param.getattr_dir_invalidation = 0;
   p_nfs_param->cache_layers_param.cache_inode_client_param.attrmask =
@@ -1184,24 +1195,24 @@ int nfs_check_param_consistency(nfs_parameter_t * p_nfs_param)
       return 1;
     }
 #ifdef _USE_MFSL_ASYNC
-  if(p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_attr != 0)
+  if(p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_attr != CACHE_INODE_EXPIRE_NEVER)
     {
       LogCrit
-          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Attr_Expiration_Time should be 0 when used with MFSL_ASYNC");
+          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Attr_Expiration_Time should be Never when used with MFSL_ASYNC");
       return 1;
     }
 
-  if(p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_dirent != 0)
+  if(p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_dirent != CACHE_INODE_EXPIRE_NEVER)
     {
       LogCrit
-          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Directory_Expiration_Time should be 0 when used with MFSL_ASYNC");
+          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Directory_Expiration_Time should be Never when used with MFSL_ASYNC");
       return 1;
     }
 
-  if(p_nfs_param->cache_layers_param.cache_inode_client_param.grace_period_link != 0)
+  if(p_nfs_param->cache_layers_param.cache_inode_client_param.expire_type_link != CACHE_INODE_EXPIRE_NEVER)
     {
       LogCrit
-          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Symlink_Expiration_Time should be 0 when used with MFSL_ASYNC");
+          (COMPONENT_INIT, "BAD PARAMETER (Cache_Inode): Symlink_Expiration_Time should be Never when used with MFSL_ASYNC");
       return 1;
     }
 
@@ -1921,8 +1932,7 @@ int nfs_start(nfs_parameter_t * p_nfs_param, nfs_start_info_t * p_start_info)
   printf("---> fsal_cred_t:%lu\n", sizeof(snmpfsal_cred_t));
 #endif
 
-  /* store the configuration so it is available for all layers */
-  nfs_param = *p_nfs_param;
+  /* store the start info so it is available for all layers */
   nfs_start_info = *p_start_info;
 
   if(p_start_info->dump_default_config == TRUE)

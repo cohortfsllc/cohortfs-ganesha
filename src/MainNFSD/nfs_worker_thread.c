@@ -10,16 +10,16 @@
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 3 of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
+ *
  * ---------------------------------------
  */
 
@@ -390,15 +390,15 @@ void Svcudp_soft_destroy(register SVCXPRT * xprt);
 #endif
 
 /**
- * nfs_Cleanup_request_data: clean the data associated with a request 
+ * nfs_Cleanup_request_data: clean the data associated with a request
  *
  * This function is used to clean the nfs_request_data for a worker. These data are used by the
  * worker for RPC processing.
- * 
+ *
  * @param param A structure of type nfs_worker_parameter_t with all the necessary information related to a worker
  * @param pdata Pointer to the data to be initialized.
- * 
- * @return 0 if successfull, -1 otherwise. 
+ *
+ * @return 0 if successfull, -1 otherwise.
  *
  */
 void nfs_Cleanup_request_data(nfs_request_data_t * pdata)
@@ -428,145 +428,220 @@ struct timeval time_diff(struct timeval time_from, struct timeval time_to)
   return result;
 }
 
+/**
+ * is_rpc_call_valid: helper function to validate rpc calls.
+ *
+ */
+int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
+{
+  int lo_vers, hi_vers;
+
+  if(preq->rq_prog == nfs_param.core_param.nfs_program)
+    {
+      /* If we go there, preq->rq_prog ==  nfs_param.core_param.nfs_program */
+      if(((preq->rq_vers != NFS_V2) || ((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) == 0)) &&
+         ((preq->rq_vers != NFS_V3) || ((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) == 0)) &&
+         ((preq->rq_vers != NFS_V4) || ((nfs_param.core_param.core_options & CORE_OPTION_NFSV4) == 0)))
+        {
+          if(xprt != NULL)
+            {
+              LogFullDebug(COMPONENT_DISPATCH,
+                           "/!\\ | Invalid NFS Version #%d",
+                           (int)preq->rq_vers);
+              lo_vers = NFS_V4;
+              hi_vers = NFS_V2;
+              if((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) != 0)
+                lo_vers = NFS_V2;
+              if((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0)
+                {
+                  if(lo_vers == NFS_V4)
+                    lo_vers = NFS_V3;
+                  hi_vers = NFS_V3;
+                }
+              if((nfs_param.core_param.core_options & CORE_OPTION_NFSV4) != 0)
+                hi_vers = NFS_V4;
+              svcerr_progvers(xprt, lo_vers, hi_vers);  /* Bad NFS version */
+            }
+          return FALSE;
+        }
+      else if(((preq->rq_vers == NFS_V2) && (preq->rq_proc > NFSPROC_STATFS)) ||
+              ((preq->rq_vers == NFS_V3) && (preq->rq_proc > NFSPROC3_COMMIT)) ||
+              ((preq->rq_vers == NFS_V4) && (preq->rq_proc > NFSPROC4_COMPOUND)))
+        {
+          if(xprt != NULL)
+            svcerr_noproc(xprt);
+          return FALSE;
+        }
+      return TRUE;
+    }
+
+  if(preq->rq_prog == nfs_param.core_param.mnt_program &&
+     ((nfs_param.core_param.core_options & (CORE_OPTION_NFSV2 | CORE_OPTION_NFSV3)) != 0))
+    {
+      /* Call is with MOUNTPROG */
+      /* Verify mount version and report error if invalid */
+      lo_vers = MOUNT_V1;
+      hi_vers = MOUNT_V3;
+
+      /* Some clients may use the wrong mount version to umount, so always allow umount,
+       * otherwise only allow request if the appropriate mount version is enabled.
+       */
+      if((preq->rq_vers == MOUNT_V1) && (((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) != 0) ||
+         (preq->rq_proc == MOUNTPROC2_UMNT) ||
+         (preq->rq_proc == MOUNTPROC2_UMNTALL)))
+        {
+          if(preq->rq_proc > MOUNTPROC2_EXPORT)
+            {
+              if(xprt != NULL)
+                svcerr_noproc(xprt);
+              return FALSE;
+            }
+          return TRUE;
+        }
+      else if((preq->rq_vers == MOUNT_V3) && (((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0) ||
+              (preq->rq_proc == MOUNTPROC3_UMNT) ||
+              (preq->rq_proc == MOUNTPROC3_UMNTALL)))
+        {
+          if(preq->rq_proc > MOUNTPROC3_EXPORT)
+            {
+              if(xprt != NULL)
+                svcerr_noproc(xprt);
+              return FALSE;
+            }
+          return TRUE;
+        }
+
+      if(xprt != NULL)
+        {
+          /* Bad MOUNT version - set the hi and lo versions and report error */
+          if((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) == 0)
+            lo_vers = MOUNT_V3;
+          if((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) == 0)
+            hi_vers = MOUNT_V1;
+          
+          LogFullDebug(COMPONENT_DISPATCH, "/!\\ | Invalid Mount Version #%d",
+                       (int)preq->rq_vers);
+          svcerr_progvers(xprt, lo_vers, hi_vers);
+        }
+      return FALSE;
+    }
+
+#ifdef _USE_NLM
+  if(preq->rq_prog == nfs_param.core_param.nlm_program &&
+          ((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0))
+    {
+      /* Call is with NLMPROG */
+      if(preq->rq_vers != NLM4_VERS)
+        {
+          /* Bad NLM version */
+          LogFullDebug(COMPONENT_DISPATCH,
+                       "/!\\ | Invalid NLM Version #%d",
+                       (int)preq->rq_vers);
+          if(xprt != NULL)
+            svcerr_progvers(xprt, NLM4_VERS, NLM4_VERS);
+          return FALSE;
+        }
+      if(preq->rq_proc > NLMPROC4_FREE_ALL)
+        {
+          if(xprt != NULL)
+            svcerr_noproc(xprt);
+          return FALSE;
+        }
+      return TRUE;
+    }
+#endif                          /* _USE_NLM */
+
+#ifdef _USE_QUOTA
+   if(preq->rq_prog == nfs_param.core_param.rquota_program)
+     {
+       /* Call is with NLMPROG */
+       if((preq->rq_vers != RQUOTAVERS) &&
+          (preq->rq_vers != EXT_RQUOTAVERS))
+         {
+           /* Bad NLM version */
+           if(xprt != NULL)
+             {
+               LogFullDebug(COMPONENT_DISPATCH,
+                            "/!\\ | Invalid RQUOTA Version #%d",
+                            (int)preq->rq_vers);
+               svcerr_progvers(xprt, RQUOTAVERS, EXT_RQUOTAVERS);
+             }
+           return FALSE;
+         }
+       if((preq->rq_vers == RQUOTAVERS) && (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA) ||
+          (preq->rq_vers == EXT_RQUOTAVERS) && (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA))
+        {
+          if(xprt != NULL)
+            svcerr_noproc(xprt);
+          return FALSE;
+        }
+      return TRUE;
+     }
+#endif                          /* _USE_QUOTA */
+
+  /* No such program */
+  if(xprt != NULL)
+    {
+      LogFullDebug(COMPONENT_DISPATCH,
+                   "/!\\ | Invalid Program number #%d",
+                   (int)preq->rq_prog);
+      svcerr_noprog(xprt);        /* This is no NFS, MOUNT program, exit... */
+    }
+  return FALSE;
+}
+
 /*
  * Extract nfs function descriptor from nfs request.
  */
 int nfs_rpc_get_funcdesc(nfs_request_data_t *preqnfs, nfs_function_desc_t *pfuncdesc)
 {
   struct svc_req *ptr_req = &preqnfs->req;
-  SVCXPRT *ptr_svc = preqnfs->xprt;
+
+  /* Validate rpc call, but don't report any errors here */
+  if(is_rpc_call_valid(NULL, ptr_req) == FALSE)
+    return FALSE;
 
   if(ptr_req->rq_prog == nfs_param.core_param.nfs_program)
     {
-      switch (ptr_req->rq_vers)
-        {
-          case NFS_V2:
-            if(ptr_req->rq_proc > NFSPROC_STATFS)
-              {
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = nfs2_func_desc[ptr_req->rq_proc];
-            break;
-
-          case NFS_V3:
-            if(ptr_req->rq_proc > NFSPROC3_COMMIT)
-              {
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = nfs3_func_desc[ptr_req->rq_proc];
-            break;
-
-          case NFS_V4:
-            if(ptr_req->rq_proc > NFSPROC4_COMPOUND)
-              {
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = nfs4_func_desc[ptr_req->rq_proc];
-            break;
-
-          default:
-            LogDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: NFS Protocol version %d unknown", (int)ptr_req->rq_vers);
-            svcerr_decode(ptr_svc);
-            return FALSE;
-            break;
-        }
+      if(ptr_req->rq_vers == NFS_V2)
+        *pfuncdesc = nfs2_func_desc[ptr_req->rq_proc];
+      else if(ptr_req->rq_vers == NFS_V3)
+        *pfuncdesc = nfs3_func_desc[ptr_req->rq_proc];
+      else
+        *pfuncdesc = nfs4_func_desc[ptr_req->rq_proc];
+      return TRUE;
     }
-  else if(ptr_req->rq_prog == nfs_param.core_param.mnt_program)
+
+  if(ptr_req->rq_prog == nfs_param.core_param.mnt_program)
     {
-      if(ptr_req->rq_proc > MOUNTPROC3_EXPORT)	/* functions are almost the same in MOUNTv1 and MOUNTv3 */
-        {
-          svcerr_decode(ptr_svc);
-          return FALSE;
-        }
-
-      switch (ptr_req->rq_vers)
-        {
-          case MOUNT_V1:
-            *pfuncdesc = mnt1_func_desc[ptr_req->rq_proc];
-            break;
-
-          case MOUNT_V3:
-            *pfuncdesc = mnt3_func_desc[ptr_req->rq_proc];
-            break;
-
-          default:
-            LogDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: MOUNT Protocol version %d unknown",
-            (int)ptr_req->rq_vers);
-            svcerr_decode(ptr_svc);
-            return FALSE;
-            break;
-        }						/* switch( ptr_req->vers ) */
+      if(ptr_req->rq_vers == MOUNT_V1)
+        *pfuncdesc = mnt1_func_desc[ptr_req->rq_proc];
+      else
+        *pfuncdesc = mnt3_func_desc[ptr_req->rq_proc];
+      return TRUE;
     }
+
 #ifdef _USE_NLM
-  else if(ptr_req->rq_prog == nfs_param.core_param.nlm_program)
+  if(ptr_req->rq_prog == nfs_param.core_param.nlm_program)
     {
-      switch (ptr_req->rq_vers)
-        {
-          case NLM4_VERS:
-            if(ptr_req->rq_proc > NLMPROC4_FREE_ALL)
-              {
-                LogCrit(COMPONENT_DISPATCH, "NFS DISPATCHER: NLM proc number %d unknown", (int)ptr_req->rq_proc);
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = nlm4_func_desc[ptr_req->rq_proc];
-            break;
-
-          default:
-            LogDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: NLM Protocol version %d unknown", (int)ptr_req->rq_vers);
-            svcerr_decode(ptr_svc);
-            return FALSE;
-            break;
-        }						/* switch( ptr_req->vers ) */
+      *pfuncdesc = nlm4_func_desc[ptr_req->rq_proc];
+      return TRUE;
     }
 #endif                          /* _USE_NLM */
+
 #ifdef _USE_QUOTA
-  else if(ptr_req->rq_prog == nfs_param.core_param.rquota_program)
+  if(ptr_req->rq_prog == nfs_param.core_param.rquota_program)
     {
-      switch (ptr_req->rq_vers)
-        {
-          case RQUOTAVERS:
-            if(ptr_req->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)
-              {
-                LogCrit(COMPONENT_DISPATCH, "NFS DISPATCHER: RQUOTA proc number %d unknown",
-                        ptr_req->rq_proc);
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = rquota1_func_desc[ptr_req->rq_proc];
-            break;
-
-          case EXT_RQUOTAVERS:
-            if(ptr_req->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)
-              {
-                LogCrit(COMPONENT_DISPATCH, "NFS DISPATCHER: EXT_RQUOTA proc number %d unknown",
-                ptr_req->rq_proc);
-                svcerr_decode(ptr_svc);
-                return FALSE;
-              }
-            *pfuncdesc = rquota2_func_desc[ptr_req->rq_proc];
-            break;
-
-          default:
-            LogDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: RQUOTA Protocol version %d unknown",
-            ptr_req->rq_vers);
-            svcerr_decode(ptr_svc);
-            return FALSE;
-            break;
-        }						/* switch( ptr_req->vers ) */
+      if(ptr_req->rq_vers == RQUOTAVERS)
+        *pfuncdesc = rquota1_func_desc[ptr_req->rq_proc];
+      else
+        *pfuncdesc = rquota2_func_desc[ptr_req->rq_proc];
+      return TRUE;
     }
 #endif                          /* _USE_QUOTA */
-  else
-    {
-      LogDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: protocol %d is not managed", (int)ptr_req->rq_prog);
-      svcerr_decode(ptr_svc);
-      return FALSE;
-    }							/* switch( ptr_req->rq_prog ) */
 
-  return TRUE;
+  /* Oops, should never get here! */
+  return FALSE;
 }
 
 /*
@@ -622,7 +697,6 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   LRU_list_t *lru_dupreq = NULL;
   struct svc_req *ptr_req = &preqnfs->req;
   SVCXPRT *ptr_svc = preqnfs->xprt;
-  nfs_res_t previous_res_nfs;
   nfs_stat_type_t stat_type;
   struct sockaddr_in hostaddr;
   struct sockaddr_in *phostaddr;
@@ -677,93 +751,112 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         return;
     }
 
-  /* Tag myself as currently processing this request */
   rpcxid = get_rpc_xid(ptr_req);
-
-  /* Is this request already managed by another thread ? 
-   * In this case, do not handle the request to avoid thread starvation 
-   * because this shows that the FSAL may hang in a specific call */
-  for(i = 0; i < nfs_param.core_param.nb_worker; i++)
+  LogFullDebug(COMPONENT_DISPATCH, "NFS DISPATCH: Request has xid=%u", rpcxid);
+  do_dupreq_cache = funcdesc.dispatch_behaviour & CAN_BE_DUP;
+  LogFullDebug(COMPONENT_DISPATCH, "do_dupreq_cache = %d", do_dupreq_cache);
+  status = nfs_dupreq_add_not_finished(rpcxid,
+                                       ptr_req,
+                                       preqnfs->xprt,
+                                       &pworker_data->dupreq_pool,
+                                       &res_nfs);
+  switch(status)
     {
-      /* First check if the xid is the same. */
-      if((workers_data[i].current_xid == rpcxid) && (workers_data[i].current_xid != 0)
-         && cmp_sockaddr((struct sockaddr *)&hostaddr,
-                         (struct sockaddr *)&workers_data[i].hostaddr))
+      /* a new request, continue processing it */
+    case DUPREQ_SUCCESS:
+      LogFullDebug(COMPONENT_DISPATCH, "Current request is not duplicate.");
+      break;
+      /* Found the reuqest in the dupreq cache. It's an old request so resend old reply. */
+    case DUPREQ_ALREADY_EXISTS:
+      if(do_dupreq_cache)
+	{
+	  /* Request was known, use the previous reply */
+	  LogFullDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: DupReq Cache Hit: using previous reply, rpcxid=%u",
+		       rpcxid);
+
+#if defined( _USE_TIRPC ) || defined( _FREEBSD )
+	  LogFullDebug(COMPONENT_DISPATCH, "Before svc_sendreply on socket %u (dup req)",
+		       ptr_svc->xp_fd);
+#else
+	  LogFullDebug(COMPONENT_DISPATCH, "Before svc_sendreply on socket %u (dup req)",
+		       ptr_svc->xp_sock);
+#endif
+
+#if defined( _USE_TIRPC ) || defined( _FREEBSD )
+	  P(mutex_cond_xprt[ptr_svc->xp_fd]);
+#else
+	  P(mutex_cond_xprt[ptr_svc->xp_sock]);
+#endif
+	  if(svc_sendreply
+	     (ptr_svc, funcdesc.xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
+	    {
+	      LogEvent(COMPONENT_DISPATCH,
+		       "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
+	      svcerr_decode(ptr_svc);
+	    }
+
+#if defined( _USE_TIRPC ) || defined( _FREEBSD )
+	  V(mutex_cond_xprt[ptr_svc->xp_fd]);
+#else
+	  V(mutex_cond_xprt[ptr_svc->xp_sock]);
+#endif
+
+#if defined( _USE_TIRPC ) || defined( _FREEBSD )
+	  LogFullDebug(COMPONENT_DISPATCH, "After svc_sendreply on socket %u (dup req)",
+		       ptr_svc->xp_fd);
+#else
+	  LogFullDebug(COMPONENT_DISPATCH, "After svc_sendreply on socket %u (dup req)",
+		       ptr_svc->xp_sock);
+#endif
+	  return;
+	}
+      else
         {
-          LogMajor(COMPONENT_DISPATCH,
-                   "Dupreq #%u was asked for process since another thread manage it, reject for avoiding threads starvation...",
-                   rpcxid);
-          /* Free the arguments */
-          if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
-            if(!SVC_FREEARGS(ptr_svc, funcdesc.xdr_decode_func, (caddr_t) parg_nfs))
-              {
-                LogCrit(COMPONENT_DISPATCH,
-                        "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
-                        funcdesc.funcname);
-              }
+	  LogCrit(COMPONENT_DISPATCH, "Error: Duplicate request rejected"
+                  " because it was found in the cache but is not allowed to be cached.");
           return;
         }
-    }
+      break;
 
-  /* Manage this request, so keeps its xid in worker_data specific structure */
-  pworker_data->current_xid = rpcxid;
+      /* Another thread owns the request */
+    case DUPREQ_BEING_PROCESSED:
+      LogFullDebug(COMPONENT_DISPATCH,
+	       "Dupreq #%u was asked for process since another thread manage it, reject for avoiding threads starvation...",
+	       rpcxid);
+      /* Free the arguments */
+      if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
+        if(!SVC_FREEARGS(ptr_svc, funcdesc.xdr_decode_func, (caddr_t) parg_nfs))
+          {
+            LogCrit(COMPONENT_DISPATCH,
+                    "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
+                    funcdesc.funcname);
+          }
+      return;
+      break;
 
-  /* Getting the xid from the RPC request (this value is used for RPC duplicate request hash */
-  if((do_dupreq_cache = funcdesc.dispatch_behaviour & CAN_BE_DUP))
-    {
-      rpcxid = get_rpc_xid(ptr_req);
-      LogFullDebug(COMPONENT_DISPATCH, "NFS DISPATCH: Request has xid=%u", rpcxid);
-      previous_res_nfs = nfs_dupreq_get(rpcxid, &status);
-      if(status == DUPREQ_SUCCESS)
-        {
-          /* Request was known, use the previous reply */
-          LogFullDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: DupReq Cache Hit: using previous reply, rpcxid=%u",
-                       rpcxid);
+      /* something is very wrong with the duplicate request cache */
+    case DUPREQ_NOT_FOUND:
+      LogCrit(COMPONENT_DISPATCH, "Did not find the request in the duplicate request cache and couldn't add the request.");
+      return;
+      break;
 
-#if defined( _USE_TIRPC ) || defined( _FREEBSD )
-          LogFullDebug(COMPONENT_DISPATCH, "Before svc_sendreply on socket %u (dup req)",
-                       ptr_svc->xp_fd);
-#else
-          LogFullDebug(COMPONENT_DISPATCH, "Before svc_sendreply on socket %u (dup req)",
-                       ptr_svc->xp_sock);
-#endif
+      /* oom */
+    case DUPREQ_INSERT_MALLOC_ERROR:
+      LogCrit(COMPONENT_DISPATCH, "Cannot process request, not enough memory available!");
+      return;
+      break;
 
-#if defined( _USE_TIRPC ) || defined( _FREEBSD )
-          P(mutex_cond_xprt[ptr_svc->xp_fd]);
-#else
-          P(mutex_cond_xprt[ptr_svc->xp_sock]);
-#endif
-
-          if(svc_sendreply
-             (ptr_svc, funcdesc.xdr_encode_func, (caddr_t) & previous_res_nfs) == FALSE)
-            {
-              LogEvent(COMPONENT_DISPATCH,
-                       "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
-              svcerr_decode(ptr_svc);
-            }
-
-#if defined( _USE_TIRPC ) || defined( _FREEBSD )
-          V(mutex_cond_xprt[ptr_svc->xp_fd]);
-#else
-          V(mutex_cond_xprt[ptr_svc->xp_sock]);
-#endif
-
-#if defined( _USE_TIRPC ) || defined( _FREEBSD )
-          LogFullDebug(COMPONENT_DISPATCH, "After svc_sendreply on socket %u (dup req)",
-                       ptr_svc->xp_fd);
-#else
-          LogFullDebug(COMPONENT_DISPATCH, "After svc_sendreply on socket %u (dup req)",
-                       ptr_svc->xp_sock);
-#endif
-          return;               /* exit the function */
-        }
+    default:
+      LogCrit(COMPONENT_DISPATCH, "Unknown duplicate request cache status. This should never be reached!");
+      return;
+      break;
     }
 
   /* Get the export entry */
   if(ptr_req->rq_prog == nfs_param.core_param.nfs_program)
     {
       /* The NFSv2 and NFSv3 functions'arguments always begin with the file handle (but not the NULL function)
-       * this hook is used to get the fhandle with the arguments and so 
+       * this hook is used to get the fhandle with the arguments and so
        * determine the export entry to be used.
        * In NFSv4, junction traversal is managed by the protocol itself so the whole
        * export list is provided to NFSv4 request. */
@@ -784,7 +877,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
               if((pexport =
                   nfs_Get_export_by_id(nfs_param.pexportlist, exportid)) == NULL)
                 {
-                  /* Reject the request for authentication reason (incompatible file handle */
+                  /* Reject the request for authentication reason (incompatible file handle) */
+                  svcerr_auth(ptr_svc, AUTH_FAILED);
+                }
+              if((pexport->options & EXPORT_OPTION_NFSV2) == 0)
+                {
+                  /* Reject the request for authentication reason (NFS v2 not allowed for this export) */
                   svcerr_auth(ptr_svc, AUTH_FAILED);
                 }
               LogFullDebug(COMPONENT_DISPATCH,
@@ -811,6 +909,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                            (ntohl(hostaddr.sin_addr.s_addr) & 0x000000FF),
                            (int)ptr_req->rq_vers, (int)ptr_req->rq_proc, dumpfh);
                   svcerr_auth(ptr_svc, AUTH_FAILED);
+		  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+					&pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+		    {
+		      LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+		    }
                   return;
                 }
 
@@ -828,7 +931,18 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                            (ntohl(hostaddr.sin_addr.s_addr) & 0x000000FF),
                            (int)ptr_req->rq_vers, (int)ptr_req->rq_proc, dumpfh);
                   svcerr_auth(ptr_svc, AUTH_FAILED);
+
+		  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+					&pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+		    {
+		      LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+		    }
                   return;
+                }
+              if((pexport->options & EXPORT_OPTION_NFSV3) == 0)
+                {
+                  /* Reject the request for authentication reason (NFS v3 not allowed for this export) */
+                  svcerr_auth(ptr_svc, AUTH_FAILED);
                 }
               LogFullDebug(COMPONENT_DISPATCH,
                            "Found export entry for dirname=%s as exportid=%d",
@@ -889,8 +1003,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     {
       /* This is not a MAKES_WRITE call done on a read-only export entry */
 
-      /* 
-       * It is now time for checking if export list allows the machine to perform the request 
+      /*
+       * It is now time for checking if export list allows the machine to perform the request
        */
 
       /* Ask the RPC layer for the adresse of the machine */
@@ -920,6 +1034,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                        hostaddr.sin_port);
               svcerr_auth(ptr_svc, AUTH_TOOWEAK);
               pworker_data->current_xid = 0;    /* No more xid managed */
+
+	      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+				    &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+		{
+		  LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+		}
               return;
             }
         }
@@ -942,6 +1062,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                    (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
           /* svcerr_auth( ptr_svc, AUTH_TOOWEAK ) ; */
           pworker_data->current_xid = 0;        /* No more xid managed */
+
+	  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+				&pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+	    {
+	      LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+	    }
           return;
         }
 
@@ -954,6 +1080,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
             {
               svcerr_auth(ptr_svc, AUTH_TOOWEAK);
               pworker_data->current_xid = 0;    /* No more xid managed */
+
+	      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+				    &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+		{
+		  LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+		}
               return;
             }
         }
@@ -987,7 +1119,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       timer_diff = time_diff(timer_start, timer_end);
 
       LogFullDebug(COMPONENT_DISPATCH, "NFS DISPATCHER: Function %s exited with status %d end_time %llu.%.6llu latency %llu.%.6llu",
-                   funcdesc.funcname, rc, (unsigned long long)timer_end.tv_sec, (unsigned long long)timer_end.tv_usec, 
+                   funcdesc.funcname, rc, (unsigned long long)timer_end.tv_sec, (unsigned long long)timer_end.tv_usec,
                    (unsigned long long)timer_diff.tv_sec, (unsigned long long)timer_diff.tv_usec);
     }
 
@@ -1042,6 +1174,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 #else
           V(mutex_cond_xprt[ptr_svc->xp_sock]);
 #endif
+
+	  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+				&pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+	    {
+	      LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+	    }
           return;
         }
 
@@ -1058,21 +1196,20 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                    ptr_svc->xp_sock);
 #endif
 
-      /* store in dupreq cache if needed */
+      /* Mark request as finished */
+      LogFullDebug(COMPONENT_DUPREQ, "YES?: %d", do_dupreq_cache);
       if(do_dupreq_cache)
-        {
-          if(nfs_dupreq_add(rpcxid,
-                            ptr_req,
-                            &res_nfs,
-                            lru_dupreq, &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
-            {
-              LogEvent(COMPONENT_DISPATCH,
-                       "NFS DISPATCHER: FAILURE: Bad insertion in dupreq cache");
-            }
+        {      LogFullDebug(COMPONENT_DUPREQ, "NOOOOO");
+
+          status = nfs_dupreq_finish(rpcxid,
+                                     ptr_req,
+                                     preqnfs->xprt,
+                                     &res_nfs,
+                                     lru_dupreq);
         }
     }
+  LogFullDebug(COMPONENT_DUPREQ, "aaaaaaaaaa");
   /* Free the allocated resources once the work is done */
-
   /* Free the arguments */
   if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
     if(!SVC_FREEARGS(ptr_svc, funcdesc.xdr_decode_func, (caddr_t) parg_nfs))
@@ -1080,15 +1217,23 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         LogCrit(COMPONENT_DISPATCH, "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
                 funcdesc.funcname);
       }
-  
+
   /* Free the reply.
    * This should not be done if the request is dupreq cached because this will
    * mark the dupreq cached info eligible for being reuse by other requests */
+
   if(!do_dupreq_cache)
     {
+      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
+                            &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+        {
+          LogCrit(COMPONENT_DISPATCH, "Attempt to delete duplicate request failed on line %d", __LINE__);
+        }
       /* Free only the non dropped requests */
-      if(rc == NFS_REQ_OK)
+      if(rc == NFS_REQ_OK) {
         funcdesc.free_function(&res_nfs);
+      }
+
     }
 #ifdef _DEBUG_MEMLEAKS
   if(nb_iter_memleaks > 1000)
@@ -1118,11 +1263,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
  *
  * This function is used to init the nfs_worker_data for a worker thread. These data are used by the
  * worker for RPC processing.
- * 
+ *
  * @param param A structure of type nfs_worker_parameter_t with all the necessary information related to a worker
  * @param pdata Pointer to the data to be initialized.
- * 
- * @return 0 if successfull, -1 otherwise. 
+ *
+ * @return 0 if successfull, -1 otherwise.
  *
  */
 
@@ -1178,12 +1323,12 @@ int nfs_Init_worker_data(nfs_worker_data_t * pdata)
 /**
  * worker_thread: The main function for a worker thread
  *
- * This is the body of the worker thread. Its starting arguments are located in global array worker_data. The 
- * argument is no pointer but the worker's index. It then uses this index to address its own worker data in 
+ * This is the body of the worker thread. Its starting arguments are located in global array worker_data. The
+ * argument is no pointer but the worker's index. It then uses this index to address its own worker data in
  * the array.
- * 
+ *
  * @param IndexArg the index for the worker thread, in fact an integer cast as a void *
- * 
+ *
  * @return Pointer to the result (but this function will mostly loop forever).
  *
  */
@@ -1443,99 +1588,15 @@ void *worker_thread(void *IndexArg)
 #endif
                     /* A few words of explanation are required here:
                      * In authentication is AUTH_NONE or AUTH_UNIX, then the value of no_dispatch remains FALSE and the request is proceeded normally
-                     * If authentication is RPCSEC_GSS, no_dispatch may have value TRUE, this means that gc->gc_proc != RPCSEC_GSS_DATA and that the 
+                     * If authentication is RPCSEC_GSS, no_dispatch may have value TRUE, this means that gc->gc_proc != RPCSEC_GSS_DATA and that the
                      * message is in fact an internal negociation message from RPCSEC_GSS using GSSAPI. It then should not be proceed by the worker and
                      * SCV_STAT should be returned to the dispatcher */
                     if(no_dispatch == FALSE)
                       {
-                        if(preq->rq_prog == nfs_param.core_param.nfs_program)
-                          {
-                            /* If we go there, preq->rq_prog ==  nfs_param.core_param.nfs_program */
-/* FSAL_PROXY supports only NFSv4 except if handle mapping is enabled */
-#if ! defined( _USE_PROXY ) || defined( _HANDLE_MAPPING )
-                            if((preq->rq_vers != NFS_V2) &&
-                               (preq->rq_vers != NFS_V3) && (preq->rq_vers != NFS_V4))
-#else
-                            if(preq->rq_vers != NFS_V4)
-#endif
-                              {
-                                LogFullDebug(COMPONENT_DISPATCH,
-                                             "/!\\ | Invalid NFS Version #%d",
-                                             (int)preq->rq_vers);
-#if ! defined( _USE_PROXY ) || defined( _HANDLE_MAPPING )
-                                svcerr_progvers(xprt, NFS_V2, NFS_V4);  /* Bad NFS version */
-#else
-                                svcerr_progvers(xprt, NFS_V4, NFS_V4);  /* Bad NFS version */
-#endif
-                              }
-                            else
-                              {
-                                /* Actual work starts here */
-                                nfs_rpc_execute(pnfsreq, pmydata);
-                              }
-                          }     /* if( preq->rq_prog ==  nfs_param.core_param.nfs_program ) */
-                        else if(preq->rq_prog == nfs_param.core_param.mnt_program)
-                          {
-                            /* Call is with MOUNTPROG */
-                            if((preq->rq_vers != MOUNT_V1) && (preq->rq_vers != MOUNT_V3))
-                              {
-                                LogFullDebug(COMPONENT_DISPATCH,
-                                             "/!\\ | Invalid Mount Version #%d",
-                                             (int)preq->rq_vers);
-                                svcerr_progvers(xprt, MOUNT_V1, MOUNT_V3);      /* Bad MOUNT version */
-                              }
-                            else
-                              {
-                                /* Actual work starts here */
-                                nfs_rpc_execute(pnfsreq, pmydata);
-                              }
-                          }
-#ifdef _USE_NLM
-                        else if(preq->rq_prog == nfs_param.core_param.nlm_program)
-                          {
-                            /* Call is with NLMPROG */
-                            if(preq->rq_vers != NLM4_VERS)
-                              {
-                                LogFullDebug(COMPONENT_DISPATCH,
-                                             "/!\\ | Invalid NLM Version #%d",
-                                             (int)preq->rq_vers);
-                                svcerr_progvers(xprt, NLM4_VERS, NLM4_VERS);    /* Bad NLM version */
-                              }
-                            else
-                              {
-                                /* Actual work starts here */
-                                nfs_rpc_execute(pnfsreq, pmydata);
-                              }
-                          }
-
-#endif                          /* _USE_NLM */
-
-#ifdef _USE_QUOTA
-                        else if(preq->rq_prog == nfs_param.core_param.rquota_program)
-                          {
-                            /* Call is with NLMPROG */
-                            if((preq->rq_vers != RQUOTAVERS) &&
-                               (preq->rq_vers != EXT_RQUOTAVERS))
-                              {
-                                LogFullDebug(COMPONENT_DISPATCH,
-                                             "/!\\ | Invalid RQUOTA Version #%d",
-                                             (int)preq->rq_vers);
-                                svcerr_progvers(xprt, RQUOTAVERS, EXT_RQUOTAVERS);      /* Bad NLM version */
-                              }
-                            else
-                              {
-                                /* Actual work starts here */
-                                nfs_rpc_execute(pnfsreq, pmydata);
-                              }
-                          }
-#endif
-                        else    /* No such program */
-                          {
-                            LogFullDebug(COMPONENT_DISPATCH,
-                                         "/!\\ | Invalid Program number #%d",
-                                         (int)preq->rq_prog);
-                            svcerr_noprog(xprt);        /* This is no NFS, MOUNT program, exit... */
-                          }
+                        /* Validate the rpc request as being a valid program, version, and proc. If not, report the error.
+                         * Otherwise, execute the funtion. */
+                        if(is_rpc_call_valid(xprt, preq) == TRUE)
+                          nfs_rpc_execute(pnfsreq, pmydata);
                       }         /* if( no_dispatch == FALSE ) */
                   }             /* else from if( ( why = _authenticate( preq, pmsg) ) != AUTH_OK) */
               }                 /* if( pnfsreq->status ) */
@@ -1653,14 +1714,12 @@ void *worker_thread(void *IndexArg)
           pmydata->gc_in_progress = FALSE;
         }
 #ifdef _USE_MFSL
-      /* As MFSL context are refresh, and because this could be a time consuming operation, the worker is 
+      /* As MFSL context are refresh, and because this could be a time consuming operation, the worker is
        * set as "making garbagge collection" to avoid new requests to come in its pending queue */
       pmydata->gc_in_progress = TRUE;
 
-      P(pmydata->cache_inode_client.mfsl_context.lock);
       fsal_status = MFSL_RefreshContext(&pmydata->cache_inode_client.mfsl_context,
                                         &pmydata->thread_fsal_context);
-      V(pmydata->cache_inode_client.mfsl_context.lock);
 
       if(FSAL_IS_ERROR(fsal_status))
         {

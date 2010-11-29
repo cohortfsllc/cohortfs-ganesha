@@ -82,12 +82,13 @@
 #endif
 
 /* Maximum thread count */
-#define NB_MAX_WORKER_THREAD 100
+#define NB_MAX_WORKER_THREAD 4096
 #define NB_MAX_FLUSHER_THREAD 100
 
 /* NFS daemon behavior default values */
 #define NB_WORKER_THREAD_DEFAULT  16
 #define NB_FLUSHER_THREAD_DEFAULT 16
+#define NB_REQUEST_BEFORE_QUEUE_AVG  1000
 #define NB_MAX_CONCURRENT_GC 3
 #define NB_MAX_PENDING_REQUEST 30
 #define NB_PREALLOC_LRU_WORKER 100
@@ -176,6 +177,12 @@
 #define NFS_V4_MAX_QUOTA_SOFT 4294967296LL      /*  4 GB */
 #define NFS_V4_MAX_QUOTA_HARD 17179869184LL     /* 16 GB */
 #define NFS_V4_MAX_QUOTA      34359738368LL     /* 32 GB */
+
+/* protocol flags */
+#define CORE_OPTION_NFSV2           0x00000002        /* NFSv2 operations are supported      */
+#define CORE_OPTION_NFSV3           0x00000004        /* NFSv3 operations are supported      */
+#define CORE_OPTION_NFSV4           0x00000008        /* NFSv4 operations are supported      */
+#define CORE_OPTION_ALL_VERS        0x0000000E
 
 /* Things related to xattr ghost directory */
 #define XATTRD_NAME ".xattr.d."
@@ -286,6 +293,7 @@ typedef struct nfs_core_param__
   unsigned int nlm_program;
   unsigned int rquota_program;
   unsigned int nb_worker;
+  unsigned int nb_call_before_queue_avg;
   unsigned int nb_max_concurrent_gc;
   long core_dump_size;
   int nb_max_fd;
@@ -299,6 +307,7 @@ typedef struct nfs_core_param__
   char stats_per_client_directory[MAXPATHLEN];
   char fsal_shared_library[MAXPATHLEN];
   int tcp_fridge_expiration_delay ;
+  unsigned int core_options;
 } nfs_core_parameter_t;
 
 typedef struct nfs_ip_name_param__
