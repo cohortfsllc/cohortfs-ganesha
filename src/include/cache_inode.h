@@ -418,6 +418,7 @@ typedef struct cache_inode_client__
 #ifdef _USE_PNFS
   pnfs_client_t pnfsclient;                /**< pNFS client structure */
 #endif                          /* _USE_PNFS */
+  struct prealloc_pool pool_session;                               /**< Pool for NFSv4.1 session                                 */
 #endif                          /* _USE_NFS4_1 */
   unsigned int nb_prealloc;                /**< Size of the preallocated pool */
   unsigned int nb_pre_dir_data;            /**< Number of preallocated pdir data buffers */

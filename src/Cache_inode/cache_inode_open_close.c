@@ -437,8 +437,6 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
      (pclient == NULL) || (pcontext == NULL) || (pstatus == NULL) ||
      (ht == NULL) || (stateid == NULL) || (attrs == NULL))
     return CACHE_INODE_INVALID_ARGUMENT;
-
-<<<<<<< HEAD
       /* If proxy if used, we should keep the name of the file to do FSAL_rcp if needed */
       if((pentry_file->object.file.pname =
           (fsal_name_t *) Mem_Alloc_Label(sizeof(fsal_name_t), "fsal_name_t")) == NULL)
@@ -543,7 +541,6 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   fsal_status = FSAL_create(&parent_handle,
 			    pname, pcontext, attrs->mode,
 			    &new_handle, &found_attrs);
-
 
   if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
     {

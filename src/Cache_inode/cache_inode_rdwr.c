@@ -411,7 +411,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                                       seek_descriptor,
                                       io_size,
                                       buffer,
-                                      pio_size, p_fsal_eof, &pclient->mfsl_context);
+                                      pio_size, p_fsal_eof, &pclient->mfsl_context, NULL);
 #else
               fsal_status = FSAL_read(&descriptor,
                                       seek_descriptor,
@@ -421,9 +421,9 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 
             case CACHE_INODE_WRITE:
 #ifdef _USE_MFSL
-              fsal_status = MFSL_write(&descriptor,
+              fsal_status = MFSL_write(&(pentry->object.file.open_fd.mfsl_fd),
                                        seek_descriptor,
-                                       io_size, buffer, pio_size, &pclient->mfsl_context);
+                                       io_size, buffer, pio_size, &pclient->mfsl_context, NULL);
 #else
               fsal_status = FSAL_write(&descriptor,
                                        seek_descriptor, io_size, buffer, pio_size);
@@ -447,7 +447,6 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                 LogDebug(COMPONENT_CACHE_INODE, 
                                   "cache_inode_rdwr: fsal_status.major = %d",
                                   fsal_status.major);
-
               V_w(&pentry->lock);
 
               /* stats */
