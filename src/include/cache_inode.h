@@ -414,7 +414,6 @@ typedef struct cache_inode_client__
   cache_inode_parent_entry_t *pool_parent; /**< Pool of pointers to the parent entries */
   cache_inode_fsal_data_t *pool_key;       /**< Pool for building hash's keys */
 #ifdef _USE_NFS4_1
-  nfs41_session_t *pool_session;           /**< Pool for NFSv4.1 session */
 #ifdef _USE_PNFS
   pnfs_client_t pnfsclient;                /**< pNFS client structure */
 #endif                          /* _USE_PNFS */
