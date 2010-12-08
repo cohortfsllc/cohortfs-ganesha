@@ -63,13 +63,16 @@
    */
 
 typedef union {
-  vinodeno_t vi;
+ struct
+ {
+   vinodeno_t vi;
+ } data;
 #ifdef _BUILD_SHARED_FSAL
   char pad[FSAL_HANDLE_T_SIZE];
 #endif
 } cephfsal_handle_t;
 
-#define VINODE(fh) (fh->vi)
+#define VINODE(fh) (fh->data.vi)
 
 /* Authentication context. */
 

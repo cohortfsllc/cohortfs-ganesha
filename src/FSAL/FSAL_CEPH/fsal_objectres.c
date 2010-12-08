@@ -48,7 +48,7 @@
 fsal_status_t CEPHFSAL_CleanObjectResources(cephfsal_handle_t * in_fsal_handle)
 {
 
-  ceph_ll_forget(in_fsal_handle->vi, 1);
+  ceph_ll_forget(VINODE(in_fsal_handle), 1);
   
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_CleanObjectResources);
 }

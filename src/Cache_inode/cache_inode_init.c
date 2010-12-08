@@ -166,6 +166,7 @@ int cache_inode_client_init(cache_inode_client_t * pclient,
                    "Error : can't init cache_inode client session pool Worker %d", thread_index);
       return 1;
     }
+#endif /* _USE_NFS4_1 */
 
   MakePool(&pclient->pool_key, pclient->nb_prealloc, cache_inode_fsal_data_t, NULL, NULL);
   NamePool(&pclient->pool_key, "Cache Inode Client Key Pool for Worker %d", thread_index);

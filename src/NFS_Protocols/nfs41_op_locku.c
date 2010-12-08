@@ -154,7 +154,7 @@ int nfs41_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
     }
 
 #ifdef _USE_FSALDS
-  if(nfs4_Is_Fh_DSHandle(data->currentFH))
+  if(nfs4_Is_Fh_DSHandle(&(data->currentFH)))
     {
       res_LOCKU4.status = NFS4ERR_NOTSUPP;
       return res_LOCKU4.status;
@@ -172,42 +172,6 @@ int nfs41_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
           return res_LOCKU4.status;
         }
     }
-
-  /* Check for correctness of the provided stateid */
-  if((rc = nfs4_Check_Stateid(&arg_LOCKU4.lock_stateid,
-                              data->current_entry, data->psession->clientid)) != NFS4_OK)
-    {
-      res_LOCKU4.status = rc;
-      return res_LOCKU4.status;
-    }
-
-  /* Get the related state */
-  if(cache_inode_get_state(arg_LOCKU4.lock_stateid.other,
-                           &pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      if(cache_status == CACHE_INODE_NOT_FOUND)
-        res_LOCKU4.status = NFS4ERR_LOCK_RANGE;
-      else
-        res_LOCKU4.status = nfs4_Errno(cache_status);
-
-      return res_LOCKU4.status;
-    }
-
-  pstate_open = (cache_inode_state_t *) (pstate_found->state_data.lock.popenstate);
-  memcpy(res_LOCKU4.LOCKU4res_u.lock_stateid.other, pstate_found->stateid_other, 12);
-
-  /* update the lock counter in the related open-stateid */
-  pstate_open->state_data.share.lockheld -= 1;
-
-  /* Remove the state associated with the lock */
-  if(cache_inode_del_state(pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      res_LOCKU4.status = nfs4_Errno(cache_status);
-      return res_LOCKU4.status;
-    }
-
 
   /* Successful exit */
   res_LOCKU4.status = NFS4_OK;

@@ -110,8 +110,8 @@ unsigned int CEPHFSAL_Handle_to_HashIndex(cephfsal_handle_t * p_handle,
 
   /* XXX Come up with a better hash */
   return (unsigned int)
-    ((p_handle->vi.ino.val+p_handle->vi.snapid.val)
-     % index_size);
+    ((VINODE(p_handle).ino.val + VINODE(p_handle).snapid.val) %
+     index_size); 
 }
 
 /*
@@ -130,8 +130,8 @@ unsigned int CEPHFSAL_Handle_to_RBTIndex(cephfsal_handle_t * p_handle,
 					 unsigned int cookie)
 {
   /* Come up with tastier hash */
-  return (unsigned int)(0xABCD1234 ^ p_handle->vi.ino.val ^
-			p_handle->vi.snapid.val ^ cookie);
+  return (unsigned int)(0xABCD1234 ^ VINODE(p_handle).ino.val ^
+			VINODE(p_handle).snapid.val ^ cookie);
 
 }
 
@@ -245,7 +245,7 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
     }
 
   memset(out_fsal_handle, sizeof(cephfsal_handle_t), 0);
-  VINODE(out_fsal_handle)=((cephfsal_handle_t *) in_buff)->vi;
+  VINODE(out_fsal_handle) = VINODE(((cephfsal_handle_t *) in_buff));
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 

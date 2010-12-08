@@ -456,7 +456,7 @@ fsal_time_t ceph2fsal_time(time_t tsec, time_t tmicro)
 
 void stat2fsal_fh(struct stat_precise *st, fsal_handle_t *fh)
 {
-  fh->vi.ino.val=st->st_ino;
-  fh->vi.snapid.val=st->st_dev;
+  VINODE(fh).ino.val=st->st_ino;
+  VINODE(fh).snapid.val=st->st_dev;
 }
 

@@ -122,7 +122,7 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
                              nfs_param.core_param.nfs_program,
                              nfs_param.core_param.mnt_program,
                              pworker->ht_ip_stats,
-                             pworker->ip_stats_pool, &related_client) == FALSE)
+                             &(pworker->ip_stats_pool), &related_client) == FALSE)
     return FALSE;
 
   rpcxid = get_rpc_xid(data->reqp);

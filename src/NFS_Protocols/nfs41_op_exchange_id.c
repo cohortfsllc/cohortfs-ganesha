@@ -137,7 +137,6 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
       res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
       return res_EXCHANGE_ID4.eir_status;
     }
-<<<<<<< HEAD
   LogDebug(COMPONENT_NFS_V4, "EXCHANGE_ID computed clientid4=%llux for name='%s'",
                   (long long unsigned int)clientid, str_client);
 

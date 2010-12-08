@@ -107,7 +107,7 @@ fsal_status_t CEPHFSAL_dynamic_fsinfo(cephfsal_handle_t * filehandle,   /* IN */
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_statfs(filehandle->vi, &st);
+  rc=ceph_ll_statfs(VINODE(filehandle), &st);
 
   ReleaseTokenFSCall();
 

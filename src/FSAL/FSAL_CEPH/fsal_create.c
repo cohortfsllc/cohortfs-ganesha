@@ -107,7 +107,7 @@ fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      
 
   TakeTokenFSCall();
 
-  rc=ceph_ll_create_precise(parent_directory_handle->vi, filename,
+  rc=ceph_ll_create_precise(VINODE(parent_directory_handle), filename,
 			    mode, 0, &fd, &st, uid, gid);
   ceph_ll_close(fd);
 
@@ -200,7 +200,7 @@ fsal_status_t CEPHFSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* I
   FSAL_name2str(p_dirname, name, FSAL_MAX_NAME_LEN);
   TakeTokenFSCall();
 
-  rc=ceph_ll_mkdir_precise(parent_directory_handle->vi, p_dirname->name,
+  rc=ceph_ll_mkdir_precise(VINODE(parent_directory_handle), p_dirname->name,
 			   mode, &st, uid, gid);
 
   ReleaseTokenFSCall();

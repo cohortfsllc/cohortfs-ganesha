@@ -61,7 +61,7 @@
 #include "sal.h"
 
 hash_table_t* openref_ht = NULL;
-cache_inode_openref_t* openref_pool = NULL;
+struct prealloc_pool openref_pool;
 
 /**
  * openref_init: initialise open reference counting
@@ -72,10 +72,10 @@ int openref_init(cache_inode_openref_params_t params)
   openref_ht = HashTable_Init(params.hparam);
   if (!openref_ht)
     return 1;
-  STUFF_PREALLOC(openref_pool, params.nb_openref_prealloc,
-		 cache_inode_openref_t, next_alloc);
-  if (!openref_pool)
-    return 1;
+  MakePool(&openref_pool, params.nb_openref_prealloc,
+	   cache_inode_openref_t, NULL, NULL);
+  if(!IsPoolPreallocated(&openref_pool))
+     return 1;
 
   return 0;
 }
@@ -163,8 +163,7 @@ cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
 
   if (tostore)
     {
-      GET_PREALLOC((*openref), openref_pool, 1, cache_inode_openref_t,
-		   next_alloc);
+      GetFromPool((*openref), &openref_pool, cache_inode_openref_t);
       if (!(*openref))
 	return CACHE_INODE_MALLOC_ERROR;
       (*openref)->refcount = 0;
@@ -209,7 +208,7 @@ cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
       if (rc != HASHTABLE_SUCCESS)
 	{
 	  FSAL_close(&((*openref)->descriptor));
-	  RELEASE_PREALLOC((*openref), openref_pool, next_alloc);
+	  ReleaseToPool((*openref), &openref_pool);
 	}
     }
   return CACHE_INODE_SUCCESS;
@@ -235,7 +234,7 @@ cache_inode_status_t cache_inode_kill_openref(cache_inode_openref_t* openref)
   if(FSAL_IS_ERROR(fsal_status))
     status = cache_inode_error_convert(fsal_status);
 
-  RELEASE_PREALLOC(openref, openref_pool, next_alloc);
+  ReleaseToPool(openref, &openref_pool);
   
   return status;
 }
@@ -438,13 +437,6 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
      (ht == NULL) || (stateid == NULL) || (attrs == NULL))
     return CACHE_INODE_INVALID_ARGUMENT;
       /* If proxy if used, we should keep the name of the file to do FSAL_rcp if needed */
-      if((pentry_file->object.file.pname =
-          (fsal_name_t *) Mem_Alloc_Label(sizeof(fsal_name_t), "fsal_name_t")) == NULL)
-        {
-          *pstatus = CACHE_INODE_MALLOC_ERROR;
-  found_attrs.asked_attributes = pclient->attrmask | (FSAL_ATTR_ATIME |
-						      FSAL_ATTR_MTIME);
-
   if((pentry_parent->internal_md.type != DIR_BEGINNING)
      && (pentry_parent->internal_md.type != DIR_CONTINUE))
     {

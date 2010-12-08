@@ -193,8 +193,8 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
           /* skip . and .. */
           if(!strcmp(de.d_name, ".") || !strcmp(de.d_name, ".."))
             continue;
-	  pdirent[*nb_entries].handle.vi.ino.val=st.st_ino;
-	  pdirent[*nb_entries].handle.vi.snapid.val=st.st_dev;
+	  pdirent[*nb_entries].handle.data.vi.ino.val=st.st_ino;
+	  pdirent[*nb_entries].handle.data.vi.snapid.val=st.st_dev;
 
 	  status = FSAL_str2name(de.d_name, FSAL_MAX_NAME_LEN,
 				 &(pdirent[*nb_entries].name));
