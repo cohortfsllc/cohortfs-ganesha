@@ -173,6 +173,8 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
   /* Do we have root access ? */
   if((caller_uid == 0) && !(related_client.options & EXPORT_OPTION_ROOT))
     caller_uid = data->pexport->anonymous_uid;
+
+  *uid = caller_uid;
   
   return TRUE;
 }                               /* nfs_build_fsal_context */

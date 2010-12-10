@@ -460,6 +460,8 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
       V_r(&pentry_parent->object.dir_cont.pdir_begin->lock);
     }
 
+  found_attrs.asked_attributes = pclient->attrmask;
+
   *new_entry = cache_inode_lookup_sw(pentry_parent,
 				     pname, &found_attrs,
 				     ht, pclient, pcontext, pstatus,
@@ -529,6 +531,10 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
       *pstatus = CACHE_INODE_SUCCESS;
       return *pstatus;
     }
+
+  memset(&found_attrs, 0, sizeof(found_attrs));
+
+  found_attrs.asked_attributes = pclient->attrmask;
 
   fsal_status = FSAL_create(&parent_handle,
 			    pname, pcontext, attrs->mode,

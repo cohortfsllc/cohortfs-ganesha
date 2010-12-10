@@ -176,13 +176,15 @@ fsal_status_t CEPHFSAL_GetClientContext(cephfsal_op_context_t * p_thr_context,  
   if((ng > 0) && (alt_groups == NULL))
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_GetClientContext);
 
+  p_thr_context->credential.user = uid;
+  p_thr_context->credential.group = gid;
+
   p_thr_context->credential.nbgroups = ng;
 
   for(i = 0; i < ng; i++)
     p_thr_context->credential.alt_groups[i] = alt_groups[i];
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_GetClientContext);
-
 }
 
 /* @} */
