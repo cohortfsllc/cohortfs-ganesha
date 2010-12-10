@@ -77,11 +77,11 @@
  *        the object_attributes->asked_attributes field.
  */
 fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      /* IN */
-                          fsal_name_t * p_filename,     /* IN */
-                          cephfsal_op_context_t * p_context,        /* IN */
-                          fsal_accessmode_t accessmode, /* IN */
-                          cephfsal_handle_t * object_handle,        /* OUT */
-                          fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
+			      fsal_name_t * p_filename,     /* IN */
+			      cephfsal_op_context_t * p_context,        /* IN */
+			      fsal_accessmode_t accessmode, /* IN */
+			      cephfsal_handle_t * object_handle,        /* OUT */
+			      fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     )
 {
 
@@ -90,8 +90,8 @@ fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      
   mode_t mode;
   char filename[FSAL_MAX_NAME_LEN];
   int rc;
-  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
 
 
   /* sanity checks.
@@ -99,6 +99,8 @@ fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      
    */
   if(!parent_directory_handle || !p_context || !object_handle || !p_filename)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_create);
+
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
 
   mode = fsal2unix_mode(accessmode);
   mode = mode & ~global_fs_info.umask;
@@ -185,14 +187,16 @@ fsal_status_t CEPHFSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* I
   mode_t mode;
   char name[FSAL_MAX_NAME_LEN];
   int rc;
-  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
   
   /* sanity checks.
    * note : object_attributes is optional.
    */
   if(!parent_directory_handle || !p_context || !object_handle || !p_dirname)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_mkdir);
+
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
 
   mode = fsal2unix_mode(accessmode);
   mode = mode & ~global_fs_info.umask;
@@ -224,7 +228,6 @@ fsal_status_t CEPHFSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* I
 
   /* OK */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_mkdir);
-
 }
 
 /**
@@ -275,14 +278,16 @@ fsal_status_t CEPHFSAL_link(cephfsal_handle_t * target_handle,  /* IN */
   struct stat_precise st;
   char name[FSAL_MAX_NAME_LEN];
   int rc;
-  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
 
   /* sanity checks.
    * note : attributes is optional.
    */
   if(!target_handle || !dir_handle || !p_context || !p_link_name)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_link);
+
+  memset(target_handle, 0, sizeof(cephfsal_handle_t));
 
   /* Tests if hardlinking is allowed by configuration. */
 
@@ -315,7 +320,6 @@ fsal_status_t CEPHFSAL_link(cephfsal_handle_t * target_handle,  /* IN */
 
   /* OK */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_link);
-
 }
 
 /**

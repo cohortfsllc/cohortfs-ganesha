@@ -94,6 +94,8 @@ fsal_status_t CEPHFSAL_lookup(cephfsal_handle_t * parent_directory_handle, /* IN
   if(!object_handle || !p_context)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_lookup);
 
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
+
 
   /* retrieves root handle */
 
@@ -256,6 +258,8 @@ fsal_status_t CEPHFSAL_lookupPath(fsal_path_t * p_path,     /* IN */
   if(!p_path || !p_context || !object_handle)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_lookupPath);
 
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
+
   FSAL_path2str(p_path, pathname, FSAL_MAX_PATH_LEN);
 
   /* retrieves root handle */
@@ -265,8 +269,8 @@ fsal_status_t CEPHFSAL_lookupPath(fsal_path_t * p_path,     /* IN */
       /* Ceph seems to have a constant identifying the root inode.
 	 Possible source of bugs, so check here if trouble */
 
-      VINODE(object_handle).ino.val=CEPH_INO_ROOT;
-      VINODE(object_handle).snapid.val=CEPH_NOSNAP;
+      VINODE(object_handle).ino.val = CEPH_INO_ROOT;
+      VINODE(object_handle).snapid.val = CEPH_NOSNAP;
 
       if(object_attributes)
         {

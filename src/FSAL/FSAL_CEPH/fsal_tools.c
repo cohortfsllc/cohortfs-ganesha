@@ -173,11 +173,14 @@ fsal_status_t CEPHFSAL_DigestHandle(cephfsal_export_context_t * p_expcontext,   
     case FSAL_DIGEST_NFSV3:
       if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV3)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
+      memcpy(out_buff, &VINODE(in_fsal_handle),
+	     sizeof(VINODE(in_fsal_handle)));
+      break;
     case FSAL_DIGEST_NFSV4:
       if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV4)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
-      memcpy(out_buff, &VINODE(in_fsal_handle),
-	     sizeof(VINODE(in_fsal_handle)));
+      memcpy(out_buff, &(in_fsal_handle->data),
+	     sizeof(in_fsal_handle->data));
       break;
 
       /* Integer IDs */
@@ -230,22 +233,24 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
   if(!out_fsal_handle || !in_buff || !p_expcontext)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
+  memset(out_fsal_handle, sizeof(cephfsal_handle_t), 0);
+
   switch (in_type)
    {
-
     case FSAL_DIGEST_NFSV2:
     case FSAL_DIGEST_NFSV3:
+      memcpy(&(VINODE(out_fsal_handle)), in_buff,
+	     sizeof(VINODE(out_fsal_handle)));
+      break;
     case FSAL_DIGEST_NFSV4:
-
+      memcpy(&(out_fsal_handle->data), in_buff,
+	     sizeof(out_fsal_handle->data));
       break;
 
     default:
       /* Invalid input digest type. */
       ReturnCode(ERR_FSAL_INVAL, 0);
     }
-
-  memset(out_fsal_handle, sizeof(cephfsal_handle_t), 0);
-  VINODE(out_fsal_handle) = VINODE(((cephfsal_handle_t *) in_buff));
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 

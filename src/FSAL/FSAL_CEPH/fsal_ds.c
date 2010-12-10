@@ -75,7 +75,6 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
   struct stat_precise st;
   int rc;
   uint32_t su;
-  off_t filesize;
   fsal_off_t read_start;
   fsal_off_t block_start;
   fsal_size_t length = buffer_size;
@@ -83,39 +82,24 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
   uint64_t internal_offset;
   uint64_t left, pos, read;
 
-  me_the_OSD=ceph_get_local_osd();
+  me_the_OSD = ceph_get_local_osd();
   
   /* Find the stripe being read */
 
   read_start = seek_descriptor->offset;
   
-  su=ceph_ll_stripe_unit(VINODE(filehandle));
+  su = filehandle->data.layout.fl_stripe_unit;
 
-  if (su==(uint32_t) -ESTALE)
-    {
-      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_read);
-    }
-  
   block_start = read_start - read_start % su;
   stripe = block_start/su;
 
-  rc=ceph_ll_getattr_precise(VINODE(filehandle), &st, -1, -1);
-
-  if (rc < 0)
-    Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
-  
-  filesize=st.st_size;
-
-  internal_offset=block_start - read_start;
-
-  if (internal_offset==(uint32_t) -ESTALE)
-    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_read);
+  internal_offset = block_start - read_start;
 
   left = length;
   pos = read_start;
   read = -1;
 
-  while ((left != 0) && (pos <= filesize) && (read != 0))
+  while ((left != 0) && (read != 0))
     {
       if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle),
 					       stripe,
@@ -138,10 +122,7 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
       ++stripe;
     }
 
-  if (pos == filesize)
-    *end_of_file=true;
-  else
-    *end_of_file=false;
+  *end_of_file=false;
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_ds_read);
 }
@@ -192,7 +173,7 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
   uint64_t internal_offset;
   uint64_t left, pos, written, resp;
 
-  me_the_OSD=ceph_get_local_osd();
+  me_the_OSD = ceph_get_local_osd();
   
   /* Find the stripe being read */
 

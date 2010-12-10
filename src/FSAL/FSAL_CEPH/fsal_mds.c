@@ -327,7 +327,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 		   ADDRLENGTH * num_osds);
 		      
   entry = (deviceaddrinfo*) Mem_Alloc(reserved_size);
-  if (entry==NULL)
+  if (entry == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
   
   memset(entry, reserved_size, 0);
@@ -357,7 +357,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 	  Mem_Free(entry);
 	  Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
 	}
-      stripe_indices[i]=stripe_osd;
+      stripe_indices[i] = stripe_osd;
     }
 
   deviceaddr->nflda_multipath_ds_list.nflda_multipath_ds_list_len
@@ -387,7 +387,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
 
-  savedptr=entry;
+  savedptr = entry;
 
   /* Add the layout to the state for the file */
   
@@ -402,27 +402,27 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   
   /* Build the layout to return to the client */
 
-  reserved_size=(sizeof(fsal_layout_t) +
-		 sizeof(layout_content4) +
-		 sizeof(fsal_dsfh_t) +
-		 NFS4_FHSIZE +
-		 64);
+  reserved_size = (sizeof(fsal_layout_t) +
+		   sizeof(layout_content4) +
+		   sizeof(fsal_dsfh_t) +
+		   NFS4_FHSIZE +
+		   64);
 
   if ((*layouts=(fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
 
-  (*layouts)->lo_offset=offset;
-  (*layouts)->lo_length=length;
-  (*layouts)->lo_iomode=iomode;
+  (*layouts)->lo_offset = offset;
+  (*layouts)->lo_length = length;
+  (*layouts)->lo_iomode = iomode;
   (*layouts)->lo_content.loc_body.loc_body_val
-    = (char*) ((void*)*layouts)+sizeof(fsal_layout_t);
+    = (char*) ((void*)*layouts) + sizeof(fsal_layout_t);
 
-  reserved_size -=(sizeof(fsal_layout_t) +
-		   sizeof(layout_content4));
+  reserved_size -= (sizeof(fsal_layout_t) +
+		    sizeof(layout_content4));
 
-  fileloc=alloca(sizeof(fsal_filelayout_t) +
-		 sizeof(fsal_dsfh_t) +
-		 NFS4_FHSIZE);
+  fileloc = alloca(sizeof(fsal_filelayout_t) +
+		   sizeof(fsal_dsfh_t) +
+		   NFS4_FHSIZE);
 
   memcpy(fileloc->deviceid,
 	 &(entry->inode),
@@ -433,19 +433,20 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 
   /* We are returning sparse layouts with commit-through-DS */
   
-  fileloc->util=su;
+  fileloc->util = su;
 
   /* The zeroeth stripe represents first block at the given offset. */
 
-  fileloc->first_stripe_index=0;
+  fileloc->first_stripe_index = 0;
 
-  fileloc->pattern_offset=offset;
+  fileloc->pattern_offset = offset;
 
   /* We return exactly one filehandle */
 
   fileloc->fhn = 1;
 
-  fileloc->fhs = (fsal_dsfh_t*) (((void*)fileloc)+sizeof(fsal_filelayout_t));
+  fileloc->fhs = (fsal_dsfh_t*) (((void*)fileloc) +
+				 sizeof(fsal_filelayout_t));
 
   fileloc->fhs->nfs_fh4_val= (char*)
     (((void*)fileloc->fhs) + sizeof(fsal_dsfh_t));
@@ -460,7 +461,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   ds_handle.data.layout = file_layout;
   ds_handle.data.snapseq = ceph_ll_snap_seq(VINODE(filehandle));
   
-  FSALBACK_fh2dshandle(filehandle, fileloc->fhs, opaque);
+  FSALBACK_fh2dshandle(&ds_handle, fileloc->fhs, opaque);
 
   if (!(encode_lo_content(LAYOUT4_NFSV4_1_FILES,
 			  &((*layouts)->lo_content),
