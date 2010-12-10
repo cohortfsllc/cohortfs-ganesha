@@ -117,13 +117,17 @@ fsal_status_t CEPHFSAL_ds_read(cephfsal_handle_t * filehandle,     /*  IN  */
 
   while ((left != 0) && (pos <= filesize) && (read != 0))
     {
-      if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle), stripe))
+      if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle),
+					       stripe,
+					       &(filehandle->data.layout)))
+
 	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_read);
 
       read = ceph_ll_read_block(VINODE(filehandle), stripe,
 				buffer, internal_offset,
 				min((su - internal_offset),
-				    (left - internal_offset)));
+				    (left - internal_offset)),
+				&(filehandle->data.layout));
       if (read < 0)
 	  Return(posix2fsal_error(rc), 0, INDEX_FSAL_ds_read);
 
@@ -194,18 +198,12 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
 
   write_start = seek_descriptor->offset;
   
-  su=ceph_ll_stripe_unit(VINODE(filehandle));
+  su = filehandle->data.layout.fl_stripe_unit;
 
-  if (su==(uint32_t) -ESTALE)
-    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_write);
-  
   block_start = write_start - write_start % su;
   stripe = block_start/su;
 
-  internal_offset=block_start - write_start;
-
-  if (internal_offset==(uint32_t) -ESTALE)
-    Return(ERR_FSAL_STALE, 0, INDEX_FSAL_ds_write);
+  internal_offset = block_start - write_start;
 
   left = length;
   pos = write_start;
@@ -216,15 +214,18 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,  /* IN */
     {
       struct stat_precise st;
 
-      uint64_t towrite=min((su - internal_offset),
-			   (left - internal_offset));
+      uint64_t towrite = min((su - internal_offset),
+			     (left - internal_offset));
       
-      if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle), stripe))
+      if (me_the_OSD != ceph_ll_get_stripe_osd(VINODE(filehandle),
+					       stripe,
+					       &(filehandle->data.layout)))
 	  Return(ERR_FSAL_PNFS_IO_HOLE, 0, INDEX_FSAL_ds_write);
 
       resp = ceph_ll_write_block(VINODE(filehandle), stripe,
 				 buffer, internal_offset,
-				 towrite);
+				 towrite, &(filehandle->data.layout),
+				 filehandle->data.snapseq);
       if (resp == 0)
 	{
 	  written += towrite;

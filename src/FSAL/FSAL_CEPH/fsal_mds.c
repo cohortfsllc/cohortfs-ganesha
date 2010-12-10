@@ -285,16 +285,16 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   char* stringwritepos;
   fsal_filelayout_t* fileloc;
   uint64_t biggest;
+  fsal_handle_t ds_handle;
+  struct ceph_file_layout file_layout;
+
+  /* Get the file layout information */
+
+  ceph_ll_file_layout(VINODE(filehandle), &file_layout);
+  su = file_layout.fl_stripe_unit;
   
   /* Align the layout to ceph stripe boundaries */
-  
-  su=ceph_ll_stripe_unit(VINODE(filehandle));
 
-  if (su==(uint32_t) -ESTALE)
-    {
-      Return(ERR_FSAL_STALE, 0, INDEX_FSAL_layoutget);
-    }
-  
   *numlayouts=1;
   *return_on_close = false;
   offset -= offset % su;
@@ -332,7 +332,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   
   memset(entry, reserved_size, 0);
 
-  entry->inode=VINODE(filehandle).ino.val;
+  entry->inode = VINODE(filehandle).ino.val;
 
   reserved_size -= sizeof(deviceaddrinfo);
   
@@ -349,7 +349,8 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     {
       int stripe_osd;
 
-      stripe_osd=ceph_ll_get_stripe_osd(VINODE(filehandle), i);
+      stripe_osd = ceph_ll_get_stripe_osd(VINODE(filehandle), i,
+					  &file_layout);
 
       if (stripe_osd < 0)
 	{
@@ -450,6 +451,14 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     (((void*)fileloc->fhs) + sizeof(fsal_dsfh_t));
 
   /* Give the client a filehandle that may be sent to the DS */
+
+  /* Fill in object access info so that the DS doesn't have to contact
+     the MDS (Also tis solves the lack of a lookup-by-inode in
+     current Ceph.) */
+
+  ds_handle = *filehandle;
+  ds_handle.data.layout = file_layout;
+  ds_handle.data.snapseq = ceph_ll_snap_seq(VINODE(filehandle));
   
   FSALBACK_fh2dshandle(filehandle, fileloc->fhs, opaque);
 
