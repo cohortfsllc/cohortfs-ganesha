@@ -73,8 +73,8 @@ fsal_status_t CEPHFSAL_opendir(cephfsal_handle_t * dir_handle,  /* IN */
 {
   fsal_status_t status;
   int rc;
-  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
-  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
   void* dh;
 
   /* sanity checks
@@ -90,9 +90,9 @@ fsal_status_t CEPHFSAL_opendir(cephfsal_handle_t * dir_handle,  /* IN */
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_opendir);
 
-  dir_descriptor->dh=(DIR*) dh;
-  dir_descriptor->vi=VINODE(dir_handle);
-  dir_descriptor->ctx=*p_context;
+  dir_descriptor->dh = (DIR*) dh;
+  dir_descriptor->vi = VINODE(dir_handle);
+  dir_descriptor->ctx = *p_context;
 
   if(dir_attributes)
     {
@@ -106,7 +106,6 @@ fsal_status_t CEPHFSAL_opendir(cephfsal_handle_t * dir_handle,  /* IN */
     }
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_opendir);
-
 }
 
 /**
@@ -159,8 +158,8 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
   struct dirent de;
   int rc;
   unsigned int max_entries=buffersize/sizeof(fsal_dirent_t);
-  int uid=dir_descriptor->ctx.credential.user;
-  int gid=dir_descriptor->ctx.credential.group;
+  int uid = dir_descriptor->ctx.credential.user;
+  int gid = dir_descriptor->ctx.credential.group;
 
   /* sanity checks */
 
@@ -184,7 +183,7 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
       memset(&st, sizeof(struct stat), 0);
 
       TakeTokenFSCall();
-      rc=ceph_readdirplus_r(DH(dir_descriptor), &de, &st, 0);
+      rc = ceph_ll_readdir(DH(dir_descriptor), &de, &st);
       if (rc < 0) /* Error */
 	Return(posix2fsal_error(rc), 0, INDEX_FSAL_readdir);
 
@@ -201,7 +200,7 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
           if(FSAL_IS_ERROR(status))
             ReturnStatus(status, INDEX_FSAL_readdir);
 	    
-	  COOKIE(pdirent[*nb_entries].cookie)=ceph_telldir(DH(dir_descriptor));
+	  COOKIE(pdirent[*nb_entries].cookie) = ceph_telldir(DH(dir_descriptor));
 	  pdirent[*nb_entries].attributes.asked_attributes=get_attr_mask;
 
 	  status =
