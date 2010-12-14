@@ -41,6 +41,8 @@
 #include "config_parsing.h"
 #include <string.h>
 
+extern int h_errno;
+
 /* case unsensitivity */
 #define STRCMP   strcasecmp
 #define low32m( a ) ( (unsigned int)a )
@@ -320,6 +322,9 @@ fsal_status_t CEPHFSAL_SetDefault_FS_specific_parameter(fsal_parameter_t * out_p
   if(out_parameter == NULL)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
+  memset(&(out_parameter->fs_specific_info), 0,
+	 sizeof(out_parameter->fs_specific_info));
+
   strcpy(out_parameter->fs_specific_info.cephserver, "localhost");
   
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
@@ -501,13 +506,45 @@ fsal_status_t CEPHFSAL_load_FS_specific_parameter_from_conf(config_file_t in_con
           strncpy(out_parameter->fs_specific_info.cephserver,
 		  key_value, FSAL_MAX_NAME_LEN);
         }
+      else if (!STRCMP(key_name, "replica_servers"))
+	{
+	  /* This is quick and bad and dirty and must be fixed later.
+	     Most notably it should support IPv6, right now it
+	     doesn't.  This isn't really an issue since in production
+	     we won't have a list of replicas in the Ganesha config
+	     file, this is only to let us run our proof of concept. */
+	  
+	  char hostnamebuf[FSAL_MAX_NAME_LEN*MAXREP];
+	  char* host = NULL;
+	  int replicas = 0;
+	  struct hostent* he;
+	  
+	  memset(hostnamebuf, 0, sizeof(hostnamebuf));
+	  strncpy(hostnamebuf, key_value, sizeof(hostnamebuf));
+	  host = strtok(hostnamebuf, ", \t\n\r");
+	  while (host)
+	    {
+	      strncpy(out_parameter->fs_specific_info.replica_servers[replicas],
+		      host,
+		      16);
+	      replicas++;
+	      strtok(hostnamebuf, ", \t\n\r");
+	    }
+	  out_parameter->fs_specific_info.replicas = replicas;
+	}
+      else if (!STRCMP(key_name, "replication_master"))
+	{
+	  if (!STRCMP(key_value, "true"))
+	    out_parameter->fs_specific_info.replication_master = true;
+	  else
+	    out_parameter->fs_specific_info.replication_master
+	      = false;
+	}
       else
         {
           ReturnCode(ERR_FSAL_INVAL, 0);
         }
-
     }
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
-
 }                               /* FSAL_load_FS_specific_parameter_from_conf */

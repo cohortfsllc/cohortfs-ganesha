@@ -221,53 +221,37 @@ deviceaddrinfo* get_entry(uint64_t inode, uint64_t generation)
   pthread_mutex_unlock(&deviceidtablemutex);
   return cur;
 }
-  
-/**
- *
- * FSAL_layoutget: The NFSv4.1 LAYOUTGET operation
- *
- * Return a layout for the requested range on the given filehandle.
- *
- * \param filehandle (input):
- *        Handle of the file on which the layout is requested.
- * \param type (input):
- *        The type of layout requested
- * \param iomode (input):
- *        The iomode requested
- * \param offset (input):
- *        The beginning requested
- * \param length (input):
- *        The length requested
- * \param minlength (input):
- *        The minimum length required
- * \param layouts (output):
- *        Pointer to a buffer allocated by this function beginning
- *        with numlayouts layouts.  The following space is to hold
- *        variable-sized structures referenced in the layouts.
- * \param numlayouts (output):
- *        The number of layouts returned
- * \param return_on_close (output):
- *        Return on close flag.  To make this profitable, FSAL_close
- *        would need a means to trigger a layoutrecall.
- * \param context (input):
- *        Credential information
- * \param opaque (input):
- *        Passed to FSALBACK function to create filehandle
- *
- * \return Error codes or ERR_FSAL_NO_ERROR
- */
 
-fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
-				 fsal_layouttype_t type,
-				 fsal_layoutiomode_t iomode,
-				 fsal_off_t offset, fsal_size_t length,
-				 fsal_size_t minlength,
-				 fsal_layout_t** layouts,
-				 int *numlayouts,
-				 fsal_boolean_t *return_on_close,
-				 cephfsal_op_context_t *context,
-				 stateid4* stateid,
-				 void* opaque)
+/* Implements Linux Box replication layout */
+
+fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
+			     fsal_layouttype_t type,
+			     fsal_layoutiomode_t iomode,
+			     fsal_off_t offset, fsal_size_t length,
+			     fsal_size_t minlength,
+			     fsal_layout_t** layouts,
+			     int *numlayouts,
+			     fsal_boolean_t *return_on_close,
+			     cephfsal_op_context_t *context,
+			     stateid4* stateid,
+			     void* opaque)
+{
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
+}
+
+/* Implements NFSv4.1 Files layout */
+
+fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
+			     fsal_layouttype_t type,
+			     fsal_layoutiomode_t iomode,
+			     fsal_off_t offset, fsal_size_t length,
+			     fsal_size_t minlength,
+			     fsal_layout_t** layouts,
+			     int *numlayouts,
+			     fsal_boolean_t *return_on_close,
+			     cephfsal_op_context_t *context,
+			     stateid4* stateid,
+			     void* opaque)
 {
   struct stat_precise st;
   char name[255];
@@ -479,6 +463,75 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
   state_layout_inc_state(stateid);
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
+}
+  
+/**
+ *
+ * FSAL_layoutget: The NFSv4.1 LAYOUTGET operation
+ *
+ * Return a layout for the requested range on the given filehandle.
+ *
+ * \param filehandle (input):
+ *        Handle of the file on which the layout is requested.
+ * \param type (input):
+ *        The type of layout requested
+ * \param iomode (input):
+ *        The iomode requested
+ * \param offset (input):
+ *        The beginning requested
+ * \param length (input):
+ *        The length requested
+ * \param minlength (input):
+ *        The minimum length required
+ * \param layouts (output):
+ *        Pointer to a buffer allocated by this function beginning
+ *        with numlayouts layouts.  The following space is to hold
+ *        variable-sized structures referenced in the layouts.
+ * \param numlayouts (output):
+ *        The number of layouts returned
+ * \param return_on_close (output):
+ *        Return on close flag.  To make this profitable, FSAL_close
+ *        would need a means to trigger a layoutrecall.
+ * \param context (input):
+ *        Credential information
+ * \param opaque (input):
+ *        Passed to FSALBACK function to create filehandle
+ *
+ * \return Error codes or ERR_FSAL_NO_ERROR
+ */
+
+#define LBX_REPLICATION 0x87654321
+
+fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
+				 fsal_layouttype_t type,
+				 fsal_layoutiomode_t iomode,
+				 fsal_off_t offset, fsal_size_t length,
+				 fsal_size_t minlength,
+				 fsal_layout_t** layouts,
+				 int *numlayouts,
+				 fsal_boolean_t *return_on_close,
+				 cephfsal_op_context_t *context,
+				 stateid4* stateid,
+				 void* opaque)
+{
+  switch (type)
+    {
+    case LAYOUT4_NFSV4_1_FILES:
+      return layoutget_file(filehandle, type, iomode, offset, length,
+			    minlength, layouts,
+			    numlayouts,return_on_close, context,
+			    stateid, opaque);
+      break;
+    case LBX_REPLICATION:
+      return layoutget_repl(filehandle, type, iomode, offset, length,
+			    minlength, layouts,
+			    numlayouts,return_on_close, context,
+			    stateid, opaque);
+      break;
+    default:
+      Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_layoutget);
+      break;
+    }
 }
 
 /**

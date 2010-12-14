@@ -58,6 +58,8 @@
 #define fsal_cred_t cephfsal_cred_t
 #define fsal_layoutdata_t cephfsal_layoutdata_t
 
+#define MAXREP 8
+
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
    */
@@ -103,6 +105,9 @@ typedef struct fsal_op_context__
 typedef struct fs_specific_initinfo__
 {
   char cephserver[FSAL_MAX_NAME_LEN];
+  unsigned int replicas;
+  char replica_servers[MAXREP][16];
+  bool_t replication_master;
 } cephfsal_specific_initinfo_t;
 
 
