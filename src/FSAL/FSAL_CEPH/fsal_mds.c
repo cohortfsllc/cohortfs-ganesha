@@ -34,6 +34,7 @@
 #include "fsal_types.h"
 #include <alloca.h>
 #include "sal.h"
+#include "layouttypes/replayouts.h"
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
@@ -505,8 +506,6 @@ fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  */
-
-#define LBX_REPLICATION 0x87654321
 
 fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 fsal_layouttype_t type,
