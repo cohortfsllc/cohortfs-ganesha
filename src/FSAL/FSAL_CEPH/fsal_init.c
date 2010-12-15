@@ -93,7 +93,7 @@ static int FS_Specific_Init(fs_specific_initinfo_t * fs_init_info)
   int rc = 0;
 
   /* Make this available during thread initialisation */
-  global_spec_info=*fs_init_info;
+  global_spec_info = *fs_init_info;
 
   return rc;
 

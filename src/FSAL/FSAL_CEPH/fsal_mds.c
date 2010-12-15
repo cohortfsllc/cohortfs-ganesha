@@ -236,7 +236,13 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 			     stateid4* stateid,
 			     void* opaque)
 {
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
+  if ((!global_spec_info.replication_master) ||
+      (global_spec_info.replicas == 0))
+    {
+      Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
+    }
+
+  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_layoutget);
 }
 
 /* Implements NFSv4.1 Files layout */
@@ -529,7 +535,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 			    stateid, opaque);
       break;
     default:
-      Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_layoutget);
+      Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
       break;
     }
 }
