@@ -34,7 +34,7 @@
 #include "fsal_types.h"
 #include <alloca.h>
 #include "sal.h"
-#include "layouttypes/replayouts.h"
+#include "layouttypes/replayout.h"
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
