@@ -29,7 +29,7 @@
 typedef struct __replayout
 {
   deviceid4 deviceid;
-  uint32_t num_fhs;
+  uint32_t fhn;
   nfs_fh4* fhs;
 } fsal_replayout_t;
 

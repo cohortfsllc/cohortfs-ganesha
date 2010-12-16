@@ -18,6 +18,7 @@
 
 #include "layouttypes/layouts.h"
 #include "layouttypes/fsal_layout.h"
+#define LBX_REPLICATION 0x87654321
 
 /**
  *
@@ -37,10 +38,23 @@ int encodefilesdevice(layouttype4 type,
 		      size_t length,
 		      caddr_t source);
 
+int encodereplayout(layouttype4 type,
+		    layout_content4* dest,
+		    size_t size,
+		    caddr_t source);
+
+int encoderepdevice(layouttype4 type,
+		    device_addr4* dest,
+		    size_t length,
+		    caddr_t source);
+
 layoutfunctions layoutfuncs[]={
   {LAYOUT4_NFSV4_1_FILES,
    encodefileslayout,
    encodefilesdevice},
+  {LBX_REPLICATION,
+   encodereplayout,
+   encoderepdevice},
   {0, NULL, NULL}};
 
 /**
