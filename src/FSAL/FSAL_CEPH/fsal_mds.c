@@ -246,11 +246,28 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   uint64_t* generation;
   caddr_t fhbody;
   fsal_filelayout_t* fileloc;
+  taggedstate auspice;
   
   if ((!global_spec_info.replication_master) ||
       (global_spec_info.replicas == 0))
     {
       Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
+    }
+
+  if (ostateid)
+    {
+      if (state_retrieve_state(*ostateid, &auspice) !=
+	  ERR_STATE_NO_ERROR)
+	{
+	  Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
+	}
+      if (!(auspice.tag == STATE_SHARE &&
+	    !(auspice.u.share.share_deny & OPEN4_SHARE_DENY_WRITE)) &&
+	  !(auspice.tag == STATE_DELEGATION &&
+	    (auspice.u.delegation.type == OPEN_DELEGATE_WRITE)))
+	{
+	  Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
+	}
     }
 
   buffer = alloca(sizeof(fsal_replayout_t) + sizeof(nfs_fh4));
