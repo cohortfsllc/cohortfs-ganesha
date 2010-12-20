@@ -845,6 +845,7 @@ fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_boolean_t *return_on_close,
 			     fsal_op_context_t *context,
 			     stateid4* stateid,
+			     stateid4* ostateid,
 			     void* opaque);
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
@@ -1399,6 +1400,7 @@ typedef struct __fsal_mdsfunctions
 				  fsal_boolean_t *return_on_close,
 				  fsal_op_context_t *context,
 				  stateid4* stateid,
+				  stateid4* ostateid,
 				  void* opaque);
   fsal_status_t (*fsal_layoutreturn)(fsal_handle_t* filehandle,
 				     fsal_layouttype_t type,

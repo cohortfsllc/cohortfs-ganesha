@@ -253,6 +253,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   fsal_handle_t* fsalh;
   int i;
   stateid4 lstateid;
+  stateid4* ostateid;
 
   fsalh = &(data->current_entry->object.file.handle);
 
@@ -268,6 +269,12 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       return res_LAYOUTGET4.logr_status;
     }
 
+  ostateid = (!memcmp(&arg_LAYOUTGET4.loga_stateid, &lstateid,
+		      sizeof(stateid4))) ?
+    NULL :
+    &arg_LAYOUTGET4.loga_stateid;
+    
+
   status = FSAL_layoutget(fsalh,
 			  arg_LAYOUTGET4.loga_layout_type,
 			  iomode,
@@ -279,6 +286,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 			  &return_on_close,
 			  data->pcontext,
 			  &lstateid,
+			  ostateid,
 			  (void*) data);
 
   if (FSAL_IS_ERROR(status))

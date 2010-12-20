@@ -235,6 +235,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 			     fsal_boolean_t *return_on_close,
 			     cephfsal_op_context_t *context,
 			     stateid4* stateid,
+			     stateid4* ostateid,
 			     void* opaque)
 {
   caddr_t buffer;
@@ -332,6 +333,7 @@ fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
 			     fsal_boolean_t *return_on_close,
 			     cephfsal_op_context_t *context,
 			     stateid4* stateid,
+			     stateid4* ostateid,
 			     void* opaque)
 {
   struct stat_precise st;
@@ -575,6 +577,14 @@ fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
  *        would need a means to trigger a layoutrecall.
  * \param context (input):
  *        Credential information
+ * \param stateid (input/output):
+ *        Pointer to the layout stateid for this (filehandle,
+ *        clientid, layouttype4) triple.
+ * \param ostateid (optional input):
+ *        For the first layout requested for a (filehandle, clientid,
+ *        layouttype4) triple, the stateid for the open, delegation,
+ *        lock, etc. under which the layout is requested.  NULL for
+ *        subsequent calls.
  * \param opaque (input):
  *        Passed to FSALBACK function to create filehandle
  *
@@ -591,21 +601,22 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 				 fsal_boolean_t *return_on_close,
 				 cephfsal_op_context_t *context,
 				 stateid4* stateid,
+				 stateid4* ostateid,
 				 void* opaque)
 {
   switch (type)
     {
     case LAYOUT4_NFSV4_1_FILES:
       return layoutget_file(filehandle, type, iomode, offset, length,
-			    minlength, layouts,
-			    numlayouts,return_on_close, context,
-			    stateid, opaque);
+			    minlength, layouts, numlayouts,
+			    return_on_close, context, stateid,
+			    ostateid, opaque);
       break;
     case LBX_REPLICATION:
       return layoutget_repl(filehandle, type, iomode, offset, length,
-			    minlength, layouts,
-			    numlayouts,return_on_close, context,
-			    stateid, opaque);
+			    minlength, layouts, numlayouts,
+			    return_on_close, context, stateid,
+			    ostateid, opaque);
       break;
     default:
       Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);

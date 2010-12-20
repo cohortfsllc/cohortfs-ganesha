@@ -714,13 +714,14 @@ fsal_status_t FSAL_layoutget(fsal_handle_t* filehandle,
 			     fsal_boolean_t *return_on_close,
 			     fsal_op_context_t *context,
 			     stateid4* stateid,
+			     stateid4* ostateid,
 			     void* opaque)
 {
   return fsal_mdsfunctions.fsal_layoutget(filehandle, type, iomode,
 					  offset, length,
 					  minlength, layouts,
 					  numlayouts, return_on_close,
-					  context, stateid, opaque);
+					  context, stateid, ostateid, opaque);
 }
 
 fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,

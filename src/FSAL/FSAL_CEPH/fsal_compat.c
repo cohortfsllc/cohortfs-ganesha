@@ -686,6 +686,7 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 				      fsal_boolean_t *return_on_close,
 				      fsal_op_context_t *context,
 				      stateid4* stateid,
+				      stateid4* ostateid,
 				      void* opaque)
 {
   return CEPHFSAL_layoutget((cephfsal_handle_t *) filehandle,
@@ -695,6 +696,7 @@ fsal_status_t WRAP_CEPHFSAL_layoutget(fsal_handle_t* filehandle,
 			    return_on_close,
 			    (cephfsal_op_context_t *) context,
 			    stateid,
+			    ostateid,
 			    opaque);
 }
 

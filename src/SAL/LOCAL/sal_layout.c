@@ -13,9 +13,9 @@
 #include "sal_internal.h"
 
 /************************************************************************
- * Lock Functions
+ * Layout Functions
  *
- * These functions realise lock state functionality.
+ * These functions realise layout state functionality.
  ***********************************************************************/
 
 int localstate_create_layout_state(fsal_handle_t* handle,
