@@ -23,7 +23,7 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
-#include "nfsv41.h"
+#include "nfs4.h"
 #include <ceph/libceph.h>
 #include <fcntl.h>
 #include "HashTable.h"
@@ -237,12 +237,86 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 			     stateid4* stateid,
 			     void* opaque)
 {
+  caddr_t buffer;
+  size_t reserved_size;
+  fsal_replayout_t* replayout;
+  nfs_fh4* fh;
+  uint64_t* volume;
+  uint64_t* generation;
+  caddr_t fhbody;
+  fsal_filelayout_t* fileloc;
+  
   if ((!global_spec_info.replication_master) ||
       (global_spec_info.replicas == 0))
     {
       Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
     }
 
+  buffer = alloca(sizeof(fsal_replayout_t) + sizeof(nfs_fh4));
+  replayout = (fsal_replayout_t*) buffer;
+  fh = (nfs_fh4*) (buffer + sizeof(fsal_replayout_t));
+  fhbody = (caddr_t) (fh + 1);
+  volume = (uint64_t*) replayout->deviceid;
+  generation = volume + 1;
+
+  /* Since all of this is static and we haven't implemented volumes,
+     we shall say that this is volume 1, generation 1 */
+  
+  *volume = 1;
+  *generation = 1;
+
+  /* In this prototype we have exactly one filehandle */
+
+  replayout->fhn = 1;
+  replayout->fhs->nfs_fh4_val = fhbody;
+
+  FSALBACK_fh2rhandle(filehandle, fh, opaque);
+
+
+  /* All replication layouts, in this implementation, are
+     return_on_close layouts */
+
+  *return_on_close = true;
+
+  reserved_size = (sizeof(fsal_layout_t) +
+		   sizeof(layout_content4) +
+		   sizeof(fsal_replayout_t) +
+		   sizeof(nfs_fh4) +
+		   NFS4_FHSIZE +
+		   64);
+
+  if ((*layouts = (fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
+    Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
+
+  (*layouts)->lo_offset = offset;
+  (*layouts)->lo_length = length;
+  (*layouts)->lo_iomode = iomode;
+  (*layouts)->lo_content.loc_body.loc_body_val
+    = (char*) replayout;
+
+  reserved_size -= (sizeof(fsal_layout_t) +
+		    sizeof(layout_content4));
+
+
+  if (!(encode_lo_content(LBX_REPLICATION,
+			  &((*layouts)->lo_content),
+			  reserved_size, fileloc)))
+    {
+      Mem_Free(*layouts);
+      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+    }
+			
+
+  if (state_add_layout_segment(type, iomode, offset, length,
+			       *return_on_close, NULL, *stateid) != 0)
+    {
+      Return(ERR_FSAL_DELAY, 0, INDEX_FSAL_layoutget);
+    }
+
+  /* On success, bump the seqid */
+
+  state_layout_inc_state(stateid);
+  
   Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_layoutget);
 }
 
@@ -286,7 +360,7 @@ fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
   
   /* Align the layout to ceph stripe boundaries */
 
-  *numlayouts=1;
+  *numlayouts = 1;
   *return_on_close = false;
   offset -= offset % su;
 
@@ -399,7 +473,7 @@ fsal_status_t layoutget_file(cephfsal_handle_t* filehandle,
 		   NFS4_FHSIZE +
 		   64);
 
-  if ((*layouts=(fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
+  if ((*layouts = (fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_layoutget);
 
   (*layouts)->lo_offset = offset;
@@ -711,26 +785,26 @@ fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
 }
 
-/**
- *
- * FSAL_getdeviceinfo: The NFSv4.1 GETDEVICEINFO operation
- *
- * Look up the address for a given deviceid
- *
- * \param type (input):
- *        The layout type
- * \param deviceid (input):
- *        The device ID to look up
- * \param devaddr (input/output):
- *        Address of device_addr4, body allocated by FSAL
- *
- * \return Error codes or ERR_FSAL_NO_ERROR
- *
- */
+fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
+				fsal_deviceid_t deviceid,
+				device_addr4* devaddr)
+{
+  uint64_t* volume;
+  uint64_t* generation;
+  char* xdrbuff;
 
-fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
-				     fsal_deviceid_t deviceid,
-				     device_addr4* devaddr)
+  volume = (uint64_t*) deviceid;
+  generation = volume + 1;
+
+  if (*volume != 1 || *generation != 1)
+    {
+      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
+    }
+}
+
+fsal_status_t getdeviceinfo_file(fsal_layouttype_t type,
+				 fsal_deviceid_t deviceid,
+				 device_addr4* devaddr)
 {
   uint64_t inode, generation;
   deviceaddrinfo* entry;
@@ -757,6 +831,92 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
     }
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
+}
+
+/**
+ *
+ * FSAL_getdeviceinfo: The NFSv4.1 GETDEVICEINFO operation
+ *
+ * Look up the address for a given deviceid
+ *
+ * \param type (input):
+ *        The layout type
+ * \param deviceid (input):
+ *        The device ID to look up
+ * \param devaddr (input/output):
+ *        Address of device_addr4, body allocated by FSAL
+ *
+ * \return Error codes or ERR_FSAL_NO_ERROR
+ *
+ */
+
+fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
+				     fsal_deviceid_t deviceid,
+				     device_addr4* devaddr)
+{
+  switch (type)
+    {
+    case LAYOUT4_NFSV4_1_FILES:
+      return getdeviceinfo_file(type, deviceid, devaddr);
+      break;
+    case LBX_REPLICATION:
+      return getdeviceinfo_rep(type, deviceid, devaddr);
+      break;
+    default:
+      Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
+      break;
+    }
+}
+
+fsal_status_t getdevicelist_file(fsal_handle_t* filehandle,
+				 fsal_layouttype_t type,
+				 int* numdevices,
+				 uint64_t* cookie,
+				 fsal_boolean_t* eof,
+				 void* buff,
+				 size_t* bufflen)
+{
+  *numdevices=0;
+  *eof=true;
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
+}
+
+fsal_status_t getdevicelist_rep(fsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				int* numdevices,
+				uint64_t* cookie,
+				fsal_boolean_t* eof,
+				void* buff,
+				size_t* bufflen)
+{
+  uint64_t* volume = buff;
+  uint64_t* generation = volume + 1;
+
+  if (cookie != 0)
+    {
+      *numdevices=0;
+      *eof=true;
+
+      Return(ERR_FSAL_INVAL, 0, INDEX_FSAL_getdevicelist);
+    }
+
+  if (*bufflen < sizeof(deviceid4))
+    {
+      *numdevices=0;
+      *eof=true;
+
+      Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdevicelist);
+    }
+
+  *volume = 1;
+  *generation = 1;
+  *bufflen = sizeof(deviceid4);
+  *numdevices = 1;
+  *cookie = 0;
+  *eof = true;
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
 }
 
 /**
@@ -793,10 +953,18 @@ fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 				     void* buff,
 				     size_t* bufflen)
 {
-  /* Populate buff with devices */
-
-  *numdevices=0;
-  *eof=true;
-  
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
+  switch (type)
+    {
+    case LAYOUT4_NFSV4_1_FILES:
+      return getdevicelist_file(filehandle, type, numdevices, cookie,
+				eof, buff, bufflen);
+      break;
+    case LBX_REPLICATION:
+      return getdevicelist_rep(filehandle, type, numdevices, cookie,
+			       eof, buff, bufflen);
+      break;
+    default:
+      Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
+      break;
+    }
 }
