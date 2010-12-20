@@ -42,6 +42,7 @@
 #include "SemN.h"
 #include "nfsv41.h"
 #include "HashTable.h"
+#include "layouttypes/replayout.h"
 
 #include <pthread.h>
 
@@ -91,7 +92,8 @@ static fsal_staticfsinfo_t default_hpss_info = {
   0400                         /* default access rights for xattrs: root=RW, owner=R */
 };
 
-layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES};
+layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES,
+				      LBX_REPLICATION};
 fsal_size_t layout_blksize = 4096 * 1024;
 
 /*
