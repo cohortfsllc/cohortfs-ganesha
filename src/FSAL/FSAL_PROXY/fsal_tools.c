@@ -223,10 +223,6 @@ fsal_status_t PROXYFSAL_DigestHandle(proxyfsal_export_context_t * p_expcontext, 
   if(!in_fsal_handle || !out_buff || !p_expcontext)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
-  if(in_fsal_handle->data.srv_handle_len + sizeof(fsal_u64_t) + 2 * sizeof(unsigned int) >
-     NFSV4_FH_OPAQUE_SIZE)
-    ReturnCode(ERR_FSAL_INVAL, ENOSPC);
-
   switch (output_type)
     {
 
@@ -278,6 +274,10 @@ fsal_status_t PROXYFSAL_DigestHandle(proxyfsal_export_context_t * p_expcontext, 
 
       /* NFSV4 handle digest */
     case FSAL_DIGEST_NFSV4:
+
+     if(in_fsal_handle->data.srv_handle_len + sizeof(fsal_u64_t) + 2 * sizeof(unsigned int) >
+       NFSV4_FH_OPAQUE_SIZE)
+         ReturnCode(ERR_FSAL_INVAL, ENOSPC);
 
       memset(out_buff, 0, FSAL_DIGEST_SIZE_HDLV4);
 
@@ -504,7 +504,7 @@ fsal_status_t PROXYFSAL_SetDefault_FS_specific_parameter(fsal_parameter_t * out_
   out_parameter->fs_specific_info.srv_addr = htonl(0x7F000001); /* 127.0.0.1 aka localhost     */
   out_parameter->fs_specific_info.srv_prognum = 100003; /* Default NFS prognum         */
   out_parameter->fs_specific_info.srv_port = htons(2049);       /* Default NFS port            */
-  out_parameter->fs_specific_info.srv_timeout = 25;     /* RPC Client timeout          */
+  out_parameter->fs_specific_info.srv_timeout = 2;     /* RPC Client timeout          */
   out_parameter->fs_specific_info.srv_sendsize = FSAL_PROXY_SEND_BUFFER_SIZE;   /* Default Buffer Send Size    */
   out_parameter->fs_specific_info.srv_recvsize = FSAL_PROXY_RECV_BUFFER_SIZE;   /* Default Buffer Send Size    */
   out_parameter->fs_specific_info.use_privileged_client_port = FALSE;   /* No privileged port by default */
@@ -962,7 +962,7 @@ fsal_status_t PROXYFSAL_load_FS_specific_parameter_from_conf(config_file_t in_co
         {
           out_parameter->fs_specific_info.retry_sleeptime = (unsigned int)atoi(key_value);
         }
-#ifdef _ALLOW_NFS_PROTO_CHOICE
+///#ifdef _ALLOW_NFS_PROTO_CHOICE
       else if(!STRCMP(key_name, "NFS_Proto"))
         {
           /* key_value should be either "udp" or "tcp" */
@@ -975,7 +975,7 @@ fsal_status_t PROXYFSAL_load_FS_specific_parameter_from_conf(config_file_t in_co
             }
           strncpy(out_parameter->fs_specific_info.srv_proto, key_value, MAXNAMLEN);
         }
-#endif
+///#endif
       else if(!STRCMP(key_name, "Active_krb5"))
         {
           out_parameter->fs_specific_info.active_krb5 = StrToBoolean(key_value);

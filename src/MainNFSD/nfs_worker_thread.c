@@ -1109,6 +1109,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
       rc = funcdesc.service_function(parg_nfs, pexport, &pworker_data->thread_fsal_context, &(pworker_data->cache_inode_client), pworker_data->ht, ptr_req, &res_nfs);  /* BUGAZOMEU Un appel crade pour debugger */
 
+      /* Use mutex to prevent from the same inode being modified concurrently. */
 #if defined( _USE_TIRPC ) || defined( _FREEBSD )
       V(mutex_cond_xprt[ptr_svc->xp_fd]);
 #else

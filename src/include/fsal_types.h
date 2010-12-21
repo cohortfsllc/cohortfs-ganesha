@@ -441,6 +441,10 @@ typedef fsal_u64_t fsal_attrib_mask_t;
 /* Generation number */
 #define FSAL_ATTR_GENERATION    ((fsal_attrib_mask_t) 0x0000000000080000LL )
 
+/* Change attribute */
+#define FSAL_ATTR_CHANGE    ((fsal_attrib_mask_t) 0x0000000000100000LL )
+
+
 /* "classic" attributes sets : */
 
 /* NFSv4 Mandatory attributes */
@@ -488,6 +492,7 @@ typedef struct fsal_attrib_list__
   fsal_time_t mtime;
   fsal_time_t chgtime;
   fsal_size_t spaceused;
+  fsal_u64_t change;
   fsal_u64_t mounted_on_fileid;
 
 } fsal_attrib_list_t;
