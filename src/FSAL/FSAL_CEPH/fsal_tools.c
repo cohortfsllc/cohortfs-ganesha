@@ -516,35 +516,49 @@ fsal_status_t CEPHFSAL_load_FS_specific_parameter_from_conf(config_file_t in_con
 	  
 	  char hostnamebuf[FSAL_MAX_NAME_LEN*MAXREP];
 	  char* host = NULL;
+	  char* saveptr = NULL;
 	  int replicas = 0;
 	  struct hostent* he;
 	  
 	  memset(hostnamebuf, 0, sizeof(hostnamebuf));
 	  strncpy(hostnamebuf, key_value, sizeof(hostnamebuf));
-	  host = strtok(hostnamebuf, ", \t\n\r");
+
+	  host = strtok_r(hostnamebuf, ", \t\n\r", &saveptr);
 	  while (host)
 	    {
 	      strncpy(out_parameter->fs_specific_info.replica_servers[replicas],
 		      host,
 		      16);
 	      replicas++;
-	      strtok(hostnamebuf, ", \t\n\r");
+	      host = strtok_r(NULL, ", \t\n\r", &saveptr);
 	    }
 	  out_parameter->fs_specific_info.replicas = replicas;
 	}
       else if (!STRCMP(key_name, "replication_master"))
 	{
-	  if (!STRCMP(key_value, "true"))
-	    out_parameter->fs_specific_info.replication_master = true;
-	  else
-	    out_parameter->fs_specific_info.replication_master
-	      = false;
+          switch (StrToBoolean(key_value))
+            {
+            case 1:
+	      out_parameter->fs_specific_info.replication_master = true;
+              break;
+
+            case 0:
+	      out_parameter->fs_specific_info.replication_master = true;
+              break;
+
+            default:           /* error */
+              {
+                LogCrit(COMPONENT_CONFIG,
+                     "NFS READ CEPH ERROR: Invalid value for %s (%s): TRUE or FALSE expected.",
+			key_name, key_value);
+                continue;
+              }
+            }
 	}
       else
-        {
-          ReturnCode(ERR_FSAL_INVAL, 0);
-        }
+	{
+	  ReturnCode(ERR_FSAL_INVAL, 0);
+	}
     }
-
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
-}                               /* FSAL_load_FS_specific_parameter_from_conf */
+}
