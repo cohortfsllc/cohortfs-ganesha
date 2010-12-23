@@ -272,7 +272,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 
   reploc_size = (sizeof(fsal_replayout_t) + sizeof(nfs_fh4) +
 		  sizeof(NFS4_FHSIZE));
-  buffer = alloca(sizeof(fsal_replayout_t) + sizeof(nfs_fh4));
+  buffer = alloca(reploc_size);
   reploc = (fsal_replayout_t*) buffer;
   fh = (nfs_fh4*) (buffer + sizeof(fsal_replayout_t));
   reploc->fhs = fh;
@@ -291,7 +291,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   reploc->fhn = 1;
   reploc->fhs->nfs_fh4_val = fhbody;
 
-  FSALBACK_fh2rhandle(filehandle, fh, opaque);
+  FSALBACK_fh2rhandle(filehandle, reploc->fhs, opaque);
 
 
   /* All replication layouts, in this implementation, are
