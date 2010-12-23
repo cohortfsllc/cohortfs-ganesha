@@ -240,12 +240,12 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 {
   caddr_t buffer;
   size_t reserved_size;
-  fsal_replayout_t* replayout;
+  fsal_replayout_t* reploc;
+  size_t reploc_size;
   nfs_fh4* fh;
   uint64_t* volume;
   uint64_t* generation;
   caddr_t fhbody;
-  fsal_filelayout_t* fileloc;
   taggedstate auspice;
   
   if ((!global_spec_info.replication_master) ||
@@ -262,7 +262,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 	  Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
 	}
       if (!(auspice.tag == STATE_SHARE &&
-	    !(auspice.u.share.share_deny & OPEN4_SHARE_DENY_WRITE)) &&
+	    (auspice.u.share.share_deny & OPEN4_SHARE_DENY_WRITE)) &&
 	  !(auspice.tag == STATE_DELEGATION &&
 	    (auspice.u.delegation.type == OPEN_DELEGATE_WRITE)))
 	{
@@ -270,12 +270,15 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 	}
     }
 
+  reploc_size = (sizeof(fsal_replayout_t) + sizeof(nfs_fh4) +
+		  sizeof(NFS4_FHSIZE));
   buffer = alloca(sizeof(fsal_replayout_t) + sizeof(nfs_fh4));
-  replayout = (fsal_replayout_t*) buffer;
+  reploc = (fsal_replayout_t*) buffer;
   fh = (nfs_fh4*) (buffer + sizeof(fsal_replayout_t));
-  fhbody = (caddr_t) (fh + 1);
-  volume = (uint64_t*) replayout->deviceid;
-  generation = volume + 1;
+  reploc->fhs = fh;
+  fhbody = ((caddr_t) fh) + sizeof(nfs_fh4);
+  volume = (uint64_t*) reploc->deviceid;
+  generation = (uint64_t*) (((caddr_t) volume) + sizeof(uint64_t));
 
   /* Since all of this is static and we haven't implemented volumes,
      we shall say that this is volume 1, generation 1 */
@@ -285,8 +288,8 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 
   /* In this prototype we have exactly one filehandle */
 
-  replayout->fhn = 1;
-  replayout->fhs->nfs_fh4_val = fhbody;
+  reploc->fhn = 1;
+  reploc->fhs->nfs_fh4_val = fhbody;
 
   FSALBACK_fh2rhandle(filehandle, fh, opaque);
 
@@ -296,11 +299,12 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 
   *return_on_close = true;
 
+  /* We return a single segment */
+  
+  *numlayouts = 1;
+
   reserved_size = (sizeof(fsal_layout_t) +
-		   sizeof(layout_content4) +
-		   sizeof(fsal_replayout_t) +
-		   sizeof(nfs_fh4) +
-		   NFS4_FHSIZE +
+		   reploc_size +
 		   64);
 
   if ((*layouts = (fsal_layout_t*) Mem_Alloc(reserved_size)) == NULL)
@@ -310,20 +314,18 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   (*layouts)->lo_length = length;
   (*layouts)->lo_iomode = iomode;
   (*layouts)->lo_content.loc_body.loc_body_val
-    = (char*) replayout;
+    = ((caddr_t) *layouts) + sizeof(fsal_layout_t);
 
-  reserved_size -= (sizeof(fsal_layout_t) +
-		    sizeof(layout_content4));
-
+  reserved_size -= (sizeof(fsal_layout_t));
 
   if (!(encode_lo_content(LBX_REPLICATION,
 			  &((*layouts)->lo_content),
-			  reserved_size, fileloc)))
+			  reserved_size, reploc)))
     {
       Mem_Free(*layouts);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
-			
+
 
   if (state_add_layout_segment(type, iomode, offset, length,
 			       *return_on_close, NULL, *stateid) != 0)
@@ -335,7 +337,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 
   state_layout_inc_state(stateid);
   
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_layoutget);
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
 
 /* Implements NFSv4.1 Files layout */
