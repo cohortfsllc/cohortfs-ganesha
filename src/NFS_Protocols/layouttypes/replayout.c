@@ -34,7 +34,6 @@ int encodereplayout(layouttype4 type,
   fsal_replayout_t* lsrc = (fsal_replayout_t*) source;
   XDR xdrs;
   unsigned int beginning;
-  unsigned int end;
   
   dest->loc_type = type;
   xdrmem_create(&xdrs, dest->loc_body.loc_body_val, size, XDR_ENCODE);
@@ -44,8 +43,7 @@ int encodereplayout(layouttype4 type,
   if (!(xdr_array(&xdrs, (char**) &lsrc->fhs, &lsrc->fhn, UINT32_MAX,
 		  sizeof(nfs_fh4), (xdrproc_t) xdr_nfs_fh4)))
     return FALSE;
-  end = xdr_getpos(&xdrs);
-  dest->loc_body.loc_body_len = (end-beginning);
+  dest->loc_body.loc_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);
   return TRUE;
 }
@@ -68,7 +66,7 @@ int encoderepdevice(layouttype4 type,
        (u_int*) &lsrc->num_multipath_ds_list, UINT32_MAX,
        sizeof(multipath_list4), (xdrproc_t) xdr_multipath_list4))
     return FALSE;
-  dest->da_addr_body.da_addr_body_len = xdr_getpos(&xdrs)-beginning;
+  dest->da_addr_body.da_addr_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);
   return TRUE;
 }

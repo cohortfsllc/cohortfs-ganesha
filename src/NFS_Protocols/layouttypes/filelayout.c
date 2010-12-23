@@ -34,28 +34,22 @@ int encodefileslayout(layouttype4 type,
   fsal_filelayout_t* lsrc=(fsal_filelayout_t*)source;
   XDR xdrs;
   unsigned int beginning;
-  unsigned int end;
   
   dest->loc_type=type;
   xdrmem_create(&xdrs, dest->loc_body.loc_body_val, size, XDR_ENCODE);
   beginning=xdr_getpos(&xdrs);
   if (!xdr_deviceid4(&xdrs, lsrc->deviceid))
     return FALSE;
-  end=xdr_getpos(&xdrs);
   if (!(xdr_u_long(&xdrs, (u_long*) &lsrc->util)))
     return FALSE;
-  end=xdr_getpos(&xdrs);
   if (!(xdr_u_long(&xdrs, (u_long*) &(lsrc->first_stripe_index))))
     return FALSE;
-  end=xdr_getpos(&xdrs);
   if (!(xdr_offset4(&xdrs, &lsrc->pattern_offset)))
     return FALSE;
-  end=xdr_getpos(&xdrs);
   if (!(xdr_array(&xdrs, (char**) &lsrc->fhs, &lsrc->fhn, UINT32_MAX,
 		  sizeof(fsal_dsfh_t), (xdrproc_t) xdr_nfs_fh4)))
     return FALSE;
-  end=xdr_getpos(&xdrs);
-  dest->loc_body.loc_body_len = (end-beginning);
+  dest->loc_body.loc_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);
   return TRUE;
 }
