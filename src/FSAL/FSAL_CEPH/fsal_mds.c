@@ -271,7 +271,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
     }
 
   reploc_size = (sizeof(fsal_replayout_t) + sizeof(nfs_fh4) +
-		  sizeof(NFS4_FHSIZE));
+		 NFS4_FHSIZE);
   buffer = alloca(reploc_size);
   reploc = (fsal_replayout_t*) buffer;
   fh = (nfs_fh4*) (buffer + sizeof(fsal_replayout_t));
