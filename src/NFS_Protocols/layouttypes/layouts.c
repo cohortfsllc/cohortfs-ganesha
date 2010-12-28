@@ -18,7 +18,7 @@
 
 #include "layouttypes/layouts.h"
 #include "layouttypes/fsal_layout.h"
-#define LAYOUT4_COHORT_REPLICATION 0x87654321
+#define LAYOUT4_COHORT_REPLICATION 0x87654001
 
 /**
  *

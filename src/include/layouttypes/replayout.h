@@ -23,7 +23,7 @@
 #include "fsal_types.h"
 #include "layouttypes/fsal_layout.h"
 
-#define LAYOUT4_COHORT_REPLICATION 0x87654321
+#define LAYOUT4_COHORT_REPLICATION 0x87654001
 
 typedef struct __replayout
 {
