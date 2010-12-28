@@ -318,7 +318,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 
   reserved_size -= (sizeof(fsal_layout_t));
 
-  if (!(encode_lo_content(LBX_REPLICATION,
+  if (!(encode_lo_content(LAYOUT4_COHORT_REPLICATION,
 			  &((*layouts)->lo_content),
 			  reserved_size, reploc)))
     {
@@ -631,7 +631,7 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 			    return_on_close, context, stateid,
 			    ostateid, opaque);
       break;
-    case LBX_REPLICATION:
+    case LAYOUT4_COHORT_REPLICATION:
       return layoutget_repl(filehandle, type, iomode, offset, length,
 			    minlength, layouts, numlayouts,
 			    return_on_close, context, stateid,
@@ -889,7 +889,7 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
     case LAYOUT4_NFSV4_1_FILES:
       return getdeviceinfo_file(type, deviceid, devaddr);
       break;
-    case LBX_REPLICATION:
+    case LAYOUT4_COHORT_REPLICATION:
       return getdeviceinfo_rep(type, deviceid, devaddr);
       break;
     default:
@@ -989,7 +989,7 @@ fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
       return getdevicelist_file(filehandle, type, numdevices, cookie,
 				eof, buff, bufflen);
       break;
-    case LBX_REPLICATION:
+    case LAYOUT4_COHORT_REPLICATION:
       return getdevicelist_rep(filehandle, type, numdevices, cookie,
 			       eof, buff, bufflen);
       break;

@@ -93,7 +93,7 @@ static fsal_staticfsinfo_t default_hpss_info = {
 };
 
 layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES,
-				      LBX_REPLICATION};
+				      LAYOUT4_COHORT_REPLICATION};
 fsal_size_t layout_blksize = 4096 * 1024;
 
 /*

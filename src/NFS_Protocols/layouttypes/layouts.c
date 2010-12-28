@@ -18,7 +18,7 @@
 
 #include "layouttypes/layouts.h"
 #include "layouttypes/fsal_layout.h"
-#define LBX_REPLICATION 0x87654321
+#define LAYOUT4_COHORT_REPLICATION 0x87654321
 
 /**
  *
@@ -52,7 +52,7 @@ layoutfunctions layoutfuncs[]={
   {LAYOUT4_NFSV4_1_FILES,
    encodefileslayout,
    encodefilesdevice},
-  {LBX_REPLICATION,
+  {LAYOUT4_COHORT_REPLICATION,
    encodereplayout,
    encoderepdevice},
   {0, NULL, NULL}};
