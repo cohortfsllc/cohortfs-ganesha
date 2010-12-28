@@ -147,24 +147,6 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
     }
 #endif /* _USE_FSALDS */
 
-  /* Layouts are only granted on files */
-  if(data->current_filetype != REGULAR_FILE)
-    {
-      /* Type of the entry is not correct */
-      switch (data->current_filetype)
-        {
-        case DIR_BEGINNING:
-        case DIR_CONTINUE:
-          res_LAYOUTGET4.logr_status = NFS4ERR_ISDIR;
-          break;
-        default:
-          res_LAYOUTGET4.logr_status = NFS4ERR_INVAL;
-          break;
-        }
-
-      return res_LAYOUTGET4.logr_status;
-    }
-
   /* Parameters's consistency */
   if(arg_LAYOUTGET4.loga_length < arg_LAYOUTGET4.loga_minlength)
     {
