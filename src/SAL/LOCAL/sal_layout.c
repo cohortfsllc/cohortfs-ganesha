@@ -34,28 +34,31 @@ int localstate_create_layout_state(fsal_handle_t* handle,
     if (!(header = lookupheader(handle)))
 	{
 	    LogMajor(COMPONENT_STATES,
-		     "state_create_lock_state: could not find/create header entry.");
+		     "state_create_layout_state: could not find/create header entry.");
 	    return ERR_STATE_FAIL;
 	}
 
-    rc = lookup_state(ostateid, &openstate);
+    if (!state_anonymous_check(ostateid))
+      {
+	rc = lookup_state(ostateid, &openstate);
+	
+	if (rc != ERR_STATE_NO_ERROR)
+	  return rc;
+	
+	if (openstate->type == STATE_LAYOUT)
+	  if (ostateid.seqid == 0)
+	    return ERR_STATE_BADSEQ;
+	  else
+	    {
+	      *stateid = ostateid;
+	      return ERR_STATE_NO_ERROR;
+	    }
 
-    if (rc != ERR_STATE_NO_ERROR)
-      return rc;
-
-    if (openstate->type == STATE_LAYOUT)
-      if (ostateid.seqid == 0)
-	return ERR_STATE_BADSEQ;
-      else
-	{
-	  *stateid = ostateid;
-	  return ERR_STATE_NO_ERROR;
-	}
-
-    if (!((openstate->type == STATE_SHARE) ||
-	  (openstate->type == STATE_DELEGATION) ||
-	  (openstate->type == STATE_LOCK)))
-      return ERR_STATE_INVAL;
+	if (!((openstate->type == STATE_SHARE) ||
+	      (openstate->type == STATE_DELEGATION) ||
+	      (openstate->type == STATE_LOCK)))
+	  return ERR_STATE_INVAL;
+      }
 
     while (iterate_entry(header, &state))
 	{

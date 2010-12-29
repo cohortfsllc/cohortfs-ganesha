@@ -239,6 +239,14 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 
   fsalh = &(data->current_entry->object.file.handle);
 
+  rc = state_lock_filehandle(fsalh, writelock);
+
+  if (rc != ERR_STATE_NO_ERROR)
+    {
+      res_LAYOUTGET4.logr_status = staterr2nfs4err(rc);
+      return res_LAYOUTGET4.logr_status;
+    }
+
   rc = state_create_layout_state(fsalh,
 				 arg_LAYOUTGET4.loga_stateid,
 				 data->psession->clientid,
@@ -247,6 +255,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
 
   if (rc != ERR_STATE_NO_ERROR)
     {
+      state_unlock_filehandle(fsalh);
       res_LAYOUTGET4.logr_status = staterr2nfs4err(rc);
       return res_LAYOUTGET4.logr_status;
     }
@@ -277,6 +286,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
       if (lstateid.seqid == 0)
 	state_delete_layout_state(lstateid);
 
+      state_unlock_filehandle(fsalh);
       res_LAYOUTGET4.logr_status = status.major;
       return res_LAYOUTGET4.logr_status;
     }
@@ -292,6 +302,7 @@ int nfs41_op_layoutget(struct nfs_argop4 *op, compound_data_t * data,
   res_LAYOUTGET4.LAYOUTGET4res_u.logr_resok4.logr_layout.logr_layout_val
     = layouts;
 
+  state_unlock_filehandle(fsalh);
   res_LAYOUTGET4.logr_status = NFS4_OK;
   return res_LAYOUTGET4.logr_status;
 #endif                          /* _USE_FSALMDS */
