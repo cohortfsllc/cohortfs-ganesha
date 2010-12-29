@@ -46,7 +46,7 @@ typedef struct __rep_layoutupdate
 {
   uint32_t num_integrities;
   fsal_signed_integrity_t*  integrities;
-} fsal_replayoutupdate;
+} fsal_replayoutupdate_t;
 
 int FSALBACK_fh2rhandle(fsal_handle_t *fhin, fsal_dsfh_t* fhout,
 			void* opaque);

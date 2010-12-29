@@ -832,14 +832,52 @@ fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
   uint64_t* volume;
   uint64_t* generation;
   char* xdrbuff;
+  size_t reserved_size;
+  fsal_reprsaddr_t* deviceaddrinfo;
+  netaddr4* hosts;
+  char* stringwritepos;
+  int i;
 
   volume = (uint64_t*) deviceid;
   generation = volume + 1;
 
   if (*volume != 1 || *generation != 1)
+    Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
+
+  reserved_size = sizeof(deviceaddrinfo) +
+    (sizeof(netaddr4) + ADDRLENGTH) * global_spec_info.replicas;
+
+  deviceaddrinfo = alloca(reserved_size);
+
+  deviceaddrinfo->multipath_rs.multipath_list4_len
+    = global_spec_info.replicas;
+  hosts = (netaddr4*) (((caddr_t)deviceaddrinfo) + sizeof(multipath_list4));
+  deviceaddrinfo->multipath_rs.multipath_list4_val = hosts;
+  stringwritepos = ((char*)hosts) + (global_spec_info.replicas *
+				     sizeof(netaddr4)); 
+
+  for(i = 0; i < global_spec_info.replicas; i++)
     {
+      hosts[i].na_r_netid = tcpmark;
+      hosts[i].na_r_addr = stringwritepos;
+      strcpy(stringwritepos, global_spec_info.replica_servers[i]);
+      strcat(stringwritepos, nfsport);
+      stringwritepos += (strlen(stringwritepos) + 1);
+    }
+  
+  if ((xdrbuff = Mem_Alloc(reserved_size + 64)) == NULL)
+    Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdeviceinfo);
+
+  devaddr->da_addr_body.da_addr_body_val = xdrbuff;
+  
+  if (!(encodefilesdevice(type, devaddr, reserved_size + 64,
+			  deviceaddrinfo)))
+    {
+      Mem_Free(xdrbuff);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
     }
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
 }
 
 fsal_status_t getdeviceinfo_file(fsal_layouttype_t type,
@@ -855,13 +893,13 @@ fsal_status_t getdeviceinfo_file(fsal_layouttype_t type,
   memcpy(&inode, deviceid, sizeof(uint64_t));
   memcpy(&generation, deviceid+sizeof(uint64_t), sizeof(uint64_t));
 
-  if ((entry=get_entry(inode, generation))==NULL)
+  if ((entry = get_entry(inode, generation))==NULL)
     Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
 
-  if ((xdrbuff=Mem_Alloc(entry->entry_size+64)) == NULL)
+  if ((xdrbuff = Mem_Alloc(entry->entry_size+64)) == NULL)
     Return(ERR_FSAL_NOMEM, 0, INDEX_FSAL_getdeviceinfo);
 
-  devaddr->da_addr_body.da_addr_body_val=xdrbuff;
+  devaddr->da_addr_body.da_addr_body_val = xdrbuff;
   
   if (!(encodefilesdevice(type, devaddr, entry->entry_size+64,
 			  entry->addrinfo)))
