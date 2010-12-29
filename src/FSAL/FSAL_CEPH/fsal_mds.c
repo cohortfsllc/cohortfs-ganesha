@@ -246,7 +246,12 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   uint64_t* volume;
   uint64_t* generation;
   caddr_t fhbody;
+  struct stat_precise st;
   taggedstate auspice;
+  int rc = 0;
+  int uid = FSAL_OP_CONTEXT_TO_UID(context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(context);
+  bool_t directory;
   
   if ((!global_spec_info.replication_master) ||
       (global_spec_info.replicas == 0))
@@ -254,7 +259,18 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_LAYOUT_UNAVAILABLE, 0, INDEX_FSAL_layoutget);
     }
 
-  if (ostateid)
+  rc = ceph_ll_getattr_precise(VINODE(filehandle), &st, uid, gid);
+  if (rc)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+
+  if (S_ISDIR(st.st_mode))
+    directory = true;
+  else if (S_ISREG(st.st_mode))
+    directory = false;
+  else
+    Return(ERR_FSAL_BADTYPE, 0, INDEX_FSAL_layoutget);
+
+  if (ostateid && !directory)
     {
       if (state_retrieve_state(*ostateid, &auspice) !=
 	  ERR_STATE_NO_ERROR)
