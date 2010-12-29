@@ -28,15 +28,13 @@
 typedef struct __replayout
 {
   deviceid4 deviceid;
-  uint32_t fhn;
-  nfs_fh4* fhs;
+  nfs_fh4 fh;
 } fsal_replayout_t;
 
 typedef struct __repdsaddr
 {
-  uint32_t num_multipath_ds_list;
-  multipath_list4* multipath_ds_list;
-} fsal_repdsaddr_t;
+  multipath_list4 multipath_rs;
+} fsal_reprsaddr_t;
 
 typedef struct __signed_integrity
 {

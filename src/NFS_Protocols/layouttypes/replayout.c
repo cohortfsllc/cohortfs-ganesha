@@ -40,8 +40,7 @@ int encodereplayout(layouttype4 type,
   beginning = xdr_getpos(&xdrs);
   if (!xdr_deviceid4(&xdrs, lsrc->deviceid))
     return FALSE;
-  if (!(xdr_array(&xdrs, (char**) &lsrc->fhs, &lsrc->fhn, UINT32_MAX,
-		  sizeof(nfs_fh4), (xdrproc_t) xdr_nfs_fh4)))
+  if (!xdr_nfs_fh4(&xdrs, &lsrc->fh))
     return FALSE;
   dest->loc_body.loc_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);
@@ -53,7 +52,7 @@ int encoderepdevice(layouttype4 type,
 		    size_t length,
 		    caddr_t source)
 {
-  fsal_repdsaddr_t* lsrc = (fsal_repdsaddr_t*) source;
+  fsal_reprsaddr_t* lsrc = (fsal_reprsaddr_t*) source;
   XDR xdrs;
 
   unsigned int beginning;
@@ -61,10 +60,7 @@ int encoderepdevice(layouttype4 type,
   dest->da_layout_type = type;
   xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, length, XDR_ENCODE);
   beginning = xdr_getpos(&xdrs);
-  if (!xdr_array
-      (&xdrs, (char**) &lsrc->multipath_ds_list,
-       (u_int*) &lsrc->num_multipath_ds_list, UINT32_MAX,
-       sizeof(multipath_list4), (xdrproc_t) xdr_multipath_list4))
+  if (!xdr_nfs_fh4(&xdrs, &lsrc->multipath_rs))
     return FALSE;
   dest->da_addr_body.da_addr_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);
