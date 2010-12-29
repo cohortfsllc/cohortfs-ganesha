@@ -60,7 +60,7 @@ int encoderepdevice(layouttype4 type,
   dest->da_layout_type = type;
   xdrmem_create(&xdrs, dest->da_addr_body.da_addr_body_val, length, XDR_ENCODE);
   beginning = xdr_getpos(&xdrs);
-  if (!xdr_nfs_fh4(&xdrs, &lsrc->multipath_rs))
+  if (!xdr_multipath_list4(&xdrs, &lsrc->multipath_rs))
     return FALSE;
   dest->da_addr_body.da_addr_body_len = xdr_getpos(&xdrs) - beginning;
   xdr_destroy(&xdrs);

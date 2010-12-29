@@ -844,14 +844,15 @@ fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
   if (*volume != 1 || *generation != 1)
     Return(ERR_FSAL_NOENT, 0, INDEX_FSAL_getdeviceinfo);
 
-  reserved_size = sizeof(deviceaddrinfo) +
+  reserved_size = sizeof(fsal_reprsaddr_t) +
     (sizeof(netaddr4) + ADDRLENGTH) * global_spec_info.replicas;
 
   deviceaddrinfo = alloca(reserved_size);
 
   deviceaddrinfo->multipath_rs.multipath_list4_len
     = global_spec_info.replicas;
-  hosts = (netaddr4*) (((caddr_t)deviceaddrinfo) + sizeof(multipath_list4));
+  hosts = (netaddr4*) (((caddr_t)deviceaddrinfo)
+		       + sizeof(fsal_reprsaddr_t));
   deviceaddrinfo->multipath_rs.multipath_list4_val = hosts;
   stringwritepos = ((char*)hosts) + (global_spec_info.replicas *
 				     sizeof(netaddr4)); 
@@ -870,8 +871,8 @@ fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
 
   devaddr->da_addr_body.da_addr_body_val = xdrbuff;
   
-  if (!(encodefilesdevice(type, devaddr, reserved_size + 64,
-			  deviceaddrinfo)))
+  if (!(encode_device(type, devaddr, reserved_size + 64,
+		      deviceaddrinfo)))
     {
       Mem_Free(xdrbuff);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
@@ -901,8 +902,8 @@ fsal_status_t getdeviceinfo_file(fsal_layouttype_t type,
 
   devaddr->da_addr_body.da_addr_body_val = xdrbuff;
   
-  if (!(encodefilesdevice(type, devaddr, entry->entry_size+64,
-			  entry->addrinfo)))
+  if (!(encode_device(type, devaddr, entry->entry_size+64,
+		      entry->addrinfo)))
     {
       Mem_Free(xdrbuff);
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_getdeviceinfo);
