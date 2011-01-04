@@ -252,6 +252,16 @@ if test "$enable_pnfs" == "yes"; then
 fi
 AM_CONDITIONAL(USE_PNFS, test "$enable_pnfs" = "yes")
 
+# Client-based replication support (requires NFSv4.1, conflicts with pNFS)
+GA_ENABLE_AM_CONDITION([cbrep],[enable client-based replication (NFSv4.1 support is mandatory)],[USE_CBREP])
+if test "$enable_cbrep" == "yes"; then
+  if [[ $NFS4_MINOR == "0" ]] ; then
+     AC_MSG_ERROR("You must activate NFSv4.1 support to enable client-based replication support" )
+  fi
+  AC_DEFINE(_USE_CBREP,1,[enable FSAL based pNFS MDS support])
+fi
+AM_CONDITIONAL(USE_FSALMDS, test "x$enable_fsalmds" = "xyes")
+
 # FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
 GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
 if test "$enable_fsalmds" == "yes"; then

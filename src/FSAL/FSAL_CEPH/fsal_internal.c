@@ -92,8 +92,13 @@ static fsal_staticfsinfo_t default_hpss_info = {
   0400                         /* default access rights for xattrs: root=RW, owner=R */
 };
 
+#ifdef _USE_CBREP
 layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES,
 				      LAYOUT4_COHORT_REPLICATION};
+#else
+layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES};
+#endif
+
 fsal_size_t layout_blksize = 4096 * 1024;
 
 /*

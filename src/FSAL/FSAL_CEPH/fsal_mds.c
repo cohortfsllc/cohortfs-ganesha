@@ -34,7 +34,9 @@
 #include "fsal_types.h"
 #include <alloca.h>
 #include "sal.h"
+#ifdef _USE_CBREP
 #include "layouttypes/replayout.h"
+#endif
 
 #define max(a,b)	  \
   ({ typeof (a) _a = (a); \
@@ -223,7 +225,9 @@ deviceaddrinfo* get_entry(uint64_t inode, uint64_t generation)
   return cur;
 }
 
-/* Implements Linux Box replication layout */
+#ifdef _USE_CBREP
+
+/* Implements CohortFS replication layout */
 
 fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
 			     fsal_layouttype_t type,
@@ -349,6 +353,8 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }
+
+#endif
 
 /* Implements NFSv4.1 Files layout */
 
@@ -641,12 +647,14 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
 			    return_on_close, context, stateid,
 			    ostateid, opaque);
       break;
+#ifdef _USE_CBREP
     case LAYOUT4_COHORT_REPLICATION:
       return layoutget_repl(filehandle, type, iomode, offset, length,
 			    minlength, layouts, numlayouts,
 			    return_on_close, context, stateid,
 			    ostateid, opaque);
       break;
+#endif
     default:
       Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
       break;
@@ -825,9 +833,11 @@ fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
 }
 
-fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
-				fsal_deviceid_t deviceid,
-				device_addr4* devaddr)
+#ifdef _USE_CBREP
+
+fsal_status_t getdeviceinfo_repl(fsal_layouttype_t type,
+				 fsal_deviceid_t deviceid,
+				 device_addr4* devaddr)
 {
   uint64_t* volume;
   uint64_t* generation;
@@ -880,6 +890,8 @@ fsal_status_t getdeviceinfo_rep(fsal_layouttype_t type,
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdeviceinfo);
 }
+
+#endif
 
 fsal_status_t getdeviceinfo_file(fsal_layouttype_t type,
 				 fsal_deviceid_t deviceid,
@@ -938,9 +950,11 @@ fsal_status_t CEPHFSAL_getdeviceinfo(fsal_layouttype_t type,
     case LAYOUT4_NFSV4_1_FILES:
       return getdeviceinfo_file(type, deviceid, devaddr);
       break;
+#ifdef _USE_CBREP
     case LAYOUT4_COHORT_REPLICATION:
-      return getdeviceinfo_rep(type, deviceid, devaddr);
+      return getdeviceinfo_repl(type, deviceid, devaddr);
       break;
+#endif
     default:
       Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
       break;
@@ -960,6 +974,8 @@ fsal_status_t getdevicelist_file(fsal_handle_t* filehandle,
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
 }
+
+#ifdef _USE_CBREP
 
 fsal_status_t getdevicelist_rep(fsal_handle_t* filehandle,
 				fsal_layouttype_t type,
@@ -997,6 +1013,8 @@ fsal_status_t getdevicelist_rep(fsal_handle_t* filehandle,
 
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getdevicelist);
 }
+
+#endif
 
 /**
  *
@@ -1038,10 +1056,12 @@ fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
       return getdevicelist_file(filehandle, type, numdevices, cookie,
 				eof, buff, bufflen);
       break;
+#ifdef _USE_CBREP
     case LAYOUT4_COHORT_REPLICATION:
       return getdevicelist_rep(filehandle, type, numdevices, cookie,
 			       eof, buff, bufflen);
       break;
+#endif
     default:
       Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
       break;
