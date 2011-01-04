@@ -444,6 +444,13 @@ typedef fsal_u64_t fsal_attrib_mask_t;
 /* Change attribute */
 #define FSAL_ATTR_CHANGE    ((fsal_attrib_mask_t) 0x0000000000100000LL )
 
+#ifdef _USE_CBREP
+
+/* File Handle */
+#define FSAL_ATTR_HANDLE    ((fsal_attrib_mask_t) 0x0000000000200000LL )
+
+#endif
+
 
 /* "classic" attributes sets : */
 
@@ -494,6 +501,9 @@ typedef struct fsal_attrib_list__
   fsal_size_t spaceused;
   fsal_u64_t change;
   fsal_u64_t mounted_on_fileid;
+#ifdef _USE_CBREP
+  fsal_handle_t handle;
+#endif
 
 } fsal_attrib_list_t;
 

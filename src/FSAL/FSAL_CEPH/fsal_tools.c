@@ -232,7 +232,7 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
 {
 
   /* sanity checks */
-  if(!out_fsal_handle || !in_buff || !p_expcontext)
+  if(!out_fsal_handle || !in_buff)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
   memset(out_fsal_handle, sizeof(cephfsal_handle_t), 0);
@@ -255,7 +255,6 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
     }
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
-
 }
 
 /**

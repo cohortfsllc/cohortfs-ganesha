@@ -1018,7 +1018,7 @@ static const fattr4_dent_t __attribute__ ((__unused__)) fattr4tab[] =
   "FATTR4_CHOWN_RESTRICTED", 18, 1, sizeof(fattr4_chown_restricted), FATTR4_ATTR_READ}
   ,
   {
-  "FATTR4_FILEHANDLE", 19, 1, sizeof(fattr4_filehandle), FATTR4_ATTR_READ}
+  "FATTR4_FILEHANDLE", 19, 1, sizeof(fattr4_filehandle), FATTR4_ATTR_READ_WRITE}
   ,
   {
   "FATTR4_FILEID", 20, 1, sizeof(fattr4_fileid), FATTR4_ATTR_READ}

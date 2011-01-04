@@ -2955,6 +2955,7 @@ int nfs4_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr)
   fattr4_time_access attr_time_access;
   fattr4_time_modify attr_time_modify;
   fattr4_time_metadata attr_time_metadata;
+  nfs_fh4 exthandle;
 
   if(pFSAL_attr == NULL || Fattr == NULL)
     return -1;
@@ -3297,6 +3298,17 @@ int nfs4_Fattr_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr)
                  sizeof(u_int));
           len = ntohl(len);
           LastOffset += sizeof(u_int);
+#ifdef _USE_CBREP
+	  exthandle.nfs_fh4_len = len;
+	  exthandle.nfs_fh4_val = Fattr->attr_vals.attrlist4_val + LastOffset;
+	  /* We should provide an fsal_op_context* but it is never
+	     passed into this function.  CEPHFSAL_ExpandHandle never
+	     actually uses this value. */
+	  if(!nfs4_FhandleToFSAL(&exthandle, &pFSAL_attr->handle, NULL))
+	    pFSAL_attr->asked_attributes |= FSAL_ATTR_RDATTR_ERR;
+	  else
+	    pFSAL_attr->asked_attributes |= FSAL_ATTR_HANDLE;
+#endif
           LastOffset += len;
           LogFullDebug(COMPONENT_NFS_V4, "     SATTR: On a demande le filehandle len =%u", len);
           break;
