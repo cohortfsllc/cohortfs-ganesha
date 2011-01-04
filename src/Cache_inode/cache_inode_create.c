@@ -119,7 +119,7 @@ cache_inode_create(cache_entry_t * pentry_parent,
      * Check if the required type is correct, with this
      * function, we manage file, dir and symlink
      */
-    if(type != REGULAR_FILE && type != DIR_BEGINNING && type != SYMBOLIC_LINK &&
+    if(type != DIR_BEGINNING && type != SYMBOLIC_LINK &&
        type != SOCKET_FILE && type != FIFO_FILE && type != CHARACTER_FILE &&
        type != BLOCK_FILE)
         {
@@ -195,26 +195,6 @@ cache_inode_create(cache_entry_t * pentry_parent,
     object_attributes.asked_attributes = pclient->attrmask;
     switch (type)
         {
-        case REGULAR_FILE:
-#ifdef _USE_MFSL
-            cache_inode_get_attributes(pentry_parent, &parent_attributes);
-            fsal_status = MFSL_create(&pentry_parent->mobject,
-                                      pname, pcontext,
-                                      &pclient->mfsl_context,
-                                      mode, &object_handle,
-                                      &object_attributes, &parent_attributes,
-#ifdef _USE_PNFS
-	                              &pnfs_file ) ;			      
-#else
-                                      NULL);
-#endif /* _USE_PNFS */
-#else
-            fsal_status = FSAL_create(&dir_handle,
-                                      pname, pcontext, mode,
-                                      &object_handle, &object_attributes);
-#endif
-            break;
-
         case DIR_BEGINNING:
 #ifdef _USE_MFSL
             cache_inode_get_attributes(pentry_parent, &parent_attributes);
