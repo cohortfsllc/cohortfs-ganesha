@@ -1158,7 +1158,7 @@ static const fattr4_dent_t __attribute__ ((__unused__)) fattr4tab[] =
   "FATTR4_FS_LAYOUT_TYPES", 62, 1, sizeof(fattr4_fs_layout_types), FATTR4_ATTR_READ}
   ,
   {
-  "FATTR4_LAYOUT_HINT", 63, 0, sizeof(fattr4_layout_hint), FATTR4_ATTR_WRITE}
+  "FATTR4_LAYOUT_HINT", 63, 1, sizeof(fattr4_layout_hint), FATTR4_ATTR_WRITE}
   ,
   {
   "FATTR4_LAYOUT_TYPES", 64, 0, sizeof(fattr4_layout_types), FATTR4_ATTR_READ}
