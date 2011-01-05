@@ -482,6 +482,9 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* No do not need newfh any more */
   Mem_Free((char *)newfh4.nfs_fh4_val);
 
+  res_CREATE4.CREATE4res_u.resok4.attrset.bitmap4_len =
+    arg_CREATE4.createattrs.attrmask.bitmap4_len;
+
   /* Allocate a new bitmap */
   res_CREATE4.CREATE4res_u.resok4.attrset.bitmap4_val =
     (unsigned int *)Mem_Alloc(res_CREATE4.CREATE4res_u.resok4.attrset.bitmap4_len *

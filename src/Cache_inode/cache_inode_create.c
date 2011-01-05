@@ -245,11 +245,11 @@ cache_inode_create(cache_entry_t * pentry_parent,
 				       pcontext, sattr->mode, &object_handle,
 				       &object_attributes);
 #else
-#endif
 	  fsal_status = FSAL_symlink(&dir_handle,
 				     pname, &pcreate_arg->link_content,
 				     pcontext, sattr->mode, &object_handle,
 				     &object_attributes);
+#endif
 #endif
             break;
 
