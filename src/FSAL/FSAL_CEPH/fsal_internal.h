@@ -135,6 +135,15 @@ fsal_status_t CEPHFSAL_create(cephfsal_handle_t * p_parent_directory_handle,    
                              fsal_accessmode_t accessmode,      /* IN */
                              cephfsal_handle_t * p_object_handle,        /* OUT */
                              fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+#ifdef _USE_CBREP
+fsal_status_t CEPHFSAL_create_withfh(cephfsal_handle_t * p_parent_directory_handle,      /* IN */
+				     cephfsal_handle_t * supplied_file_handle,
+				     fsal_name_t * p_filename,  /* IN */
+				     cephfsal_op_context_t * p_context,  /* IN */
+				     fsal_accessmode_t accessmode,      /* IN */
+				     cephfsal_handle_t * p_object_handle,        /* OUT */
+				     fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+#endif
 
 fsal_status_t CEPHFSAL_mkdir(cephfsal_handle_t * p_parent_directory_handle,       /* IN */
                             fsal_name_t * p_dirname,    /* IN */
@@ -142,6 +151,16 @@ fsal_status_t CEPHFSAL_mkdir(cephfsal_handle_t * p_parent_directory_handle,     
                             fsal_accessmode_t accessmode,       /* IN */
                             cephfsal_handle_t * p_object_handle, /* OUT */
                             fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+
+#ifdef _USE_CBREP
+fsal_status_t CEPHFSAL_mkdir_withfh(cephfsal_handle_t * p_parent_directory_handle,       /* IN */
+				    cephfsal_handle_t * supplied_file_handle,
+				    fsal_name_t * p_dirname,    /* IN */
+				    cephfsal_op_context_t * p_context,   /* IN */
+				    fsal_accessmode_t accessmode,       /* IN */
+				    cephfsal_handle_t * p_object_handle, /* OUT */
+				    fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+#endif
 
 fsal_status_t CEPHFSAL_link(cephfsal_handle_t * p_target_handle,  /* IN */
                            cephfsal_handle_t * p_dir_handle,     /* IN */
@@ -326,6 +345,17 @@ fsal_status_t CEPHFSAL_symlink(cephfsal_handle_t * p_parent_directory_handle,   
                               fsal_accessmode_t accessmode,     /* IN (ignored) */
                               cephfsal_handle_t * p_link_handle, /* OUT */
                               fsal_attrib_list_t * p_link_attributes /* [ IN/OUT ] */ );
+
+#ifdef _USE_CBREP
+fsal_status_t CEPHFSAL_symlink_withfh(cephfsal_handle_t * p_parent_directory_handle,     /* IN */
+				      cephfsal_handle_t * supplied_file_handle,
+				      fsal_name_t * p_linkname, /* IN */
+				      fsal_path_t * p_linkcontent,      /* IN */
+				      cephfsal_op_context_t * p_context, /* IN */
+				      fsal_accessmode_t accessmode,     /* IN (ignored) */
+				      cephfsal_handle_t * p_link_handle, /* OUT */
+				      fsal_attrib_list_t * p_link_attributes /* [ IN/OUT ] */ );
+#endif
 
 int CEPHFSAL_handlecmp(cephfsal_handle_t * handle1, cephfsal_handle_t * handle2,
                       fsal_status_t * status);

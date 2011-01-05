@@ -64,7 +64,7 @@
  * @param pentry_parent [IN] pointer to the pentry parent
  * @param pname         [IN] pointer to the name of the object in the destination directory.
  * @param type          [IN] type of the object to be created.
- * @param mode          [IN] mode to be used at file creation
+ * @param sattr         [IN] supplied attributes
  * @param pcreate_arg   [IN] additional argument for object creation
  * @param pattr         [OUT] attributes for the new object.
  * @param ht            [INOUT] hash table used for the cache.
@@ -82,7 +82,7 @@ cache_entry_t *
 cache_inode_create(cache_entry_t * pentry_parent,
                    fsal_name_t * pname,
                    cache_inode_file_type_t type,
-                   fsal_accessmode_t mode,
+                   fsal_attrib_list_t * sattr,
                    cache_inode_create_arg_t * pcreate_arg,
                    fsal_attrib_list_t * pattr,
                    hash_table_t * ht,
@@ -204,24 +204,52 @@ cache_inode_create(cache_entry_t * pentry_parent,
                                      mode, &object_handle,
                                      &object_attributes, &parent_attributes, NULL);
 #else
+#ifdef _USE_CBREP
+	    if (sattr->asked_attributes & FSAL_ATTR_HANDLE)
+	      fsal_status = FSAL_mkdir_withfh(&dir_handle,
+					      &sattr->handle,
+					      pname, pcontext,
+					      sattr->mode,
+					      &object_handle,
+					      &object_attributes);
+	    else
+	      fsal_status = FSAL_mkdir(&dir_handle,
+				       pname, pcontext, sattr->mode,
+				       &object_handle, &object_attributes);
+#else
             fsal_status = FSAL_mkdir(&dir_handle,
-                                     pname, pcontext, mode,
+                                     pname, pcontext, sattr->mode,
                                      &object_handle, &object_attributes);
+#endif	    
 #endif
             break;
 
         case SYMBOLIC_LINK:
 #ifdef _USE_MFSL
-            cache_inode_get_attributes(pentry_parent, &object_attributes);
-            fsal_status = MFSL_symlink(&pentry_parent->mobject,
-                                       pname, &pcreate_arg->link_content,
-                                       pcontext, &pclient->mfsl_context,
-                                       mode, &object_handle, &object_attributes, NULL);
+	  cache_inode_get_attributes(pentry_parent, &object_attributes);
+	  fsal_status = MFSL_symlink(&pentry_parent->mobject,
+				     pname, &pcreate_arg->link_content,
+				     pcontext, &pclient->mfsl_context,
+				     mode, &object_handle, &object_attributes, NULL);
 #else
-            fsal_status = FSAL_symlink(&dir_handle,
-                                       pname, &pcreate_arg->link_content,
-                                       pcontext, mode, &object_handle,
-                                       &object_attributes);
+#ifdef _USE_CBREP
+	  if (sattr->asked_attributes & FSAL_ATTR_HANDLE)
+	    fsal_status = FSAL_symlink_withfh(&dir_handle,
+					      &sattr->handle,
+					      pname, &pcreate_arg->link_content,
+					      pcontext, sattr->mode, &object_handle,
+					      &object_attributes);
+	  else
+	    fsal_status = FSAL_symlink(&dir_handle,
+				       pname, &pcreate_arg->link_content,
+				       pcontext, sattr->mode, &object_handle,
+				       &object_attributes);
+#else
+#endif
+	  fsal_status = FSAL_symlink(&dir_handle,
+				     pname, &pcreate_arg->link_content,
+				     pcontext, sattr->mode, &object_handle,
+				     &object_attributes);
 #endif
             break;
 
@@ -233,7 +261,7 @@ cache_inode_create(cache_entry_t * pentry_parent,
                                       &object_handle, &object_attributes, NULL);
 #else
             fsal_status = FSAL_mknode(&dir_handle, pname, pcontext,
-                                      mode, FSAL_TYPE_SOCK, NULL, /* no dev_t needed for socket file */
+                                      sattr->mode, FSAL_TYPE_SOCK, NULL, /* no dev_t needed for socket file */
                                       &object_handle, &object_attributes);
 #endif
             break;
@@ -246,7 +274,7 @@ cache_inode_create(cache_entry_t * pentry_parent,
                                       &object_handle, &object_attributes, NULL);
 #else
             fsal_status = FSAL_mknode(&dir_handle, pname, pcontext,
-                                      mode, FSAL_TYPE_FIFO, NULL, /* no dev_t needed for FIFO file */
+                                      sattr->mode, FSAL_TYPE_FIFO, NULL, /* no dev_t needed for FIFO file */
                                       &object_handle, &object_attributes);
 #endif
             break;
@@ -262,7 +290,7 @@ cache_inode_create(cache_entry_t * pentry_parent,
 #else
             fsal_status = FSAL_mknode(&dir_handle,
                                       pname, pcontext,
-                                      mode, FSAL_TYPE_BLK,
+                                      sattr->mode, FSAL_TYPE_BLK,
                                       &pcreate_arg->dev_spec,
                                       &object_handle, &object_attributes);
 #endif
@@ -273,13 +301,13 @@ cache_inode_create(cache_entry_t * pentry_parent,
             fsal_status = MFSL_mknode(&pentry_parent->mobject,
                                       pname, pcontext,
                                       &pclient->mfsl_context,
-                                      mode, FSAL_TYPE_CHR,
+                                      sattr->mode, FSAL_TYPE_CHR,
                                       &pcreate_arg->dev_spec,
                                       &object_handle, &object_attributes, NULL);
 #else
             fsal_status = FSAL_mknode(&dir_handle,
                                       pname, pcontext,
-                                      mode, FSAL_TYPE_CHR,
+                                      sattr->mode, FSAL_TYPE_CHR,
                                       &pcreate_arg->dev_spec,
                                       &object_handle, &object_attributes);
 #endif

@@ -109,6 +109,22 @@ fsal_status_t WRAP_CEPHFSAL_create(fsal_handle_t * p_parent_directory_handle,   
                         (cephfsal_handle_t *) p_object_handle, p_object_attributes);
 }
 
+#ifdef _USE_CBREP
+fsal_status_t WRAP_CEPHFSAL_create_withfh(fsal_handle_t * p_parent_directory_handle,    /* IN */
+					  fsal_handle_t * supplied_file_handle, /* IN */
+					  fsal_name_t * p_filename,     /* IN */
+					  fsal_op_context_t * p_context,        /* IN */
+					  fsal_accessmode_t accessmode, /* IN */
+					  fsal_handle_t * p_object_handle,      /* OUT */
+					  fsal_attrib_list_t *
+					  p_object_attributes /* [ IN/OUT ] */ )
+{
+  return CEPHFSAL_create_withfh((cephfsal_handle_t *) p_parent_directory_handle,
+				(cephfsal_handle_t *) supplied_file_handle, p_filename,
+				(cephfsal_op_context_t *) p_context, accessmode,
+				(cephfsal_handle_t *) p_object_handle, p_object_attributes);
+}
+#endif
 fsal_status_t WRAP_CEPHFSAL_mkdir(fsal_handle_t * p_parent_directory_handle,     /* IN */
                                  fsal_name_t * p_dirname,       /* IN */
                                  fsal_op_context_t * p_context, /* IN */
@@ -121,6 +137,24 @@ fsal_status_t WRAP_CEPHFSAL_mkdir(fsal_handle_t * p_parent_directory_handle,    
                        (cephfsal_op_context_t *) p_context, accessmode,
                        (cephfsal_handle_t *) p_object_handle, p_object_attributes);
 }
+
+#ifdef _USE_CBREP
+fsal_status_t WRAP_CEPHFSAL_mkdir_withfh(fsal_handle_t * p_parent_directory_handle,     /* IN */
+					 fsal_handle_t * supplied_file_handle,
+					 fsal_name_t * p_dirname,       /* IN */
+					 fsal_op_context_t * p_context, /* IN */
+					 fsal_accessmode_t accessmode,  /* IN */
+					 fsal_handle_t * p_object_handle,       /* OUT */
+					 fsal_attrib_list_t *
+					 p_object_attributes /* [ IN/OUT ] */ )
+{
+  return CEPHFSAL_mkdir_withfh((cephfsal_handle_t *) p_parent_directory_handle,
+			       (cephfsal_handle_t *) supplied_file_handle,
+			       p_dirname,
+			       (cephfsal_op_context_t *) p_context, accessmode,
+			       (cephfsal_handle_t *) p_object_handle, p_object_attributes);
+}
+#endif
 
 fsal_status_t WRAP_CEPHFSAL_link(fsal_handle_t * p_target_handle,        /* IN */
                                 fsal_handle_t * p_dir_handle,   /* IN */
@@ -469,6 +503,25 @@ fsal_status_t WRAP_CEPHFSAL_symlink(fsal_handle_t * p_parent_directory_handle,  
                          (cephfsal_handle_t *) p_link_handle, p_link_attributes);
 }
 
+#ifdef _USE_CBREP
+fsal_status_t WRAP_CEPHFSAL_symlink_withfh(fsal_handle_t * p_parent_directory_handle,   /* IN */
+					   fsal_handle_t * supplied_file_handle,
+					   fsal_name_t * p_linkname,    /* IN */
+					   fsal_path_t * p_linkcontent, /* IN */
+					   fsal_op_context_t * p_context,       /* IN */
+					   fsal_accessmode_t accessmode,        /* IN (ignored) */
+					   fsal_handle_t * p_link_handle,       /* OUT */
+					   fsal_attrib_list_t *
+					   p_link_attributes /* [ IN/OUT ] */ )
+{
+  return CEPHFSAL_symlink_withfh((cephfsal_handle_t *) p_parent_directory_handle,
+				 (cephfsal_handle_t *) supplied_file_handle,
+				 p_linkname,
+				 p_linkcontent, (cephfsal_op_context_t *) p_context, accessmode,
+				 (cephfsal_handle_t *) p_link_handle, p_link_attributes);
+}
+#endif
+
 int WRAP_CEPHFSAL_handlecmp(fsal_handle_t * handle1, fsal_handle_t * handle2,
                            fsal_status_t * status)
 {
@@ -794,7 +847,13 @@ fsal_functions_t fsal_ceph_functions = {
   .fsal_initclientcontext = WRAP_CEPHFSAL_InitClientContext,
   .fsal_getclientcontext = WRAP_CEPHFSAL_GetClientContext,
   .fsal_create = WRAP_CEPHFSAL_create,
+#ifdef _USE_CBREP
+  .fsal_create_withfh = WRAP_CEPHFSAL_create_withfh,
+#endif
   .fsal_mkdir = WRAP_CEPHFSAL_mkdir,
+#ifdef _USE_CBREP
+  .fsal_mkdir_withfh = WRAP_CEPHFSAL_mkdir_withfh,
+#endif
   .fsal_link = WRAP_CEPHFSAL_link,
   .fsal_mknode = WRAP_CEPHFSAL_mknode,
   .fsal_opendir = WRAP_CEPHFSAL_opendir,
@@ -834,6 +893,9 @@ fsal_functions_t fsal_ceph_functions = {
   .fsal_get_stats = WRAP_CEPHFSAL_get_stats,
   .fsal_readlink = WRAP_CEPHFSAL_readlink,
   .fsal_symlink = WRAP_CEPHFSAL_symlink,
+#ifdef _USE_CBREP
+  .fsal_symlink_withfh = WRAP_CEPHFSAL_symlink_withfh,
+#endif
   .fsal_handlecmp = WRAP_CEPHFSAL_handlecmp,
   .fsal_handle_to_hashindex = WRAP_CEPHFSAL_Handle_to_HashIndex,
   .fsal_handle_to_rbtindex = WRAP_CEPHFSAL_Handle_to_RBTIndex,

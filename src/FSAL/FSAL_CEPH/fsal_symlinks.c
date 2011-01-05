@@ -203,3 +203,98 @@ fsal_status_t CEPHFSAL_symlink(cephfsal_handle_t * parent_directory_handle,     
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_symlink);
 }
 
+#ifdef _USE_CBREP
+
+/**
+ * FSAL_symlink_withfh:
+ * Create a symbolic link.
+ *
+ * \param parent_directory_handle (input):
+ *        Handle of the parent directory where the link is to be created.
+ * \param supplied_file_handle (input):
+ * \param p_linkname (input):
+ *        Name of the link to be created.
+ * \param p_linkcontent (input):
+ *        Content of the link to be created.
+ * \param cred (input):
+ *        Authentication context for the operation (user,...).
+ * \param accessmode (ignored input):
+ *        Mode of the link to be created.
+ *        It has no sense in HPSS nor UNIX filesystems.
+ * \param link_handle (output):
+ *        Pointer to the handle of the created symlink.
+ * \param link_attributes (optionnal input/output): 
+ *        Attributes of the newly created symlink.
+ *        As input, it defines the attributes that the caller
+ *        wants to retrieve (by positioning flags into this structure)
+ *        and the output is built considering this input
+ *        (it fills the structure according to the flags it contains).
+ *        May be NULL.
+ *
+ * \return Major error codes :
+ *        - ERR_FSAL_NO_ERROR     (no error)
+ *        - ERR_FSAL_STALE        (parent_directory_handle does not address an existing object)
+ *        - ERR_FSAL_NOTDIR       (parent_directory_handle does not address a directory)
+ *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
+ *        - Other error codes can be returned :
+ *          ERR_FSAL_ACCESS, ERR_FSAL_IO, ...
+ */
+
+fsal_status_t CEPHFSAL_symlink_withfh(cephfsal_handle_t * parent_directory_handle,     /* IN */
+				      cephfsal_handle_t * supplied_file_handle,        /* IN */
+				      fsal_name_t * p_linkname,    /* IN */
+				      fsal_path_t * p_linkcontent, /* IN */
+				      cephfsal_op_context_t * p_context,       /* IN */
+				      fsal_accessmode_t accessmode,        /* IN (ignored) */
+				      fsal_handle_t * link_handle, /* OUT */
+				      fsal_attrib_list_t * link_attributes /* [ IN/OUT ] */
+    )
+{
+
+  int rc;
+  int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
+  char path[FSAL_MAX_PATH_LEN];
+  char name[FSAL_MAX_NAME_LEN];
+  struct stat_precise st;
+  
+  /* sanity checks.
+   * note : link_attributes is optional.
+   */
+  if(!parent_directory_handle ||
+     !p_context || !link_handle || !p_linkname || !p_linkcontent)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_symlink);
+
+  FSAL_path2str(p_linkcontent, path, FSAL_MAX_PATH_LEN);
+  FSAL_name2str(p_linkname, name, FSAL_MAX_NAME_LEN);
+
+  /* Tests if symlinking is allowed by configuration. */
+
+  if(!global_fs_info.symlink_support)
+    Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_symlink);
+
+  rc = ceph_ll_symlink_precise_speci(VINODE(parent_directory_handle), name,
+				     path, &st, uid, gid,
+				     VINODE(supplied_file_handle).ino);
+  if (rc)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_open);
+
+  stat2fsal_fh(&st, link_handle);
+
+  if(link_attributes)
+    {
+      /* convert attributes */
+      fsal_status_t status = posix2fsal_attributes(&st, link_attributes);
+      if(FSAL_IS_ERROR(status))
+	{
+	  FSAL_CLEAR_MASK(link_attributes->asked_attributes);
+	  FSAL_SET_MASK(link_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_symlink);
+	}
+    }
+  
+  /* OK */
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_symlink);
+}
+
+#endif

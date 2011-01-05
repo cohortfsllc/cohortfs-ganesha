@@ -627,16 +627,17 @@ cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
                                        cache_inode_status_t * pstatus,
 				       stateid4* stateid);
 
-cache_entry_t *cache_inode_create(cache_entry_t * pentry_parent,
-                                  fsal_name_t * pname,
-                                  cache_inode_file_type_t type,
-                                  fsal_accessmode_t mode,
-                                  cache_inode_create_arg_t * pcreate_arg,
-                                  fsal_attrib_list_t * pattr,
-                                  hash_table_t * ht,
-                                  cache_inode_client_t * pclient,
-                                  fsal_op_context_t * pcontext,
-                                  cache_inode_status_t * pstatus);
+cache_entry_t *
+cache_inode_create(cache_entry_t * pentry_parent,
+                   fsal_name_t * pname,
+                   cache_inode_file_type_t type,
+                   fsal_attrib_list_t * sattr,
+                   cache_inode_create_arg_t * pcreate_arg,
+                   fsal_attrib_list_t * pattr,
+                   hash_table_t * ht,
+                   cache_inode_client_t * pclient,
+                   fsal_op_context_t * pcontext,
+                   cache_inode_status_t * pstatus);
 
 cache_inode_status_t cache_inode_getattr(cache_entry_t * pentry,
                                          fsal_attrib_list_t * pattr,

@@ -445,6 +445,16 @@ fsal_status_t FSAL_create(fsal_handle_t * parent_directory_handle,      /* IN */
                           fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
     );
 
+#ifdef _USE_CBREP
+fsal_status_t FSAL_create_withfh(fsal_handle_t * parent_directory_handle,      /* IN */
+				 fsal_handle_t * supplied_file_handle, /* IN */
+				 fsal_name_t * p_filename,     /* IN */
+				 fsal_op_context_t * p_context,        /* IN */
+				 fsal_accessmode_t accessmode, /* IN */
+				 fsal_handle_t * object_handle,        /* OUT */
+				 fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
+    );
+#endif
 fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
                          fsal_name_t * p_dirname,       /* IN */
                          fsal_op_context_t * p_context, /* IN */
@@ -453,6 +463,16 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* IN */
                          fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
     );
 
+#ifdef _USE_CBREP
+fsal_status_t FSAL_mkdir_withfh(fsal_handle_t * parent_directory_handle,       /* IN */
+				fsal_handle_t * supplied_file_handle, /* IN */
+				fsal_name_t * p_dirname,       /* IN */
+				fsal_op_context_t * p_context, /* IN */
+				fsal_accessmode_t accessmode,  /* IN */
+				fsal_handle_t * object_handle, /* OUT */
+				fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
+    );
+#endif
 fsal_status_t FSAL_truncate(fsal_handle_t * filehandle, /* IN */
                             fsal_op_context_t * p_context,      /* IN */
                             fsal_size_t length, /* IN */
@@ -558,6 +578,17 @@ fsal_status_t FSAL_symlink(fsal_handle_t * parent_directory_handle,     /* IN */
                            fsal_handle_t * link_handle, /* OUT */
                            fsal_attrib_list_t * link_attributes /* [ IN/OUT ] */
     );
+#ifdef _USE_CBREP
+fsal_status_t FSAL_symlink_withfh(fsal_handle_t * parent_directory_handle,     /* IN */
+				  fsal_handle_t * supplied_file_handle, /* IN */
+				  fsal_name_t * p_linkname,    /* IN */
+				  fsal_path_t * p_linkcontent, /* IN */
+				  fsal_op_context_t * p_context,       /* IN */
+				  fsal_accessmode_t accessmode,        /* IN (ignored); */
+				  fsal_handle_t * link_handle, /* OUT */
+				  fsal_attrib_list_t * link_attributes /* [ IN/OUT ] */
+    );
+#endif
 
 fsal_status_t FSAL_rename(fsal_handle_t * old_parentdir_handle, /* IN */
                           fsal_name_t * p_old_name,     /* IN */
@@ -1015,6 +1046,18 @@ typedef struct fsal_functions__
                                fsal_attrib_list_t *
                                p_object_attributes /* [ IN/OUT ] */ );
 
+#ifdef _USE_CBREP
+
+  fsal_status_t(*fsal_create_withfh) (fsal_handle_t * p_parent_directory_handle,       /* IN */
+				      fsal_handle_t * supplied_file_handle,
+				      fsal_name_t * p_filename,        /* IN */
+				      fsal_op_context_t * p_context,   /* IN */
+				      fsal_accessmode_t accessmode,    /* IN */
+				      fsal_handle_t * p_object_handle, /* OUT */
+				      fsal_attrib_list_t *
+				      p_object_attributes /* [ IN/OUT ] */ );
+
+#endif
   /* FSAL_mkdir */
   fsal_status_t(*fsal_mkdir) (fsal_handle_t * p_parent_directory_handle,        /* IN */
                               fsal_name_t * p_dirname,  /* IN */
@@ -1022,7 +1065,16 @@ typedef struct fsal_functions__
                               fsal_accessmode_t accessmode,     /* IN */
                               fsal_handle_t * p_object_handle,  /* OUT */
                               fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
+#ifdef _USE_CBREP
+  fsal_status_t(*fsal_mkdir_withfh) (fsal_handle_t * p_parent_directory_handle,        /* IN */
+				     fsal_handle_t * supplied_file_handle,
+				     fsal_name_t * p_dirname,  /* IN */
+				     fsal_op_context_t * p_context,    /* IN */
+				     fsal_accessmode_t accessmode,     /* IN */
+				     fsal_handle_t * p_object_handle,  /* OUT */
+				     fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ );
 
+#endif
   /* FSAL_link */
   fsal_status_t(*fsal_link) (fsal_handle_t * p_target_handle,   /* IN */
                              fsal_handle_t * p_dir_handle,      /* IN */
@@ -1247,6 +1299,17 @@ typedef struct fsal_functions__
                                  fsal_handle_t * p_link_handle, /* OUT */
                                  fsal_attrib_list_t *
                                  p_link_attributes /* [ IN/OUT ] */ );
+#ifdef _USE_CBREP
+   fsal_status_t(*fsal_symlink_withfh) (fsal_handle_t * p_parent_directory_handle,     /* IN */
+					fsal_handle_t * supplied_file_handle,
+					fsal_name_t * p_linkname,      /* IN */
+					fsal_path_t * p_linkcontent,   /* IN */
+					fsal_op_context_t * p_context, /* IN */
+					fsal_accessmode_t accessmode,  /* IN (ignored) */
+					fsal_handle_t * p_link_handle, /* OUT */
+					fsal_attrib_list_t *
+					p_link_attributes /* [ IN/OUT ] */ );
+#endif
 
   /* FSAL_handlecmp */
   int (*fsal_handlecmp) (fsal_handle_t * handle1, fsal_handle_t * handle2,

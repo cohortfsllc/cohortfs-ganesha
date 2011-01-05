@@ -100,6 +100,22 @@ fsal_status_t FSAL_create(fsal_handle_t * p_parent_directory_handle,    /* IN */
                                     accessmode, p_object_handle, p_object_attributes);
 }
 
+#ifdef _USE_CBREP
+fsal_status_t FSAL_create_withfh(fsal_handle_t * p_parent_directory_handle,    /* IN */
+				 fsal_handle_t * supplied_file_handle, /* IN */
+				 fsal_name_t * p_filename,     /* IN */
+				 fsal_op_context_t * p_context,        /* IN */
+				 fsal_accessmode_t accessmode, /* IN */
+				 fsal_handle_t * p_object_handle,      /* OUT */
+				 fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ )
+{
+  return fsal_functions.fsal_create_withfh(p_parent_directory_handle,
+					   supplied_file_handle,
+					   p_filename, p_context,
+					   accessmode, p_object_handle, p_object_attributes);
+}
+#endif
+
 fsal_status_t FSAL_mkdir(fsal_handle_t * p_parent_directory_handle,     /* IN */
                          fsal_name_t * p_dirname,       /* IN */
                          fsal_op_context_t * p_context, /* IN */
@@ -110,6 +126,22 @@ fsal_status_t FSAL_mkdir(fsal_handle_t * p_parent_directory_handle,     /* IN */
   return fsal_functions.fsal_mkdir(p_parent_directory_handle, p_dirname, p_context,
                                    accessmode, p_object_handle, p_object_attributes);
 }
+
+#ifdef _USE_CBREP
+fsal_status_t FSAL_mkdir_withfh(fsal_handle_t * p_parent_directory_handle,     /* IN */
+				fsal_handle_t * supplied_file_handle, /* IN */
+				fsal_name_t * p_dirname,       /* IN */
+				fsal_op_context_t * p_context, /* IN */
+				fsal_accessmode_t accessmode,  /* IN */
+				fsal_handle_t * p_object_handle,       /* OUT */
+				fsal_attrib_list_t * p_object_attributes /* [ IN/OUT ] */ )
+{
+  return fsal_functions.fsal_mkdir_withfh(p_parent_directory_handle,
+					  supplied_file_handle,
+					  p_dirname, p_context,
+					  accessmode, p_object_handle, p_object_attributes);
+}
+#endif
 
 fsal_status_t FSAL_link(fsal_handle_t * p_target_handle,        /* IN */
                         fsal_handle_t * p_dir_handle,   /* IN */
@@ -507,6 +539,24 @@ fsal_status_t FSAL_symlink(fsal_handle_t * p_parent_directory_handle,   /* IN */
                                      p_context, accessmode, p_link_handle,
                                      p_link_attributes);
 }
+
+#ifdef _USE_CBREP
+fsal_status_t FSAL_symlink_withfh(fsal_handle_t * p_parent_directory_handle,   /* IN */
+				  fsal_handle_t * supplied_file_handle, /* IN */
+				  fsal_name_t * p_linkname,    /* IN */
+				  fsal_path_t * p_linkcontent, /* IN */
+				  fsal_op_context_t * p_context,       /* IN */
+				  fsal_accessmode_t accessmode,        /* IN (ignored) */
+				  fsal_handle_t * p_link_handle,       /* OUT */
+				  fsal_attrib_list_t * p_link_attributes /* [ IN/OUT ] */ )
+{
+  return fsal_functions.fsal_symlink_withfh(p_parent_directory_handle,
+					    supplied_file_handle,
+					    p_linkname, p_linkcontent,
+					    p_context, accessmode, p_link_handle,
+					    p_link_attributes);
+}
+#endif
 
 int FSAL_handlecmp(fsal_handle_t * handle1, fsal_handle_t * handle2,
                    fsal_status_t * status)

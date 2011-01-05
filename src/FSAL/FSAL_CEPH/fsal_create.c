@@ -137,6 +137,111 @@ fsal_status_t CEPHFSAL_create(cephfsal_handle_t * parent_directory_handle,      
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_create);
 }
 
+#ifdef _USE_CBREP
+
+/**
+ * FSAL_create_withfh:
+ * Create a regular file.
+ *
+ * \param parent_directory_handle (input):
+ *        Handle of the parent directory where the file is to be created.
+ * \param supplied_file_handle (input):
+ *        File handle from which to derive the inode number to force.
+ * \param p_filename (input):
+ *        Pointer to the name of the file to be created.
+ * \param p_context (input):
+ *        Authentication context for the operation (user, export...).
+ * \param accessmode (input):
+ *        Mode for the file to be created.
+ *        (the umask defined into the FSAL configuration file
+ *        will be applied on it).
+ * \param object_handle (output):
+ *        Pointer to the handle of the created file.
+ * \param object_attributes (optionnal input/output): 
+ *        The postop attributes of the created file.
+ *        As input, it defines the attributes that the caller
+ *        wants to retrieve (by positioning flags into this structure)
+ *        and the output is built considering this input
+ *        (it fills the structure according to the flags it contains).
+ *        Can be NULL.
+ *
+ * \return Major error codes :
+ *        - ERR_FSAL_NO_ERROR     (no error)
+ *        - ERR_FSAL_STALE        (parent_directory_handle does not address an existing object)
+ *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
+ *        - Other error codes can be returned :
+ *          ERR_FSAL_ACCESS, ERR_FSAL_EXIST, ERR_FSAL_IO, ...
+ *            
+ *        NB: if getting postop attributes failed,
+ *        the function does not return an error
+ *        but the FSAL_ATTR_RDATTR_ERR bit is set in
+ *        the object_attributes->asked_attributes field.
+ */
+fsal_status_t CEPHFSAL_create_withfh(cephfsal_handle_t * parent_directory_handle,      /* IN */
+				     cephfsal_handle_t * supplied_file_handle,         /* IN */
+				     fsal_name_t * p_filename,     /* IN */
+				     cephfsal_op_context_t * p_context,        /* IN */
+				     fsal_accessmode_t accessmode, /* IN */
+				     cephfsal_handle_t * object_handle,        /* OUT */
+				     fsal_attrib_list_t * object_attributes        /* [ IN/OUT ] */
+    )
+{
+
+  struct stat_precise st;
+  struct Fh *fd;
+  mode_t mode;
+  char filename[FSAL_MAX_NAME_LEN];
+  int rc;
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
+
+
+  /* sanity checks.
+   * note : object_attributes is optional.
+   */
+  if(!parent_directory_handle || !supplied_file_handle || !p_context || !object_handle || !p_filename)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_create);
+
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
+
+  mode = fsal2unix_mode(accessmode);
+  mode = mode & ~global_fs_info.umask;
+
+  FSAL_name2str(p_filename, filename, FSAL_MAX_NAME_LEN);
+
+  TakeTokenFSCall();
+
+  rc = ceph_ll_create_precise_speci(VINODE(parent_directory_handle), filename,
+				    mode, 0, &fd, &st, uid, gid,
+				    VINODE(supplied_file_handle).ino);
+  ceph_ll_close(fd);
+
+  ReleaseTokenFSCall();
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_create);
+
+  stat2fsal_fh(&st, object_handle);
+
+  if(object_attributes)
+    {
+      fsal_status_t status;
+      status = posix2fsal_attributes(&st, object_attributes);
+      if(FSAL_IS_ERROR(status))
+	{
+	  fsal_status_t status;
+	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
+	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_create);
+	}
+    }
+
+  /* OK */
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_create);
+}
+
+#endif
+
 /**
  * FSAL_mkdir:
  * Create a directory.
@@ -229,6 +334,107 @@ fsal_status_t CEPHFSAL_mkdir(fsal_handle_t * parent_directory_handle,       /* I
   /* OK */
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_mkdir);
 }
+
+#ifdef _USE_CBREP
+
+/**
+ * FSAL_mkdir_withfh:
+ * Create a directory.
+ *
+ * \param parent_directory_handle (input):
+ *        Handle of the parent directory where
+ *        the subdirectory is to be created.
+ * \param supplied_file_handle (input):
+ *        Filehandle supplied to ensure consistency.
+ * \param p_dirname (input):
+ *        Pointer to the name of the directory to be created.
+ * \param p_context (input):
+ *        Authentication context for the operation (user,...).
+ * \param accessmode (input):
+ *        Mode for the directory to be created.
+ *        (the umask defined into the FSAL configuration file
+ *        will be applied on it).
+ * \param object_handle (output):
+ *        Pointer to the handle of the created directory.
+ * \param object_attributes (optionnal input/output): 
+ *        The attributes of the created directory.
+ *        As input, it defines the attributes that the caller
+ *        wants to retrieve (by positioning flags into this structure)
+ *        and the output is built considering this input
+ *        (it fills the structure according to the flags it contains).
+ *        May be NULL.
+ *
+ * \return Major error codes :
+ *        - ERR_FSAL_NO_ERROR     (no error)
+ *        - ERR_FSAL_STALE        (parent_directory_handle does not address an existing object)
+ *        - ERR_FSAL_FAULT        (a NULL pointer was passed as mandatory argument)
+ *        - Other error codes can be returned :
+ *          ERR_FSAL_ACCESS, ERR_FSAL_EXIST, ERR_FSAL_IO, ...
+ *            
+ *        NB: if getting postop attributes failed,
+ *        the function does not return an error
+ *        but the FSAL_ATTR_RDATTR_ERR bit is set in
+ *        the object_attributes->asked_attributes field.
+ */
+fsal_status_t CEPHFSAL_mkdir_withfh(fsal_handle_t * parent_directory_handle,       /* IN */
+				    fsal_handle_t * supplied_file_handle,          /* IN */
+				    fsal_name_t * p_dirname,       /* IN */
+				    fsal_op_context_t * p_context, /* IN */
+				    fsal_accessmode_t accessmode,  /* IN */
+				    fsal_handle_t * object_handle, /* OUT */
+				    fsal_attrib_list_t * object_attributes /* [ IN/OUT ] */
+    )
+{
+
+  struct stat_precise st;
+  mode_t mode;
+  char name[FSAL_MAX_NAME_LEN];
+  int rc;
+  int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
+  
+  /* sanity checks.
+   * note : object_attributes is optional.
+   */
+  if(!parent_directory_handle || !p_context || !object_handle || !p_dirname)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_mkdir);
+
+  memset(object_handle, 0, sizeof(cephfsal_handle_t));
+
+  mode = fsal2unix_mode(accessmode);
+  mode = mode & ~global_fs_info.umask;
+
+  FSAL_name2str(p_dirname, name, FSAL_MAX_NAME_LEN);
+  TakeTokenFSCall();
+
+  rc=ceph_ll_mkdir_precise_speci(VINODE(parent_directory_handle),
+				 p_dirname->name,
+				 mode, &st, uid, gid,
+				 VINODE(supplied_file_handle).ino);
+
+  ReleaseTokenFSCall();
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_mkdir);
+
+  stat2fsal_fh(&st, object_handle);
+
+  if(object_attributes)
+    {
+      fsal_status_t status;
+      status = posix2fsal_attributes(&st, object_attributes);
+      if(FSAL_IS_ERROR(status))
+	{
+	  FSAL_CLEAR_MASK(object_attributes->asked_attributes);
+	  FSAL_SET_MASK(object_attributes->asked_attributes, FSAL_ATTR_RDATTR_ERR);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_mkdir);
+	}
+    }
+
+  /* OK */
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_mkdir);
+}
+#endif
 
 /**
  * FSAL_link:

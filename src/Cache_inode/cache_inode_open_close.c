@@ -536,9 +536,24 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 
   found_attrs.asked_attributes = pclient->attrmask;
 
+#ifdef _USE_CBREP
+  if (attrs->asked_attributes & FSAL_ATTR_HANDLE)
+    {
+      fsal_status = FSAL_create_withfh(&parent_handle, &attrs->handle,
+				       pname, pcontext, attrs->mode,
+				       &new_handle, &found_attrs);
+    }
+  else
+    {
+      fsal_status = FSAL_create(&parent_handle,
+				pname, pcontext, attrs->mode,
+				&new_handle, &found_attrs);
+    }
+#else
   fsal_status = FSAL_create(&parent_handle,
 			    pname, pcontext, attrs->mode,
 			    &new_handle, &found_attrs);
+#endif
 
   if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
     {
