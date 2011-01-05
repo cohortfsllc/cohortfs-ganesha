@@ -505,7 +505,7 @@ fsal_status_t CEPHFSAL_load_FS_specific_parameter_from_conf(config_file_t in_con
           strncpy(out_parameter->fs_specific_info.cephserver,
 		  key_value, FSAL_MAX_NAME_LEN);
         }
-#ifdef _USE_REPL
+#ifdef _USE_CBREP
       else if (!STRCMP(key_name, "replica_servers"))
 	{
 	  /* This is quick and bad and dirty and must be fixed later.
