@@ -115,6 +115,8 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
   nfs_client_id_t nfs_clientid;
   nfs_worker_data_t *pworker = NULL;
 
+  memset(&nfs_clientid, 0, sizeof(nfs_client_id_t));
+
   pworker = (nfs_worker_data_t *) data->pclient->pworker;
 
   strncpy(str_verifier, arg_EXCHANGE_ID4.eia_clientowner.co_verifier, MAXNAMLEN);
@@ -164,9 +166,9 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
                (flags & EXCHGID4_FLAG_CONFIRMED_R) ? " EXCHGID4_FLAG_UPD_CONFIRMED_REC_A" : "");
 #endif
 #endif
-
   /* Does this id already exists ? */
-  if(nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS)
+  if((nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS) &&
+     (nfs_clientid.integrities == NULL))
     {
       /* Client id already in use */
       LogDebug(COMPONENT_NFS_V4,
@@ -207,20 +209,20 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
 
           /* Ask for a different client with the same client id... returns an error if different client */
           LogDebug(COMPONENT_NFS_V4,
-                          "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s'",
-                          (long long unsigned int)clientid, nfs_clientid.client_name);
+		   "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s'",
+		   (long long unsigned int)clientid, nfs_clientid.client_name);
 
           if(strncmp
              (nfs_clientid.incoming_verifier,
               arg_EXCHANGE_ID4.eia_clientowner.co_verifier, NFS4_VERIFIER_SIZE))
             {
               LogDebug(COMPONENT_NFS_V4,
-                              "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s', verifier do not match...",
-                              (long long unsigned int)clientid, nfs_clientid.client_name);
-
+		       "EXCHANGE_ID Confirmed ClientId %llx already in use for client '%s', verifier do not match...",
+		       (long long unsigned int)clientid, nfs_clientid.client_name);
+	      
               /* A client has rebooted and rebuilds its state */
               LogDebug(COMPONENT_NFS_V4,
-                              "Probably something to be done here: a client has rebooted and try recovering its state. Update the record for this client");
+		       "Probably something to be done here: a client has rebooted and try recovering its state. Update the record for this client");
 
               /* Update the record, but set it as REBOOTED */
               strncpy(nfs_clientid.client_name,
@@ -289,12 +291,24 @@ int nfs41_op_exchange_id(struct nfs_argop4 *op,
         }
       strncpy(nfs_clientid.server_scope, nfs_clientid.server_owner, MAXNAMLEN);
 
-      if(nfs_client_id_add(clientid, nfs_clientid, &pworker->clientid_pool) !=
-         CLIENT_ID_SUCCESS)
-        {
-          res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
-          return res_EXCHANGE_ID4.eir_status;
-        }
+      if (nfs_clientid.integrities == NULL)
+	{
+	  if(nfs_client_id_add(clientid, nfs_clientid, &pworker->clientid_pool) !=
+	     CLIENT_ID_SUCCESS)
+	    {
+	      res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
+	      return res_EXCHANGE_ID4.eir_status;
+	    }
+	}
+      else
+	{
+	  if(nfs_client_id_set(clientid, nfs_clientid, &pworker->clientid_pool) !=
+	     CLIENT_ID_SUCCESS)
+	    {
+	      res_EXCHANGE_ID4.eir_status = NFS4ERR_SERVERFAULT;
+	      return res_EXCHANGE_ID4.eir_status;
+	    }
+	}
     }
 
   res_EXCHANGE_ID4.EXCHANGE_ID4res_u.eir_resok4.eir_clientid = clientid;

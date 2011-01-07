@@ -851,6 +851,9 @@ int nfs41_op_reclaim_complete(struct nfs_argop4 *op,    /* [IN] NFS4 OP argument
                               compound_data_t * data,   /* [IN] current data for the compound request */
                               struct nfs_resop4 *resp); /* [OUT] NFS4 OP results */
 
+int cohort_control_replication(struct nfs_argop4 *op,    /* [IN] NFS4 OP arguments */
+			       compound_data_t * data,   /* [IN] current data for the compound request */
+			       struct nfs_resop4 *resp); /* [OUT] NFS4 OP results */
 int nfs41_op_sequence(struct nfs_argop4 *op,    /* [IN] NFS4 OP arguments */
                       compound_data_t * data,   /* [IN] current data for the compound request */
                       struct nfs_resop4 *resp); /* [OUT] NFS4 OP results */

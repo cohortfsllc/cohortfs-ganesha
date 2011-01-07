@@ -454,6 +454,26 @@ typedef struct nfs_request_data__
   nfs_arg_t arg_nfs;
 } nfs_request_data_t;
 
+typedef struct cohort_integrity__
+{
+  bool_t create; /* False for modifications */
+  nfs_ftype4 type; /* Only types we track are regular files, symlinks,
+		      and directories. */
+  char name[MAXNAMLEN]; /* Only relevant for creates */
+  uint64_t inodeno; /* The parent directory for a create, the inode of
+		       the modified object for a modification */
+  union
+  {
+    uint32_t contentcrc;
+    char target[MAXNAMLEN];
+  } data;
+  /* The data union is empty except for two cases:
+     - Create of a symbolic link (data then contains the target)
+     - Read/write of a file (data then contains the CRC.) */
+} cohort_integrity_t;
+
+#define MAX_COHORT_INTEGRITIES 1024
+
 typedef struct nfs_client_id__
 {
   char client_name[MAXNAMLEN];
@@ -472,6 +492,9 @@ typedef struct nfs_client_id__
   unsigned int nb_session;
   nfs41_session_slot_t create_session_slot;
   unsigned create_session_sequence;
+  stateid4 repstate;
+  uint32_t num_integrities;
+  cohort_integrity_t* integrities;
 #endif
 } nfs_client_id_t;
 

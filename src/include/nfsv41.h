@@ -2840,6 +2840,24 @@ extern "C"
   };
   typedef struct RECLAIM_COMPLETE4res RECLAIM_COMPLETE4res;
 
+  struct COHORT_CONTROL_REPLICATIONargs
+  {
+    enum {COHORT_BEGIN, COHORT_END} ccra_operation;
+    stateid4 ccra_stateid;
+    client_owner4 ccra_client_owner;
+  };
+
+  typedef struct COHORT_CONTROL_REPLICATIONargs
+  COHORT_CONTROL_REPLICATIONargs;
+
+  struct COHORT_CONTROL_REPLICATIONres
+  {
+    nfsstat4 ccrr_status;
+  };
+
+  typedef struct COHORT_CONTROL_REPLICATIONres
+  COHORT_CONTROL_REPLICATIONres;
+
 /* new operations for NFSv4.1 */
 
   enum nfs_opnum4
@@ -2900,7 +2918,8 @@ extern "C"
     NFS4_OP_WANT_DELEGATION = 56,
     NFS4_OP_DESTROY_CLIENTID = 57,
     NFS4_OP_RECLAIM_COMPLETE = 58,
-    NFS4_OP_ILLEGAL = 10044,
+    COHORT_CONTROL_REPLICATION = 59,
+    NFS4_OP_ILLEGAL = 10044
   };
   typedef enum nfs_opnum4 nfs_opnum4;
 
@@ -2958,6 +2977,7 @@ extern "C"
       WANT_DELEGATION4args opwant_delegation;
       DESTROY_CLIENTID4args opdestroy_clientid;
       RECLAIM_COMPLETE4args opreclaim_complete;
+      COHORT_CONTROL_REPLICATIONargs cohort_control_replication;
     } nfs_argop4_u;
   };
   typedef struct nfs_argop4 nfs_argop4;
@@ -3023,6 +3043,7 @@ extern "C"
       WANT_DELEGATION4res opwant_delegation;
       DESTROY_CLIENTID4res opdestroy_clientid;
       RECLAIM_COMPLETE4res opreclaim_complete;
+      COHORT_CONTROL_REPLICATIONres cohort_control_replication;
       ILLEGAL4res opillegal;
     } nfs_resop4_u;
   };

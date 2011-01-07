@@ -199,6 +199,7 @@ static const nfs4_op_desc_t optab4v1[] = {
   {"OP_WANT_DELEGATION", NFS4_OP_WANT_DELEGATION, nfs4_op_illegal},     /* tbd */
   {"OP_DESTROY_CLIENTID", NFS4_OP_DESTROY_CLIENTID, nfs4_op_illegal},   /* tbd */
   {"OP_RECLAIM_COMPLETE", NFS4_OP_RECLAIM_COMPLETE, nfs41_op_reclaim_complete},
+  {"COHORT_CONTROL_REPLICATION", COHORT_CONTROL_REPLICATION, cohort_control_replication},
   {"OP_ILLEGAL", NFS4_OP_ILLEGAL, nfs4_op_illegal}
 };
 #endif                          /* _USE_NFS4_1 */
@@ -398,7 +399,7 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
       /* if( parg->arg_compound4.minorversion == 1 ) */
       if((COMPOUND4_ARRAY.argarray_val[i].argop <= NFS4_OP_RELEASE_LOCKOWNER
           && parg->arg_compound4.minorversion == 0)
-         || (COMPOUND4_ARRAY.argarray_val[i].argop <= NFS4_OP_RECLAIM_COMPLETE
+         || (COMPOUND4_ARRAY.argarray_val[i].argop <= COHORT_CONTROL_REPLICATION
              && parg->arg_compound4.minorversion == 1))
 #else
       if(COMPOUND4_ARRAY.argarray_val[i].argop <= NFS4_OP_RELEASE_LOCKOWNER)
