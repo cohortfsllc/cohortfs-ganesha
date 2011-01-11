@@ -86,6 +86,7 @@ int cohort_replication_control(struct nfs_argop4 *op, compound_data_t * data,
 
   if (arg_COHORT_REPLICATION_CONTROL.ccra_operation == COHORT_BEGIN)
     {
+      memset(&nfs_clientid, 0, sizeof(nfs_clientid));
       strncpy(nfs_clientid.client_name,
 	      arg_COHORT_REPLICATION_CONTROL.ccra_client_owner.co_ownerid.co_ownerid_val,
 	      arg_COHORT_REPLICATION_CONTROL.ccra_client_owner.co_ownerid.co_ownerid_len);
@@ -96,7 +97,6 @@ int cohort_replication_control(struct nfs_argop4 *op, compound_data_t * data,
 	  res_COHORT_REPLICATION_CONTROL.ccrr_status = NFS4ERR_SERVERFAULT;
 	  return res_COHORT_REPLICATION_CONTROL.ccrr_status;
 	}
-      memset(&nfs_clientid, 0, sizeof(nfs_clientid));
       nfs_clientid.clientid = clientid;
       nfs_clientid.num_integrities = 0;
       nfs_clientid.integrities
