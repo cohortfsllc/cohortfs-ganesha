@@ -760,12 +760,13 @@ fsal_status_t WRAP_CEPHFSAL_layoutreturn(fsal_handle_t* filehandle,
 					 fsal_size_t length,
 					 fsal_op_context_t* context,
 					 bool_t* nomore,
+					 void* opaque,
 					 stateid4* stateid)
 {
   return CEPHFSAL_layoutreturn((cephfsal_handle_t*) filehandle,
 			       type, iomode, offset,
 			       length, (cephfsal_op_context_t*)context,
-			       nomore, stateid);
+			       nomore, opaque, stateid);
 }
 
 fsal_status_t WRAP_CEPHFSAL_layoutcommit(fsal_handle_t* filehandle,

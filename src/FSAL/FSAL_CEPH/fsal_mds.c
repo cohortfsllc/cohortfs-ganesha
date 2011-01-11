@@ -715,6 +715,7 @@ fsal_status_t layoutreturn_repl(cephfsal_handle_t* filehandle,
 				fsal_size_t length,
 				cephfsal_op_context_t* context,
 				bool_t* nomore,
+				void* opaque,
 				stateid4* stateid)
 {
   uint64_t layoutcookie = 0;
@@ -771,11 +772,9 @@ fsal_status_t layoutreturn_repl(cephfsal_handle_t* filehandle,
 	    = COHORT_END;
 	  argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_stateid
 	    = *stateid;
-	  argoparray[0].nfs_argop4_u.cohort_replication_control
-	    .ccra_client_owner.co_ownerid.co_ownerid_len = 0;
-	  argoparray[0].nfs_argop4_u.cohort_replication_control
-	    .ccra_client_owner.co_ownerid.co_ownerid_val = NULL;
-
+	  FSALBACK_client_owner(opaque, 
+				&(argoparray[0].nfs_argop4_u
+				  .cohort_replication_control.ccra_client_owner));
 	  rc = one_shot_compound(slave, args, &resps);
 	  
 	  if (rc < 0)
@@ -813,6 +812,7 @@ fsal_status_t layoutreturn_file(cephfsal_handle_t* filehandle,
 				fsal_size_t length,
 				cephfsal_op_context_t* context,
 				bool_t* nomore,
+				void* opaque,
 				stateid4* stateid)
 {
   uint64_t layoutcookie = 0;
@@ -895,18 +895,19 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_size_t length,
 				    cephfsal_op_context_t* context,
 				    bool_t* nomore,
+				    void* opaque,
 				    stateid4* stateid)
 {
   switch (type)
     {
     case LAYOUT4_NFSV4_1_FILES:
       return layoutreturn_file(filehandle, type, iomode, offset,
-			       length, context, nomore, stateid);
+			       length, context, nomore, opaque, stateid);
       break;
 #ifdef _USE_CBREP
     case LAYOUT4_COHORT_REPLICATION:
       return layoutreturn_repl(filehandle, type, iomode, offset,
-			       length, context, nomore, stateid);
+			       length, context, nomore, opaque, stateid);
       break;
 #endif
     default:

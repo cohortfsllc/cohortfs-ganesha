@@ -137,6 +137,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 			  arg_LAYOUTRETURN4.lora_layoutreturn.layoutreturn4_u.lr_layout.lrf_length,
 			  data->pcontext,
 			  &nomore,
+			  (void*)data,
 			  &stateid);
       state_unlock_filehandle(&(data->current_entry->object.file.handle));
 
@@ -233,6 +234,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
 			      NFS4_UINT64_MAX,
 			      data->pcontext,
 			      &nomore,
+			      (void*) data,
 			      &stateid);
 	  if (FSAL_IS_ERROR(fsal_status))
 	    {

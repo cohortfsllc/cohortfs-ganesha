@@ -496,6 +496,7 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
 				    fsal_size_t length,
 				    cephfsal_op_context_t* context,
 				    bool_t* nomore,
+				    void* opaque,
 				    stateid4* stateid);
 
 fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,

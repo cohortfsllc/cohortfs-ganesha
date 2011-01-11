@@ -781,11 +781,12 @@ fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_size_t length,
 				fsal_op_context_t* context,
 				bool_t* nomore,
+				void* opaque,
 				stateid4* stateid)
 {
   return fsal_mdsfunctions.fsal_layoutreturn(filehandle, type, iomode,
 					     offset, length, context, nomore,
-					     stateid);
+					     opaque, stateid);
 }
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,

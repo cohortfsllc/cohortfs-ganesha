@@ -886,6 +886,7 @@ fsal_status_t FSAL_layoutreturn(fsal_handle_t* filehandle,
 				fsal_size_t length,
 				fsal_op_context_t* context,
 				bool_t* nomore,
+				void* opaque,
 				stateid4* stateid);
 
 fsal_status_t FSAL_layoutcommit(fsal_handle_t* filehandle,
@@ -1477,6 +1478,7 @@ typedef struct __fsal_mdsfunctions
 				     fsal_size_t length,
 				     fsal_op_context_t* context,
 				     bool_t* nomore,
+				     void* opaque,
 				     stateid4* stateid);
   fsal_status_t (*fsal_layoutcommit)(fsal_handle_t* filehandle,
 				     fsal_off_t offset,
