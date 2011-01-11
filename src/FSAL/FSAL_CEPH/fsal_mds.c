@@ -355,8 +355,8 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
       nfs_argop4 argoparray[1];
       nfs_resop4 resoparray[1];
 
-      args.tag.utf8string_len = NULL;
-      args.tag.utf8string_val = 0;
+      args.tag.utf8string_len = 0;
+      args.tag.utf8string_val = NULL;
       args.argarray.argarray_val = argoparray;
       resps.resarray.resarray_val = resoparray;
       args.minorversion = 1;
@@ -758,8 +758,11 @@ fsal_status_t layoutreturn_repl(cephfsal_handle_t* filehandle,
 	  nfs_argop4 argoparray[1];
 	  nfs_resop4 resoparray[1];
 	  
+	  args.tag.utf8string_len = 0;
+	  args.tag.utf8string_val = NULL;
 	  args.argarray.argarray_val = argoparray;
 	  resps.resarray.resarray_val = resoparray;
+	  resps.resarray.resarray_len = 0;
 	  args.minorversion = 1;
 	  args.argarray.argarray_len = 1;
 
