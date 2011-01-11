@@ -117,6 +117,7 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   int rc;
   fsal_attrib_list_t attr;
   cache_inode_status_t status;
+  bool_t exclusive = false;
 
   resp->resop = NFS4_OP_OPEN;
   res_OPEN4.status = NFS4_OK;
@@ -284,7 +285,6 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
         case OPEN4_CREATE:
 	  switch (arg_OPEN4.openhow.openflag4_u.how.mode)
 	    {
-	      bool_t exclusive = false;
 	    case GUARDED4:
 		exclusive = true;
 	    case UNCHECKED4:
