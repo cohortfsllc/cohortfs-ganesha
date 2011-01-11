@@ -146,6 +146,7 @@ libnfsproto_la_SOURCES += nfs41_op_exchange_id.c      \
                           nfs41_op_read.c             \
                           nfs41_op_reclaim_complete.c \
 			  cohort_control_replication.c \
+			  nfs41_op_rintegrity.c       \
                           nfs41_op_sequence.c         \
                           nfs41_op_set_ssv.c          \
                           nfs41_op_write.c            

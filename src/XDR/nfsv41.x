@@ -533,7 +533,8 @@ struct stateid4 {
 enum layouttype4 {
         LAYOUT4_NFSV4_1_FILES   = 0x1,
         LAYOUT4_OSD2_OBJECTS    = 0x2,
-        LAYOUT4_BLOCK_VOLUME    = 0x3
+        LAYOUT4_BLOCK_VOLUME    = 0x3,
+	LAYOUT4_COHORT_REPLICATION = 0x87654001
 };
 
 struct layout_content4 {
@@ -1102,6 +1103,20 @@ struct nfsv4_1_file_layout4 {
 % */
 %
 
+typedef opaque cohort_signed_integrity4<NFS4_OPAQUE_LIMIT>;
+
+struct cohort_replication_layout4 { 
+       deviceid4 crl_deviceid;
+       nfs_fh4 	 crl_fh;
+}; 
+
+struct cohort_replication_layout_rs_addr4 {
+       multipath_list4 crlda_multipath_rs;
+};
+
+struct cohort_replication_layoutupdate4 {
+       cohort_signed_integrity4 crlou_si_list<>;
+};
 
 const ACCESS4_READ      = 0x00000001;
 const ACCESS4_LOOKUP    = 0x00000002;
@@ -2561,6 +2576,33 @@ struct RECLAIM_COMPLETE4res {
         nfsstat4        rcr_status;
 };
 
+enum cohort_rep_op {
+        COHORT_BEGIN = 0,
+        COHORT_END   = 1
+};
+
+struct COHORT_REPLICATION_CONTROL4args {
+       cohort_rep_op ccra_operation;
+       stateid4      ccra_stateid;
+       client_owner4 ccra_client_owner;
+};
+
+struct COHORT_REPLICATION_CONTROL4res {
+       nfsstat4 ccrr_status;
+};
+
+struct RINTEGRITY4args {
+       stateid4 ria_stateid;
+       nfs_fh4 ria_fh;
+};
+
+union RINTEGRITY4res switch (nfsstat4 rir_status) {
+    case NFS4_OK:
+       cohort_signed_integrity4 rir_integrity;
+    default:
+        void;
+};
+
 /*
  * Operation arrays
  */
@@ -2625,6 +2667,8 @@ enum nfs_opnum4 {
  OP_WANT_DELEGATION     = 56,
  OP_DESTROY_CLIENTID    = 57,
  OP_RECLAIM_COMPLETE    = 58,
+ COHORT_REPLICATION_CONTROL = 59,
+ OP_RINTEGRITY      = 60,
  OP_ILLEGAL             = 10044
 };
 
@@ -2729,6 +2773,12 @@ union nfs_argop4 switch (nfs_opnum4 argop) {
  case OP_RECLAIM_COMPLETE:
                         RECLAIM_COMPLETE4args
                                 opreclaim_complete;
+ case COHORT_REPLICATION_CONTROL:
+			COHORT_REPLICATION_CONTROL4args
+			        cohort_replication_control;
+ case OP_RINTEGRITY:
+                        RINTEGRITY4args
+			        oprintegrity;
 
  /* Operations not new to NFSv4.1 */
  case OP_ILLEGAL:       void;
@@ -2843,6 +2893,12 @@ union nfs_resop4 switch (nfs_opnum4 resop) {
  case OP_RECLAIM_COMPLETE:
                         RECLAIM_COMPLETE4res
                                 opreclaim_complete;
+ case COHORT_REPLICATION_CONTROL:
+			COHORT_REPLICATION_CONTROL4res
+			        cohort_replication_control;
+ case OP_RINTEGRITY:
+                        RINTEGRITY4res
+			        oprintegrity;
 
  /* Operations not new to NFSv4.1 */
  case OP_ILLEGAL:       ILLEGAL4res opillegal;

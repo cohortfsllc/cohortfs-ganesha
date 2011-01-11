@@ -1872,6 +1872,49 @@ bool_t xdr_nfsv4_1_file_layout4(XDR * xdrs, nfsv4_1_file_layout4 * objp)
  *      Nothing. lou_body is a zero length array of bytes.
  */
 
+bool_t
+xdr_cohort_signed_integrity4 (XDR *xdrs, cohort_signed_integrity4 *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_bytes (xdrs, (char **)&objp->cohort_signed_integrity4_val, (u_int *) &objp->cohort_signed_integrity4_len, NFS4_OPAQUE_LIMIT))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_cohort_replication_layout4 (XDR *xdrs, cohort_replication_layout4 *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_deviceid4 (xdrs, objp->crl_deviceid))
+		 return FALSE;
+	 if (!xdr_nfs_fh4 (xdrs, &objp->crl_fh))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_cohort_replication_layout_rs_addr4 (XDR *xdrs, cohort_replication_layout_rs_addr4 *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_multipath_list4 (xdrs, &objp->crlda_multipath_rs))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_cohort_replication_layoutupdate4 (XDR *xdrs, cohort_replication_layoutupdate4 *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_array (xdrs, (char **)&objp->crlou_si_list.crlou_si_list_val, (u_int *) &objp->crlou_si_list.crlou_si_list_len, ~0,
+		sizeof (cohort_signed_integrity4), (xdrproc_t) xdr_cohort_signed_integrity4))
+		 return FALSE;
+	return TRUE;
+}
+
 /*
  * Encoded in the lrf_body field of
  * data type layoutreturn_file4:
@@ -4739,6 +4782,14 @@ bool_t xdr_nfs_argop4(XDR * xdrs, nfs_argop4 * objp)
       if(!xdr_RECLAIM_COMPLETE4args(xdrs, &objp->nfs_argop4_u.opreclaim_complete))
         return FALSE;
       break;
+    case COHORT_REPLICATION_CONTROL:
+      if (!xdr_COHORT_REPLICATION_CONTROL4args (xdrs, &objp->nfs_argop4_u.cohort_replication_control))
+	return FALSE;
+      break;
+    case NFS4_OP_RINTEGRITY:
+      if (!xdr_RINTEGRITY4args (xdrs, &objp->nfs_argop4_u.oprintegrity))
+	return FALSE;
+      break;
     case NFS4_OP_ILLEGAL:
       break;
     default:
@@ -4746,6 +4797,71 @@ bool_t xdr_nfs_argop4(XDR * xdrs, nfs_argop4 * objp)
     }
   return TRUE;
 }
+
+bool_t
+xdr_cohort_rep_op (XDR *xdrs, cohort_rep_op *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_COHORT_REPLICATION_CONTROL4args (XDR *xdrs, COHORT_REPLICATION_CONTROL4args *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_cohort_rep_op (xdrs, &objp->ccra_operation))
+		 return FALSE;
+	 if (!xdr_stateid4 (xdrs, &objp->ccra_stateid))
+		 return FALSE;
+	 if (!xdr_client_owner4 (xdrs, &objp->ccra_client_owner))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_COHORT_REPLICATION_CONTROL4res (XDR *xdrs, COHORT_REPLICATION_CONTROL4res *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_nfsstat4 (xdrs, &objp->ccrr_status))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_RINTEGRITY4args (XDR *xdrs, RINTEGRITY4args *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_stateid4 (xdrs, &objp->ria_stateid))
+		 return FALSE;
+	 if (!xdr_nfs_fh4 (xdrs, &objp->ria_fh))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_RINTEGRITY4res (XDR *xdrs, RINTEGRITY4res *objp)
+{
+	register int32_t *buf;
+
+	 if (!xdr_nfsstat4 (xdrs, &objp->rir_status))
+		 return FALSE;
+	switch (objp->rir_status) {
+	case NFS4_OK:
+		 if (!xdr_cohort_signed_integrity4 (xdrs, &objp->RINTEGRITY4res_u.rir_integrity))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
 
 bool_t xdr_nfs_resop4(XDR * xdrs, nfs_resop4 * objp)
 {
@@ -4978,6 +5094,14 @@ bool_t xdr_nfs_resop4(XDR * xdrs, nfs_resop4 * objp)
     case NFS4_OP_RECLAIM_COMPLETE:
       if(!xdr_RECLAIM_COMPLETE4res(xdrs, &objp->nfs_resop4_u.opreclaim_complete))
         return FALSE;
+      break;
+    case COHORT_REPLICATION_CONTROL:
+      if (!xdr_COHORT_REPLICATION_CONTROL4res (xdrs, &objp->nfs_resop4_u.cohort_replication_control))
+	return FALSE;
+      break;
+    case NFS4_OP_RINTEGRITY:
+      if (!xdr_RINTEGRITY4res (xdrs, &objp->nfs_resop4_u.oprintegrity))
+	return FALSE;
       break;
     case NFS4_OP_ILLEGAL:
       if(!xdr_ILLEGAL4res(xdrs, &objp->nfs_resop4_u.opillegal))

@@ -811,17 +811,25 @@ fsal_status_t FSAL_getdeviceinfo(fsal_layouttype_t type,
 }
 
 fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
-					  fsal_layouttype_t type,
-					  int *numdevices,
-					  uint64_t *cookie,
-					  fsal_boolean_t* eof,
-					  void* buff,
-					  size_t* len)
+				 fsal_layouttype_t type,
+				 int *numdevices,
+				 uint64_t *cookie,
+				 fsal_boolean_t* eof,
+				 void* buff,
+				 size_t* len)
 {
   return fsal_mdsfunctions.fsal_getdevicelist(filehandle, type,
 					      numdevices, cookie, eof,
 					      buff, len);
 }
+
+fsal_status_t FSAL_crc32(fsal_handle_t* filehandle,
+			 uint32_t* crc,
+			 fsal_op_context_t* context)
+{
+  return fsal_mdsfunctions.fsal_crc32(filehandle, crc, context);
+}
+
 #endif                                           /* _USE_FSALMDS */
 
 #ifdef _USE_FSALDS

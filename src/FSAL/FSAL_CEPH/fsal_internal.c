@@ -43,6 +43,8 @@
 #include "nfsv41.h"
 #include "HashTable.h"
 #include "layouttypes/replayout.h"
+#include <rpc/rpc.h>
+#include <sys/time.h>
 
 #include <pthread.h>
 
@@ -336,3 +338,64 @@ fsal_status_t fsal_internal_init_global(fsal_init_info_t * fsal_info,
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }
 
+int one_shot_compound(unsigned long server, COMPOUND4args args,
+		      COMPOUND4res* res)
+{
+  const unsigned long prognum = 100003;
+  const unsigned short port = htons(2049);
+  int sock;
+  struct sockaddr_in addr;
+  CLIENT* client;
+  struct timeval timeout;
+  int rc;
+
+  timeout.tv_sec = 30;
+  timeout.tv_usec = 0;
+
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_port = htons(2049);
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = server;
+
+  if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    return -errno;
+
+  if(connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    return -errno;
+
+  client = clnttcp_create(&addr, prognum, 4, &sock, 0, 0);
+
+  if (client == NULL)
+    clnt_pcreateerror("clnttcp_create");
+
+  client->cl_auth = authunix_create_default();
+
+  rc = clnt_call(client, NFSPROC4_COMPOUND,
+		 (xdrproc_t)xdr_COMPOUND4args, (char*) &args,
+		 (xdrproc_t)xdr_COMPOUND4res, (char*) res,
+		 timeout);
+
+  if (rc != 0)
+    return rc;
+
+  clnt_destroy(client);
+
+  rc = close(sock);
+
+  if (rc != 0)
+    return -errno;
+
+  return 0;
+}
+
+unsigned long dotted_quad_to_nbo(char* dq)
+{
+  uint8_t b0, b1, b2, b3;
+
+  sscanf("%hhu.%hhu.%hhu.%hhu", &b0, &b1, &b2, &b3);
+
+  return ((b0 << 0x18) |
+	  (b1 << 0x10) |
+	  (b2 << 0x08) |
+	  (b3 << 0x00));
+}

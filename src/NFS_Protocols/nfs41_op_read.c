@@ -75,6 +75,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "sal.h"
 
 extern nfs_parameter_t nfs_param;
 
@@ -109,8 +110,17 @@ int nfs41_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   fsal_attrib_list_t attr;
   cache_entry_t *entry = NULL;
   int rc = 0;
+  nfs_client_id_t* nfs_clientid;
 
   cache_content_policy_data_t datapol;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
+  if ((nfs_clientid->integrities != NULL) &&
+      (memcmp(arg_READ4.stateid.other,
+	      nfs_clientid->repstate.other,
+	      12) == 0))
+    arg_READ4.stateid = state_anonymous_stateid;
+  
 
   datapol.UseMaxCacheSize = FALSE;
 

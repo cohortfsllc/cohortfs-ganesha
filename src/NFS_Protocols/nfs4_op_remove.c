@@ -97,6 +97,7 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   fsal_attrib_list_t attr_parent;
   fsal_name_t name;
+  nfs_client_id_t* nfs_clientid;
 
   cache_inode_status_t cache_status;
 #ifdef _USE_PNFS
@@ -107,6 +108,8 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   resp->resop = NFS4_OP_REMOVE;
   res_REMOVE4.status = NFS4_OK;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
 
 #ifdef _USE_FSALDS
   if(nfs4_Is_Fh_DSHandle(&data->currentFH))
@@ -220,6 +223,33 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* If you reach this point, everything was ok */
 
   res_REMOVE4.status = NFS4_OK;
+
+  if (nfs_clientid->integrities != NULL)
+    {
+      cephfsal_handle_t handle;
+
+      pthread_mutex_lock(&nfs_clientid->int_mutex);
+      if (nfs_clientid->num_integrities >= MAX_COHORT_INTEGRITIES)
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_REMOVE4.status = NFS4ERR_SERVERFAULT;
+	  return res_REMOVE4.status;
+	}
+      memset(&(nfs_clientid->integrities[nfs_clientid->num_integrities]),
+	     0, sizeof(cohort_integrity_t));
+      nfs_clientid->integrities[nfs_clientid->num_integrities].create = false;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].type
+	= NF4DIR;
+
+      handle = data->current_entry->object.file.handle;
+      
+      nfs_clientid->integrities[nfs_clientid->num_integrities].inodeno =
+	VINODE((&handle)).ino.val;
+
+      
+      ++(nfs_clientid->num_integrities);
+      pthread_mutex_unlock(&nfs_clientid->int_mutex);
+    }
 
   return NFS4_OK;
 }                               /* nfs4_op_remove */

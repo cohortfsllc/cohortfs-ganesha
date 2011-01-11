@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "sal.h"
 
 extern nfs_parameter_t nfs_param;
 
@@ -111,10 +112,17 @@ int nfs41_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   cache_inode_status_t cache_status;
   fsal_attrib_list_t attr;
   cache_entry_t *entry = NULL;
+  nfs_client_id_t* nfs_clientid;
+  cache_content_policy_data_t datapol;
 
   int rc = 0;
 
-  cache_content_policy_data_t datapol;
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
+  if ((nfs_clientid->integrities != NULL) &&
+      (memcmp(arg_WRITE4.stateid.other,
+	      nfs_clientid->repstate.other,
+	      12) == 0))
+    arg_WRITE4.stateid = state_anonymous_stateid;
 
   datapol.UseMaxCacheSize = FALSE;
 
@@ -297,6 +305,35 @@ int nfs41_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   res_WRITE4.status = NFS4_OK;
 
+  if (nfs_clientid->integrities != NULL)
+    {
+      pthread_mutex_lock(&nfs_clientid->int_mutex);
+      if (nfs_clientid->num_integrities >= MAX_COHORT_INTEGRITIES)
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_WRITE4.status = NFS4ERR_SERVERFAULT;
+	  return res_WRITE4.status;
+	}
+      memset(&(nfs_clientid->integrities[nfs_clientid->num_integrities]),
+	     0, sizeof(cohort_integrity_t));
+      nfs_clientid->integrities[nfs_clientid->num_integrities].create = false;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].type
+	= NF4REG;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].inodeno =
+	VINODE(((cephfsal_handle_t*)&(data->current_entry->object.file.handle))).ino.val;
+      if (FSAL_IS_ERROR(FSAL_crc32(&(data->current_entry->object.file.handle),
+				   &(nfs_clientid->integrities[nfs_clientid
+							       ->num_integrities].data.contentcrc),
+				   data->pcontext)))
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_WRITE4.status = NFS4ERR_SERVERFAULT;
+	  return res_WRITE4.status;
+	}
+      ++nfs_clientid->num_integrities;
+      pthread_mutex_unlock(&nfs_clientid->int_mutex);
+    }
+
   return res_WRITE4.status;
 }                               /* nfs41_op_write */
 
@@ -436,6 +473,7 @@ int op_dswrite(struct nfs_argop4 *op,
   memcpy(res_WRITE4.WRITE4res_u.resok4.writeverf, NFS4_write_verifier, sizeof(verifier4));
 
   res_WRITE4.status = NFS4_OK;
+
 
   return res_WRITE4.status;
 }

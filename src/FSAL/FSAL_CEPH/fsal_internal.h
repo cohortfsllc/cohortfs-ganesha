@@ -54,6 +54,13 @@ extern fs_specific_initinfo_t global_spec_info;
 
 #endif
 
+int one_shot_compound(unsigned long server, COMPOUND4args args,
+		      COMPOUND4res* res);
+
+
+unsigned long dotted_quad_to_nbo(char* dq);
+
+
 /**
  *  This function initializes shared variables of the FSAL.
  */
@@ -534,5 +541,8 @@ fsal_status_t CEPHFSAL_ds_write(cephfsal_handle_t * filehandle,      /* IN */
 fsal_status_t CEPHFSAL_ds_commit(cephfsal_handle_t * filehandle,     /* IN */
 				 fsal_off_t offset,
 				 fsal_size_t length);
+fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
+			     uint32_t* crc,
+			     cephfsal_op_context_t* context);
 
 #endif /* _USE_FSALDS */

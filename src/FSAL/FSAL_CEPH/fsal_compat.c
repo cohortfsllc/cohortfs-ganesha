@@ -801,6 +801,15 @@ fsal_status_t WRAP_CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
 				type, numdevices, cookie, eof, buff,
 				len);
 }
+
+fsal_status_t WRAP_CEPHFSAL_crc32(fsal_handle_t* filehandle,
+				  uint32_t* crc,
+				  fsal_op_context_t* context)
+{
+  return CEPHFSAL_crc32((cephfsal_handle_t*) filehandle,
+			crc, (cephfsal_op_context_t*) context);
+}
+
 #endif /* _USE_FSALMDS */
 
 #ifdef _USE_FSALDS
@@ -943,7 +952,8 @@ fsal_mdsfunctions_t fsal_ceph_mdsfunctions = {
   .fsal_layoutreturn = WRAP_CEPHFSAL_layoutreturn,
   .fsal_layoutcommit = WRAP_CEPHFSAL_layoutcommit,
   .fsal_getdeviceinfo = WRAP_CEPHFSAL_getdeviceinfo,
-  .fsal_getdevicelist = WRAP_CEPHFSAL_getdevicelist
+  .fsal_getdevicelist = WRAP_CEPHFSAL_getdevicelist,
+  .fsal_crc32 = WRAP_CEPHFSAL_crc32
 };
 #endif
 

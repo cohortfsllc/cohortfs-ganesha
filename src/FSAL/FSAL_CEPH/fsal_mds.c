@@ -35,7 +35,9 @@
 #include <alloca.h>
 #include "sal.h"
 #ifdef _USE_CBREP
+#include <zlib.h>
 #include "layouttypes/replayout.h"
+#include <rpc/xdr.h>
 #endif
 
 #define max(a,b)	  \
@@ -255,6 +257,7 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
   int uid = FSAL_OP_CONTEXT_TO_UID(context);
   int gid = FSAL_OP_CONTEXT_TO_GID(context);
   bool_t directory;
+  int i = 0;
   
   if ((!global_spec_info.replication_master) ||
       (global_spec_info.replicas == 0))
@@ -340,7 +343,48 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
 
+  for(i = 0; i < global_spec_info.replicas; i++)
+    {
+      unsigned long slave;
+      COMPOUND4args args;
+      COMPOUND4res resps;
+      client_owner4 client_owner;
+      
+      slave
+	= dotted_quad_to_nbo(global_spec_info.replica_servers[i]);
+      nfs_argop4 argoparray[1];
+      nfs_resop4 resoparray[1];
 
+      args.argarray.argarray_val = argoparray;
+      resps.resarray.resarray_val = resoparray;
+      args.minorversion = 1;
+      args.argarray.argarray_len = 1;
+
+      argoparray[0].argop = COHORT_REPLICATION_CONTROL;
+      argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_operation
+	= COHORT_BEGIN;
+      argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_stateid
+	= *stateid;
+      FSALBACK_client_owner(opaque, 
+			    &(argoparray[0].nfs_argop4_u
+			      .cohort_replication_control.ccra_client_owner));
+
+      rc = one_shot_compound(slave, args, &resps);
+
+      if (rc < 0)
+      {
+	Mem_Free(*layouts);
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+      }
+
+      if (resoparray[0].nfs_resop4_u.cohort_replication_control
+	  .ccrr_status != NFS4_OK)
+	{
+	  Mem_Free(*layouts);
+	  Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+	}
+    }
+  
   if (state_add_layout_segment(type, iomode, offset, length,
 			       *return_on_close, NULL, *stateid) != 0)
     {
@@ -661,41 +705,109 @@ fsal_status_t CEPHFSAL_layoutget(cephfsal_handle_t* filehandle,
     }
 }
 
-/**
- *
- * FSAL_layoutreturn: The NFSv4.1 LAYOUTRETURN operation
- *
- * Free a client specified layout range on a file.
- *
- * \param filehandle (input):
- *        The handle upon which the layout was granted
- * \param type (input):
- *        The layout type
- * \param iomode (input):
- *        The iomode passed by the client (in case it's ANY)
- * \param offset (input):
- *        The offset (specified by the client)
- * \param length (input):
- *        The length (specified by the client)
- * \param context (input):
- *        The authentication context
- * \param nomore (output):
- *        Set to true if the last layout segment has been freed.
- * \param stateid (input/output):
- *        The layout stateid.
- *
- * \return Error codes or ERR_FSAL_NO_ERROR
- *
- */
+fsal_status_t layoutreturn_repl(cephfsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				fsal_layoutiomode_t iomode,
+				fsal_off_t offset,
+				fsal_size_t length,
+				cephfsal_op_context_t* context,
+				bool_t* nomore,
+				stateid4* stateid)
+{
+  uint64_t layoutcookie = 0;
+  bool_t finished = false;
+  layoutsegment segment;
+  int remaining = 0;
+  int rc = 0;
+  int i = 0;
+  *nomore = false;
 
-fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
-				    fsal_layouttype_t type,
-				    fsal_layoutiomode_t iomode,
-				    fsal_off_t offset,
-				    fsal_size_t length,
-				    cephfsal_op_context_t* context,
-				    bool_t* nomore,
-				    stateid4* stateid)
+  /* We iterate over all segments returning those falling completely
+     within the client's range */
+  
+  do 
+    {
+      rc = state_iter_layout_entries(*stateid, &layoutcookie,
+				     &finished, &segment);
+      
+      if (rc != ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+
+      ++remaining;
+
+      if ((segment.type != type) || /* This should never happen */
+	  !(segment.iomode & iomode) || /* iomode should match or be
+					   ANY */
+	  (segment.offset < offset) ||
+	  ((segment.offset + segment.length) >
+	   (offset + length)))
+	continue;
+
+      for(i = 0; i < global_spec_info.replicas; i++)
+	{
+	  unsigned long slave;
+	  COMPOUND4args args;
+	  COMPOUND4res resps;
+	  client_owner4 client_owner;
+	  
+	  slave
+	    = dotted_quad_to_nbo(global_spec_info.replica_servers[i]);
+	  nfs_argop4 argoparray[1];
+	  nfs_resop4 resoparray[1];
+	  
+	  args.argarray.argarray_val = argoparray;
+	  resps.resarray.resarray_val = resoparray;
+	  args.minorversion = 1;
+	  args.argarray.argarray_len = 1;
+
+	  argoparray[0].argop = COHORT_REPLICATION_CONTROL;
+	  argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_operation
+	    = COHORT_END;
+	  argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_stateid
+	    = *stateid;
+	  argoparray[0].nfs_argop4_u.cohort_replication_control
+	    .ccra_client_owner.co_ownerid.co_ownerid_len = 0;
+	  argoparray[0].nfs_argop4_u.cohort_replication_control
+	    .ccra_client_owner.co_ownerid.co_ownerid_val = NULL;
+
+	  rc = one_shot_compound(slave, args, &resps);
+	  
+	  if (rc < 0)
+	    {
+	      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+	    }
+
+	  if (resoparray[0].nfs_resop4_u.cohort_replication_control
+	      .ccrr_status != NFS4_OK)
+	    {
+	      Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+	    }
+	}
+      
+
+      if (state_free_layout_segment(*stateid, segment.segid) !=
+	  ERR_STATE_NO_ERROR)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutreturn);
+      --remaining;
+    } while (!finished);
+  
+  if (!remaining)
+    *nomore = true;
+
+  state_layout_inc_state(stateid);
+  
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
+}
+
+
+fsal_status_t layoutreturn_file(cephfsal_handle_t* filehandle,
+				fsal_layouttype_t type,
+				fsal_layoutiomode_t iomode,
+				fsal_off_t offset,
+				fsal_size_t length,
+				cephfsal_op_context_t* context,
+				bool_t* nomore,
+				stateid4* stateid)
 {
   uint64_t layoutcookie = 0;
   bool_t finished = false;
@@ -742,40 +854,154 @@ fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutreturn);
 }
 
+
 /**
  *
-* FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
+ * FSAL_layoutreturn: The NFSv4.1 LAYOUTRETURN operation
  *
- * Commit changes made on the DSs to the MDS
+ * Free a client specified layout range on a file.
  *
  * \param filehandle (input):
- *        The filehandle in question
+ *        The handle upon which the layout was granted
+ * \param type (input):
+ *        The layout type
+ * \param iomode (input):
+ *        The iomode passed by the client (in case it's ANY)
  * \param offset (input):
- *        Offset into the file of the changed portion
+ *        The offset (specified by the client)
  * \param length (input):
- *        Length of the changed portion
- * \param last_offset (input/output):
- *        Client suggested offset for the length of the file (NULL if
- *        none)/FSAL supplied offset for the length of the file
- * \param time (input/output)
- *        Client suggested modification time/actually adopted.
- * \param stateid (input)
- *        Stateid of the given layout
- * \param layoutupdate (input)
- *        Type specific update data
+ *        The length (specified by the client)
+ * \param context (input):
+ *        The authentication context
+ * \param nomore (output):
+ *        Set to true if the last layout segment has been freed.
+ * \param stateid (input/output):
+ *        The layout stateid.
  *
  * \return Error codes or ERR_FSAL_NO_ERROR
  *
  */
 
-fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
+fsal_status_t CEPHFSAL_layoutreturn(cephfsal_handle_t* filehandle,
+				    fsal_layouttype_t type,
+				    fsal_layoutiomode_t iomode,
 				    fsal_off_t offset,
 				    fsal_size_t length,
-				    fsal_off_t* newoff,
-				    fsal_time_t* newtime,
-				    stateid4 stateid,
-				    layoutupdate4 layoutupdate,
-				    cephfsal_op_context_t* pcontext)
+				    cephfsal_op_context_t* context,
+				    bool_t* nomore,
+				    stateid4* stateid)
+{
+  switch (type)
+    {
+    case LAYOUT4_NFSV4_1_FILES:
+      return layoutreturn_file(filehandle, type, iomode, offset,
+			       length, context, nomore, stateid);
+      break;
+#ifdef _USE_CBREP
+    case LAYOUT4_COHORT_REPLICATION:
+      return layoutreturn_repl(filehandle, type, iomode, offset,
+			       length, context, nomore, stateid);
+      break;
+#endif
+    default:
+      Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutreturn);
+      break;
+    }
+}
+
+fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
+				fsal_off_t unusedoffset,
+				fsal_size_t unusedlength,
+				fsal_off_t* unusednewoff,
+				fsal_time_t* unusednewtime,
+				stateid4 stateid,
+				layoutupdate4 layoutupdate,
+				cephfsal_op_context_t* pcontext)
+{
+  int uid = FSAL_OP_CONTEXT_TO_UID(pcontext);
+  int gid = FSAL_OP_CONTEXT_TO_GID(pcontext);
+  int rc = 0;
+  int replication_failure = 0;
+  uint32_t length = ntohl(layoutupdate.lou_body.lou_body_len);
+  caddr_t body = layoutupdate.lou_body.lou_body_val;
+  uint32_t num_integrities = ntohl(*(uint32_t*)body);
+  uint32_t first_length = 0;
+  caddr_t first;
+  caddr_t current;
+  uint32_t current_length;
+  int i = 0;
+
+  if (num_integrities != global_spec_info.replicas)
+    {
+      LogCrit(COMPONENT_FSAL, "Wrong number of integrities supplied.");
+      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+    }
+
+  if (num_integrities == 0)
+    {
+      LogCrit(COMPONENT_FSAL, "Replicating to zero replicas makes no sense.");
+      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+    }
+
+  first_length = ntohl(*(uint32_t*)(body + sizeof(uint32_t)));
+  first = body + 2 * sizeof(uint32_t);
+
+  current_length = first_length;
+  current = first;
+
+  if ((first + first_length) > (body + length))
+    {
+      LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
+      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+    }
+
+  for (i = 1; i < num_integrities; i++)
+    {
+      current += (current_length + (4 - (current_length % 4)));
+      if (current > (body + length))
+	{
+	  LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	}
+
+      current_length = ntohl(*(uint32_t*) current);
+      current += sizeof(uint32_t);
+
+      if ((current + current_length) > (body + length))
+	{
+	  LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	}
+
+      if (current_length != first_length)
+	{
+	  LogCrit(COMPONENT_FSAL,
+		  "Length of crlou_si_list[%u] differs from length of crlou_si_list[0].",
+		  i);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	}
+
+      if (memcmp(first, current, current_length) != 0)
+	{
+	  LogCrit(COMPONENT_FSAL,
+		  "Value of crlou_si_list[%u] differs from value of crlou_si_list[0].",
+		  i);
+	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	}
+    }
+  
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+}
+
+
+fsal_status_t layoutcommit_file(cephfsal_handle_t* filehandle,
+				fsal_off_t offset,
+				fsal_size_t length,
+				fsal_off_t* newoff,
+				fsal_time_t* newtime,
+				stateid4 stateid,
+				layoutupdate4 layoutupdate,
+				cephfsal_op_context_t* pcontext)
 {
   int uid = FSAL_OP_CONTEXT_TO_UID(pcontext);
   int gid = FSAL_OP_CONTEXT_TO_GID(pcontext);
@@ -833,6 +1059,60 @@ fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
   Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
 }
 
+
+/**
+ *
+* FSAL_layoutcommit: The NFSv4.1 LAYOUTCOMMIT operation
+ *
+ * Commit changes made on the DSs to the MDS
+ *
+ * \param filehandle (input):
+ *        The filehandle in question
+ * \param offset (input):
+ *        Offset into the file of the changed portion
+ * \param length (input):
+ *        Length of the changed portion
+ * \param last_offset (input/output):
+ *        Client suggested offset for the length of the file (NULL if
+ *        none)/FSAL supplied offset for the length of the file
+ * \param time (input/output)
+ *        Client suggested modification time/actually adopted.
+ * \param stateid (input)
+ *        Stateid of the given layout
+ * \param layoutupdate (input)
+ *        Type specific update data
+ *
+ * \return Error codes or ERR_FSAL_NO_ERROR
+ *
+ */
+
+fsal_status_t CEPHFSAL_layoutcommit(cephfsal_handle_t* filehandle,
+				    fsal_off_t offset,
+				    fsal_size_t length,
+				    fsal_off_t* newoff,
+				    fsal_time_t* newtime,
+				    stateid4 stateid,
+				    layoutupdate4 layoutupdate,
+				    cephfsal_op_context_t* pcontext)
+{
+  switch (layoutupdate.lou_type)
+    {
+    case LAYOUT4_NFSV4_1_FILES:
+      layoutcommit_file(filehandle, offset, length, newoff, newtime,
+			 stateid, layoutupdate, pcontext);
+      break;
+#ifdef _USE_CBREP
+    case LAYOUT4_COHORT_REPLICATION:
+      layoutcommit_repl(filehandle, offset, length, newoff, newtime,
+			 stateid, layoutupdate, pcontext);
+      break;
+#endif
+    default:
+      Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutreturn);
+      break;
+    }
+}
+
 #ifdef _USE_CBREP
 
 fsal_status_t getdeviceinfo_repl(fsal_layouttype_t type,
@@ -861,8 +1141,10 @@ fsal_status_t getdeviceinfo_repl(fsal_layouttype_t type,
 
   deviceaddrinfo->multipath_rs.multipath_list4_len
     = global_spec_info.replicas;
+
   hosts = (netaddr4*) (((caddr_t)deviceaddrinfo)
 		       + sizeof(fsal_reprsaddr_t));
+
   deviceaddrinfo->multipath_rs.multipath_list4_val = hosts;
   stringwritepos = ((char*)hosts) + (global_spec_info.replicas *
 				     sizeof(netaddr4)); 
@@ -1066,4 +1348,54 @@ fsal_status_t CEPHFSAL_getdevicelist(fsal_handle_t* filehandle,
       Return(ERR_FSAL_UNKNOWN_LAYOUTTYPE, 0, INDEX_FSAL_layoutget);
       break;
     }
+}
+
+fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
+			     uint32_t* crc,
+			     cephfsal_op_context_t* context)
+{
+  uLong rollingcrc, blockcrc;
+  uint64_t su;
+  uint64_t stripes;
+  int num_osds;
+  struct ceph_file_layout file_layout;
+  int uid = FSAL_OP_CONTEXT_TO_UID(context);
+  int gid = FSAL_OP_CONTEXT_TO_GID(context);
+  struct stat_precise st;
+  uint64_t length;
+  uint32_t i;
+  int rc;
+
+  rollingcrc = crc32(0L, Z_NULL, 0);
+
+  /* Get the file layout information */
+
+  ceph_ll_file_layout(VINODE(filehandle), &file_layout);
+  su = file_layout.fl_stripe_unit;
+
+  rc = ceph_ll_getattr_precise(VINODE(filehandle), &st, uid, gid);
+
+  if (rc < 0)
+    Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+
+  length = st.st_size + (su - (st.st_size % su));
+
+  /* Constants needed to populate anything */
+  
+  stripes = length / su;
+
+  for (i = 0; i < stripes; i++)
+    {
+      rc = ceph_ll_get_crc32(VINODE(filehandle), i,
+			     (uint32_t*) &blockcrc, &file_layout);
+
+      rollingcrc = crc32_combine(rollingcrc, blockcrc, su);
+
+      if (rc < 0)
+	Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
+    }
+
+  *crc = rollingcrc;
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutget);
 }

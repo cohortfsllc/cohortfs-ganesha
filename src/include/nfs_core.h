@@ -495,6 +495,7 @@ typedef struct nfs_client_id__
   stateid4 repstate;
   uint32_t num_integrities;
   cohort_integrity_t* integrities;
+  pthread_mutex_t int_mutex;
 #endif
 } nfs_client_id_t;
 

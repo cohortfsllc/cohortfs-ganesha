@@ -106,6 +106,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   fsal_name_t name;
   cache_inode_create_arg_t create_arg;
+  nfs_client_id_t* nfs_clientid;
 
 
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_create";
@@ -113,6 +114,8 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   resp->resop = NFS4_OP_CREATE;
   res_CREATE4.status = NFS4_OK;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
 
   /* If the filehandle is Empty */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -526,6 +529,42 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   /* If you reach this point, then no error occured */
   res_CREATE4.status = NFS4_OK;
+
+  /* Add integrity */
+
+  if (nfs_clientid->integrities != NULL)
+    {
+      cephfsal_handle_t handle;
+      pthread_mutex_lock(&nfs_clientid->int_mutex);
+      if (nfs_clientid->num_integrities >= MAX_COHORT_INTEGRITIES)
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_CREATE4.status = NFS4ERR_SERVERFAULT;
+	  return res_CREATE4.status;
+	}
+      memset(&(nfs_clientid->integrities[nfs_clientid->num_integrities]),
+	     0, sizeof(cohort_integrity_t));
+      nfs_clientid->integrities[nfs_clientid->num_integrities].create = true;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].type
+	= arg_CREATE4.objtype.type;
+      strcpy(nfs_clientid->integrities[nfs_clientid->num_integrities].name,
+	     name.name);
+      handle = pentry_parent->object.file.handle;
+      
+      nfs_clientid->integrities[nfs_clientid->num_integrities].inodeno =
+	VINODE((&handle)).ino.val;
+
+      if (arg_CREATE4.objtype.type == NF4LNK)
+	{
+	  strncpy(nfs_clientid->integrities[nfs_clientid->num_integrities].data.target,
+		  create_arg.link_content.path,
+		  create_arg.link_content.len);
+	  (nfs_clientid->integrities[nfs_clientid->num_integrities]
+	   .data.target[create_arg.link_content.len]) ='\0';
+	  ++(nfs_clientid->num_integrities);
+	}
+      pthread_mutex_unlock(&nfs_clientid->int_mutex);
+    }
 
   return res_CREATE4.status;
 }                               /* nfs4_op_create */

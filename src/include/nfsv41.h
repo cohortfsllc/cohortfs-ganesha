@@ -1128,6 +1128,13 @@ extern "C"
   };
   typedef struct nfsv4_1_file_layouthint4 nfsv4_1_file_layouthint4;
 
+  typedef struct {
+    u_int cohort_signed_integrity4_len;
+    char *cohort_signed_integrity4_val;
+  } cohort_signed_integrity4;
+
+  
+
   typedef struct
   {
     u_int multipath_list4_len;
@@ -1178,6 +1185,26 @@ extern "C"
  *      Nothing. lou_body is a zero length array of bytes.
  */
 
+  struct cohort_replication_layout4 {
+    deviceid4 crl_deviceid;
+    nfs_fh4 crl_fh;
+  };
+  typedef struct cohort_replication_layout4 cohort_replication_layout4;
+  
+  struct cohort_replication_layout_rs_addr4 {
+    multipath_list4 crlda_multipath_rs;
+  };
+  typedef struct cohort_replication_layout_rs_addr4 cohort_replication_layout_rs_addr4;
+  
+  struct cohort_replication_layoutupdate4 {
+    struct {
+      u_int crlou_si_list_len;
+      cohort_signed_integrity4 *crlou_si_list_val;
+    } crlou_si_list;
+  };
+  typedef struct cohort_replication_layoutupdate4 cohort_replication_layoutupdate4;
+  
+  
 /*
  * Encoded in the lrf_body field of
  * data type layoutreturn_file4:
@@ -2840,25 +2867,39 @@ extern "C"
   };
   typedef struct RECLAIM_COMPLETE4res RECLAIM_COMPLETE4res;
 
-  struct COHORT_CONTROL_REPLICATIONargs
-  {
-    enum {COHORT_BEGIN, COHORT_END} ccra_operation;
+  enum cohort_rep_op {
+    COHORT_BEGIN = 0,
+    COHORT_END = 1,
+  };
+  typedef enum cohort_rep_op cohort_rep_op;
+  
+  struct COHORT_REPLICATION_CONTROL4args {
+    cohort_rep_op ccra_operation;
     stateid4 ccra_stateid;
     client_owner4 ccra_client_owner;
   };
-
-  typedef struct COHORT_CONTROL_REPLICATIONargs
-  COHORT_CONTROL_REPLICATIONargs;
-
-  struct COHORT_CONTROL_REPLICATIONres
-  {
+  typedef struct COHORT_REPLICATION_CONTROL4args COHORT_REPLICATION_CONTROL4args;
+  
+  struct COHORT_REPLICATION_CONTROL4res {
     nfsstat4 ccrr_status;
   };
+  typedef struct COHORT_REPLICATION_CONTROL4res COHORT_REPLICATION_CONTROL4res;
+  
+  struct RINTEGRITY4args {
+    stateid4 ria_stateid;
+    nfs_fh4 ria_fh;
+  };
+  typedef struct RINTEGRITY4args RINTEGRITY4args;
 
-  typedef struct COHORT_CONTROL_REPLICATIONres
-  COHORT_CONTROL_REPLICATIONres;
+  struct RINTEGRITY4res {
+    nfsstat4 rir_status;
+    union {
+      cohort_signed_integrity4 rir_integrity;
+    } RINTEGRITY4res_u;
+  };
+  typedef struct RINTEGRITY4res RINTEGRITY4res;
 
-/* new operations for NFSv4.1 */
+  /* new operations for NFSv4.1 */
 
   enum nfs_opnum4
   {
@@ -2918,7 +2959,8 @@ extern "C"
     NFS4_OP_WANT_DELEGATION = 56,
     NFS4_OP_DESTROY_CLIENTID = 57,
     NFS4_OP_RECLAIM_COMPLETE = 58,
-    COHORT_CONTROL_REPLICATION = 59,
+    COHORT_REPLICATION_CONTROL = 59,
+    NFS4_OP_RINTEGRITY = 60,
     NFS4_OP_ILLEGAL = 10044
   };
   typedef enum nfs_opnum4 nfs_opnum4;
@@ -2977,7 +3019,8 @@ extern "C"
       WANT_DELEGATION4args opwant_delegation;
       DESTROY_CLIENTID4args opdestroy_clientid;
       RECLAIM_COMPLETE4args opreclaim_complete;
-      COHORT_CONTROL_REPLICATIONargs cohort_control_replication;
+      COHORT_REPLICATION_CONTROL4args cohort_replication_control;
+      RINTEGRITY4args oprintegrity;
     } nfs_argop4_u;
   };
   typedef struct nfs_argop4 nfs_argop4;
@@ -3043,7 +3086,8 @@ extern "C"
       WANT_DELEGATION4res opwant_delegation;
       DESTROY_CLIENTID4res opdestroy_clientid;
       RECLAIM_COMPLETE4res opreclaim_complete;
-      COHORT_CONTROL_REPLICATIONres cohort_control_replication;
+      COHORT_REPLICATION_CONTROL4res cohort_replication_control;
+      RINTEGRITY4res oprintegrity;
       ILLEGAL4res opillegal;
     } nfs_resop4_u;
   };

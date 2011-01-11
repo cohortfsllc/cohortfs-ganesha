@@ -908,6 +908,11 @@ fsal_status_t FSAL_getdevicelist(fsal_handle_t* filehandle,
 				 fsal_boolean_t* eof,
 				 void* buff,
 				 size_t* bufflen);
+
+fsal_status_t FSAL_crc32(fsal_handle_t* filehandle,
+			 uint32_t* crc,
+			 fsal_op_context_t* context);
+
 #endif
 
 /******************************************************
@@ -1491,6 +1496,10 @@ typedef struct __fsal_mdsfunctions
 				      fsal_boolean_t* eof,
 				      void* buff,
 				      size_t* bufflen);
+  fsal_status_t (*fsal_crc32)(fsal_handle_t* filehandle,
+			      uint32_t* crc,
+			      fsal_op_context_t* context);
+
 } fsal_mdsfunctions_t;
 #endif /* _USE_FSALMDS */
 

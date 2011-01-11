@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "sal.h"
 
 /**
  * nfs4_op_rename: The NFS4_OP_SETATTR operation.
@@ -98,10 +99,19 @@ int nfs4_op_setattr(struct nfs_argop4 *op,
   fsal_attrib_list_t parent_attr;
   cache_inode_status_t cache_status;
   int rc = 0;
+  nfs_client_id_t* nfs_clientid;
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_setattr";
 
   resp->resop = NFS4_OP_SETATTR;
   res_SETATTR4.status = NFS4_OK;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid,
+			    &nfs_clientid);
+  if ((nfs_clientid->integrities != NULL) &&
+      (memcmp(arg_SETATTR4.stateid.other,
+	      nfs_clientid->repstate.other,
+	      12) == 0))
+    arg_SETATTR4.stateid = state_anonymous_stateid;
 
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -269,6 +279,35 @@ int nfs4_op_setattr(struct nfs_argop4 *op,
   memcpy(res_SETATTR4.attrsset.bitmap4_val,
          arg_SETATTR4.obj_attributes.attrmask.bitmap4_val,
          res_SETATTR4.attrsset.bitmap4_len * sizeof(u_int));
+
+  if (nfs_clientid->integrities != NULL)
+    {
+      pthread_mutex_lock(&nfs_clientid->int_mutex);
+      if (nfs_clientid->num_integrities >= MAX_COHORT_INTEGRITIES)
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_SETATTR4.status = NFS4ERR_SERVERFAULT;
+	  return res_SETATTR4.status;
+	}
+      memset(&(nfs_clientid->integrities[nfs_clientid->num_integrities]),
+	     0, sizeof(cohort_integrity_t));
+      nfs_clientid->integrities[nfs_clientid->num_integrities].create = false;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].type
+	= NF4REG;
+      nfs_clientid->integrities[nfs_clientid->num_integrities].inodeno =
+	VINODE(((cephfsal_handle_t*)&(data->current_entry->object.file.handle))).ino.val;
+      if (FSAL_IS_ERROR(FSAL_crc32(&(data->current_entry->object.file.handle),
+				   &(nfs_clientid->integrities[nfs_clientid->num_integrities]
+				     .data.contentcrc),
+				   data->pcontext)))
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_SETATTR4.status = NFS4ERR_SERVERFAULT;
+	  return res_SETATTR4.status;
+	}
+      ++nfs_clientid->num_integrities;
+      pthread_mutex_unlock(&nfs_clientid->int_mutex);
+    }
 
   /* Exit with no error */
   res_SETATTR4.status = NFS4_OK;
