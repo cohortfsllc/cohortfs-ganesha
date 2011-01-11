@@ -355,10 +355,13 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
       nfs_argop4 argoparray[1];
       nfs_resop4 resoparray[1];
 
+      args.tag.utf8string_len = NULL;
+      args.tag.utf8string_val = 0;
       args.argarray.argarray_val = argoparray;
       resps.resarray.resarray_val = resoparray;
       args.minorversion = 1;
       args.argarray.argarray_len = 1;
+      resps.resarray.resarray_len = 1;
 
       argoparray[0].argop = COHORT_REPLICATION_CONTROL;
       argoparray[0].nfs_argop4_u.cohort_replication_control.ccra_operation

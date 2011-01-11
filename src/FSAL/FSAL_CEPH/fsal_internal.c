@@ -355,7 +355,7 @@ int one_shot_compound(unsigned long server, COMPOUND4args args,
   memset(&addr, 0, sizeof(addr));
   addr.sin_port = htons(2049);
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = server;
+  addr.sin_addr.s_addr = htonl(server);
 
   if((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     return -errno;
@@ -392,7 +392,7 @@ unsigned long dotted_quad_to_nbo(char* dq)
 {
   uint8_t b0, b1, b2, b3;
 
-  sscanf("%hhu.%hhu.%hhu.%hhu", &b0, &b1, &b2, &b3);
+  sscanf(dq, "%hhu.%hhu.%hhu.%hhu", &b0, &b1, &b2, &b3);
 
   return ((b0 << 0x18) |
 	  (b1 << 0x10) |
