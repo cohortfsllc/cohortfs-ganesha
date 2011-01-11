@@ -265,7 +265,7 @@ AM_CONDITIONAL(USE_FSALMDS, test "x$enable_fsalmds" = "xyes")
 # FSAL based pNFS MDS support (requires NFSv4.1, conflicts with pNFS)
 GA_ENABLE_AM_CONDITION([fsalmds],[enable FSAL-based pNFS MDS support (NFSv4.1 support is mandatory)],[USE_FSALMDS])
 if test "$enable_fsalmds" == "yes"; then
-  if [[ $NFS4_MINOR == "0" ]] ; then
+  if [test $NFS4_MINOR = "0"] ; then
      AC_MSG_ERROR("You must activate NFSv4.1 support to enable FSAL meta-data server support" )
   fi
    	AC_DEFINE(_USE_FSALMDS,1,[enable FSAL based pNFS MDS support])
@@ -550,7 +550,7 @@ case $FSAL in
 		AC_DEFINE([_USE_CEPH], 1, [GANESHA exports CEPH Filesystem])
  		AC_CHECK_HEADERS([ceph/libceph.h], [], [AC_MSG_ERROR( missing ceph include files)])
 		FSAL_CFLAGS=
-                FSAL_LDFLAGS=-lceph
+                FSAL_LDFLAGS="-lceph -lz"
 		FSAL_LIB="\$(top_builddir)/FSAL/FSAL_CEPH/libfsalceph.la"
 		FS_NAME="ceph"
 		;;

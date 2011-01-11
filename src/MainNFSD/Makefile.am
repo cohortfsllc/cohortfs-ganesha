@@ -13,18 +13,18 @@ SVC_FILES_TIRPC = Svc_tirpc.c Svc_vc_tirpc.c Svc_dg_tirpc.c
 
 if USE_GSSRPC
 SVC_FILES = $(SVC_FILES_GSSRPC)
-SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssrpc -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl
+SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssrpc -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl -lcrypto -lz
 SVC_FLAGS =
 SVC_LIB_FLAGS = 
 else 
 if USE_TIRPC
 SVC_FILES = $(SVC_FILES_TIRPC)
-SEC_LIB_FLAGS = 
+SEC_LIB_FLAGS = -lcrypto -lz
 SVC_FLAGS = -I/usr/include/tirpc
 SVC_LIB_FLAGS = -ltirpc
 else
 SVC_FILES = $(SVC_FILES_ONCRPC) 
-SEC_LIB_FLAGS = 
+SEC_LIB_FLAGS = -lcrypto -lz
 SVC_FLAGS =
 SVC_LIB_FLAGS = 
 endif
