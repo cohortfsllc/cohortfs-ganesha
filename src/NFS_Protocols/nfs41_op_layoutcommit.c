@@ -181,9 +181,9 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
 
   if ((state.tag != STATE_LAYOUT) ||
       (state.u.layout.clientid != data->psession->clientid) ||
-      !(FSAL_handlecmp(&(state.u.layout.handle),
-		       &(data->current_entry->object.file.handle),
-		       &fsal_status)))
+      (FSAL_handlecmp(&(state.u.layout.handle),
+		      &(data->current_entry->object.file.handle),
+		      &fsal_status)))
     {
       res_LAYOUTCOMMIT4.locr_status = NFS4ERR_BADLAYOUT;
       return res_LAYOUTCOMMIT4.locr_status;
