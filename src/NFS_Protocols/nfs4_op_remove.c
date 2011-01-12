@@ -226,7 +226,8 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   if (nfs_clientid->integrities != NULL)
     {
-      cephfsal_handle_t handle;
+      int mod_integrity = -1;
+      int i;
 
       pthread_mutex_lock(&nfs_clientid->int_mutex);
       if (nfs_clientid->num_integrities >= MAX_COHORT_INTEGRITIES)
@@ -235,19 +236,38 @@ int nfs4_op_remove(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 	  res_REMOVE4.status = NFS4ERR_SERVERFAULT;
 	  return res_REMOVE4.status;
 	}
-      memset(&(nfs_clientid->integrities[nfs_clientid->num_integrities]),
+      for(i = 0; i++; i < nfs_clientid->num_integrities)
+	{
+	  if ((nfs_clientid->integrities[i].create == false) &&
+	      (nfs_clientid->integrities[i].inodeno == 
+	       VINODE(((cephfsal_handle_t*)&(data->current_entry
+					     ->object.file.handle)))
+	       .ino.val))
+	    {
+	      mod_integrity = i;
+	      break;
+	    }
+	}
+      if (mod_integrity == -1)
+	{
+	  mod_integrity = nfs_clientid->num_integrities;
+	  ++nfs_clientid->num_integrities;
+	}
+      
+      memset(&(nfs_clientid->integrities[mod_integrity]),
 	     0, sizeof(cohort_integrity_t));
-      nfs_clientid->integrities[nfs_clientid->num_integrities].create = false;
-      nfs_clientid->integrities[nfs_clientid->num_integrities].type
-	= NF4DIR;
-
-      handle = data->current_entry->object.file.handle;
-      
-      nfs_clientid->integrities[nfs_clientid->num_integrities].inodeno =
-	VINODE((&handle)).ino.val;
-
-      
-      ++(nfs_clientid->num_integrities);
+      nfs_clientid->integrities[mod_integrity].create = false;
+      nfs_clientid->integrities[mod_integrity].type = NF4DIR;
+      nfs_clientid->integrities[mod_integrity].inodeno =
+	VINODE(((cephfsal_handle_t*)&(data->current_entry->object.file.handle))).ino.val;
+      if (FSAL_IS_ERROR(FSAL_crc32(&(data->current_entry->object.file.handle),
+				   &(nfs_clientid->integrities[mod_integrity].data.contentcrc),
+				   data->pcontext)))
+	{
+	  pthread_mutex_unlock(&nfs_clientid->int_mutex);
+	  res_REMOVE4.status = NFS4ERR_SERVERFAULT;
+	  return res_REMOVE4.status;
+	}
       pthread_mutex_unlock(&nfs_clientid->int_mutex);
     }
 
