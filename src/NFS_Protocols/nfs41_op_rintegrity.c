@@ -171,6 +171,7 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
     = integrity;
 
   res_RINTEGRITY4.rir_status = NFS4_OK;
+  return res_RINTEGRITY4.rir_status;
 } /* nfs41_op_rintegrity */
 
 /**
