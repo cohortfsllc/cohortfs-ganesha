@@ -970,7 +970,10 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
 
   for (i = 1; i < num_integrities; i++)
     {
-      current += (current_length + (4 - (current_length % 4)));
+      if (current_length & 0x3) // XDR padding
+	current_length = (current_length & ~0x3) + 4;
+
+      current += current_length;
       if (current > (body + length))
 	{
 	  LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
