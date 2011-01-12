@@ -343,7 +343,10 @@ fsal_status_t layoutget_repl(cephfsal_handle_t* filehandle,
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
     }
 
-  for(i = 0; i < global_spec_info.replicas; i++)
+  if (FSALBACK_loc_int_begin(opaque, stateid) < 0)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+
+  for(i = 1; i < global_spec_info.replicas; i++)
     {
       unsigned long slave;
       COMPOUND4args args;
@@ -747,7 +750,10 @@ fsal_status_t layoutreturn_repl(cephfsal_handle_t* filehandle,
 	   (offset + length)))
 	continue;
 
-      for(i = 0; i < global_spec_info.replicas; i++)
+      if (FSALBACK_loc_int_end(opaque, stateid) < 0)
+	Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_layoutget);
+
+      for(i = 1; i < global_spec_info.replicas; i++)
 	{
 	  unsigned long slave;
 	  COMPOUND4args args;

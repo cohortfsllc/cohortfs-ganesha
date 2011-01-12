@@ -73,4 +73,39 @@ void FSALBACK_client_owner(void* opaque, client_owner4* client_owner)
     = nfs_clientid->client_name;
 }
 
+int FSALBACK_loc_int_begin(void* opaque, stateid4 stateid)
+{
+  compound_data_t* data = (compound_data_t*) opaque;
+  nfs_client_id_t* nfs_clientid;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
+  nfs_clientid->num_integrities = 0;
+  nfs_clientid->integrities
+    = (cohort_integrity_t*) Mem_Alloc(MAX_COHORT_INTEGRITIES *
+				      sizeof(cohort_integrity_t));
+  nfs_clientid->repstate = stateid;
+  memset(nfs_clientid->integrities, 0, sizeof(cohort_integrity_t) *
+	 MAX_COHORT_INTEGRITIES);
+  pthread_mutex_init(&(nfs_clientid->int_mutex), NULL);
+  if (nfs_clientid->integrities == NULL)
+    return -1;
+
+  return 0;
+}
+
+int FSALBACK_loc_int_end(void* opaque)
+{
+  compound_data_t* data = (compound_data_t*) opaque;
+  nfs_client_id_t* nfs_clientid;
+
+  nfs_client_id_Get_Pointer(data->psession->clientid, &nfs_clientid);
+  nfs_clientid->num_integrities = 0;
+  Mem_Free(nfs_clientid->integrities);
+  nfs_clientid->integrities = NULL;
+  pthread_mutex_destroy(&(nfs_clientid->int_mutex));
+
+  return 0;
+}
+
+
 #endif
