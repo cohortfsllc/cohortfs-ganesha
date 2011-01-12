@@ -164,7 +164,7 @@ int nfs41_op_layoutcommit(struct nfs_argop4 *op, compound_data_t * data,
   int rc = 0;
   bool_t goodlayout = false;
   fsal_off_t newoff;
-  uint64_t cookie;
+  uint64_t cookie = NULL;
   bool_t done;
   fsal_time_t newtime;
   layoutsegment segment;
