@@ -965,7 +965,7 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
   if ((first + first_length) > (body + length))
     {
       LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
-      Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+      Return(NFS4ERR_BADXDR, 0, INDEX_FSAL_layoutcommit);
     }
 
   for (i = 1; i < num_integrities; i++)
@@ -974,7 +974,7 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
       if (current > (body + length))
 	{
 	  LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	  Return(NFS4ERR_BADXDR, 0, INDEX_FSAL_layoutcommit);
 	}
 
       current_length = ntohl(*(uint32_t*) current);
@@ -983,7 +983,7 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
       if ((current + current_length) > (body + length))
 	{
 	  LogCrit(COMPONENT_FSAL, "Invalid XDR in layoutupdate4.");
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	  Return(NFS4ERR_BADXDR, 0, INDEX_FSAL_layoutcommit);
 	}
 
       if (current_length != first_length)
@@ -991,7 +991,7 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
 	  LogCrit(COMPONENT_FSAL,
 		  "Length of crlou_si_list[%u] differs from length of crlou_si_list[0].",
 		  i);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	  Return(NFS4ERR_DELEG_REVOKED, 0, INDEX_FSAL_layoutcommit);
 	}
 
       if (memcmp(first, current, current_length) != 0)
@@ -999,7 +999,7 @@ fsal_status_t layoutcommit_repl(cephfsal_handle_t* filehandle,
 	  LogCrit(COMPONENT_FSAL,
 		  "Value of crlou_si_list[%u] differs from value of crlou_si_list[0].",
 		  i);
-	  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_layoutcommit);
+	  Return(NFS4ERR_DELEG_REVOKED, 0, INDEX_FSAL_layoutcommit);
 	}
     }
   

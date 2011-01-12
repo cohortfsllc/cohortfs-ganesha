@@ -561,8 +561,8 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 		  create_arg.link_content.len);
 	  (nfs_clientid->integrities[nfs_clientid->num_integrities]
 	   .data.target[create_arg.link_content.len]) ='\0';
-	  ++(nfs_clientid->num_integrities);
 	}
+      ++(nfs_clientid->num_integrities);
       pthread_mutex_unlock(&nfs_clientid->int_mutex);
     }
 
