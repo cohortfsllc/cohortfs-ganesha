@@ -79,6 +79,7 @@ int cohort_replication_control(struct nfs_argop4 *op, compound_data_t * data,
   clientid4 clientid;
   nfs_client_id_t nfs_clientid;
   nfs_worker_data_t *pworker = NULL;
+  bool_t update = false;
 
   resp->resop = COHORT_REPLICATION_CONTROL;
 
@@ -97,6 +98,9 @@ int cohort_replication_control(struct nfs_argop4 *op, compound_data_t * data,
 	  res_COHORT_REPLICATION_CONTROL.ccrr_status = NFS4ERR_SERVERFAULT;
 	  return res_COHORT_REPLICATION_CONTROL.ccrr_status;
 	}
+      if (nfs_client_id_get(clientid, &nfs_clientid) == CLIENT_ID_SUCCESS)
+	update = true;
+      
       nfs_clientid.clientid = clientid;
       nfs_clientid.num_integrities = 0;
       nfs_clientid.integrities
@@ -114,13 +118,25 @@ int cohort_replication_control(struct nfs_argop4 *op, compound_data_t * data,
 	  return res_COHORT_REPLICATION_CONTROL.ccrr_status;
 	}
 
-      if(nfs_client_id_add(clientid, nfs_clientid, &pworker->clientid_pool) !=
-         CLIENT_ID_SUCCESS)
-        {
-	  res_COHORT_REPLICATION_CONTROL.ccrr_status
-	    = NFS4ERR_SERVERFAULT;
-	  return res_COHORT_REPLICATION_CONTROL.ccrr_status;
-        }
+      if (update)
+	{
+	  if(nfs_client_id_set(clientid, nfs_clientid, &pworker->clientid_pool) !=
+	     CLIENT_ID_SUCCESS)
+	    {
+	      res_COHORT_REPLICATION_CONTROL.ccrr_status = NFS4ERR_SERVERFAULT;
+	      return res_COHORT_REPLICATION_CONTROL.ccrr_status;
+	    }
+	}
+      else
+	{
+	  if(nfs_client_id_add(clientid, nfs_clientid, &pworker->clientid_pool) !=
+	     CLIENT_ID_SUCCESS)
+	    {
+	      res_COHORT_REPLICATION_CONTROL.ccrr_status
+		= NFS4ERR_SERVERFAULT;
+	      return res_COHORT_REPLICATION_CONTROL.ccrr_status;
+	    }
+	}
     }
   else if (arg_COHORT_REPLICATION_CONTROL.ccra_operation ==
 	   COHORT_END)
