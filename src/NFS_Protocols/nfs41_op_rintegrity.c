@@ -134,6 +134,7 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
   char* integrity;
   SHA_CTX context;
   int i = 0;
+  const int SHA1_len = 20;
   nfs_client_id_t* nfs_clientid;
   
   resp->resop = NFS4_OP_RINTEGRITY;
@@ -146,7 +147,7 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
       return res_RINTEGRITY4.rir_status;
     }
 
-  integrity = Mem_Alloc(20);
+  integrity = Mem_Alloc(SHA1_len);
 
 
   SHA1_Init(&context);
@@ -167,6 +168,7 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
 
   res_RINTEGRITY4.RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_len
     = sizeof(integrity);
+
   res_RINTEGRITY4.RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_val
     = integrity;
 
