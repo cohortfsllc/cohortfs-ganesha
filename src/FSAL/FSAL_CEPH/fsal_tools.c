@@ -161,22 +161,30 @@ fsal_status_t CEPHFSAL_DigestHandle(cephfsal_export_context_t * p_expcontext,   
     )
 {
   int ino32;
+  int rc;
 
   /* sanity checks */
   if(!in_fsal_handle || !out_buff || !p_expcontext)
     ReturnCode(ERR_FSAL_FAULT, 0);
 
+  rc = ceph_ll_connectable_x(VINODE(in_fsal_handle),
+			     &in_fsal_handle->data.parent_ino,
+			     &in_fsal_handle->data.parent_hash);
+
+  if (rc < 0)
+    ReturnCode(posix2fsal_error(rc), 0);
+
   switch (output_type)
     {
       /* Digested Handles */
     case FSAL_DIGEST_NFSV2:
-      if (sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV2)
+      if (sizeof(in_fsal_handle->data) > FSAL_DIGEST_SIZE_HDLV2)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
     case FSAL_DIGEST_NFSV3:
-      if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV3)
+      if(sizeof(in_fsal_handle->data) > FSAL_DIGEST_SIZE_HDLV3)
 	ReturnCode(ERR_FSAL_TOOSMALL, 0);
-      memcpy(out_buff, &VINODE(in_fsal_handle),
-	     sizeof(VINODE(in_fsal_handle)));
+      memcpy(out_buff, &(in_fsal_handle->data),
+	     sizeof(in_fsal_handle->data));
       break;
     case FSAL_DIGEST_NFSV4:
       if(sizeof(VINODE(in_fsal_handle)) > FSAL_DIGEST_SIZE_HDLV4)
@@ -230,6 +238,7 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
 				    cephfsal_handle_t * out_fsal_handle /* OUT */
     )
 {
+  int rc;
 
   /* sanity checks */
   if(!out_fsal_handle || !in_buff)
@@ -241,7 +250,7 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
    {
     case FSAL_DIGEST_NFSV2:
     case FSAL_DIGEST_NFSV3:
-      memcpy(&(VINODE(out_fsal_handle)), in_buff,
+      memcpy(&(out_fsal_handle->data), in_buff,
 	     sizeof(VINODE(out_fsal_handle)));
       break;
     case FSAL_DIGEST_NFSV4:
@@ -253,6 +262,14 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
       /* Invalid input digest type. */
       ReturnCode(ERR_FSAL_INVAL, 0);
     }
+
+  rc = ceph_ll_connectable_m(&VINODE(out_fsal_handle),
+			     out_fsal_handle->data.parent_ino,
+			     out_fsal_handle->data.parent_hash);
+
+  if (rc < 0)
+    ReturnCode(posix2fsal_error(rc), 0);
+  
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }

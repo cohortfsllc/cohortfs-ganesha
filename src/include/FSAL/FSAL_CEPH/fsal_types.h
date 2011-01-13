@@ -70,6 +70,8 @@ typedef union {
    vinodeno_t vi;
    struct ceph_file_layout layout;
    uint64_t snapseq;
+   uint64_t parent_ino;
+   uint32_t parent_hash;
  } data;
 #ifdef _BUILD_SHARED_FSAL
   char pad[FSAL_HANDLE_T_SIZE];
