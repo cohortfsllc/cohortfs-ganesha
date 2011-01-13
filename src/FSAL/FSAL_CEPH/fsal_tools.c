@@ -251,7 +251,7 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
     case FSAL_DIGEST_NFSV2:
     case FSAL_DIGEST_NFSV3:
       memcpy(&(out_fsal_handle->data), in_buff,
-	     sizeof(VINODE(out_fsal_handle)));
+	     sizeof(out_fsal_handle->data));
       break;
     case FSAL_DIGEST_NFSV4:
       memcpy(&(out_fsal_handle->data), in_buff,
