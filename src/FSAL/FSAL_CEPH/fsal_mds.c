@@ -1370,7 +1370,7 @@ fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
 			     uint32_t* crc,
 			     cephfsal_op_context_t* context)
 {
-  uLong rollingcrc, blockcrc;
+  uint32_t rollingcrc, blockcrc;
   uint64_t su;
   uint64_t stripes;
   int num_osds;
@@ -1403,7 +1403,7 @@ fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
   for (i = 0; i < stripes; i++)
     {
       rc = ceph_ll_get_crc32(VINODE(filehandle), i,
-			     (uint32_t*) &blockcrc, &file_layout);
+			     &blockcrc, &file_layout);
 
       rollingcrc = crc32_combine(rollingcrc, blockcrc, su);
 
