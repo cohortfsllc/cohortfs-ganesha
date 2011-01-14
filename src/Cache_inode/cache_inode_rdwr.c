@@ -387,7 +387,8 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 		}
 	      fsal_status = FSAL_open(&pentry->object.file.handle,
 				      pcontext,
-				      (CACHE_INODE_READ ?
+				      ((read_or_write ==
+					CACHE_INODE_READ) ?
 				       FSAL_O_RDONLY :
 				       FSAL_O_WRONLY),
 				      &descriptor, NULL);
