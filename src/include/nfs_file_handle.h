@@ -82,7 +82,7 @@ typedef struct file_handle_v4__
   unsigned int exportid;        /* must be correlated to exportlist_t::id   len = 4 bytes   */
   unsigned short refid;         /* used for referral                        len = 2 bytes   */
   unsigned int srvboot_time;    /* 0 if FH won't expire                     len = 4 bytes   */
-  char fsopaque[108];            /* persistent part of FSAL handle */
+  char fsopaque[80];            /* persistent part of FSAL handle */
   char xattr_pos;               /*                                          len = 1 byte    */
 } file_handle_v4_t;
 
