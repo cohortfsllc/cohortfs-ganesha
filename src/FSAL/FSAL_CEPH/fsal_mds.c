@@ -1378,7 +1378,6 @@ fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
   int uid = FSAL_OP_CONTEXT_TO_UID(context);
   int gid = FSAL_OP_CONTEXT_TO_GID(context);
   struct stat_precise st;
-  uint64_t length;
   uint32_t i;
   int rc;
 
@@ -1394,11 +1393,12 @@ fsal_status_t CEPHFSAL_crc32(fsal_handle_t* filehandle,
   if (rc < 0)
     Return(posix2fsal_error(rc), 0, INDEX_FSAL_layoutget);
 
-  length = st.st_size + (su - (st.st_size % su));
+  stripes = st.st_size / su;
 
   /* Constants needed to populate anything */
   
-  stripes = length / su;
+  if (st.st_size % su != 0)
+    ++stripes;
 
   for (i = 0; i < stripes; i++)
     {

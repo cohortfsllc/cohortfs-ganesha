@@ -280,7 +280,8 @@ int nfs4_op_setattr(struct nfs_argop4 *op,
          arg_SETATTR4.obj_attributes.attrmask.bitmap4_val,
          res_SETATTR4.attrsset.bitmap4_len * sizeof(u_int));
 
-  if (nfs_clientid->integrities != NULL)
+  if ((nfs_clientid->integrities != NULL) &&
+      FSAL_TEST_MASK(sattr.asked_attributes, FSAL_ATTR_SIZE))
     {
       int mod_integrity = -1;
       int i;
