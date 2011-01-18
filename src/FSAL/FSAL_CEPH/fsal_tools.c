@@ -263,13 +263,15 @@ fsal_status_t CEPHFSAL_ExpandHandle(cephfsal_export_context_t * p_expcontext,   
       ReturnCode(ERR_FSAL_INVAL, 0);
     }
 
-  rc = ceph_ll_connectable_m(&VINODE(out_fsal_handle),
-			     out_fsal_handle->data.parent_ino,
-			     out_fsal_handle->data.parent_hash);
+  if (p_expcontext)
+    rc = ceph_ll_connectable_m(&VINODE(out_fsal_handle),
+			       out_fsal_handle->data.parent_ino,
+			       out_fsal_handle->data.parent_hash);
+  else
+    rc = 0;
 
   if (rc < 0)
     ReturnCode(posix2fsal_error(rc), 0);
-  
 
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }
