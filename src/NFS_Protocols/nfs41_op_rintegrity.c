@@ -167,7 +167,7 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
   SHA1_Final(integrity, &context);
 
   res_RINTEGRITY4.RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_len
-    = sizeof(integrity);
+    = SHA1_len;
 
   res_RINTEGRITY4.RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_val
     = integrity;
@@ -188,6 +188,6 @@ int nfs41_op_rintegrity(struct nfs_argop4 *op, compound_data_t * data, struct nf
  */
 void nfs41_op_rintegrity_Free(RINTEGRITY4res * resp)
 {
-  /*  Mem_Free(resp->RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_val); */
+  Mem_Free(resp->RINTEGRITY4res_u.rir_integrity.cohort_signed_integrity4_val);
   return;
 }                               /* nfs41_op_write_Free */
