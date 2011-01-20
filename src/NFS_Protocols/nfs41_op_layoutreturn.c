@@ -112,7 +112,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
   bool_t finished = false;
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
 
-  resp->resop = NFS4_OP_LAYOUTGET;
+  resp->resop = NFS4_OP_LAYOUTRETURN;
 #ifdef _USE_FSALMDS
   switch (arg_LAYOUTRETURN4.lora_layoutreturn.lr_returntype)
     {
