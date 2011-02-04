@@ -277,7 +277,7 @@ fsal_status_t CEPHFSAL_link(cephfsal_handle_t * target_handle,  /* IN */
 
   struct stat_precise st;
   char name[FSAL_MAX_NAME_LEN];
-  int rc;
+  int rc = 0;
   int uid = FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid = FSAL_OP_CONTEXT_TO_GID(p_context);
 
@@ -298,8 +298,8 @@ fsal_status_t CEPHFSAL_link(cephfsal_handle_t * target_handle,  /* IN */
 
   TakeTokenFSCall();
 
-  ceph_ll_link_precise(VINODE(target_handle), VINODE(dir_handle),
-		       name, &st, uid, gid);
+  rc = ceph_ll_link_precise(VINODE(target_handle), VINODE(dir_handle),
+			    name, &st, uid, gid);
 
   ReleaseTokenFSCall();
 

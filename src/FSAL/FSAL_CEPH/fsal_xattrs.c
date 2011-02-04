@@ -236,8 +236,8 @@ fsal_status_t CEPHFSAL_GetXAttrValueById(cephfsal_handle_t * p_objecthandle,    
   if(!p_objecthandle || !p_context || !p_output_size || !buffer_addr)
     ReturnCode(ERR_FSAL_FAULT, 0);
   
-  ceph_ll_getxattr_by_idx(VINODE(p_objecthandle), xattr_id, buffer_addr,
-			  buffer_size, uid, gid);
+  len = ceph_ll_getxattr_by_idx(VINODE(p_objecthandle), xattr_id, buffer_addr,
+				buffer_size, uid, gid);
 
   if (len < 0)
     ReturnCode(posix2fsal_error(len), 0);
@@ -361,11 +361,11 @@ fsal_status_t CEPHFSAL_SetXAttrValueById(cephfsal_handle_t * p_objecthandle,    
   int uid=FSAL_OP_CONTEXT_TO_UID(p_context);
   int gid=FSAL_OP_CONTEXT_TO_GID(p_context);
 
+  rc = ceph_ll_setxattr_by_idx(VINODE(p_objecthandle), xattr_id,
+			       buffer_addr, buffer_size, 0, uid, gid);
+  
   if (rc < 0)
     ReturnCode(posix2fsal_error(rc), 0);
-  
-  rc=ceph_ll_setxattr_by_idx(VINODE(p_objecthandle), xattr_id,
-			     buffer_addr, buffer_size, 0, uid, gid);
   
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 }
