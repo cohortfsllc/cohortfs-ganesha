@@ -45,10 +45,13 @@
 #include "err_fsal.h"
 #include "err_cache_inode.h"
 #include "stuff_alloc.h"
+#include "nfs_core.h"
 #include <unistd.h>             /* for using gethostname */
 #include <stdlib.h>             /* for using exit */
 #include <strings.h>
 #include <sys/types.h>
+
+extern nfs_parameter_t nfs_param;
 
 /**
  *
@@ -159,9 +162,40 @@ unsigned long __cache_inode_fsal_rbt_func(hash_parameter_t * p_hparam,
  *
  */
 
-unsigned int cache_inode_fsal_rbt_both( hash_parameter_t * p_hparam,
-				        hash_buffer_t    * buffclef, 
-				        uint32_t * phashval, uint32_t * prbtval )
+unsigned int cache_inode_fsal_rbt_both_on_fsal( hash_parameter_t * p_hparam,
+				               hash_buffer_t    * buffclef, 
+				               uint32_t * phashval, uint32_t * prbtval )
+{
+    char printbuf[512];
+    unsigned int rc = 0 ;
+ 
+    cache_inode_fsal_data_t *pfsdata = (cache_inode_fsal_data_t *) (buffclef->pdata);
+
+    rc = FSAL_Handle_to_Hash_both( &pfsdata->handle, pfsdata->cookie,
+				   p_hparam->alphabet_length, p_hparam->index_size,
+				   phashval, prbtval ) ;
+
+    if( rc == 0 )
+      {
+          snprintHandle(printbuf, 512, &pfsdata->handle);
+          LogMajor( COMPONENT_HASHTABLE, "Unable to hash (Handle=%s, Cookie=%u)",printbuf, pfsdata->cookie ) ;
+          return 0 ;
+      }
+
+    if(isFullDebug(COMPONENT_HASHTABLE))
+      {
+          LogFullDebug(COMPONENT_HASHTABLE, "hash_func rbt both: buff = "
+                       "(Handle=%s, Cookie=%u), hashvalue=%u rbtvalue=%u\n",
+                       printbuf, pfsdata->cookie, *phashval, *prbtval );
+      }
+
+   /* Success */
+   return 1 ;
+} /*  cache_inode_fsal_rbt_both */
+
+unsigned int cache_inode_fsal_rbt_both_locally( hash_parameter_t * p_hparam,
+				              hash_buffer_t    * buffclef, 
+				              uint32_t * phashval, uint32_t * prbtval )
 {
     char printbuf[512];
     uint32_t h1 = 0 ;
@@ -188,6 +222,18 @@ unsigned int cache_inode_fsal_rbt_both( hash_parameter_t * p_hparam,
    /* Success */
    return 1 ;
 } /*  cache_inode_fsal_rbt_both */
+
+
+unsigned int cache_inode_fsal_rbt_both( hash_parameter_t * p_hparam,
+				        hash_buffer_t    * buffclef, 
+				        uint32_t * phashval, uint32_t * prbtval )
+{
+  if( nfs_param.cache_layers_param.cache_inode_client_param.use_fsal_hash == FALSE )
+    return cache_inode_fsal_rbt_both_locally( p_hparam, buffclef, phashval, prbtval ) ;
+  else
+    return cache_inode_fsal_rbt_both_on_fsal( p_hparam, buffclef, phashval, prbtval ) ;
+}
+
 
 
 int display_key(hash_buffer_t * pbuff, char *str)

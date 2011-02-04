@@ -117,7 +117,7 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   int rc;
   fsal_attrib_list_t attr;
   cache_inode_status_t status;
-  bool_t exclusive = false;
+  bool_t exclusive = FALSE;
 
   resp->resop = NFS4_OP_OPEN;
   res_OPEN4.status = NFS4_OK;
@@ -286,7 +286,7 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 	  switch (arg_OPEN4.openhow.openflag4_u.how.mode)
 	    {
 	    case GUARDED4:
-		exclusive = true;
+		exclusive = TRUE;
 	    case UNCHECKED4:
 	      return create_name41(op, data, resp, uid, pentry_parent,
 				   &filename,
@@ -300,13 +300,13 @@ int nfs41_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 				   &filename,
 				   NULL,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createverf,
-				   true);
+				   TRUE);
 	    case EXCLUSIVE4_1:
 	      return create_name41(op, data, resp, uid, pentry_parent,
 				   &filename,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.ch_createboth.cva_attrs,
 				   &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.ch_createboth.cva_verf,
-				   true);
+				   TRUE);
 	      break;
 
 	    default:
@@ -414,7 +414,7 @@ int open_fh41(struct nfs_argop4 *op, compound_data_t * data,
   
   res_OPEN4.OPEN4res_u.resok4.cinfo.after =
     (changeid4) data->current_entry->internal_md.mod_time;
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
+  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = TRUE;
 
   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
   res_OPEN4.OPEN4res_u.resok4.rflags = 0;
@@ -511,7 +511,7 @@ int open_name41(struct nfs_argop4* op, compound_data_t* data,
   res_OPEN4.OPEN4res_u.resok4.cinfo.after =
     (changeid4) data->current_entry->internal_md.mod_time;
 
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = false;
+  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = FALSE;
 
   /* Now produce the filehandle to this file */
   if((pnewfsal_handle =
@@ -560,8 +560,8 @@ int create_name41(struct nfs_argop4* op, compound_data_t* data,
   fsal_attrib_list_t sattr, attr;
   cache_entry_t *pentry = NULL;
   int convrc = 0;
-  bool_t created = false;
-  bool_t truncated = false;
+  bool_t created = FALSE;
+  bool_t truncated = FALSE;
   cache_inode_status_t status;
   fsal_handle_t* pnewfsal_handle;
   nfs_fh4 newfh4;
@@ -671,7 +671,7 @@ int create_name41(struct nfs_argop4* op, compound_data_t* data,
   res_OPEN4.OPEN4res_u.resok4.cinfo.after =
     (changeid4) data->current_entry->internal_md.mod_time;
 
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
+  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = TRUE;
   
   if (created)
     {

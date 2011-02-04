@@ -269,9 +269,9 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
         case OPEN4_CREATE:
 	  switch (arg_OPEN4.openhow.openflag4_u.how.mode)
 	    {
-	      bool_t exclusive = false;
+	      bool_t exclusive = FALSE;
 	    case GUARDED4:
-		exclusive = true;
+		exclusive = TRUE;
 	    case UNCHECKED4:
 	      return create_name4(op, data, resp, uid, pentry_parent,
 				  &filename,
@@ -286,7 +286,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 				  &filename,
 				  NULL,
 				  &arg_OPEN4.openhow.openflag4_u.how.createhow4_u.createverf,
-				  true);
+				  TRUE);
 	      break;
 
 	    default:
@@ -348,11 +348,11 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   cache_entry_t* pentry;
   fsal_handle_t *pnewfsal_handle = NULL;
   nfs_fh4 newfh4;
-  bool_t new = false;
+  bool_t new = FALSE;
   nfs_resop4* saved = NULL;
   int rc = 0;
 
-  rc = state_lock_state_owner(arg_OPEN4.owner, false, arg_OPEN4.seqid,
+  rc = state_lock_state_owner(arg_OPEN4.owner, FALSE, arg_OPEN4.seqid,
 			      &new, &saved);
 
   if (rc == ERR_STATE_BADSEQ)
@@ -368,7 +368,7 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   else if (saved)
     {
       memcpy(resp, saved, sizeof(nfs_resop4));
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -380,8 +380,8 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 				    &status)) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -397,9 +397,9 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 				  &status)) == NULL)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false,
+      state_save_response(arg_OPEN4.owner, FALSE,
 			  resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -409,25 +409,25 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 	 || pentry->internal_md.type == DIR_CONTINUE)
 	{
 	  res_OPEN4.status = NFS4ERR_ISDIR;
-	  state_save_response(arg_OPEN4.owner, false,
+	  state_save_response(arg_OPEN4.owner, FALSE,
 			      resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return;
 	}
       else if(pentry->internal_md.type == SYMBOLIC_LINK)
 	{
 	  res_OPEN4.status = NFS4ERR_SYMLINK;
-	  state_save_response(arg_OPEN4.owner, false,
+	  state_save_response(arg_OPEN4.owner, FALSE,
 			      resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return;
 	}
       else
 	{
 	  res_OPEN4.status = NFS4ERR_INVAL;
-	  state_save_response(arg_OPEN4.owner, false,
+	  state_save_response(arg_OPEN4.owner, FALSE,
 			      resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return res_OPEN4.status;
 	}
     }
@@ -444,9 +444,9 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 		       &status) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false,
+      state_save_response(arg_OPEN4.owner, FALSE,
 			  resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -458,15 +458,15 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 				    &status)) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
   res_OPEN4.OPEN4res_u.resok4.cinfo.after =
     (changeid4) data->current_entry->internal_md.mod_time;
 
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = false;
+  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = FALSE;
 
   /* Now produce the filehandle to this file */
   if((pnewfsal_handle =
@@ -477,8 +477,8 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   if((rc = nfs4_AllocateFH(&newfh4)) != NFS4_OK)
     {
       res_OPEN4.status = rc;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
   
@@ -486,9 +486,9 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
   if(!nfs4_FSALToFhandle(&newfh4, pnewfsal_handle, data))
     {
       res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      state_save_response(arg_OPEN4.owner, false,
+      state_save_response(arg_OPEN4.owner, FALSE,
 			  resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
   
@@ -507,9 +507,9 @@ int open_name4(struct nfs_argop4* op, compound_data_t* data,
 
   res_OPEN4.status = NFS4_OK;
 
-  state_save_response(arg_OPEN4.owner, false,
+  state_save_response(arg_OPEN4.owner, FALSE,
 		      resp);
-  state_unlock_state_owner(arg_OPEN4.owner, false);
+  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
   return res_OPEN4.status;
 }
 
@@ -522,15 +522,15 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   fsal_attrib_list_t sattr, attr;
   cache_entry_t *pentry = NULL;
   int convrc = 0;
-  bool_t created = false;
-  bool_t truncated = false;
-  bool_t new = false;
+  bool_t created = FALSE;
+  bool_t truncated = FALSE;
+  bool_t new = FALSE;
   nfs_resop4* saved = NULL;
   int rc = 0;
   fsal_handle_t* pnewfsal_handle;
   nfs_fh4 newfh4;
 
-  rc = state_lock_state_owner(arg_OPEN4.owner, false, arg_OPEN4.seqid,
+  rc = state_lock_state_owner(arg_OPEN4.owner, FALSE, arg_OPEN4.seqid,
 			      &new, &saved);
 
   if (rc == ERR_STATE_BADSEQ)
@@ -546,7 +546,7 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   else if (saved)
     {
       memcpy(resp, saved, sizeof(nfs_resop4));
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -559,8 +559,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
       if(!nfs4_Fattr_Supported(createattrs))
 	{
 	  res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
-	  state_save_response(arg_OPEN4.owner, false, resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_save_response(arg_OPEN4.owner, FALSE, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return res_OPEN4.status;
 	}
       
@@ -568,8 +568,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
       if(!nfs4_Fattr_Check_Access(createattrs, FATTR4_ATTR_WRITE))
 	{
 	  res_OPEN4.status = NFS4ERR_ACCESS;
-	  state_save_response(arg_OPEN4.owner, false, resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_save_response(arg_OPEN4.owner, FALSE, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return res_OPEN4.status;
 	}
       
@@ -579,15 +579,15 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
       if(convrc == 0)
 	{
 	  res_OPEN4.status = NFS4ERR_ATTRNOTSUPP;
-	  state_save_response(arg_OPEN4.owner, false, resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_save_response(arg_OPEN4.owner, FALSE, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return res_OPEN4.status;
 	}
       if(convrc == -1)
 	{
 	  res_OPEN4.status = NFS4ERR_BADXDR;
-	  state_save_response(arg_OPEN4.owner, false, resp);
-	  state_unlock_state_owner(arg_OPEN4.owner, false);
+	  state_save_response(arg_OPEN4.owner, FALSE, resp);
+	  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 	  return res_OPEN4.status;
 	}
     }
@@ -608,8 +608,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
 				    &status)) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -640,8 +640,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
       CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
@@ -653,15 +653,15 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
 				    &status)) != CACHE_INODE_SUCCESS)
     {
       res_OPEN4.status = nfs4_Errno(status);
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
 
   res_OPEN4.OPEN4res_u.resok4.cinfo.after =
     (changeid4) data->current_entry->internal_md.mod_time;
 
-  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = true;
+  res_OPEN4.OPEN4res_u.resok4.cinfo.atomic = TRUE;
 
   if (created)
     {
@@ -716,8 +716,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   if((rc = nfs4_AllocateFH(&newfh4)) != NFS4_OK)
     {
       res_OPEN4.status = rc;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
   
@@ -725,8 +725,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   if(!nfs4_FSALToFhandle(&newfh4, pnewfsal_handle, data))
     {
       res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      state_save_response(arg_OPEN4.owner, false, resp);
-      state_unlock_state_owner(arg_OPEN4.owner, false);
+      state_save_response(arg_OPEN4.owner, FALSE, resp);
+      state_unlock_state_owner(arg_OPEN4.owner, FALSE);
       return res_OPEN4.status;
     }
   
@@ -743,8 +743,8 @@ int create_name4(struct nfs_argop4* op, compound_data_t* data,
   res_OPEN4.OPEN4res_u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
   res_OPEN4.OPEN4res_u.resok4.rflags = new ? OPEN4_RESULT_CONFIRM : 0;
 
-  state_save_response(arg_OPEN4.owner, false, resp);
-  state_unlock_state_owner(arg_OPEN4.owner, false);
+  state_save_response(arg_OPEN4.owner, FALSE, resp);
+  state_unlock_state_owner(arg_OPEN4.owner, FALSE);
 
   res_OPEN4.status = NFS4_OK;
   return res_OPEN4.status;

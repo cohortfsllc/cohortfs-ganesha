@@ -128,7 +128,7 @@ cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
   hash_buffer_t key, val;
   int rc;
   int currentmode = 0;
-  bool_t tostore = true;
+  bool_t tostore = TRUE;
   fsal_status_t fsal_status;
 
   *openref = NULL;
@@ -152,7 +152,7 @@ cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
 	return CACHE_INODE_SUCCESS;
       else
 	{
-	  tostore = false;
+	  tostore = FALSE;
 	  fsal_status = FSAL_close(&((*openref)->descriptor));
 	  if(FSAL_IS_ERROR(fsal_status))
 	    return cache_inode_error_convert(fsal_status);
@@ -275,7 +275,7 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
   int rc;
   sharestate existingstate;
   fsal_handle_t* handle = &(pentry->object.file.handle);
-  bool_t upgrade = false;
+  bool_t upgrade = FALSE;
   cache_inode_openref_t* openref = NULL;
   
   if((pentry == NULL) || (pclient == NULL) || (pcontext == NULL) ||
@@ -315,7 +315,7 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
 	      state_unlock_filehandle(handle);
 	      return *pstatus;
 	    }
-	  upgrade = true;
+	  upgrade = TRUE;
 	}
     }
   else if (rc != ERR_STATE_NO_ERROR)
@@ -339,7 +339,7 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
       rc = state_create_share(&(pentry->object.file.handle), open_owner, clientid,
 			      share_access, share_deny, openref, stateid);
       if (rc == ERR_STATE_PREEXISTS)
-	upgrade = true;
+	upgrade = TRUE;
       else if (rc == ERR_STATE_NO_ERROR)
 	{
 	  openref->refcount++;
@@ -465,10 +465,10 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   *new_entry = cache_inode_lookup_sw(pentry_parent,
 				     pname, &found_attrs,
 				     ht, pclient, pcontext, pstatus,
-				     false);
+				     FALSE);
   if (*new_entry != NULL)
     {
-      *created = false;
+      *created = FALSE;
       if (exclusive)
 	{
 	  if (!verf) /* GUARDEF4 */
@@ -490,7 +490,7 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 	}
 
       /* UNCHECKED4 or EXCLUSIVE4/EXCLUSIVE4_1 with matching verifier */
-      *truncated = false;
+      *truncated = FALSE;
       if ((*pstatus = cache_inode_open(*new_entry, pclient,
 				       share_access,
 				       share_deny,
@@ -524,7 +524,7 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 						*stateid,
 						&privstatus))
 	      == CACHE_INODE_SUCCESS)
-	    *truncated = true;
+	    *truncated = TRUE;
 	}
       
       V_w(&pentry_parent->lock);
@@ -554,7 +554,7 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   *new_entry = cache_inode_new_entry(&fsal_data, &found_attrs,
 				    REGULAR_FILE, NULL, NULL,
 				    ht, pclient, pcontext,
-				    true, /* This is a creation and not a population */
+				    TRUE, /* This is a creation and not a population */
 				    pstatus);
   if (new_entry == NULL)
     {

@@ -586,7 +586,7 @@ state_owner_t* acquire_owner(char* name, size_t len,
 	    if (rc == HASHTABLE_SUCCESS)
 		{
 		    if (created)
-			*created = true;
+			*created = TRUE;
 		    return owner;
 		}
 	    else

@@ -181,7 +181,7 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
     state_t* cur = NULL;
     state_t* next = NULL;
 
-    *finished = false;
+    *finished = FALSE;
 
     if (!(header = lookupheader(handle)))
 	{
@@ -219,7 +219,7 @@ int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
     *cookie = (uint64_t)next;
 
     if (!(*cookie))
-	*finished = true;
+	*finished = TRUE;
 
     filltaggedstate(cur, outstate);
 
@@ -234,7 +234,7 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     state_t* cur = NULL;
     state_t* next = NULL;
 
-    *finished = false;
+    *finished = FALSE;
 
     if (*cookie)
 	cur = (state_t*) cookie;
@@ -269,7 +269,7 @@ int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
     *cookie = (uint64_t)next;
 
     if (!(*cookie))
-      *finished = true;
+      *finished = TRUE;
 
     filltaggedstate(cur, outstate);
 
@@ -300,7 +300,7 @@ int localstate_lock_state_owner(state_owner4 state_owner, bool_t lock,
     owner = acquire_owner(state_owner.owner.owner_val,
 			  state_owner.owner.owner_len,
 			  state_owner.clientid, lock,
-			  true, &created);
+			  TRUE, &created);
 
     if (!owner)
 	return ERR_STATE_FAIL;
@@ -327,7 +327,7 @@ int localstate_unlock_state_owner(state_owner4 state_owner,
     owner = acquire_owner(state_owner.owner.owner_val,
 			  state_owner.owner.owner_len,
 			  state_owner.clientid, lock,
-			  false, NULL);
+			  FALSE, NULL);
 
     pthread_mutex_unlock(&(owner->mutex));
 }
@@ -340,7 +340,7 @@ int localstate_save_response(state_owner4 state_owner, bool_t lock,
     owner = acquire_owner(state_owner.owner.owner_val,
 			  state_owner.owner.owner_len,
 			  state_owner.clientid, lock,
-			  false, NULL);
+			  FALSE, NULL);
 
     if (!owner->last_response)
 	owner->last_response = (nfs_resop4*)Mem_Alloc(sizeof(nfs_resop4));

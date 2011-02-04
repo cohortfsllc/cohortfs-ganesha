@@ -218,7 +218,7 @@ typedef struct cache_inode_client_parameter__
   unsigned int max_fd_per_thread;                      /**< Max fd open per client                           */
   time_t retention;                                    /**< Fd retention duration                            */
   unsigned int use_cache;                              /** Do we cache fd or not ?                           */
-
+  unsigned int use_fsal_hash ;                         /** Do we rely on FSAL to hash handle or not ?        */
 } cache_inode_client_parameter_t;
 
 typedef enum cache_inode_file_type__
@@ -298,7 +298,10 @@ typedef struct cache_entry__
   {
     struct cache_inode_file__
     {
-      fsal_handle_t handle;                      /**< The FSAL Handle */
+      fsal_handle_t handle;                                          /**< The FSAL Handle                                      */
+#ifdef _USE_PNFS
+      pnfs_file_t pnfs_file ;
+#endif
 #ifdef _USE_PROXY
       fsal_name_t *pname;                        /**< Pointer to filename, for PROXY only */
       struct cache_entry__ *pentry_parent_open;  /**< Parent associated with pname, for PROXY only      */
@@ -517,6 +520,8 @@ extern hash_table_t* openref_ht;
 #define CACHE_INODE_NOT_SUPPORTED         33
 #define CACHE_INODE_STATE_ERROR           34
 #define CACHE_INODE_FSAL_DELAY            35
+
+const char *cache_inode_err_str(int err);
 
 #define CACHE_INODE_LOCK_OFFSET_EOF 0xFFFFFFFFFFFFFFFFLL
 

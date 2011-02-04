@@ -96,7 +96,7 @@ int nfs4_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   int rc = 0;
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_close";
   cache_inode_status_t cache_status;
-  bool_t new = false;
+  bool_t new = FALSE;
   nfs_resop4* saved = NULL;
   stateid4 stateid = arg_CLOSE4.open_stateid;
 

@@ -50,6 +50,23 @@ fsal_status_t FSAL_getattrs(fsal_handle_t * p_filehandle,       /* IN */
   return fsal_functions.fsal_getattrs(p_filehandle, p_context, p_object_attributes);
 }
 
+fsal_status_t FSAL_getattrs_descriptor(fsal_file_t * p_file_descriptor,         /* IN */
+                                       fsal_handle_t * p_filehandle,            /* IN */
+                                       fsal_op_context_t * p_context,           /* IN */
+                                       fsal_attrib_list_t * p_object_attributes /* IN/OUT */ )
+{
+  if(fsal_functions.fsal_getattrs_descriptor != NULL && p_file_descriptor != NULL)
+    {
+      LogFullDebug(COMPONENT_FSAL, "FSAL_getattrs_descriptor calling fsal_getattrs_descriptor");
+      return fsal_functions.fsal_getattrs_descriptor(p_file_descriptor, p_filehandle, p_context, p_object_attributes);
+    }
+  else
+    {
+      LogFullDebug(COMPONENT_FSAL, "FSAL_getattrs_descriptor calling fsal_getattrs");
+      return fsal_functions.fsal_getattrs(p_filehandle, p_context, p_object_attributes);
+    }
+}
+
 fsal_status_t FSAL_setattrs(fsal_handle_t * p_filehandle,       /* IN */
                             fsal_op_context_t * p_context,      /* IN */
                             fsal_attrib_list_t * p_attrib_set,  /* IN */
@@ -525,6 +542,24 @@ unsigned int FSAL_Handle_to_HashIndex(fsal_handle_t * p_handle,
 unsigned int FSAL_Handle_to_RBTIndex(fsal_handle_t * p_handle, unsigned int cookie)
 {
   return fsal_functions.fsal_handle_to_rbtindex(p_handle, cookie);
+}
+
+unsigned int FSAL_Handle_to_Hash_both(fsal_handle_t * p_handle, unsigned int cookie, unsigned int alphabet_len,
+                                      unsigned int index_size, unsigned int * phashval, unsigned int *prbtval ) 
+{
+
+  if( fsal_functions.fsal_handle_to_hash_both != NULL ) 
+    return fsal_functions.fsal_handle_to_hash_both( p_handle, cookie, alphabet_len, index_size, phashval, prbtval) ;
+  else
+    {
+        if( phashval == NULL || prbtval == NULL )
+	   return 0 ;
+
+	*phashval = fsal_functions.fsal_handle_to_hashindex( p_handle, cookie, alphabet_len, index_size ) ;
+        *prbtval = fsal_functions.fsal_handle_to_rbtindex( p_handle, cookie);
+
+        return 1 ;
+    }
 }
 
 fsal_status_t FSAL_DigestHandle(fsal_export_context_t * p_expcontext,   /* IN */

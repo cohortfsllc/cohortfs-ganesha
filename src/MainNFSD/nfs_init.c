@@ -600,6 +600,7 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
       FSAL_ATTR_MASK_V2_V3;
   p_nfs_param->cache_layers_param.cache_inode_client_param.max_fd_per_thread = 20;
   p_nfs_param->cache_layers_param.cache_inode_client_param.use_cache = 0;
+  p_nfs_param->cache_layers_param.cache_inode_client_param.use_fsal_hash = 1;
   p_nfs_param->cache_layers_param.cache_inode_client_param.retention = 60;
 
   /* Data cache client parameters */
@@ -1403,15 +1404,18 @@ static void nfs_Start_threads(nfs_parameter_t * pnfs_param)
   LogEvent(COMPONENT_INIT, "statistics exporter thread was started successfully");
 #endif      /*  _USE_STAT_EXPORTER */
 
-  /* Starting the nfs file content gc thread  */
-  if((rc =
-      pthread_create(&fcc_gc_thrid, &attr_thr, file_content_gc_thread,
-                     (void *)NULL)) != 0)
+  if(pnfs_param->cache_layers_param.dcgcpol.run_interval != 0)
     {
-      LogError(COMPONENT_INIT, ERR_SYS, ERR_PTHREAD_CREATE, rc);
-      exit(1);
+      /* Starting the nfs file content gc thread  */
+      if((rc =
+          pthread_create(&fcc_gc_thrid, &attr_thr, file_content_gc_thread,
+                         (void *)NULL)) != 0)
+        {
+          LogError(COMPONENT_INIT, ERR_SYS, ERR_PTHREAD_CREATE, rc);
+          exit(1);
+        }
+      LogEvent(COMPONENT_INIT, "file content gc thread was started successfully");
     }
-  LogEvent(COMPONENT_INIT, "file content gc thread was started successfully");
 
 }                               /* nfs_Start_threads */
 

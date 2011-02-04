@@ -47,8 +47,8 @@ int localstate_create_lock_state(fsal_handle_t *handle,
 
     if (!(owner
 	  = acquire_owner(lock_owner.owner.owner_val,
-			  lock_owner.owner.owner_len, clientid, true,
-			  false, NULL)))
+			  lock_owner.owner.owner_len, clientid, TRUE,
+			  FALSE, NULL)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_lock_state: could not find/create state owner entry.");
@@ -139,8 +139,8 @@ int localstate_query_lock_state(fsal_handle_t* handle,
 
     if (!(owner
 	  = acquire_owner(lock_owner.owner.owner_val,
-			  lock_owner.owner.owner_len, clientid, false,
-			  true, &created)))
+			  lock_owner.owner.owner_len, clientid, TRUE,
+			  FALSE, &created)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_query_lock_state: could not find/create state owner entry.");

@@ -339,6 +339,26 @@ unsigned int FSAL_Handle_to_HashIndex(fsal_handle_t * p_handle,
 
 unsigned int FSAL_Handle_to_RBTIndex(fsal_handle_t * p_handle, unsigned int cookie);
 
+/*
+ * FSAL_Handle_to_Hash_Both 
+ * This function is used for generating both a RBT node ID and a hash index in one pass
+ * in order to identify entries into the RBT.
+ *
+ * \param p_handle	The handle to be hashed
+ * \param cookie 	Makes it possible to have different hash value for the
+ *			same handle, when cookie changes.
+ * \param alphabet_len	Parameter for polynomial hashing algorithm
+ * \param index_size	The range of hash value will be [0..index_size-1]
+ * \param phashval      First computed value : hash value
+ * \param prbtval       Second computed value : rbt value
+ *
+ *
+ * \return 1 if successful and 0 otherwise
+ */
+
+unsigned int FSAL_Handle_to_Hash_both(fsal_handle_t * p_handle, unsigned int cookie, unsigned int alphabet_len, 
+                                      unsigned int index_size, unsigned int * phashval, unsigned int *prbtval ) ;
+
 /** FSAL_DigestHandle :
  *  convert an fsal_handle_t to a buffer
  *  to be included into NFS handles,
@@ -463,6 +483,12 @@ fsal_status_t FSAL_truncate(fsal_handle_t * filehandle, /* IN */
 fsal_status_t FSAL_getattrs(fsal_handle_t * filehandle, /* IN */
                             fsal_op_context_t * p_context,      /* IN */
                             fsal_attrib_list_t * object_attributes      /* IN/OUT */
+    );
+
+fsal_status_t FSAL_getattrs_descriptor(fsal_file_t * p_file_descriptor,         /* IN */
+                                       fsal_handle_t * p_filehandle,            /* IN */
+                                       fsal_op_context_t * p_context,           /* IN */
+                                       fsal_attrib_list_t * p_object_attributes /* IN/OUT */
     );
 
 fsal_status_t FSAL_setattrs(fsal_handle_t * filehandle, /* IN */
@@ -978,6 +1004,12 @@ typedef struct fsal_functions__
                                  fsal_op_context_t * p_context, /* IN */
                                  fsal_attrib_list_t * p_object_attributes /* IN/OUT */ );
 
+  /* FSAL_getattrs_descriptor */
+  fsal_status_t(*fsal_getattrs_descriptor) (fsal_file_t * p_file_descriptor,         /* IN */
+                                            fsal_handle_t * p_filehandle,            /* IN */
+                                            fsal_op_context_t * p_context,           /* IN */
+                                            fsal_attrib_list_t * p_object_attributes /* IN/OUT */ );
+
   /* FSAL_setattrs */
   fsal_status_t(*fsal_setattrs) (fsal_handle_t * p_filehandle,  /* IN */
                                  fsal_op_context_t * p_context, /* IN */
@@ -1259,6 +1291,10 @@ typedef struct fsal_functions__
 
   /* FSAL_Handle_to_RBTIndex */
   unsigned int (*fsal_handle_to_rbtindex) (fsal_handle_t * p_handle, unsigned int cookie);
+
+  /* FSAL_Handle_to_Hash_both */
+  unsigned int (*fsal_handle_to_hash_both) (fsal_handle_t * p_handle, unsigned int cookie, unsigned int alphabet_len, 
+                                      unsigned int index_size, unsigned int * phashval, unsigned int *prbtval ) ;
 
   /* FSAL_DigestHandle */
    fsal_status_t(*fsal_digesthandle) (fsal_export_context_t * p_expcontext,     /* IN */

@@ -87,8 +87,8 @@ int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
 
     if (!(owner
 	  = acquire_owner(open_owner.owner.owner_val,
-			  open_owner.owner.owner_len, clientid, false,
-			  false, NULL)))
+			  open_owner.owner.owner_len, clientid, FALSE,
+			  FALSE, NULL)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_create_share: could not find/create state owner entry.");
@@ -236,7 +236,7 @@ int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
     state_t* cur = NULL;
     int rc = 0;
     state_owner_t* owner;
-    bool_t created = false;
+    bool_t created = FALSE;
     
     /* Retrieve or create header for per-filehandle chain */
 
@@ -248,8 +248,8 @@ int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
 
     if (!(owner
 	  = acquire_owner(open_owner.owner.owner_val,
-			  open_owner.owner.owner_len, clientid, false,
-			  false, &created)))
+			  open_owner.owner.owner_len, clientid, FALSE,
+			  FALSE, &created)))
 	{
 	    LogMajor(COMPONENT_STATES,
 		     "state_query_share: could not find/create state owner entry.");

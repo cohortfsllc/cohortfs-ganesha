@@ -99,7 +99,7 @@
 int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
                           struct nfs_resop4 *resp)
 {
-  bool_t nomore = false;
+  bool_t nomore = FALSE;
   fsal_status_t fsal_status;
   cache_inode_status_t cache_status;
   stateid4 stateid;
@@ -109,7 +109,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
   fsal_attrib_list_t attrs;
   fsal_fsid_t fsid;
   cache_entry_t* pentry;
-  bool_t finished = false;
+  bool_t finished = FALSE;
   char __attribute__ ((__unused__)) funcname[] = "nfs41_op_layoutreturn";
 
   resp->resop = NFS4_OP_LAYOUTGET;
