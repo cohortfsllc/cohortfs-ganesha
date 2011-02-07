@@ -40,7 +40,7 @@
 #include "fsal_internal.h"
 #include "stuff_alloc.h"
 #include "SemN.h"
-#include "nfsv41.h"
+#include "nfs4.h"
 #include "HashTable.h"
 
 #include <pthread.h>
@@ -91,8 +91,10 @@ static fsal_staticfsinfo_t default_hpss_info = {
   0400                         /* default access rights for xattrs: root=RW, owner=R */
 };
 
+#ifdef _USE_FSALMDS
 layouttype4 supportedlayouttypes[] = {LAYOUT4_NFSV4_1_FILES};
 fsal_size_t layout_blksize = 4096 * 1024;
+#endif
 
 /*
  *  Log Descriptor

@@ -158,7 +158,7 @@ static const nfs4_op_desc_t optab4v1[] = {
   {"OP_LOOKUP", NFS4_OP_LOOKUP, nfs4_op_lookup},
   {"OP_LOOKUPP", NFS4_OP_LOOKUPP, nfs4_op_lookupp},
   {"OP_NVERIFY", NFS4_OP_NVERIFY, nfs4_op_nverify},
-  {"OP_OPEN", NFS4_OP_OPEN, nfs41_op_open},
+  {"OP_OPEN", NFS4_OP_OPEN, nfs4_op_open},
   {"OP_OPENATTR", NFS4_OP_OPENATTR, nfs4_op_openattr},
   {"OP_OPEN_CONFIRM", NFS4_OP_OPEN_CONFIRM, nfs4_op_illegal},   /* OP_OPEN_CONFIRM is deprecated in NFSv4.1 */
   {"OP_OPEN_DOWNGRADE", NFS4_OP_OPEN_DOWNGRADE, nfs41_op_open_downgrade},

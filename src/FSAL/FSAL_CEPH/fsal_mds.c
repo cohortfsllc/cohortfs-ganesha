@@ -23,7 +23,7 @@
 #include "fsal.h"
 #include "fsal_internal.h"
 #include "fsal_convert.h"
-#include "nfsv41.h"
+#include "nfs4.h"
 #include <ceph/libceph.h>
 #include <fcntl.h>
 #include "HashTable.h"

@@ -44,7 +44,9 @@
 #include "err_fsal.h"
 #include <ceph/libceph.h>
 #include <pthread.h>
+#ifdef _USE_FSALMDS
 #include "layouttypes/filelayout.h"
+#endif
 #include "fsal_glue_const.h"
 
 #define fsal_handle_t cephfsal_handle_t
