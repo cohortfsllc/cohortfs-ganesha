@@ -307,12 +307,12 @@ int localstate_lock_state_owner(state_owner4 state_owner, bool_t lock,
     if (owner->seqid == seqid)
 	{
 	    *response = owner->last_response;
-	    pthread_mutex_unlock(&(owner->mutex));
+/*	    pthread_mutex_unlock(&(owner->mutex)); */
 	    return ERR_STATE_NO_ERROR;
 	}
     if ((owner->seqid < seqid) || (owner->seqid > seqid + 1))
 	{
-	    pthread_mutex_unlock(&(owner->mutex));
+/*	    pthread_mutex_unlock(&(owner->mutex)); */
 	    return ERR_STATE_BADSEQ;
 	}
 
@@ -329,7 +329,7 @@ int localstate_unlock_state_owner(state_owner4 state_owner,
 			  state_owner.clientid, lock,
 			  FALSE, NULL);
 
-    pthread_mutex_unlock(&(owner->mutex));
+/*    pthread_mutex_unlock(&(owner->mutex)); */
 }
 
 int localstate_save_response(state_owner4 state_owner, bool_t lock,

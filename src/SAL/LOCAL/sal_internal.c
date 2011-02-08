@@ -511,7 +511,7 @@ state_owner_t* acquire_owner(char* name, size_t len,
 	    owner = (state_owner_t*)val.pdata;
 	    if (wantmutex)
 		{
-		    rc = pthread_mutex_lock(&(owner->mutex));
+/*		    rc = pthread_mutex_lock(&(owner->mutex)); */
 		    if (rc < 0)
 			return NULL;
 		}
