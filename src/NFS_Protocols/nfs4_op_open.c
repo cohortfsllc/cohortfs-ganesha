@@ -758,6 +758,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 		      }
 	      }
       }
+      break;
 	  
       default:
           res_OPEN4.status = NFS4ERR_INVAL;
