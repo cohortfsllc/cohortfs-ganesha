@@ -829,6 +829,45 @@ fsal_status_t FSAL_RemoveXAttrByName(fsal_handle_t * p_objecthandle,    /* IN */
                                      const fsal_name_t * xattr_name);   /* IN */
 
 
+/**
+ * FSAL_Open_to_HashIndex
+ * This function is used for hashing a FSAL handle and UID for open
+ * reference counting.
+ *
+ * \param p_handle	The handle being opened
+ * \param uid           The UID
+ * \param alphabet_len	Parameter for polynomial hashing algorithm
+ * \param index_size	The range of hash value will be [0..index_size-1]
+ *
+ * \return The hash value
+ */
+
+unsigned int FSAL_Open_to_HashIndex(fsal_handle_t * p_handle,
+				    unsigned int uid,
+				    unsigned int alphabet_len,
+				    unsigned int index_size);
+
+/*
+ * FSAL_Open_to_RBTIndex 
+ * This function is used for generating a RBT node ID 
+ * in order in the open reference hash.
+ *
+ * \param p_handle	The handle to be opened
+ * \param uid           The ID of the user opening the handle
+ *
+ * \return The hash value
+ */
+
+unsigned int FSAL_Open_to_RBTIndex(fsal_handle_t * p_handle,
+				   unsigned int uid);
+
+/** Compare 2 opens.
+ *  \return - 0 if handle are the same
+ *          - A non null value else.
+ */
+int FSAL_opencmp(fsal_handle_t * handle1, unsigned int uid1,
+		 fsal_handle_t * handle2, unsigned int uid2);
+
 /******************************************************
  *                FSAL miscelaneous tools.
  ******************************************************/
@@ -1298,6 +1337,17 @@ typedef struct fsal_functions__
   unsigned int (*fsal_handle_to_hash_both) (fsal_handle_t * p_handle, unsigned int cookie, unsigned int alphabet_len, 
                                       unsigned int index_size, unsigned int * phashval, unsigned int *prbtval ) ;
 
+
+  int (*fsal_opencmp) (fsal_handle_t * handle1, unsigned int uid1,
+		       fsal_handle_t * handle2, unsigned int uid2);
+  unsigned int (*fsal_open_to_hashindex) (fsal_handle_t * p_handle,
+                                            unsigned int uid,
+                                            unsigned int alphabet_len,
+                                            unsigned int index_size);
+  unsigned int (*fsal_open_to_rbtindex) (fsal_handle_t * p_handle,
+					 unsigned int uid);
+
+  
   /* FSAL_DigestHandle */
    fsal_status_t(*fsal_digesthandle) (fsal_export_context_t * p_expcontext,     /* IN */
                                       fsal_digesttype_t output_type,    /* IN */

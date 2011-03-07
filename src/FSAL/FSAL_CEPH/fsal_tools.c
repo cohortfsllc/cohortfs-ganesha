@@ -511,3 +511,77 @@ fsal_status_t CEPHFSAL_load_FS_specific_parameter_from_conf(config_file_t in_con
   ReturnCode(ERR_FSAL_NO_ERROR, 0);
 
 }                               /* FSAL_load_FS_specific_parameter_from_conf */
+
+/** 
+ * FSAL_opencmp:
+ * Compare 2 handles.
+ *
+ * \param handle1 (input):
+ *        The first handle to be compared.
+ * \param uid1 (input:
+ *        The first UID to be compared.
+ * \param handle2 (input):
+ *        The second handle to be compared.
+ * \param uid2 (input):
+ *        Second UID to be compared.
+ *
+ * \return - 0 if handles are the same.
+ *         - A non null value else.
+ *         - Segfault if status is a NULL pointer.
+ */
+
+int CEPHFSAL_opencmp(cephfsal_handle_t * handle1,
+		     unsigned int uid1,
+		     cephfsal_handle_t * handle2,
+		     unsigned int uid2)
+{
+  if ((uid1 == uid2) &&
+      (VINODE(handle1).ino.val == VINODE(handle2).ino.val) &&
+      (VINODE(handle1).snapid.val == VINODE(handle2).snapid.val))
+    return 0;
+  else
+    return 1;
+}
+
+/**
+ * FSAL_Open_to_HashIndex
+ * This function is used for hashing an FSAL open
+ * in order to save entries in the hash table.
+ *
+ * \param p_handle      The handle to be hashed
+ * \param uid           The UID of the user opening the file
+ * \param alphabet_len  Parameter for polynomial hashing algorithm
+ * \param index_size    The range of hash value will be [0..index_size-1]
+ *
+ * \return The hash value
+ */
+
+unsigned int CEPHFSAL_Open_to_HashIndex(cephfsal_handle_t * p_handle,
+					unsigned int uid,
+					unsigned int alphabet_len,
+					unsigned int index_size)
+{
+  /* We need a better hash */
+  return (unsigned int)
+    (((VINODE(p_handle).ino.val + VINODE(p_handle).snapid.val)*uid) %
+     index_size); 
+}
+
+/*
+ * FSAL_Open_to_RBTIndex
+ * This function is used for generating a RBT node ID
+ * in order to identify entries in the open reference table.
+ *
+ * \param p_handle      The handle of the file being opened
+ * \param uid           The UID of the user opening it
+ *
+ * \return The hash value
+ */
+
+unsigned int CEPHFSAL_Open_to_RBTIndex(cephfsal_handle_t * p_handle,
+					 unsigned int uid)
+{
+  /* Come up with a better hash */
+  return (unsigned int)(0xABCD1234 ^ VINODE(p_handle).ino.val ^
+			VINODE(p_handle).snapid.val ^ uid);
+}

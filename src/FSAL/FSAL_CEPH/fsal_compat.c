@@ -496,6 +496,30 @@ unsigned int WRAP_CEPHFSAL_Handle_to_RBTIndex(fsal_handle_t * p_handle,
   return CEPHFSAL_Handle_to_RBTIndex((cephfsal_handle_t *) p_handle, cookie);
 }
 
+int WRAP_CEPHFSAL_opencmp(fsal_handle_t * handle1, unsigned int uid1,
+			  fsal_handle_t * handle2, unsigned int uid2)
+{
+  return CEPHFSAL_opencmp((cephfsal_handle_t*) handle1, uid1,
+			  (cephfsal_handle_t*) handle2, uid2);
+}
+
+unsigned int WRAP_CEPHFSAL_Open_to_HashIndex(fsal_handle_t* p_handle,
+					     unsigned int uid,
+					     unsigned int alphabet_len,
+					     unsigned int index_size)
+{
+  return CEPHFSAL_Open_to_HashIndex((cephfsal_handle_t*) p_handle,
+				    uid, alphabet_len, index_size);
+}
+
+unsigned int WRAP_CEPHFSAL_Open_to_RBTIndex(fsal_handle_t * p_handle,
+					    unsigned int uid)
+{
+  return CEPHFSAL_Open_to_RBTIndex((cephfsal_handle_t*) p_handle,
+				   uid);
+}
+
+
 fsal_status_t WRAP_CEPHFSAL_DigestHandle(fsal_export_context_t * p_exportcontext,        /* IN */
                                         fsal_digesttype_t output_type,  /* IN */
                                         fsal_handle_t * p_in_fsal_handle,       /* IN */
@@ -841,6 +865,9 @@ fsal_functions_t fsal_ceph_functions = {
   .fsal_handlecmp = WRAP_CEPHFSAL_handlecmp,
   .fsal_handle_to_hashindex = WRAP_CEPHFSAL_Handle_to_HashIndex,
   .fsal_handle_to_rbtindex = WRAP_CEPHFSAL_Handle_to_RBTIndex,
+  .fsal_opencmp = WRAP_CEPHFSAL_opencmp,
+  .fsal_open_to_hashindex = WRAP_CEPHFSAL_Open_to_HashIndex,
+  .fsal_open_to_rbtindex = WRAP_CEPHFSAL_Open_to_RBTIndex,
   .fsal_digesthandle = WRAP_CEPHFSAL_DigestHandle,
   .fsal_expandhandle = WRAP_CEPHFSAL_ExpandHandle,
   .fsal_setdefault_fsal_parameter = WRAP_CEPHFSAL_SetDefault_FSAL_parameter,

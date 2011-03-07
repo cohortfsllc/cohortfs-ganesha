@@ -549,6 +549,39 @@ unsigned int FSAL_Handle_to_RBTIndex(fsal_handle_t * p_handle, unsigned int cook
   return fsal_functions.fsal_handle_to_rbtindex(p_handle, cookie);
 }
 
+unsigned int FSAL_Open_to_HashIndex(fsal_handle_t * p_handle,
+				    unsigned int uid,
+				    unsigned int alphabet_len,
+				    unsigned int index_size)
+{
+    return (fsal_functions.fsal_open_to_hashindex ?
+	    fsal_functions.fsal_open_to_hashindex(p_handle, uid,
+						  alphabet_len,
+						  index_size) :
+	    fsal_functions.fsal_handle_to_hashindex(p_handle, 0,
+						    alphabet_len,
+						    index_size));
+}
+
+unsigned int FSAL_Open_to_RBTIndex(fsal_handle_t * p_handle,
+				   unsigned int uid)
+{
+  return (fsal_functions.fsal_open_to_rbtindex ?
+	  fsal_functions.fsal_open_to_rbtindex(p_handle, uid) :
+	  fsal_functions.fsal_handle_to_rbtindex(p_handle, 0));
+}
+
+int FSAL_opencmp(fsal_handle_t * handle1, unsigned int uid1,
+		 fsal_handle_t * handle2, unsigned int uid2)
+{
+    fsal_status_t status;
+
+    return (fsal_functions.fsal_opencmp ?
+	    fsal_functions.fsal_opencmp(handle1, uid1, handle2, uid2) :
+	    fsal_functions.fsal_handlecmp(handle1, handle2, &status));
+}
+
+
 unsigned int FSAL_Handle_to_Hash_both(fsal_handle_t * p_handle, unsigned int cookie, unsigned int alphabet_len,
                                       unsigned int index_size, unsigned int * phashval, unsigned int *prbtval ) 
 {

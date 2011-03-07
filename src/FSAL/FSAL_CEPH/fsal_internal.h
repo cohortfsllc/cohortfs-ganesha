@@ -337,7 +337,14 @@ unsigned int CEPHFSAL_Handle_to_HashIndex(cephfsal_handle_t * p_handle,
                                          unsigned int index_size);
 
 unsigned int CEPHFSAL_Handle_to_RBTIndex(cephfsal_handle_t * p_handle, unsigned int cookie);
-
+int CEPHFSAL_opencmp(cephfsal_handle_t * handle1, unsigned int uid1,
+		     cephfsal_handle_t * handle2, unsigned int uid2);
+unsigned int CEPHFSAL_Open_to_HashIndex(cephfsal_handle_t* p_handle,
+					unsigned int uid,
+					unsigned int alphabet_len,
+					unsigned int index_size);
+unsigned int CEPHFSAL_Open_to_RBTIndex(cephfsal_handle_t * p_handle,
+				       unsigned int uid);
 fsal_status_t CEPHFSAL_DigestHandle(cephfsal_export_context_t * p_expcontext,     /* IN */
                                    fsal_digesttype_t output_type,       /* IN */
                                    cephfsal_handle_t * p_in_fsal_handle, /* IN */

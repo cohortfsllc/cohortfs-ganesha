@@ -85,9 +85,9 @@ unsigned long cache_inode_openref_hash_func(p_hash_parameter_t param,
 {
   cache_inode_openref_key_t* okey = (cache_inode_openref_key_t*) key->pdata;
 
-  return FSAL_Handle_to_HashIndex(&(okey->handle), okey->uid,
-				  param->alphabet_length,
-				  param->index_size);
+  return FSAL_Open_to_HashIndex(&(okey->handle), okey->uid,
+				param->alphabet_length,
+				param->index_size);
 }
 
 unsigned long cache_inode_openref_rbt_func(p_hash_parameter_t param,
@@ -95,7 +95,7 @@ unsigned long cache_inode_openref_rbt_func(p_hash_parameter_t param,
 {
   cache_inode_openref_key_t* okey = (cache_inode_openref_key_t*) key->pdata;
 
-  return FSAL_Handle_to_RBTIndex(&(okey->handle), okey->uid);
+  return FSAL_Open_to_RBTIndex(&(okey->handle), okey->uid);
 }
 
 int cache_inode_display_openref(hash_buffer_t* key, char* str)
@@ -111,11 +111,8 @@ int cache_inode_compare_key_openref(hash_buffer_t* key1, hash_buffer_t* key2)
     key2->pdata;
   fsal_status_t status;
 
-  if (okey1->uid == okey2->uid)
-    return FSAL_handlecmp(&(okey1->handle), &(okey2->handle),
-			  &status);
-  else
-    return 1;
+  return FSAL_opencmp(&(okey1->handle), okey1->uid, &(okey2->handle),
+		      okey2->uid);
 }
 
 cache_inode_status_t cache_inode_get_openref(fsal_handle_t* handle,
