@@ -440,3 +440,39 @@ unsigned int CEPHFSAL_GetFileno(cephfsal_file_t * pfile)
   unsigned int mask=0xFFFFFFFF;
   return (mask & ((uintptr_t) FH(pfile)));
 }
+
+/**
+ * FSAL_sync:
+ * This function is used for processing stable writes and COMMIT requests.
+ * Calling this function makes sure the changes to a specific file are
+ * written to disk rather than kept in memory.
+ *
+ * \param file_descriptor (input):
+ *        The file descriptor returned by FSAL_open.
+ *
+ * \return Major error codes:
+ *      - ERR_FSAL_NO_ERROR: no error.
+ *      - Another error code if an error occured during this call.
+ */
+fsal_status_t CEPHFSAL_sync(cephfsal_file_t* p_file_descriptor       /* IN */)
+{
+  int rc, errsv;
+
+  /* sanity checks. */
+  if(!p_file_descriptor)
+    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_sync);
+
+
+  /* Flush data. */
+  TakeTokenFSCall();
+  rc = ceph_ll_fsync(FH(p_file_descriptor), 1);
+  ReleaseTokenFSCall();
+  
+  if(rc < 0)
+    {
+      LogEvent(COMPONENT_FSAL, "Error in fsync operation");
+      Return(posix2fsal_error(-rc), errsv, INDEX_FSAL_sync);
+    }
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_sync);
+}

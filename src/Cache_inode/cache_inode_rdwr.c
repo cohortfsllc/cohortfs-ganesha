@@ -52,6 +52,7 @@
 #include "cache_content.h"
 #include "stuff_alloc.h"
 #include "sal.h"
+#include "nfs_core.h"
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -97,7 +98,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                                       hash_table_t * ht,
                                       cache_inode_client_t * pclient,
                                       fsal_op_context_t * pcontext,
-                                      bool_t stable,
+				      uint64_t stable, 
                                       cache_inode_status_t * pstatus)
 {
   int statindex = 0;
@@ -109,7 +110,6 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
   fsal_attrib_list_t post_write_attr;
   fsal_status_t fsal_status_getattr;
   struct stat buffstat;
-  bool_t stable_flag = stable;
   cache_inode_openref_t* openref;
   taggedstate state;
   fsal_file_t descriptor;
@@ -176,7 +176,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
     }
 
   /* Do we use stable or unstable storage ? */
-  if(stable_flag == FALSE)
+  if(stable == FSAL_UNSAFE_WRITE_TO_GANESHA_BUFFER)
     {
       /* Data will be stored in memory and not flush to FSAL */
 
@@ -232,13 +232,14 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
           else
             {
               /* Go back to regular situation */
-              stable_flag = TRUE;
+              stable = FSAL_SAFE_WRITE_TO_FS;
             }
         }
 
     }
-  /* if( stable_flag == FALSE ) */
-  if(stable_flag == TRUE)
+  /* if( stable == FALSE ) */
+  if(stable == FSAL_SAFE_WRITE_TO_FS ||
+     stable == FSAL_UNSAFE_WRITE_TO_FS_BUFFER)
     {
       /* Calls file content cache to operate on the cache */
       if(pentry->object.file.pentry_content != NULL)
@@ -421,13 +422,22 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 
             case CACHE_INODE_WRITE:
 #ifdef _USE_MFSL
-              fsal_status = MFSL_write(&(pentry->object.file.open_fd.mfsl_fd),
+              fsal_status = MFSL_write(&descriptor,
                                        seek_descriptor,
                                        io_size, buffer, pio_size, &pclient->mfsl_context, NULL);
 #else
               fsal_status = FSAL_write(&descriptor,
                                        seek_descriptor, io_size, buffer, pio_size);
 #endif
+
+              /* Alright, the unstable write is complete. Now if it was supposed to be a stable write
+               * we can sync to the hard drive. */
+              if(stable == FSAL_SAFE_WRITE_TO_FS) {
+                fsal_status = FSAL_sync(&descriptor);
+                if(FSAL_IS_ERROR(fsal_status))
+                  LogMajor(COMPONENT_CACHE_INODE, "cache_inode_rdwr: fsal_sync() failed: fsal_status.major = %d",
+                           fsal_status.major);
+              }
 
               break;
             }
@@ -522,7 +532,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
         }
     }
 
-  /* if(stable_flag == TRUE ) */
+  /* if(stable == TRUE ) */
   /* Return attributes to caller */
   if(pfsal_attr != NULL)
     *pfsal_attr = pentry->object.file.attributes;

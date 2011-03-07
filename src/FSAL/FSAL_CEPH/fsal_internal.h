@@ -201,6 +201,7 @@ fsal_status_t CEPHFSAL_write(cephfsal_file_t * p_file_descriptor, /* IN */
                             caddr_t buffer,     /* IN */
                             fsal_size_t * p_write_amount /* OUT */ );
 
+fsal_status_t CEPHFSAL_sync(cephfsal_file_t * p_file_descriptor /* IN */);
 fsal_status_t CEPHFSAL_close(cephfsal_file_t * p_file_descriptor /* IN */ );
 
 fsal_status_t CEPHFSAL_open_by_fileid(cephfsal_handle_t * filehandle,     /* IN */

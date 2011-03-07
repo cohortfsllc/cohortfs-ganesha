@@ -139,6 +139,7 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_ds_read              57
 #define INDEX_FSAL_ds_write             58
 #define INDEX_FSAL_ds_commit            59
+#define INDEX_FSAL_sync                 52
 
 /* number of FSAL functions */
 #define FSAL_NB_FUNC  60
@@ -160,6 +161,8 @@ static const char *fsal_function_names[] = {
   "FSAL_layoutget", "FSAL_layoutreturn", "FSAL_layoutcommit", "FSAL_getdeviceinfo",
   "FSAL_getdevicelist", "FSAL_ds_read", "FSAL_ds_write",
   "FSAL_ds_commit"
+  "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access",
+  "FSAL_getlock", "FSAL_CleanUpExportContext", "FSAL_getextattrs", "FSAL_sync"
 };
 
 typedef unsigned long long fsal_u64_t;    /**< 64 bit unsigned integer.     */

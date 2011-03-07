@@ -160,9 +160,11 @@ static char *cache_inode_function_names[] = {
   "cache_inode_locku",
 #define CACHE_INODE_LOCKT               26
   "cache_inode_lockt"
+#define CACHE_INODE_COMMIT              27
+  "cache_inode_commit"
 };
 
-#define CACHE_INODE_NB_COMMAND      27
+#define CACHE_INODE_NB_COMMAND      28
 
 typedef enum cache_inode_expire_type__
 { CACHE_INODE_EXPIRE = 0,
@@ -833,7 +835,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                                       hash_table_t * ht,
                                       cache_inode_client_t * pclient,
                                       fsal_op_context_t * pcontext,
-                                      bool_t stable,
+				      uint64_t stable,
                                       cache_inode_status_t * pstatus);
 
 #define cache_inode_read( a, b, c, d, e, f, g, h, i, j, k ) cache_inode_rdwr( a, CACHE_INODE_READ, b, c, d, e, f, g, h, i, j, k )
@@ -846,6 +848,7 @@ cache_inode_status_t cache_inode_commit(cache_entry_t * pentry,
                                         hash_table_t * ht,
                                         cache_inode_client_t * pclient,
                                         fsal_op_context_t * pcontext,
+                                        uint64_t typeofcommit,
                                         cache_inode_status_t * pstatus);
 
 cache_inode_status_t cache_inode_readdir_populate(cache_entry_t * pentry_dir,
