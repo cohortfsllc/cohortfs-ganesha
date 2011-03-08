@@ -171,7 +171,9 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
                         &attr,
                         data->ht,
                         data->pclient,
-                        data->pcontext, &cache_status) != CACHE_INODE_SUCCESS)
+                        data->pcontext, 
+			FSAL_UNSAFE_WRITE_TO_FS_BUFFER, /** @todo I had to add this, just for compiling */
+			&cache_status) != CACHE_INODE_SUCCESS)
     {
       res_COMMIT4.status = NFS4ERR_INVAL;
       return res_COMMIT4.status;
