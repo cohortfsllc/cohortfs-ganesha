@@ -301,7 +301,7 @@ typedef struct cache_entry__
     struct cache_inode_file__
     {
       fsal_handle_t handle;                                          /**< The FSAL Handle                                      */
-#ifdef _USE_PNFS
+#ifdef _USE_PNFS_SPNFS_LIKE
       pnfs_file_t pnfs_file ;
 #endif
 #ifdef _USE_PROXY
