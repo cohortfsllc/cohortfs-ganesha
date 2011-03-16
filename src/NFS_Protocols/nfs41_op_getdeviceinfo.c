@@ -104,7 +104,8 @@ int nfs41_op_getdeviceinfo(struct nfs_argop4 *op,
 #if !(defined(_USE_PNFS) || defined(_USE_FSALMDS))
   res_GETDEVICEINFO4.gdir_status = NFS4ERR_NOTSUPP;
   return res_GETDEVICEINFO4.gdir_status;
-#else
+#endif
+#if (defined(_USE_PNFS) || defined(_USE_FSALMDS))
 
   char *buffin = NULL;
   unsigned int lenbuffin = 0;

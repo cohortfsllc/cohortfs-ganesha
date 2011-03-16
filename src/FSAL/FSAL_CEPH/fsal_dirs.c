@@ -175,6 +175,7 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
 
   while ((*nb_entries <= max_entries) && !(*end_of_dir))
     {
+      int stmask;
       struct stat st; /* No easy way to make a precise
 			 readdirplus_r */
 
@@ -183,7 +184,7 @@ fsal_status_t CEPHFSAL_readdir(cephfsal_dir_t * dir_descriptor, /* IN */
       memset(&st, sizeof(struct stat), 0);
 
       TakeTokenFSCall();
-      rc = ceph_ll_readdir(DH(dir_descriptor), &de, &st);
+      rc = ceph_readdirplus_r(DH(dir_descriptor), &de, &st, &stmask);
       if (rc < 0) /* Error */
 	Return(posix2fsal_error(rc), 0, INDEX_FSAL_readdir);
 
