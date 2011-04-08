@@ -111,7 +111,8 @@ libMainServices_la_SOURCES = nfs_admin_thread.c                   \
                              ../include/config_parsing.h          \
                              ../include/SemN.h                    \
                              ../include/external_tools.h          \
-                             $(SVC_FILES) $(STAT_SNMP_FILES)			  
+                             ../include/err_inject.h              \
+                             $(SVC_FILES) $(STAT_SNMP_FILES)  
 
 
 libMainServices_la_LIBADD         =   ../NFS_Protocols/libnfsproto.la                   \
