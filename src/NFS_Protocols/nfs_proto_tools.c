@@ -98,6 +98,7 @@ extern nfs_parameter_t nfs_param;
 int nfs_finduid(compound_data_t* data, uid_t* uid)
 {
   exportlist_client_entry_t related_client;
+  struct user_cred user_credentials;
   nfs_worker_data_t *pworker = NULL;
   struct authunix_parms *punix_creds = NULL;
 #ifdef _USE_GSSRPC
@@ -122,7 +123,10 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
                              nfs_param.core_param.nfs_program,
                              nfs_param.core_param.mnt_program,
                              pworker->ht_ip_stats,
-                             &(pworker->ip_stats_pool), &related_client) == FALSE)
+                             &(pworker->ip_stats_pool),
+			     &related_client,
+			     &user_credentials,
+			     FALSE) == FALSE)
     return FALSE;
 
   rpcxid = get_rpc_xid(data->reqp);

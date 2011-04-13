@@ -333,7 +333,6 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
 
   if (!upgrade)
     {
-<<<<<<< HEAD
       rc = state_create_share(&(pentry->object.file.handle), open_owner, clientid,
 			      share_access, share_deny, openref, stateid);
       if (rc == ERR_STATE_PREEXISTS)
@@ -349,14 +348,6 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
 	    cache_inode_kill_openref(openref);
 	  *pstatus = CACHE_INODE_STATE_ERROR;
 	}
-=======
-      if(cache_inode_gc_fd(pclient, pstatus) != CACHE_INODE_SUCCESS)
-        {
-          LogCrit(COMPONENT_CACHE_INODE_GC,
-                  "FAILURE performing FD garbage collection");
-          return *pstatus;
-        }
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
     }
 
   if (upgrade)
@@ -382,7 +373,6 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
  * cache_inode_open_create_name: opens and possibly creates a named
  * file in a directory
  *
-<<<<<<< HEAD
  * @param pentry_parent [IN]  parent entry for the file
  * @param pname         [IN]  name of the file to be opened in the parent directory
  * @param new_entry     [OUT] file entry opened
@@ -406,15 +396,6 @@ cache_inode_status_t cache_inode_open(cache_entry_t* pentry,
  * @param uid           [IN]  User ID (for open file descriptor
  *                            refcount)
  * @param pstatus       [OUT] Status of operation.
-=======
- * @param pentry_dir  [IN]  parent entry for the file
- * @param pname       [IN]  name of the file to be opened in the parent directory
- * @param pentry_file [IN]  file entry to be opened
- * @param pclient     [IN]  ressource allocated by the client for the nfs management.
- * @param openflags   [IN]  flags to be used to open the file
- * @param pcontent    [IN]  FSAL operation context
- * @pstatus           [OUT] returned status.
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
  *
  * @return CACHE_CONTENT_SUCCESS is successful.
  *
@@ -471,86 +452,12 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
   
   if(pentry_parent->internal_md.type == DIR_CONTINUE)
     {
-<<<<<<< HEAD
       P_r(&pentry_parent->object.dir_cont.pdir_begin->lock);
       parent_handle = pentry_parent->object.dir_cont.pdir_begin->object.dir_begin.handle;
       V_r(&pentry_parent->object.dir_cont.pdir_begin->lock);
     }
 
   found_attrs.asked_attributes = pclient->attrmask;
-=======
-#ifdef _USE_MFSL
-      fsal_status =
-          MFSL_close(&(pentry_file->object.file.open_fd.mfsl_fd), &pclient->mfsl_context, NULL);
-#else
-      fsal_status = FSAL_close(&(pentry_file->object.file.open_fd.fd));
-#endif
-      if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
-        {
-          *pstatus = cache_inode_error_convert(fsal_status);
-
-          LogDebug(COMPONENT_CACHE_INODE,
-                   "cache_inode_open_by_name: returning %d(%s) from FSAL_close",
-                   *pstatus, cache_inode_err_str(*pstatus));
-
-          return *pstatus;
-        }
-
-      pentry_file->object.file.open_fd.last_op = 0;
-      pentry_file->object.file.open_fd.fileno = 0;
-    }
-
-  if(pentry_file->object.file.open_fd.last_op == 0
-     || pentry_file->object.file.open_fd.fileno == 0)
-    {
-      LogDebug(COMPONENT_FSAL,
-               "cache_inode_open_by_name: pentry %p: lastop=0", pentry_file);
-
-      /* Keep coherency with the cache_content */
-      if(pentry_file->object.file.pentry_content != NULL)
-        {
-          save_filesize = pentry_file->object.file.attributes.filesize;
-          save_spaceused = pentry_file->object.file.attributes.spaceused;
-          save_mtime = pentry_file->object.file.attributes.mtime;
-        }
-
-      /* opened file is not preserved yet */
-#ifdef _USE_MFSL
-      fsal_status = MFSL_open_by_name(&(pentry_dir->mobject),
-                                      pname,
-                                      pcontext,
-                                      &pclient->mfsl_context,
-                                      openflags,
-                                      &pentry_file->object.file.open_fd.mfsl_fd,
-                                      &(pentry_file->object.file.attributes),
-#ifdef _USE_PNFS
-                                      &pentry_file->object.file.pnfs_file ) ;
-#else
-                                      NULL );
-#endif /* _USE_PNFS */
-
-#else
-      fsal_status = FSAL_open_by_name(&(pentry_dir->object.file.handle),
-                                      pname,
-                                      pcontext,
-                                      openflags,
-                                      &pentry_file->object.file.open_fd.fd,
-                                      &(pentry_file->object.file.attributes));
-#endif
-
-      if(FSAL_IS_ERROR(fsal_status))
-        {
-          *pstatus = cache_inode_error_convert(fsal_status);
-
-          LogDebug(COMPONENT_CACHE_INODE,
-                   "cache_inode_open_by_name: returning %d(%s) from FSAL_open_by_name",
-                   *pstatus, cache_inode_err_str(*pstatus));
-
-          return *pstatus;
-        }
-
-#ifdef _USE_PROXY
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
 
   *new_entry = cache_inode_lookup_sw(pentry_parent,
 				     pname, &found_attrs,
@@ -630,7 +537,6 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 			    pname, pcontext, attrs->mode,
 			    &new_handle, &found_attrs);
 
-<<<<<<< HEAD
   if(FSAL_IS_ERROR(fsal_status) && (fsal_status.major != ERR_FSAL_NOT_OPENED))
     {
       *pstatus = cache_inode_error_convert(fsal_status);
@@ -653,29 +559,6 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
       V_w(&pentry_parent->lock);
       return *pstatus;
     }
-=======
-      /* Keep coherency with the cache_content */
-      if(pentry_file->object.file.pentry_content != NULL)
-        {
-          pentry_file->object.file.attributes.filesize = save_filesize;
-          pentry_file->object.file.attributes.spaceused = save_spaceused;
-          pentry_file->object.file.attributes.mtime = save_mtime;
-        }
-
-#ifdef _USE_MFSL
-      pentry_file->object.file.open_fd.fileno =
-          (int)FSAL_FILENO(&(pentry_file->object.file.open_fd.mfsl_fd.fsal_file));
-#else
-      pentry_file->object.file.open_fd.fileno =
-          (int)FSAL_FILENO(&(pentry_file->object.file.open_fd.fd));
-#endif
-      pentry_file->object.file.open_fd.last_op = time(NULL);
-      pentry_file->object.file.open_fd.openflags = openflags;
-
-      LogDebug(COMPONENT_FSAL,
-               "cache_inode_open_by_name: pentry %p: fd=%u",
-               pentry_file, pentry_file->object.file.open_fd.fileno);
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
 
   /* Add this entry to the directory */
   *pstatus = cache_inode_add_cached_dirent(pentry_parent,
@@ -721,18 +604,9 @@ cache_inode_status_t cache_inode_open_create_name(cache_entry_t* pentry_parent,
 
   if (verf)
     {
-<<<<<<< HEAD
       attrs->asked_attributes |= (FSAL_ATTR_ATIME | FSAL_ATTR_MTIME);
       attrs->atime.seconds = verfpieces[0];
       attrs->mtime.seconds = verfpieces[1];
-=======
-      if(cache_inode_gc_fd(pclient, pstatus) != CACHE_INODE_SUCCESS)
-        {
-          LogCrit(COMPONENT_CACHE_INODE_GC,
-                  "FAILURE performing FD garbage collection");
-          return *pstatus;
-        }
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
     }
   
   cache_inode_setattr(*new_entry, attrs, ht, pclient,
@@ -795,19 +669,12 @@ cache_inode_status_t cache_inode_close(cache_entry_t * pentry,
       return *pstatus;
     }
 
-<<<<<<< HEAD
   if (state_delete_share(state.u.share.stateid) != ERR_STATE_NO_ERROR)
     {
       state_unlock_filehandle(&handle);
       *pstatus = CACHE_INODE_STATE_ERROR;
       return *pstatus;
     }
-=======
-      LogDebug(COMPONENT_CACHE_INODE,
-               "cache_inode_close: pentry %p, fileno = %d, lastop=%d ago",
-               pentry, pentry->object.file.open_fd.fileno,
-               (int)(time(NULL) - pentry->object.file.open_fd.last_op));
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
 
   state.u.share.openref->refcount--;
 
@@ -856,7 +723,6 @@ cache_inode_status_t cache_inode_downgrade(cache_entry_t * pentry,
       return *pstatus;
     }
 
-<<<<<<< HEAD
 
   rc = state_retrieve_state(*stateid, &state);
   if (rc != ERR_STATE_NO_ERROR)
@@ -864,14 +730,6 @@ cache_inode_status_t cache_inode_downgrade(cache_entry_t * pentry,
       state_unlock_filehandle(&handle);
       *pstatus = CACHE_INODE_STATE_ERROR;
       return *pstatus;
-=======
-          LogDebug(COMPONENT_CACHE_INODE,
-                   "cache_inode_close: returning %d(%s) from FSAL_close",
-                   *pstatus, cache_inode_err_str(*pstatus));
-
-          return *pstatus;
-        }
->>>>>>> 278af708412279e20bd2595f501da5d7ab1948b7
     }
 
   if ((state.u.share.share_access == share_access) &&
