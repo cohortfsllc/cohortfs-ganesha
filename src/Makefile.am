@@ -23,6 +23,7 @@ SUBDIRS = include             \
           support             \
           IdMapper            \
           snmp_adm            \
+          RPCAL               \
           MainNFSD            \
           cmdline_tools       \
           cmdline_tools       \
