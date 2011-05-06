@@ -656,22 +656,32 @@ fsal_status_t FSAL_terminate();
  *                FSAL locks management.
  ******************************************************/
 
-fsal_status_t FSAL_lock(fsal_file_t * obj_handle,       /* IN */
-                        fsal_lockdesc_t * ldesc,        /*IN/OUT */
-                        fsal_boolean_t callback /* IN */
+fsal_status_t FSAL_lock(fsal_file_t* descriptor, /* IN */
+			fsal_off_t* offset, /* IN/OUT */
+			fsal_size_t* length, /* IN/OUT */
+			fsal_locktype_t* type, /* IN/OUT */
+			fsal_lockowner_t* owner, /* IN/OUT */
+			fsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			fsal_boolean_t reclaim, /* IN */
+			fsal_lockpromise_t* promise /* OUT */
     );
 
-fsal_status_t FSAL_changelock(fsal_lockdesc_t * lock_descriptor,        /* IN / OUT */
-                              fsal_lockparam_t * lock_info      /* IN */
+fsal_status_t FSAL_unlock(fsal_file_t* descriptor, /* IN */
+			  fsal_off_t offset, /* IN */
+			  fsal_size_t length, /* IN */
+			  fsal_locktype_t type, /* IN */
+			  fsal_lockowner_t owner, /* IN */
+			  fsal_filelockinfo_t* fileinfo /* IN/OUT */
     );
 
-fsal_status_t FSAL_unlock(fsal_file_t * obj_handle,     /* IN */
-                          fsal_lockdesc_t * ldesc       /*IN/OUT */
+fsal_status_t FSAL_lockt(fsal_file_t* descriptor, /* IN */
+			 fsal_off_t* offset, /* IN/OUT */
+			 fsal_size_t* length, /* IN/OUT */
+			 fsal_locktype_t* type, /* IN/OUT */
+			 fsal_lockowner_t* owner, /* IN/OUT */
+			 fsal_filelockinfo_t* fileinfo /* IN/OUT */
     );
-
-fsal_status_t FSAL_getlock(fsal_file_t * obj_handle,    /* IN */
-                           fsal_lockdesc_t * ldesc      /*IN/OUT */
-    );
+  
 
 /******************************************************
  *          FSAL extended attributes management.
@@ -1251,20 +1261,30 @@ typedef struct fsal_functions__
                                        fsal_handle_t * p_fsoot_handle,  /* OUT */
                                        fsal_attrib_list_t *
                                        p_fsroot_attributes /* [ IN/OUT ] */ );
-  /* FSAL_lock */
-  fsal_status_t(*fsal_lock) (fsal_file_t * obj_handle,
-                             fsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
 
-  /* FSAL_changelock */
-  fsal_status_t(*fsal_changelock) (fsal_lockdesc_t * lock_descriptor,   /* IN / OUT */
-                                   fsal_lockparam_t * lock_info /* IN */ );
+  fsal_status_t(*fsal_lock)(fsal_file_t* descriptor, /* IN */
+			    fsal_off_t* offset, /* IN/OUT */
+			    fsal_size_t* length, /* IN/OUT */
+			    fsal_locktype_t* type, /* IN/OUT */
+			    fsal_lockowner_t* owner, /* IN/OUT */
+			    fsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			    fsal_boolean_t reclaim, /* IN */
+			    fsal_lockpromise_t* promise /* OUT */ );
 
-  /* FSAL_unlock */
-  fsal_status_t(*fsal_unlock) (fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc);
+  fsal_status_t(*fsal_unlock)(fsal_file_t* descriptor, /* IN */
+			      fsal_off_t offset, /* IN */
+			      fsal_size_t length, /* IN */
+			      fsal_locktype_t type, /* IN */
+			      fsal_lockowner_t owner, /* IN */
+			      fsal_filelockinfo_t* fileinfo /* IN/OUT */ );
 
-  /* FSAL_getlock */
-  fsal_status_t(*fsal_getlock) (fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc);
-
+  fsal_status_t(*fsal_lockt)(fsal_file_t* descriptor, /* IN */
+			     fsal_off_t* offset, /* IN/OUT */
+			     fsal_size_t* length, /* IN/OUT */
+			     fsal_locktype_t* type, /* IN/OUT */
+			     fsal_lockowner_t* owner, /* IN/OUT */
+			     fsal_filelockinfo_t* fileinfo /* IN/OUT */ );
+    
   /* FSAL_CleanObjectResources */
   fsal_status_t(*fsal_cleanobjectresources) (fsal_handle_t * in_fsal_handle);
 
@@ -1559,10 +1579,11 @@ typedef struct fsal_const__
   unsigned int fsal_export_context_t_size;
   unsigned int fsal_file_t_size;
   unsigned int fsal_cookie_t_size;
-  unsigned int fsal_lockdesc_t_size;
   unsigned int fsal_cred_t_size;
   unsigned int fs_specific_initinfo_t_size;
   unsigned int fsal_dir_t_size;
+  unsigned int fsal_filelockinfo_t_size;
+  unsigned int fsal_lockpromise_t_size;
 } fsal_const_t;
 
 int FSAL_LoadLibrary(char *path);

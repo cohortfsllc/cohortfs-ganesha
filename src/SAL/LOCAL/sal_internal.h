@@ -73,7 +73,6 @@ typedef struct __locallock
 {
     struct __state* openstate;
     state_owner_t* lock_owner;
-    fsal_lockdesc_t* lockdata;
 } locallock_t;
 
 #ifdef _USE_FSALMDS
@@ -241,7 +240,6 @@ int localstate_create_lock_state(fsal_handle_t *handle,
 				 stateid4 open_stateid,
 				 lock_owner4 lock_owner,
 				 clientid4 clientid,
-				 fsal_lockdesc_t* lockdata,
 				 stateid4* stateid);
 int localstate_delete_lock_state(stateid4 stateid);
 int localstate_query_lock_state(fsal_handle_t *handle,

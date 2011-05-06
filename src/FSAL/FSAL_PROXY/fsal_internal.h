@@ -315,17 +315,31 @@ fsal_status_t PROXYFSAL_lookupJunction(proxyfsal_handle_t * p_junction_handle,  
                                        fsal_attrib_list_t *
                                        p_fsroot_attributes /* [ IN/OUT ] */ );
 
-fsal_status_t PROXYFSAL_lock(proxyfsal_file_t * obj_handle,
-                             proxyfsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+fsal_status_t PROXYFSAL_lock(proxyfsal_file_t* descriptor, /* IN */
+			     fsal_off_t* offset, /* IN/OUT */
+			     fsal_size_t* length, /* IN/OUT */
+			     fsal_locktype_t* type, /* IN/OUT */
+			     fsal_lockowner_t* owner, /* IN/OUT */
+			     proxyfsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			     fsal_boolean_t reclaim, /* IN */
+			     proxyfsal_lockpromise_t* promise /* OUT */
+    );
 
-fsal_status_t PROXYFSAL_changelock(proxyfsal_lockdesc_t * lock_descriptor,      /* IN / OUT */
-                                   fsal_lockparam_t * lock_info /* IN */ );
+fsal_status_t PROXYFSAL_unlock(proxyfsal_file_t* descriptor, /* IN */
+			       fsal_off_t offset, /* IN */
+			       fsal_size_t length, /* IN */
+			       fsal_locktype_t type, /* IN */
+			       fsal_lockowner_t owner, /* IN */
+			       proxyfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
-fsal_status_t PROXYFSAL_unlock(proxyfsal_file_t * obj_handle,
-                               proxyfsal_lockdesc_t * ldesc);
-
-fsal_status_t PROXYFSAL_getlock(proxyfsal_file_t * obj_handle,
-                                proxyfsal_lockdesc_t * ldesc);
+fsal_status_t PROXYFSAL_lockt(proxyfsal_file_t* descriptor, /* IN */
+			      fsal_off_t* offset, /* IN/OUT */
+			      fsal_size_t* length, /* IN/OUT */
+			      fsal_locktype_t* type, /* IN/OUT */
+			      fsal_lockowner_t* owner, /* IN/OUT */
+			      proxyfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
 fsal_status_t PROXYFSAL_CleanObjectResources(proxyfsal_handle_t * in_fsal_handle);
 

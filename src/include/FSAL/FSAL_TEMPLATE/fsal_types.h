@@ -136,6 +136,4 @@ typedef struct fs_specific_initinfo__
 
 } fs_specific_initinfo_t;
 
-typedef void *fsal_lockdesc_t;
-
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

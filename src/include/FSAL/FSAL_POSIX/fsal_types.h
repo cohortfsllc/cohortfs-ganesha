@@ -91,10 +91,11 @@
 #define fsal_file_t posixfsal_file_t
 #define fsal_dir_t posixfsal_dir_t
 #define fsal_export_context_t posixfsal_export_context_t
-#define fsal_lockdesc_t posixfsal_lockdesc_t
 #define fsal_cookie_t posixfsal_cookie_t
 #define fs_specific_initinfo_t posixfs_specific_initinfo_t
 #define fsal_cred_t posixfsal_cred_t
+#define fsal_filelockinfo_t posixfsal_filelockinfo_t
+#define fsal_lockpromise_t posixfsal_lockpromise_t
 
 
 /** object POSIX infos */
@@ -166,11 +167,6 @@ typedef union {
 #endif
 } posixfsal_cookie_t;
 
-typedef struct fsal_lockdesc__
-{
-  struct flock flock;
-} posixfsal_lockdesc_t;
-
 /* Directory stream descriptor. */
 
 typedef struct fsal_dir__
@@ -205,5 +201,7 @@ typedef struct fsal_file__
 
 #endif                          /* _FSAL_POSIX_USE_STREAM */
 
+typedef void* posixfsal_filelockinfo_t;
+typedef void* posixfsal_lockpromise_t;
 
 #endif                          /* _FSAL_TYPES__SPECIFIC_H */

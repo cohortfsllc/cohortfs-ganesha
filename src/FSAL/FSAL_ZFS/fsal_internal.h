@@ -237,15 +237,31 @@ fsal_status_t ZFSFSAL_lookupJunction(zfsfsal_handle_t * p_junction_handle,      
                                      fsal_attrib_list_t *
                                      p_fsroot_attributes /* [ IN/OUT ] */ );
 
-fsal_status_t ZFSFSAL_lock(zfsfsal_file_t * obj_handle,
-                           zfsfsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+fsal_status_t ZFSFSAL_lock(zfsfsal_file_t* descriptor, /* IN */
+			   fsal_off_t* offset, /* IN/OUT */
+			   fsal_size_t* length, /* IN/OUT */
+			   fsal_locktype_t* type, /* IN/OUT */
+			   fsal_lockowner_t* owner, /* IN/OUT */
+			   zfsfsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			   fsal_boolean_t reclaim, /* IN */
+			   zfsfsal_lockpromise_t* promise /* OUT */
+    );
 
-fsal_status_t ZFSFSAL_changelock(zfsfsal_lockdesc_t * lock_descriptor,  /* IN / OUT */
-                                 fsal_lockparam_t * lock_info /* IN */ );
+fsal_status_t ZFSFSAL_unlock(zfsfsal_file_t* descriptor, /* IN */
+			     fsal_off_t offset, /* IN */
+			     fsal_size_t length, /* IN */
+			     fsal_locktype_t type, /* IN */
+			     fsal_lockowner_t owner, /* IN */
+			     zfsfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
-fsal_status_t ZFSFSAL_unlock(zfsfsal_file_t * obj_handle, zfsfsal_lockdesc_t * ldesc);
-
-fsal_status_t ZFSFSAL_getlock(zfsfsal_file_t * obj_handle, zfsfsal_lockdesc_t * ldesc);
+fsal_status_t ZFSFSAL_lockt(zfsfsal_file_t* descriptor, /* IN */
+			    fsal_off_t* offset, /* IN/OUT */
+			    fsal_size_t* length, /* IN/OUT */
+			    fsal_locktype_t* type, /* IN/OUT */
+			    fsal_lockowner_t* owner, /* IN/OUT */
+			    zfsfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
 fsal_status_t ZFSFSAL_CleanObjectResources(zfsfsal_handle_t * in_fsal_handle);
 

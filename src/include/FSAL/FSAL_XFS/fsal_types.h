@@ -88,10 +88,11 @@
 #define fsal_file_t xfsfsal_file_t
 #define fsal_dir_t xfsfsal_dir_t
 #define fsal_export_context_t xfsfsal_export_context_t
-#define fsal_lockdesc_t xfsfsal_lockdesc_t
 #define fsal_cookie_t xfsfsal_cookie_t
 #define fs_specific_initinfo_t xfsfs_specific_initinfo_t
 #define fsal_cred_t xfsfsal_cred_t
+#define fsal_filelockinfo_t xfsfsal_filelockinfo_t
+#define fsal_lockpromise_t xfsfsal_lockpromise_t
 
 typedef union {
  struct
@@ -158,11 +159,6 @@ typedef union {
 
 //static const xfsfsal_cookie_t FSAL_READDIR_FROM_BEGINNING = { 0 };
 
-typedef struct
-{
-  struct flock flock;
-} xfsfsal_lockdesc_t;
-
 /* Directory stream descriptor. */
 
 typedef struct
@@ -179,6 +175,9 @@ typedef struct fsal_file__
   int fd;
   int ro;                       /* read only file ? */
 } xfsfsal_file_t;
+
+typedef void* xfsfsal_filelockinfo_t;
+typedef void* xfsfsal_lockpromise_t;
 
 //#define FSAL_GET_EXP_CTX( popctx ) (fsal_export_context_t *)(( (xfsfsal_op_context_t *)popctx)->export_context)
 //#define FSAL_FILENO( p_fsal_file )  ((xfsfsal_file_t *)p_fsal_file)->fd 

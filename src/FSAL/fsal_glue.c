@@ -282,6 +282,22 @@ fsal_status_t FSAL_Init(fsal_parameter_t * init_info /* IN */ )
                fsal_consts.fsal_cookie_t_size, sizeof(fsal_cookie_t));
       exit(1);
     }
+  if(fsal_consts.fsal_filelockinfo_t_size != sizeof(fsal_filelockinfo_t))
+    {
+      LogMajor(COMPONENT_FSAL,
+               "Implementation Error, local and specific fsal_filelockinfo_t do not match: %u |%u !!!!",
+               fsal_consts.fsal_filelockinfo_t_size,
+	       sizeof(fsal_filelockinfo_t));
+      exit(1);
+    }
+  if(fsal_consts.fsal_lockpromise_t_size != sizeof(fsal_lockpromise_t))
+    {
+      LogMajor(COMPONENT_FSAL,
+               "Implementation Error, local and specific fsal_lockpromise_t do not match: %u |%u !!!!",
+               fsal_consts.fsal_lockpromise_t_size,
+	       sizeof(fsal_lockpromise_t));
+      exit(1);
+    }
 
 #if 0
   if(fsal_consts.fsal_op_context_t_size != sizeof(fsal_op_context_t) - sizeof(void *))
@@ -309,14 +325,6 @@ fsal_status_t FSAL_Init(fsal_parameter_t * init_info /* IN */ )
       exit(1);
     }
 
-  if(fsal_consts.fsal_lockdesc_t_size != sizeof(fsal_lockdesc_t))
-    {
-      LogMajor(COMPONENT_FSAL,
-               "Implementation Error, local and specific fsal_lockdesc_t do not match: %u |%u !!!!",
-               fsal_consts.fsal_lockdesc_t_size, sizeof(fsal_lockdesc_t));
-      exit(1);
-    }
-
   if(fsal_consts.fsal_cred_t_size != sizeof(fsal_cred_t))
     {
       LogMajor(COMPONENT_FSAL,
@@ -333,6 +341,13 @@ fsal_status_t FSAL_Init(fsal_parameter_t * init_info /* IN */ )
       exit(1);
     }
 
+  if(fsal_consts.fsal_dir_t_size != sizeof(fsal_dir_t))
+    {
+      LogMajor(COMPONENT_FSAL,
+               "Implementation Error, local and specific fsal_dir_t do not match: %u |%u !!!!",
+               fsal_consts.fsal_dir_t_size, sizeof(fsal_dir_t));
+      exit(1);
+    }
   if(fsal_consts.fsal_dir_t_size != sizeof(fsal_dir_t))
     {
       LogMajor(COMPONENT_FSAL,
@@ -428,27 +443,45 @@ fsal_status_t FSAL_lookupJunction(fsal_handle_t * p_junction_handle,    /* IN */
                                             p_fsroot_attributes);
 }
 
-fsal_status_t FSAL_lock(fsal_file_t * obj_handle,
-                        fsal_lockdesc_t * ldesc, fsal_boolean_t blocking)
+fsal_status_t FSAL_lock(fsal_file_t* descriptor, /* IN */
+			fsal_off_t* offset, /* IN/OUT */
+			fsal_size_t* length, /* IN/OUT */
+			fsal_locktype_t* type, /* IN/OUT */
+			fsal_lockowner_t* owner, /* IN/OUT */
+			fsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			fsal_boolean_t reclaim, /* IN */
+			fsal_lockpromise_t* promise /* OUT */
+    )
 {
-  return fsal_functions.fsal_lock(obj_handle, ldesc, blocking);
+    return fsal_functions.fsal_lock(descriptor, offset, length, type,
+				    owner, fileinfo, reclaim,
+				    promise);
 }
 
-fsal_status_t FSAL_changelock(fsal_lockdesc_t * lock_descriptor,        /* IN / OUT */
-                              fsal_lockparam_t * lock_info /* IN */ )
+fsal_status_t FSAL_unlock(fsal_file_t* descriptor, /* IN */
+			  fsal_off_t offset, /* IN */
+			  fsal_size_t length, /* IN */
+			  fsal_locktype_t type, /* IN */
+			  fsal_lockowner_t owner, /* IN */
+			  fsal_filelockinfo_t* fileinfo /* IN/OUT */
+    )
 {
-  return fsal_functions.fsal_changelock(lock_descriptor, lock_info);
+    return fsal_functions.fsal_unlock(descriptor, offset, length,
+				      type, owner, fileinfo);
 }
 
-fsal_status_t FSAL_unlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
+fsal_status_t FSAL_lockt(fsal_file_t* descriptor, /* IN */
+			 fsal_off_t* offset, /* IN/OUT */
+			 fsal_size_t* length, /* IN/OUT */
+			 fsal_locktype_t* type, /* IN/OUT */
+			 fsal_lockowner_t* owner, /* IN/OUT */
+			 fsal_filelockinfo_t* fileinfo /* IN/OUT */
+    )
 {
-  return fsal_functions.fsal_unlock(obj_handle, ldesc);
+    return fsal_functions.fsal_lockt(descriptor, offset, length, type,
+				     owner, fileinfo);
 }
 
-fsal_status_t FSAL_getlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
-{
-  return fsal_functions.fsal_getlock(obj_handle, ldesc);
-}
 
 fsal_status_t FSAL_CleanObjectResources(fsal_handle_t * in_fsal_handle)
 {

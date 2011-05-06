@@ -63,11 +63,11 @@
 #define fsal_file_t zfsfsal_file_t
 #define fsal_dir_t zfsfsal_dir_t
 #define fsal_export_context_t zfsfsal_export_context_t
-#define fsal_lockdesc_t zfsfsal_lockdesc_t
 #define fsal_cookie_t zfsfsal_cookie_t
 #define fs_specific_initinfo_t zfsfs_specific_initinfo_t
 #define fsal_cred_t zfsfsal_cred_t
-
+#define fsal_filelockinfo_t zfsfsal_filelockinfo_t
+#define fsal_lockpromise_t zfsfsal_lockpromise_t
 
 typedef union
 {
@@ -158,6 +158,7 @@ typedef struct fs_specific_initinfo__
 
 } zfsfs_specific_initinfo_t;
 
-typedef void *fsal_lockdesc_t;
+typedef void* zfsfsal_filelockinfo_t;
+typedef void* zfsfsal_lockpromise_t;
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

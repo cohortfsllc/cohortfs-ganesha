@@ -301,20 +301,36 @@ fsal_status_t GPFSFSAL_lookupPath(fsal_path_t * p_path,  /* IN */
                                  p_object_attributes /* [ IN/OUT ] */ );
 
 fsal_status_t GPFSFSAL_lookupJunction(gpfsfsal_handle_t * p_junction_handle,      /* IN */
-                                     gpfsfsal_op_context_t * p_context,  /* IN */
-                                     gpfsfsal_handle_t * p_fsoot_handle, /* OUT */
-                                     fsal_attrib_list_t *
-                                     p_fsroot_attributes /* [ IN/OUT ] */ );
+				      gpfsfsal_op_context_t * p_context,  /* IN */
+				      gpfsfsal_handle_t * p_fsoot_handle, /* OUT */
+				      fsal_attrib_list_t *
+				      p_fsroot_attributes /* [ IN/OUT ] */ );
 
-fsal_status_t GPFSFSAL_lock(gpfsfsal_file_t * obj_handle,
-                           gpfsfsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+fsal_status_t GPFSFSAL_lock(gpfsfsal_file_t* descriptor, /* IN */
+			    fsal_off_t* offset, /* IN/OUT */
+			    fsal_size_t* length, /* IN/OUT */
+			    fsal_locktype_t* type, /* IN/OUT */
+			    fsal_lockowner_t* owner, /* IN/OUT */
+			    gpfsfsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			    fsal_boolean_t reclaim, /* IN */
+			    gpfsfsal_lockpromise_t* promise /* OUT */
+			    );
 
-fsal_status_t GPFSFSAL_changelock(gpfsfsal_lockdesc_t * lock_descriptor,  /* IN / OUT */
-                                 fsal_lockparam_t * lock_info /* IN */ );
+fsal_status_t GPFSFSAL_unlock(gpfsfsal_file_t* descriptor, /* IN */
+			      fsal_off_t offset, /* IN */
+			      fsal_size_t length, /* IN */
+			      fsal_locktype_t type, /* IN */
+			      fsal_lockowner_t owner, /* IN */
+			      gpfsfsal_filelockinfo_t* fileinfo /* IN/OUT */
+			      );
 
-fsal_status_t GPFSFSAL_unlock(gpfsfsal_file_t * obj_handle, gpfsfsal_lockdesc_t * ldesc);
-
-fsal_status_t GPFSFSAL_getlock(gpfsfsal_file_t * obj_handle, gpfsfsal_lockdesc_t * ldesc);
+fsal_status_t GPFSFSAL_lockt(gpfsfsal_file_t* descriptor, /* IN */
+			     fsal_off_t* offset, /* IN/OUT */
+			     fsal_size_t* length, /* IN/OUT */
+			     fsal_locktype_t* type, /* IN/OUT */
+			     fsal_lockowner_t* owner, /* IN/OUT */
+			     gpfsfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
 fsal_status_t GPFSFSAL_CleanObjectResources(gpfsfsal_handle_t * in_fsal_handle);
 

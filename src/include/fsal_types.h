@@ -105,41 +105,40 @@ typedef unsigned long long int u_int64_t;
 #define INDEX_FSAL_Init                 23
 #define INDEX_FSAL_get_stats            24
 #define INDEX_FSAL_lock                 25
-#define INDEX_FSAL_changelock           26
-#define INDEX_FSAL_unlock               27
-#define INDEX_FSAL_BuildExportContext   28
-#define INDEX_FSAL_InitClientContext    29
-#define INDEX_FSAL_GetClientContext     30
-#define INDEX_FSAL_lookupPath           31
-#define INDEX_FSAL_lookupJunction       32
-#define INDEX_FSAL_test_access          33
-#define INDEX_FSAL_rmdir                34
-#define INDEX_FSAL_CleanObjectResources 35
-#define INDEX_FSAL_open_by_name         36
-#define INDEX_FSAL_open_by_fileid       37
-#define INDEX_FSAL_ListXAttrs           38
-#define INDEX_FSAL_GetXAttrValue        39
-#define INDEX_FSAL_SetXAttrValue        40
-#define INDEX_FSAL_GetXAttrAttrs        41
-#define INDEX_FSAL_close_by_fileid      42
-#define INDEX_FSAL_setattr_access       43
-#define INDEX_FSAL_merge_attrs          44
-#define INDEX_FSAL_rename_access        45
-#define INDEX_FSAL_unlink_access        46
-#define INDEX_FSAL_link_access          47
-#define INDEX_FSAL_create_access        48
-#define INDEX_FSAL_getlock	        49
-#define INDEX_FSAL_CleanUpExportContext 50
-#define INDEX_FSAL_getextattrs          51
-#define INDEX_FSAL_layoutget            52
-#define INDEX_FSAL_layoutreturn         53
-#define INDEX_FSAL_layoutcommit         54
-#define INDEX_FSAL_getdeviceinfo        55
-#define INDEX_FSAL_getdevicelist        56
-#define INDEX_FSAL_ds_read              57
-#define INDEX_FSAL_ds_write             58
-#define INDEX_FSAL_ds_commit            59
-#define INDEX_FSAL_sync                 52
+#define INDEX_FSAL_unlock               26
+#define INDEX_FSAL_BuildExportContext   27
+#define INDEX_FSAL_InitClientContext    28
+#define INDEX_FSAL_GetClientContext     29
+#define INDEX_FSAL_lookupPath           30
+#define INDEX_FSAL_lookupJunction       31
+#define INDEX_FSAL_test_access          32
+#define INDEX_FSAL_rmdir                33
+#define INDEX_FSAL_CleanObjectResources 34
+#define INDEX_FSAL_open_by_name         35
+#define INDEX_FSAL_open_by_fileid       36
+#define INDEX_FSAL_ListXAttrs           37
+#define INDEX_FSAL_GetXAttrValue        38
+#define INDEX_FSAL_SetXAttrValue        39
+#define INDEX_FSAL_GetXAttrAttrs        40
+#define INDEX_FSAL_close_by_fileid      41
+#define INDEX_FSAL_setattr_access       42
+#define INDEX_FSAL_merge_attrs          43
+#define INDEX_FSAL_rename_access        44
+#define INDEX_FSAL_unlink_access        45
+#define INDEX_FSAL_link_access          46
+#define INDEX_FSAL_create_access        47
+#define INDEX_FSAL_lockt	        48
+#define INDEX_FSAL_CleanUpExportContext 49
+#define INDEX_FSAL_getextattrs          50
+#define INDEX_FSAL_layoutget            51
+#define INDEX_FSAL_layoutreturn         52
+#define INDEX_FSAL_layoutcommit         53
+#define INDEX_FSAL_getdeviceinfo        54
+#define INDEX_FSAL_getdevicelist        55
+#define INDEX_FSAL_ds_read              56
+#define INDEX_FSAL_ds_write             57
+#define INDEX_FSAL_ds_commit            58
+#define INDEX_FSAL_sync                 59
 
 /* number of FSAL functions */
 #define FSAL_NB_FUNC  60
@@ -150,14 +149,14 @@ static const char *fsal_function_names[] = {
   "FSAL_closedir", "FSAL_open", "FSAL_read", "FSAL_write", "FSAL_close",
   "FSAL_readlink", "FSAL_symlink", "FSAL_rename", "FSAL_unlink", "FSAL_mknode",
   "FSAL_static_fsinfo", "FSAL_dynamic_fsinfo", "FSAL_rcp", "FSAL_Init",
-  "FSAL_get_stats", "FSAL_lock", "FSAL_changelock", "FSAL_unlock",
+  "FSAL_get_stats", "FSAL_lock", "FSAL_unlock",
   "FSAL_BuildExportContext", "FSAL_InitClientContext", "FSAL_GetClientContext",
   "FSAL_lookupPath", "FSAL_lookupJunction", "FSAL_test_access",
   "FSAL_rmdir", "FSAL_CleanObjectResources", "FSAL_open_by_name", "FSAL_open_by_fileid",
   "FSAL_ListXAttrs", "FSAL_GetXAttrValue", "FSAL_SetXAttrValue", "FSAL_GetXAttrAttrs",
   "FSAL_close_by_fileid", "FSAL_setattr_access", "FSAL_merge_attrs", "FSAL_rename_access",
   "FSAL_unlink_access", "FSAL_link_access", "FSAL_create_access",
-  "FSAL_getlock", "FSAL_CleanUpExportContext", "FSAL_getextattrs",
+  "FSAL_lockt", "FSAL_CleanUpExportContext", "FSAL_getextattrs",
   "FSAL_layoutget", "FSAL_layoutreturn", "FSAL_layoutcommit", "FSAL_getdeviceinfo",
   "FSAL_getdevicelist", "FSAL_ds_read", "FSAL_ds_write",
   "FSAL_ds_commit"
@@ -572,31 +571,32 @@ typedef struct fsal_seek__
 
 /** File locking info */
 
-typedef enum fsal_locktype_t
-{
-  FSAL_TEST_SHARED,             /* test if a lock would conflict with this shared lock */
-  FSAL_TEST_EXCLUSIVE,          /* test if a lock would conflict with this exclusive lock */
+#define FSAL_LOCKTYPE_BLOCK 0x02;
+#define FSAL_LOCKTYPE_EXCLUSIVE 0x01;
 
-  FSAL_TRY_LOCK_SHARED,         /* try to get a shared lock (non-blocking)     */
-  FSAL_TRY_LOCK_EXCLUSIVE,      /* try to get an exclusive lock (non-blocking) */
+typedef uint16_t fsal_locktype_t;
 
-  FSAL_LOCK_SHARED,             /* get a shared lock (blocking)     */
-  FSAL_LOCK_EXCLUSIVE,          /* get an exclusive lock (blocking) */
+typedef void* fsal_lockowner_t;
 
-} fsal_locktype_t;
+/* This indicates that locks are completely unsupported. */
 
-typedef struct fsal_lockparam_t
-{
+#define FSAL_LOCKS_UNSUPPORTED 0x00
 
-  fsal_locktype_t lock_type;
+/* This FSAL supports locking.  if this flag is cleared, all locking
+   calls will fail as unsupported. */
 
-  fsal_off_t range_start;
-  fsal_size_t range_length;
+#define FSAL_LOCKS_SUPPORTED 0x01
 
-  /* for getting back a lock during lease time after a server's crash */
-  int reclaim;
+/* This flag indicates that the FSAL supports POSIX subrange and
+   re-lock semantics.  If this flag is set, NFSv4.1 opens will return
+   the OPEN4_RESULT_LOCKTYPE_POSIX flag. */
 
-} fsal_lockparam_t;
+#define FSAL_LOCKS_POSIX 0x02
+
+/* This flag indicates that the FSAL implements the blocking lock
+   semantics and uses callbacks appropriately. */
+
+#define FSAL_LOCKS_BLOCKING 0x04
 
 /** FH expire type (mask). */
 
@@ -639,7 +639,7 @@ typedef struct fsal_staticfsinfo__
   fsal_fhexptype_t fh_expire_type;  /**< handle persistency indicator   */
   fsal_boolean_t link_support;      /**< FS supports hardlinks ?        */
   fsal_boolean_t symlink_support;   /**< FS supports symlinks  ?        */
-  fsal_boolean_t lock_support;      /**< FS supports file locking ?     */
+  uint16_t lock_support;      /**< FS supports file locking ?     */
   fsal_boolean_t named_attr;        /**< FS supports named attributes.  */
   fsal_boolean_t unique_handles;    /**< Handles are unique and persistent.*/
   fsal_time_t lease_time;           /**< Duration of lease at FS in seconds */

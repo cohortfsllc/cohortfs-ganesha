@@ -34,10 +34,12 @@ sal_functions_t localsal_functions =
       .state_query_dir_delegation = localstate_query_dir_delegation,
 #endif
       .state_check_delegation = localstate_check_delegation,
+#if 0
       .state_create_lock_state = localstate_create_lock_state,
       .state_delete_lock_state = localstate_delete_lock_state,
       .state_query_lock_state = localstate_query_lock_state,
       .state_lock_inc_state = localstate_lock_inc_state,
+#endif /* 0 */
 #ifdef _USE_FSALMDS
       .state_create_layout_state = localstate_create_layout_state,
       .state_delete_layout_state = localstate_delete_layout_state,

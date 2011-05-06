@@ -54,11 +54,12 @@
 #define fsal_file_t cephfsal_file_t
 #define fsal_dir_t cephfsal_dir_t
 #define fsal_export_context_t cephfsal_export_context_t
-#define fsal_lockdesc_t cephfsal_lockdesc_t
 #define fsal_cookie_t cephfsal_cookie_t
 #define fs_specific_initinfo_t cephfsal_specific_initinfo_t
 #define fsal_cred_t cephfsal_cred_t
 #define fsal_layoutdata_t cephfsal_layoutdata_t
+#define fsal_filelockinfo_t cephfsal_filelockinfo_t
+#define fsal_lockpromise_t cephfsal_lockpromise_t
 
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
@@ -115,8 +116,6 @@ typedef union {
 
 #define COOKIE(c) (c.cookie)
 
-typedef void *cephfsal_lockdesc_t;
-
 typedef struct {
   DIR* dh;
   vinodeno_t vi;
@@ -145,6 +144,9 @@ typedef struct __deviceaddrlink {
 
 
 typedef deviceaddrinfo cephfsal_layoutdata_t;
+
+typedef void* cephfsal_filelockinfo_t;
+typedef void* cephfsal_lockpromise_t;
 
 #endif /* _USE_FSALMDS */
 

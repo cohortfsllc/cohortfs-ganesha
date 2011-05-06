@@ -50,10 +50,11 @@
 #define fsal_file_t snmpfsal_file_t
 #define fsal_dir_t snmpfsal_dir_t
 #define fsal_export_context_t snmpfsal_export_context_t
-#define fsal_lockdesc_t snmpfsal_lockdesc_t
 #define fsal_cookie_t snmpfsal_cookie_t
 #define fs_specific_initinfo_t snmpfs_specific_initinfo_t
 #define fsal_cred_t snmpfsal_cred_t
+#define fsal_filelockinfo_t snmpfsal_filelockinfo_t
+#define fsal_lockpromise_t snmpfsal_lockpromise_t
 
 
 #ifdef _APPLE
@@ -190,7 +191,7 @@ typedef struct fs_specific_initinfo__
   char enc_phrase[FSAL_MAX_PHRASE_LEN];
 } snmpfs_specific_initinfo_t;
 
-typedef void *snmpfsal_lockdesc_t;
-
+typedef void* snmpfsal_filelockinfo_t;
+typedef void* snmpfsal_lockpromise_t;
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

@@ -94,10 +94,11 @@
 #define fsal_file_t proxyfsal_file_t
 #define fsal_dir_t proxyfsal_dir_t
 #define fsal_export_context_t proxyfsal_export_context_t
-#define fsal_lockdesc_t proxyfsal_lockdesc_t
 #define fsal_cookie_t proxyfsal_cookie_t
 #define fs_specific_initinfo_t proxyfs_specific_initinfo_t
 #define fsal_cred_t proxyfsal_cred_t
+#define fsal_filelockinfo_t proxyfsal_filelockinfo_t
+#define fsal_lockpromise_t proxyfsal_lockpromise_t
 
   /* some void types for this template... */
 typedef union {
@@ -214,6 +215,7 @@ typedef struct fs_specific_initinfo__
   unsigned int hdlmap_nb_db_op_prealloc;
 } proxyfs_specific_initinfo_t;
 
-typedef unsigned int proxyfsal_lockdesc_t;
+typedef void* proxyfsal_filelockinfo_t;
+typedef void* proxyfsal_lockpromise_t;
 
 #endif

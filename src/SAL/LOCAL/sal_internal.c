@@ -469,9 +469,11 @@ void filltaggedstate(state_t* state, taggedstate* outstate)
 				    &(outstate->u.dir_delegation), state->header);
 	    break;
 #endif
+#if 0
 	case STATE_LOCK:
 	    filllockstate(state, &(outstate->u.lock), state->header);
 	    break;
+#endif /* 0 */
 #ifdef _USE_FSALMDS
 	case STATE_LAYOUT:
 	    filllayoutstate(state, &(outstate->u.layout),

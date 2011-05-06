@@ -148,6 +148,20 @@ typedef struct __dir_delegationstate
 
  */
 
+typedef struct lockowner__
+{
+    enum {
+	LOCKOWNER_NFS3,
+	LOCKOWNER_NFS4,
+	LOCKOWNER_INTERNAL,
+	LOCKOWNER_EXTERNAL
+    } owner_type;
+    union {
+	void* nfs3_owner;
+	void* nfs4_owner;
+    } u;
+} state_lockowner_t;
+
 typedef struct __lockstate
 {
     fsal_handle_t handle; /*!<  The filehandle associated witht he
@@ -158,9 +172,6 @@ typedef struct __lockstate
 			         open_stateid, lock_owner) completely
 				 identifies the lock state. */
     stateid4 stateid; /*!< The relevant stateid */
-    fsal_lockdesc_t* lockdata; /*!< FSAL datum completely describing
-				    all lock state appropriate to the
-				    file. */
 } lockstate;
 
 #ifdef _USE_FSALMDS
@@ -729,7 +740,6 @@ int state_create_lock_state(fsal_handle_t *handle,
 			    stateid4 open_stateid,
 			    lock_owner4 lock_owner,
 			    clientid4 clientid,
-			    fsal_lockdesc_t* lockdata,
 			    stateid4* stateid);
 
 /**
@@ -1294,7 +1304,6 @@ typedef struct __sal_functions
 				 stateid4 open_stateid,
 				 lock_owner4 lock_owner,
 				 clientid4 clientid,
-				 fsal_lockdesc_t* lockdata,
 				 stateid4* stateid);
   int (*state_delete_lock_state)(stateid4 stateid);
   int (*state_query_lock_state)(fsal_handle_t *handle,

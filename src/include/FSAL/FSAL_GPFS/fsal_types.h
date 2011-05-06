@@ -177,10 +177,11 @@ struct stat_arg
 #define fsal_file_t gpfsfsal_file_t
 #define fsal_dir_t gpfsfsal_dir_t
 #define fsal_export_context_t gpfsfsal_export_context_t
-#define fsal_lockdesc_t gpfsfsal_lockdesc_t
 #define fsal_cookie_t gpfsfsal_cookie_t
 #define fs_specific_initinfo_t gpfsfs_specific_initinfo_t
 #define fsal_cred_t gpfsfsal_cred_t
+#define fsal_filelockinfo_t gpfsfsal_filelockinfo_t
+#define fsal_lockpromise_t gpfsfsal_lockpromise_t
 
 #endif
 
@@ -244,11 +245,6 @@ typedef union {
 
 // static const fsal_cookie_t FSAL_READDIR_FROM_BEGINNING = { 0 };
 
-typedef struct
-{
-  struct flock flock;
-} gpfsfsal_lockdesc_t;
-
 /* Directory stream descriptor. */
 
 typedef struct
@@ -265,6 +261,9 @@ typedef struct fsal_file__
   int fd;
   int ro;                       /* read only file ? */
 } gpfsfsal_file_t;
+
+typedef void* gpfsfsal_filelockinfo_t;
+typedef void* gpfsfsal_lockpromise_t;
 
 //#define FSAL_FILENO( p_fsal_file )  ( (p_fsal_file)->fd )
 

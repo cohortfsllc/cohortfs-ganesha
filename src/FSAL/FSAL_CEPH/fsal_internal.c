@@ -76,7 +76,7 @@ static fsal_staticfsinfo_t default_hpss_info = {
   FSAL_EXPTYPE_PERSISTENT,      /* FH expire type */
   TRUE,                         /* hard link support */
   TRUE,                         /* sym link support */
-  FALSE,                        /* lock support */
+  FSAL_LOCKS_UNSUPPORTED,       /* lock support */
   TRUE,                         /* named attributes */
   TRUE,                         /* handles are unique and persistent */
   {10, 0},                      /* Duration of lease at FS in seconds */

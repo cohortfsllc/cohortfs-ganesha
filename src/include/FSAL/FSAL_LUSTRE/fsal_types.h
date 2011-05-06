@@ -87,10 +87,11 @@
 #define fsal_file_t lustrefsal_file_t
 #define fsal_dir_t lustrefsal_dir_t
 #define fsal_export_context_t lustrefsal_export_context_t
-#define fsal_lockdesc_t lustrefsal_lockdesc_t
 #define fsal_cookie_t lustrefsal_cookie_t
 #define fs_specific_initinfo_t lustrefs_specific_initinfo_t
 #define fsal_cred_t lustrefsal_cred_t
+#define fsal_filelockinfo_t lustrefsal_filelockinfo_t
+#define fsal_lockpromise_t lustrefsal_lockpromise_t
 
 
 typedef union {
@@ -152,8 +153,6 @@ typedef union
 
 //static const lustrefsal_cookie_t FSAL_READDIR_FROM_BEGINNING = { 0 };
 
-typedef void *lustrefsal_lockdesc_t;   /**< not implemented for now */
-
 /* Directory stream descriptor. */
 
 typedef struct lustrefsal_dir__
@@ -172,5 +171,7 @@ typedef struct lustrefsal_file__
 
 //#define FSAL_FILENO( p_fsal_file )  ( (p_fsal_file)->fd )
 
+typedef void* lustrefsal_filelockinfo_t;
+typedef void* lustrefsal_lockpromise_t;
 
 #endif                          /* _FSAL_TYPES__SPECIFIC_H */

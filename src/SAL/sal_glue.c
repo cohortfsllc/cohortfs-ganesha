@@ -158,6 +158,9 @@ int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
 }
 #endif
 
+#if 0
+
+
 int state_create_lock_state(fsal_handle_t *handle,
 			    stateid4 open_stateid,
 			    lock_owner4 lock_owner,
@@ -200,6 +203,8 @@ int state_lock_inc_state(stateid4* stateid)
 {
     return state_lock_inc_state(stateid);
 }
+
+#endif /* 0 */
 
 #ifdef _USE_FSALMDS
 

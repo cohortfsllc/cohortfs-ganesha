@@ -345,28 +345,45 @@ fsal_status_t WRAP_FUSEFSAL_lookupJunction(fsal_handle_t * p_junction_handle,   
                                  p_fsroot_attributes);
 }
 
-fsal_status_t WRAP_FUSEFSAL_lock(fsal_file_t * obj_handle,
-                                 fsal_lockdesc_t * ldesc, fsal_boolean_t blocking)
+fsal_status_t WRAP_FUSEFSAL_lock(fsal_file_t* descriptor, /* IN */
+				 fsal_off_t* offset, /* IN/OUT */
+				 fsal_size_t* length, /* IN/OUT */
+				 fsal_locktype_t* type, /* IN/OUT */
+				 fsal_lockowner_t* owner, /* IN/OUT */
+				 fsal_filelockinfo_t* fileinfo, /* IN/OUT */
+				 fsal_boolean_t reclaim, /* IN */
+				 fsal_lockpromise_t* promise /* OUT */ )
 {
-  return FUSEFSAL_lock((fusefsal_file_t *) obj_handle, (fusefsal_lockdesc_t *) ldesc,
-                       blocking);
+    return FUSEFSAL_lock((fusefsal_file_t*) descriptor, offset, length,
+			 type, owner,
+			 (fusefsal_filelockinfo_t*) fileinfo,
+			 reclaim, (fusefsal_lockpromise_t*) promise);
 }
 
-fsal_status_t WRAP_FUSEFSAL_changelock(fsal_lockdesc_t * lock_descriptor,       /* IN / OUT */
-                                       fsal_lockparam_t * lock_info /* IN */ )
+fsal_status_t WRAP_FUSEFSAL_unlock(fsal_file_t* descriptor, /* IN */
+				   fsal_off_t offset, /* IN */
+				   fsal_size_t length, /* IN */
+				   fsal_locktype_t type, /* IN */
+				   fsal_lockowner_t owner, /* IN */
+				   fsal_filelockinfo_t* fileinfo /* IN/OUT */ )
 {
-  return FUSEFSAL_changelock((fusefsal_lockdesc_t *) lock_descriptor, lock_info);
+    return FUSEFSAL_unlock((fusefsal_file_t*) descriptor, offset,
+			   length, type, owner,
+			   (fusefsal_filelockinfo_t*) fileinfo);
 }
 
-fsal_status_t WRAP_FUSEFSAL_unlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
+fsal_status_t WRAP_FUSEFSAL_lockt(fsal_file_t* descriptor, /* IN */
+				  fsal_off_t* offset, /* IN/OUT */
+				  fsal_size_t* length, /* IN/OUT */
+				  fsal_locktype_t* type, /* IN/OUT */
+				  fsal_lockowner_t* owner, /* IN/OUT */
+				  fsal_filelockinfo_t* fileinfo /* IN/OUT */ )
 {
-  return FUSEFSAL_unlock((fusefsal_file_t *) obj_handle, (fusefsal_lockdesc_t *) ldesc);
+    return FUSEFSAL_lockt((fusefsal_file_t*) descriptor, offset,
+			  length, type, owner,
+			  (fusefsal_filelockinfo_t*) fileinfo);
 }
 
-fsal_status_t WRAP_FUSEFSAL_getlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
-{
-  return FUSEFSAL_getlock((fusefsal_file_t *) obj_handle, (fusefsal_lockdesc_t *) ldesc);
-}
 
 fsal_status_t WRAP_FUSEFSAL_CleanObjectResources(fsal_handle_t * in_fsal_handle)
 {
@@ -707,9 +724,8 @@ fsal_functions_t fsal_fuse_functions = {
   .fsal_lookuppath = WRAP_FUSEFSAL_lookupPath,
   .fsal_lookupjunction = WRAP_FUSEFSAL_lookupJunction,
   .fsal_lock = WRAP_FUSEFSAL_lock,
-  .fsal_changelock = WRAP_FUSEFSAL_changelock,
   .fsal_unlock = WRAP_FUSEFSAL_unlock,
-  .fsal_getlock = WRAP_FUSEFSAL_getlock,
+  .fsal_lockt = WRAP_FUSEFSAL_lockt,
   .fsal_cleanobjectresources = WRAP_FUSEFSAL_CleanObjectResources,
   .fsal_set_quota = WRAP_FUSEFSAL_set_quota,
   .fsal_get_quota = WRAP_FUSEFSAL_get_quota,
@@ -756,10 +772,11 @@ fsal_const_t fsal_fuse_consts = {
   .fsal_export_context_t_size = sizeof(fusefsal_export_context_t),
   .fsal_file_t_size = sizeof(fusefsal_file_t),
   .fsal_cookie_t_size = sizeof(fusefsal_cookie_t),
-  .fsal_lockdesc_t_size = sizeof(fusefsal_lockdesc_t),
   .fsal_cred_t_size = sizeof(fusefsal_cred_t),
   .fs_specific_initinfo_t_size = sizeof(fusefs_specific_initinfo_t),
-  .fsal_dir_t_size = sizeof(fusefsal_dir_t)
+  .fsal_dir_t_size = sizeof(fusefsal_dir_t),
+  .fsal_filelockinfo_t_size = sizeof(fusefsal_filelockinfo_t),
+  .fsal_lockpromise_t_size = sizeof(fusefsal_lockpromise_t)
 };
 
 fsal_functions_t FSAL_GetFunctions(void)

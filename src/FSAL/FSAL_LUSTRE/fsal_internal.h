@@ -262,17 +262,31 @@ fsal_status_t LUSTREFSAL_lookupJunction(lustrefsal_handle_t * p_junction_handle,
                                         fsal_attrib_list_t *
                                         p_fsroot_attributes /* [ IN/OUT ] */ );
 
-fsal_status_t LUSTREFSAL_lock(lustrefsal_file_t * obj_handle,
-                              lustrefsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+fsal_status_t LUSTREFSAL_lock(lustrefsal_file_t* descriptor, /* IN */
+			   fsal_off_t* offset, /* IN/OUT */
+			   fsal_size_t* length, /* IN/OUT */
+			   fsal_locktype_t* type, /* IN/OUT */
+			   fsal_lockowner_t* owner, /* IN/OUT */
+			   lustrefsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			   fsal_boolean_t reclaim, /* IN */
+			   lustrefsal_lockpromise_t* promise /* OUT */
+    );
 
-fsal_status_t LUSTREFSAL_changelock(lustrefsal_lockdesc_t * lock_descriptor,    /* IN / OUT */
-                                    fsal_lockparam_t * lock_info /* IN */ );
+fsal_status_t LUSTREFSAL_unlock(lustrefsal_file_t* descriptor, /* IN */
+			     fsal_off_t offset, /* IN */
+			     fsal_size_t length, /* IN */
+			     fsal_locktype_t type, /* IN */
+			     fsal_lockowner_t owner, /* IN */
+			     lustrefsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
-fsal_status_t LUSTREFSAL_unlock(lustrefsal_file_t * obj_handle,
-                                lustrefsal_lockdesc_t * ldesc);
-
-fsal_status_t LUSTREFSAL_getlock(lustrefsal_file_t * obj_handle,
-                                 lustrefsal_lockdesc_t * ldesc);
+fsal_status_t LUSTREFSAL_lockt(lustrefsal_file_t* descriptor, /* IN */
+			    fsal_off_t* offset, /* IN/OUT */
+			    fsal_size_t* length, /* IN/OUT */
+			    fsal_locktype_t* type, /* IN/OUT */
+			    fsal_lockowner_t* owner, /* IN/OUT */
+			    lustrefsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
 fsal_status_t LUSTREFSAL_CleanObjectResources(lustrefsal_handle_t * in_fsal_handle);
 

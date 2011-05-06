@@ -348,28 +348,45 @@ fsal_status_t WRAP_HPSSFSAL_lookupJunction(fsal_handle_t * p_junction_handle,   
                                  p_fsroot_attributes);
 }
 
-fsal_status_t WRAP_HPSSFSAL_lock(fsal_file_t * obj_handle,
-                                 fsal_lockdesc_t * ldesc, fsal_boolean_t blocking)
+fsal_status_t WRAP_HPSSFSAL_lock(fsal_file_t* descriptor, /* IN */
+				fsal_off_t* offset, /* IN/OUT */
+				fsal_size_t* length, /* IN/OUT */
+				fsal_locktype_t* type, /* IN/OUT */
+				fsal_lockowner_t* owner, /* IN/OUT */
+				fsal_filelockinfo_t* fileinfo, /* IN/OUT */
+				fsal_boolean_t reclaim, /* IN */
+				fsal_lockpromise_t* promise /* OUT */ )
 {
-  return HPSSFSAL_lock((hpssfsal_file_t *) obj_handle, (hpssfsal_lockdesc_t *) ldesc,
-                       blocking);
+    return HPSSFSAL_lock((hpssfsal_file_t*) descriptor, offset, length,
+			type, owner,
+			(hpssfsal_filelockinfo_t*) fileinfo,
+			reclaim, (hpssfsal_lockpromise_t*) promise);
 }
 
-fsal_status_t WRAP_HPSSFSAL_changelock(fsal_lockdesc_t * lock_descriptor,       /* IN / OUT */
-                                       fsal_lockparam_t * lock_info /* IN */ )
+fsal_status_t WRAP_HPSSFSAL_unlock(fsal_file_t* descriptor, /* IN */
+				  fsal_off_t offset, /* IN */
+				  fsal_size_t length, /* IN */
+				  fsal_locktype_t type, /* IN */
+				  fsal_lockowner_t owner, /* IN */
+				  fsal_filelockinfo_t* fileinfo /* IN/OUT */ )
 {
-  return HPSSFSAL_changelock((hpssfsal_lockdesc_t *) lock_descriptor, lock_info);
+    return HPSSFSAL_unlock((hpssfsal_file_t*) descriptor, offset,
+			  length, type, owner,
+			  (hpssfsal_filelockinfo_t*) fileinfo);
 }
 
-fsal_status_t WRAP_HPSSFSAL_unlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
+fsal_status_t WRAP_HPSSFSAL_lockt(fsal_file_t* descriptor, /* IN */
+				 fsal_off_t* offset, /* IN/OUT */
+				 fsal_size_t* length, /* IN/OUT */
+				 fsal_locktype_t* type, /* IN/OUT */
+				 fsal_lockowner_t* owner, /* IN/OUT */
+				 fsal_filelockinfo_t* fileinfo /* IN/OUT */ )
 {
-  return HPSSFSAL_unlock((hpssfsal_file_t *) obj_handle, (hpssfsal_lockdesc_t *) ldesc);
+  return HPSSFSAL_lockt((hpssfsal_file_t*) descriptor, offset,
+		       length, type, owner,
+		       (hpssfsal_filelockinfo_t*) fileinfo);
 }
 
-fsal_status_t WRAP_HPSSFSAL_getlock(fsal_file_t * obj_handle, fsal_lockdesc_t * ldesc)
-{
-  return HPSSFSAL_getlock((hpssfsal_file_t *) obj_handle, (hpssfsal_lockdesc_t *) ldesc);
-}
 
 fsal_status_t WRAP_HPSSFSAL_CleanObjectResources(fsal_handle_t * in_fsal_handle)
 {
@@ -710,9 +727,8 @@ fsal_functions_t fsal_hpss_functions = {
   .fsal_lookuppath = WRAP_HPSSFSAL_lookupPath,
   .fsal_lookupjunction = WRAP_HPSSFSAL_lookupJunction,
   .fsal_lock = WRAP_HPSSFSAL_lock,
-  .fsal_changelock = WRAP_HPSSFSAL_changelock,
   .fsal_unlock = WRAP_HPSSFSAL_unlock,
-  .fsal_getlock = WRAP_HPSSFSAL_getlock,
+  .fsal_lockt = WRAP_HPSSFSAL_lockt,
   .fsal_cleanobjectresources = WRAP_HPSSFSAL_CleanObjectResources,
   .fsal_set_quota = WRAP_HPSSFSAL_set_quota,
   .fsal_get_quota = WRAP_HPSSFSAL_get_quota,
@@ -759,10 +775,11 @@ fsal_const_t fsal_hpss_consts = {
   .fsal_export_context_t_size = sizeof(hpssfsal_export_context_t),
   .fsal_file_t_size = sizeof(hpssfsal_file_t),
   .fsal_cookie_t_size = sizeof(hpssfsal_cookie_t),
-  .fsal_lockdesc_t_size = sizeof(hpssfsal_lockdesc_t),
   .fsal_cred_t_size = sizeof(hpssfsal_cred_t),
   .fs_specific_initinfo_t_size = sizeof(hpssfs_specific_initinfo_t),
-  .fsal_dir_t_size = sizeof(hpssfsal_dir_t)
+  .fsal_dir_t_size = sizeof(hpssfsal_dir_t),
+  .fsal_filelockinfo_t_size = sizeof(hpssfsal_filelockinfo_t),
+  .fsal_lockpromise_t_size = sizeof(hpssfsal_lockpromise_t)
 };
 
 fsal_functions_t FSAL_GetFunctions(void)

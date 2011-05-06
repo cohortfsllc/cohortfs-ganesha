@@ -51,10 +51,11 @@
 #define fsal_file_t fusefsal_file_t
 #define fsal_dir_t fusefsal_dir_t
 #define fsal_export_context_t fusefsal_export_context_t
-#define fsal_lockdesc_t fusefsal_lockdesc_t
 #define fsal_cookie_t fusefsal_cookie_t
 #define fs_specific_initinfo_t fusefs_specific_initinfo_t
 #define fsal_cred_t fusefsal_cred_t
+#define fsal_filelockinfo_t fusefsal_filelockinfo_t
+#define fsal_lockpromise_t fusefsal_lockpromise_t
 
   /* In this section, you must define your own FSAL internal types.
    * Here are some template types :
@@ -132,11 +133,7 @@ typedef struct fs_specific_initinfo__
 
 } fusefs_specific_initinfo_t;
 
-typedef struct fsal_lockdesc__
-{
-  struct ganefuse_file_info file_info;
-  struct flock file_lock;
-} fusefsal_lockdesc_t;
-
+typedef void* fusefsal_filelockinfo_t;
+typedef void* fusefsal_lockpromise_t;
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

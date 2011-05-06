@@ -252,15 +252,31 @@ fsal_status_t HPSSFSAL_lookupJunction(hpssfsal_handle_t * p_junction_handle,    
                                       fsal_attrib_list_t *
                                       p_fsroot_attributes /* [ IN/OUT ] */ );
 
-fsal_status_t HPSSFSAL_lock(hpssfsal_file_t * obj_handle,
-                            hpssfsal_lockdesc_t * ldesc, fsal_boolean_t blocking);
+fsal_status_t HPSSFSAL_lock(hpssfsal_file_t* descriptor, /* IN */
+			   fsal_off_t* offset, /* IN/OUT */
+			   fsal_size_t* length, /* IN/OUT */
+			   fsal_locktype_t* type, /* IN/OUT */
+			   fsal_lockowner_t* owner, /* IN/OUT */
+			   hpssfsal_filelockinfo_t* fileinfo, /* IN/OUT */
+			   fsal_boolean_t reclaim, /* IN */
+			   hpssfsal_lockpromise_t* promise /* OUT */
+    );
 
-fsal_status_t HPSSFSAL_changelock(hpssfsal_lockdesc_t * lock_descriptor,        /* IN / OUT */
-                                  fsal_lockparam_t * lock_info /* IN */ );
+fsal_status_t HPSSFSAL_unlock(hpssfsal_file_t* descriptor, /* IN */
+			     fsal_off_t offset, /* IN */
+			     fsal_size_t length, /* IN */
+			     fsal_locktype_t type, /* IN */
+			     fsal_lockowner_t owner, /* IN */
+			     hpssfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
-fsal_status_t HPSSFSAL_unlock(hpssfsal_file_t * obj_handle, hpssfsal_lockdesc_t * ldesc);
-
-fsal_status_t HPSSFSAL_getlock(hpssfsal_file_t * obj_handle, hpssfsal_lockdesc_t * ldesc);
+fsal_status_t HPSSFSAL_lockt(hpssfsal_file_t* descriptor, /* IN */
+			    fsal_off_t* offset, /* IN/OUT */
+			    fsal_size_t* length, /* IN/OUT */
+			    fsal_locktype_t* type, /* IN/OUT */
+			    fsal_lockowner_t* owner, /* IN/OUT */
+			    hpssfsal_filelockinfo_t* fileinfo /* IN/OUT */
+    );
 
 fsal_status_t HPSSFSAL_CleanObjectResources(hpssfsal_handle_t * in_fsal_handle);
 
