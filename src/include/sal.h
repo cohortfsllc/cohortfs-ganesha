@@ -158,7 +158,7 @@ typedef struct lockowner__
     } owner_type;
     union {
 	void* nfs3_owner;
-	void* nfs4_owner;
+	lock_owner4 nfs4_owner;
     } u;
 } state_lockowner_t;
 
@@ -715,6 +715,26 @@ int state_check_dir_delegation(fsal_handle_t *handle);
  */
 
 /**
+ * state_compare_lockowner: Returns true if two lock-owners are equal
+ *
+ * \param owner1 (in):
+ *        One owner.
+ * \param owner2 (in):
+ *        The other owner.
+ *
+ * \retval true one quality, false otherwise.  The special INTERNAL
+ *         and EXTERNAL lockowners always compare as unequal to
+ *         anything, similar to NULL is SQL.  This shouldn't make a
+ *         difference in practice since their only purpose is to be
+ *         returned from the FSAL.
+ */
+
+bool_t state_compare_lockowner(state_lockowner_t* owner1,
+			       state_lockowner_t* owner2);
+
+#if 0
+
+/**
  * state_create_lock_state: Associates an FSAL lock datum with NFSv4.1 state
  * \param handle (in)
  *        The handle in question
@@ -798,6 +818,8 @@ int state_query_lock_state(fsal_handle_t *handle,
  */
 
 int state_inc_lock_state(stateid4* stateid);
+
+#endif /* 0 */
 
 #ifdef _USE_FSALMDS
 

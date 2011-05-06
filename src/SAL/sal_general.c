@@ -120,3 +120,46 @@ bool_t state_invalid_check(stateid4 stateid)
 {
   return !memcmp(&stateid, &state_invalid_stateid, sizeof(stateid4));
 }
+
+static bool_t
+compare_nfs3_lockowner(state_lockowner_t* owner1,
+		       state_lockowner_t* owner2)
+{
+    LogMajor(COMPONENT_STATES,
+	     "NFS3 owner comparison is not implemented.  Please go to line %d in file %s and implement it.",
+	     __LINE__, __FILE__);
+    return FALSE;
+}
+
+static bool_t
+compare_nfs4_lockowner(state_lockowner_t* owner1,
+		       state_lockowner_t* owner2)
+{
+    return ((owner1->u.nfs4_owner.clientid ==
+	     owner2->u.nfs4_owner.clientid) &&
+	    (owner1->u.nfs4_owner.owner.owner_len ==
+	     owner2->u.nfs4_owner.owner.owner_len) &&
+	    (memcmp((void*) owner1->u.nfs4_owner.owner.owner_val,
+		    (void*) owner2->u.nfs4_owner.owner.owner_val,
+		    owner1->u.nfs4_owner.owner.owner_len) == 0));
+}
+
+bool_t
+state_compare_lockowner(state_lockowner_t* owner1,
+			state_lockowner_t* owner2)
+{
+    switch (owner1->owner_type) {
+    case LOCKOWNER_NFS3:
+	if (owner2->owner_type == LOCKOWNER_NFS3) {
+	    return compare_nfs3_lockowner(owner1, owner2);
+	}
+
+    case LOCKOWNER_NFS4:
+	if (owner2->owner_type == LOCKOWNER_NFS4) {
+	    return compare_nfs4_lockowner(owner1, owner2);
+	}
+
+    default:
+	return FALSE;
+    }
+}
