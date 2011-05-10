@@ -140,6 +140,8 @@ int HashTable_Get(hash_table_t * ht, hash_buffer_t * buffkey, hash_buffer_t * bu
 int HashTable_Del(hash_table_t * ht, hash_buffer_t * buffkey,
                   hash_buffer_t * p_usedbuffkey, hash_buffer_t * p_usedbuffdata);
 #define HashTable_Set( ht, buffkey, buffval ) HashTable_Test_And_Set( ht, buffkey, buffval, HASHTABLE_SET_HOW_SET_OVERWRITE )
+int HashTable_Set_Or_Fetch(hash_table_t * ht, hash_buffer_t * buffkey,
+                           hash_buffer_t * buffval);
 void HashTable_GetStats(hash_table_t * ht, hash_stat_t * hstat);
 void HashTable_Log(log_components_t component, hash_table_t * ht);
 void HashTable_Print(hash_table_t * ht);

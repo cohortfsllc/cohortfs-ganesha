@@ -795,6 +795,124 @@ int HashTable_Del(hash_table_t * ht, hash_buffer_t * buffkey,
 
 /**
  * 
+ * HashTable_Set_Or_Fetch: set a pair in the Hash Table, return a pre-existing value if it already exists.
+ *
+ * This function is derived from HashTable_Test_And_Set.  It attempts
+ * to set a key in the hash table and, if that key already exists,
+ * buffval is updated to point to the stored value and
+ * HASHTABLE_ERROR_KEY_ALREADY_EXISTS is returned.  Instead of writing
+ * this function, we could just modify HashTable_Test_And_Set.
+ * However, I did not want to risk breaking any code that might depend
+ * on buffval not being modified.
+ *
+ * @param ht the hashtable to be used.
+ * @param buffkey a pointeur to an object of type hash_buffer_t which describe the key location in memory.
+ * @param buffval a pointeur to an object of type hash_buffer_t which describe the value location in memory.
+ *
+ * @return HASHTABLE_SUCCESS if successfull.
+ * @return HASHTABLE_INSERT_MALLOC_ERROR if an error occured during the insertion process.
+ * @return HASHTABLE_ERROR_KEY_ALREADY_EXISTS if the key already exists
+ *
+ * @see HashTable_Get
+ * @see HashTable_Init
+ * @see HashTable_Del
+ * @see HashTable_Test_And_Set
+ */
+int HashTable_Set_Or_Fetch(hash_table_t * ht, hash_buffer_t * buffkey,
+                           hash_buffer_t * buffval)
+{
+  unsigned int hashval = 0;
+  int rbt_value = 0;
+  struct rbt_head *tete_rbt = NULL;
+  struct rbt_node *pn = NULL;
+  struct rbt_node *qn = NULL;
+  hash_data_t *pdata = NULL;
+
+  /* Sanity check */
+  if(ht == NULL)
+    return HASHTABLE_ERROR_INVALID_ARGUMENT;
+  else if(buffkey == NULL)
+    return HASHTABLE_ERROR_INVALID_ARGUMENT;
+  else if(buffval == NULL)
+    return HASHTABLE_ERROR_INVALID_ARGUMENT;
+
+  /* Compute values to locate into the hashtable */
+  if( ht->parameter.hash_func_both != NULL )
+   {
+      if( (*(ht->parameter.hash_func_both))( &ht->parameter, buffkey, &hashval, &rbt_value ) == 0 ) 
+       return HASHTABLE_ERROR_INVALID_ARGUMENT;
+   }
+  else
+   {
+    hashval = (*(ht->parameter.hash_func_key)) (&ht->parameter, buffkey);
+    rbt_value = (*(ht->parameter.hash_func_rbt)) (&ht->parameter, buffkey);
+   }
+
+  tete_rbt = &(ht->array_rbt[hashval]);
+  LogFullDebug(COMPONENT_HASHTABLE,
+               "Key = %p   Value = %p  hashval = %u  rbt_value = %x",
+               buffkey->pdata, buffval->pdata, hashval, rbt_value);
+
+  /* acquire mutex for protection */
+  P_w(&(ht->array_lock[hashval]));
+
+  if(Key_Locate(ht, buffkey, hashval, rbt_value, &pn) == HASHTABLE_SUCCESS)
+    {
+      pdata = (hash_data_t *) RBT_OPAQ(pn);
+      buffval->pdata = pdata->buffval.pdata;
+      buffval->len = pdata->buffval.len;
+      V_w(&(ht->array_lock[hashval]));
+      return HASHTABLE_ERROR_KEY_ALREADY_EXISTS;
+    }
+
+  /* No entry of that key, add it to the trees */
+
+  /* Insert a new node in the table */
+  RBT_FIND(tete_rbt, pn, rbt_value);
+
+  /* This entry does not exist, create it */
+  /* First get a new entry in the preallocated node array */
+  GetFromPool(qn, &ht->node_prealloc[hashval], rbt_node_t);
+  if(qn == NULL)
+    {
+      ht->stat_dynamic[hashval].err.nb_set += 1;
+      V_w(&(ht->array_lock[hashval]));
+      return HASHTABLE_INSERT_MALLOC_ERROR;
+    }
+
+  GetFromPool(pdata, &ht->pdata_prealloc[hashval], hash_data_t);
+  if(pdata == NULL)
+    {
+      ht->stat_dynamic[hashval].err.nb_set += 1;
+      V_w(&(ht->array_lock[hashval]));
+      return HASHTABLE_INSERT_MALLOC_ERROR;
+    }
+
+  RBT_OPAQ(qn) = pdata;
+  RBT_VALUE(qn) = rbt_value;
+  RBT_INSERT(tete_rbt, qn, pn);
+  
+  LogFullDebug(COMPONENT_HASHTABLE,
+	       "Creation d'une nouvelle entree (k=%p,v=%p), qn=%p, pdata=%p",
+	       buffkey->pdata, buffval->pdata, qn, RBT_OPAQ(qn));
+
+  pdata->buffval.pdata = buffval->pdata;
+  pdata->buffval.len = buffval->len;
+
+  pdata->buffkey.pdata = buffkey->pdata;
+  pdata->buffkey.len = buffkey->len;
+
+  ht->stat_dynamic[hashval].nb_entries += 1;
+  ht->stat_dynamic[hashval].ok.nb_set += 1;
+
+  /* Release mutex */
+  V_w(&(ht->array_lock[hashval]));
+
+  return HASHTABLE_SUCCESS;
+}                               /* HashTable_Set */
+
+/**
+ * 
  * HashTable_GetStats: Computes statistiques on the hashtable
  *
  * Print information about the hashtable (mostly for debugging purpose).
