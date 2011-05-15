@@ -241,7 +241,7 @@ open_owner_cmp_func(hash_buffer_t* key1,
 void
 hash_open_owner(open_owner_key_t* owner, uint32_t* h1, uint32_t* h2)
 {
-     Lookup3_hash_buff_dual((char*)(owner->clientid),
+     Lookup3_hash_buff_dual((char*)&(owner->clientid),
 			    sizeof(clientid4), 
 			    h1, h2);
      Lookup3_hash_buff_dual((char*)(owner->owner_val),
@@ -672,10 +672,6 @@ localstate_open_owner_begin41(clientid4 clientid,
      open_owner_t* owner;
      bool_t owner_created = FALSE;
      
-     if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
-	  return ERR_STATE_FAIL;
-     }
-
      if ((rc = acquire_open_owner(nfs_open_owner.owner.owner_val,
 				  nfs_open_owner.owner.owner_len,
 				  clientid,
@@ -701,9 +697,10 @@ localstate_open_owner_begin41(clientid4 clientid,
 	  pthread_mutex_unlock(&(owner->mutex));
      }
      
-     *transaction = (localstate_share_trans_t*) Mem_Alloc(sizeof(localstate_share_trans_t));
+     *transaction = (state_share_trans_t*) Mem_Alloc(sizeof(state_share_trans_t));
      (*transaction)->status = TRANSACT_LIVE;
      (*transaction)->share_state = NULL;
+     (*transaction)->owner = owner;
 
      return ERR_STATE_NO_ERROR;
 }
@@ -721,7 +718,7 @@ localstate_open_stateid_begin41(stateid4 stateid,
 	  return rc;
      }
 
-     *transaction = (localstate_share_trans_t*) Mem_Alloc(sizeof(localstate_share_trans_t));
+     *transaction = (state_share_trans_t*) Mem_Alloc(sizeof(state_share_trans_t));
      (*transaction)->status = TRANSACT_LIVE;
      (*transaction)->share_state = share_state;
 

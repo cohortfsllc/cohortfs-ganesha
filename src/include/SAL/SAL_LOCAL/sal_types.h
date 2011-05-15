@@ -20,7 +20,7 @@ typedef struct state_share_trans__ {
      struct open_owner__* owner;
 } state_share_trans_t;
 
-typedef struct state_share_trans__ {
+typedef struct state_lock_trans__ {
      state_trans_status_t status;
      state_trans_errsource_t errsource;
      uint32_t errcode;

@@ -1795,6 +1795,7 @@ static int BuildExportEntry(config_item_t block, exportlist_t ** pp_export)
               break;
 
             case 0:
+              p_entry->options &= ~EXPORT_OPTION_USE_DATACACHE;
               /*default (false) */
               break;
 
