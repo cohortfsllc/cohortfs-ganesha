@@ -125,7 +125,6 @@ endif
 
 if USE_NFS4_1
 libnfsproto_la_SOURCES += nfs41_op_exchange_id.c      \
-			  nfs41_op_commit.c           \
                           nfs41_op_getdevicelist.c    \
                           nfs41_op_getdeviceinfo.c    \
                           nfs41_op_create_session.c   \
@@ -133,12 +132,9 @@ libnfsproto_la_SOURCES += nfs41_op_exchange_id.c      \
                           nfs41_op_layoutget.c        \
                           nfs41_op_layoutcommit.c     \
                           nfs41_op_layoutreturn.c     \
-			  nfs41_op_open_downgrade.c   \
-                          nfs41_op_read.c             \
                           nfs41_op_reclaim_complete.c \
                           nfs41_op_sequence.c         \
-                          nfs41_op_set_ssv.c          \
-                          nfs41_op_write.c            
+                          nfs41_op_set_ssv.c
 endif
 
 

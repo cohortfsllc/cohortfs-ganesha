@@ -24,13 +24,13 @@
  */
 
 /**
- * \file    nfs4_op_write.c
+ * \file    nfs41_op_write.c
  * \author  $Author: deniel $
- * \date    $Date: 2005/11/28 17:02:52 $
+ * \date    $Date: 20heck
  * \version $Revision: 1.15 $
  * \brief   Routines used for managing the NFS4 COMPOUND functions.
  *
- * nfs4_op_write.c : Routines used for managing the NFS4 COMPOUND functions.
+ * nfs41_op_write.c : Routines used for managing the NFS4 COMPOUND functions.
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -78,13 +78,13 @@
 extern nfs_parameter_t nfs_param;
 
 /**
- * nfs4_op_write: The NFS4_OP_WRITE operation
+ * nfs41_op_write: The NFS4_OP_WRITE operation
  * 
  * This functions handles the NFS4_OP_WRITE operation in NFSv4. This function can be called only from nfs4_Compound.
  *
- * @param op    [IN]    pointer to nfs4_op arguments
+ * @param op    [IN]    pointer to nfs41_op arguments
  * @param data  [INOUT] Pointer to the compound request's data
- * @param resp  [IN]    Pointer to nfs4_op results
+ * @param resp  [IN]    Pointer to nfs41_op results
  *
  * @return NFS4_OK if successfull, other values show an error.  
  * 
@@ -95,12 +95,9 @@ extern verifier4 NFS4_write_verifier;   /* NFS V4 write verifier from nfs_Main.c
 #define arg_WRITE4 op->nfs_argop4_u.opwrite
 #define res_WRITE4 resp->nfs_resop4_u.opwrite
 
-extern char all_zero[];
-extern char all_one[12];
-
 int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop4 *resp)
 {
-  char __attribute__ ((__unused__)) funcname[] = "nfs4_op_write";
+  char __attribute__ ((__unused__)) funcname[] = "nfs41_op_write";
 
   fsal_seek_t seek_descriptor;
   fsal_size_t size;
@@ -114,6 +111,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   cache_inode_status_t cache_status;
   fsal_attrib_list_t attr;
   cache_entry_t *entry = NULL;
+  int uid = 0;
 
   int rc = 0;
 
@@ -157,6 +155,21 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
       return res_WRITE4.status;
     }
 
+#ifdef _USE_FSALDS
+
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      return(op_dswrite(op, data, resp));
+    }
+
+#endif /* _USE_FSALDS */
+
+  if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
+    {
+      res_OPEN4.status = NFS4ERR_SERVERFAULT;
+      return res_OPEN4.status;
+    }
+
   /* vnode to manage is the current one */
   entry = data->current_entry;
 
@@ -178,8 +191,8 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   size = arg_WRITE4.data.data_len;
   stable_how = arg_WRITE4.stable;
   LogFullDebug(COMPONENT_NFS_V4,
-               "   NFS4_OP_WRITE: offset = %"PRIu64"  length = %llu   stable = %d",
-               offset, size, stable_how);
+               "NFS4_OP_WRITE: offset = %llu  length = %llu  stable = %d",
+               (unsigned long long)offset, size, stable_how);
 
   if((data->pexport->options & EXPORT_OPTION_MAXOFFSETWRITE) ==
      EXPORT_OPTION_MAXOFFSETWRITE)
@@ -205,8 +218,8 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   bufferdata = arg_WRITE4.data.data_val;
 
   LogFullDebug(COMPONENT_NFS_V4,
-               "             NFS4_OP_WRITE: offset = %"PRIu64"  length = %llu",
-               offset, size);
+               "NFS4_OP_WRITE: offset = %llu  length = %llu",
+               (unsigned long long)offset, size);
 
   /* if size == 0 , no I/O) are actually made and everything is alright */
   if(size == 0)
@@ -277,7 +290,8 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                       &eof_met,
                       data->ht,
                       data->pclient,
-                      data->pcontext, stable_flag, &cache_status) != CACHE_INODE_SUCCESS)
+                      data->pcontext, uid,
+		      stable_flag, &cache_status) != CACHE_INODE_SUCCESS)
     {
       res_WRITE4.status = nfs4_Errno(cache_status);
       return res_WRITE4.status;
@@ -295,20 +309,146 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   res_WRITE4.status = NFS4_OK;
 
   return res_WRITE4.status;
-}                               /* nfs4_op_write */
+}                               /* nfs41_op_write */
 
 /**
- * nfs4_op_write_Free: frees what was allocared to handle nfs4_op_write.
+ * nfs41_op_write_Free: frees what was allocared to handle nfs41_op_write.
  * 
- * Frees what was allocared to handle nfs4_op_write.
+ * Frees what was allocared to handle nfs41_op_write.
  *
- * @param resp  [INOUT]    Pointer to nfs4_op results
+ * @param resp  [INOUT]    Pointer to nfs41_op results
  *
  * @return nothing (void function )
  * 
  */
-void nfs4_op_write_Free(WRITE4res * resp)
+void nfs41_op_write_Free(WRITE4res * resp)
 {
   /* Nothing to be done */
   return;
-}                               /* nfs4_op_write_Free */
+}                               /* nfs41_op_write_Free */
+
+#ifdef _USE_FSALDS
+
+int op_dswrite(struct nfs_argop4 *op,
+	       compound_data_t * data,
+	       struct nfs_resop4 *resp)
+
+{
+  fsal_seek_t seek_descriptor;
+  fsal_off_t offset;
+  fsal_size_t length;
+  caddr_t bufferdata;
+  fsal_handle_t fsalh;
+  fsal_size_t write_amount;
+  fsal_status_t status;
+  cache_inode_status_t cache_status;
+  bool_t stable_flag;
+
+  /* Special stateids are not permitted, nor is any non-zero seqid, by
+     RFC 5661, 13.9.1, pp. 329-330 */
+  if ((arg_WRITE4.stateid.seqid != 0) ||
+      state_anonymous_check(arg_WRITE4.stateid) ||
+      state_current_check(arg_WRITE4.stateid) ||
+      state_invalid_check(arg_WRITE4.stateid))
+    {
+      res_WRITE4.status = NFS4ERR_BAD_STATEID;
+      return res_WRITE4.status;
+    }
+
+  /* Only files can be read */
+
+  if(data->current_filetype != REGULAR_FILE)
+    {
+      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
+      if(data->current_filetype == DIR_BEGINNING
+         || data->current_filetype == DIR_CONTINUE)
+        res_WRITE4.status = NFS4ERR_ISDIR;
+      else
+        res_WRITE4.status = NFS4ERR_INVAL;
+
+      return res_WRITE4.status;
+    }
+
+  if((nfs_param.core_param.use_nfs_commit == TRUE) && (arg_WRITE4.stable == UNSTABLE4))
+    {
+      stable_flag = FALSE;
+    }
+  else
+    {
+      stable_flag = TRUE;
+    }
+
+  /* Get the size and offset of the read operation */
+  offset = arg_WRITE4.offset;
+  length = arg_WRITE4.data.data_len;
+
+  if((data->pexport->options & EXPORT_OPTION_MAXOFFSETWRITE) ==
+     EXPORT_OPTION_MAXOFFSETWRITE)
+    if((fsal_off_t) (offset + length) > data->pexport->MaxOffsetWrite)
+      {
+        res_WRITE4.status = NFS4ERR_DQUOT;
+        return res_WRITE4.status;
+      }
+
+  /* The size to be written should not be greater than FATTR4_MAXWRITESIZE because this value is asked 
+   * by the client at mount time, but we check this by security */
+  if((data->pexport->options & EXPORT_OPTION_MAXWRITE == EXPORT_OPTION_MAXWRITE) &&
+     length > data->pexport->MaxWrite)
+    {
+      /*
+       * The client asked for too much data, we
+       * must restrict him 
+       */
+      length = data->pexport->MaxWrite;
+    }
+
+  /* Where are the data ? */
+  bufferdata = arg_WRITE4.data.data_val;
+
+  /* if size == 0 , no I/O) are actually made and everything is alright */
+  if(length == 0)
+    {
+      res_WRITE4.WRITE4res_u.resok4.count = 0;
+      res_WRITE4.WRITE4res_u.resok4.committed = FILE_SYNC4;
+
+      memcpy(res_WRITE4.WRITE4res_u.resok4.writeverf, NFS4_write_verifier,
+             sizeof(verifier4));
+
+      res_WRITE4.status = NFS4_OK;
+      return res_WRITE4.status;
+    }
+
+
+  seek_descriptor.whence = FSAL_SEEK_SET;
+  seek_descriptor.offset = offset;
+
+  /* Magical nonexistent state management */
+
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
+
+  /* This is subject to change, once the cache happens */
+
+  status=FSAL_ds_write(&fsalh, &seek_descriptor, length,        /* IN */
+		       bufferdata, &write_amount, stable_flag);
+
+  if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
+    {
+      res_WRITE4.status = nfs4_Errno(cache_status);
+      return res_WRITE4.status;
+    }
+
+  /* Set the returned value */
+  if(stable_flag == TRUE)
+    res_WRITE4.WRITE4res_u.resok4.committed = FILE_SYNC4;
+  else
+    res_WRITE4.WRITE4res_u.resok4.committed = UNSTABLE4;
+
+  res_WRITE4.WRITE4res_u.resok4.count = write_amount;
+  memcpy(res_WRITE4.WRITE4res_u.resok4.writeverf, NFS4_write_verifier, sizeof(verifier4));
+
+  res_WRITE4.status = NFS4_OK;
+
+  return res_WRITE4.status;
+}
+#endif /* _USE_FSALDS */
+

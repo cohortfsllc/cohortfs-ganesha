@@ -24,13 +24,13 @@
  */
 
 /**
- * \file    nfs4_op_read.c
+ * \file    nfs41_op_read.c
  * \author  $Author: deniel $
  * \date    $Date: 2005/11/28 17:02:51 $
  * \version $Revision: 1.14 $
  * \brief   Routines used for managing the NFS4 COMPOUND functions.
  *
- * nfs4_op_read.c : Routines used for managing the NFS4 COMPOUND functions.
+ * nfs41_op_read.c : Routines used for managing the NFS4 COMPOUND functions.
  *
  *
  */
@@ -79,13 +79,13 @@
 extern nfs_parameter_t nfs_param;
 
 /**
- * nfs4_op_read: The NFS4_OP_READ operation
+ * nfs41_op_read: The NFS4_OP_READ operation
  * 
- * This functions handles the NFS4_OP_READ operation in NFSv4. This function can be called only from nfs4_Compound.
+ * This functions handles the NFS4_OP_READ operation in NFSv4. This function can be called on
  *
- * @param op    [IN]    pointer to nfs4_op arguments
+ * @param op    [IN]    pointer to nfs41_op arguments
  * @param data  [INOUT] Pointer to the compound request's data
- * @param resp  [IN]    Pointer to nfs4_op results
+ * @param resp  [IN]    Pointer to nfs41_op results
  *
  * @return NFS4_OK if successfull, other values show an error.  
  * 
@@ -94,12 +94,9 @@ extern nfs_parameter_t nfs_param;
 #define arg_READ4 op->nfs_argop4_u.opread
 #define res_READ4 resp->nfs_resop4_u.opread
 
-extern char all_zero[];
-extern char all_one[12];
-
 int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop4 *resp)
 {
-  char __attribute__ ((__unused__)) funcname[] = "nfs4_op_read";
+  char __attribute__ ((__unused__)) funcname[] = "nfs41_op_read";
 
   fsal_seek_t seek_descriptor;
   fsal_size_t size;
@@ -112,6 +109,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   fsal_attrib_list_t attr;
   cache_entry_t *entry = NULL;
   int rc = 0;
+  int uid = 0;
 
   cache_content_policy_data_t datapol;
 
@@ -142,12 +140,27 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
       return res_READ4.status;
     }
 
-  /* vnode to manage is the current one */
-  entry = data->current_entry;
-
   /* If Filehandle points to a xattr object, manage it via the xattrs specific functions */
   if(nfs4_Is_Fh_Xattr(&(data->currentFH)))
     return nfs4_op_read_xattr(op, data, resp);
+
+#ifdef _USE_FSALDS
+
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      return(op_dsread(op, data, resp));
+    }
+
+#endif /* _USE_FSALDS */
+
+  /* vnode to manage is the current one */
+  entry = data->current_entry;
+
+  if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
+    {
+      res_OPEN4.status = NFS4ERR_SERVERFAULT;
+      return res_OPEN4.status;
+    }
 
   /* Manage access type MDONLY */
   if(data->pexport->access_type == ACCESSTYPE_MDONLY)
@@ -156,6 +169,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
       return res_READ4.status;
     }
 
+  /* Only files can be read */
   if(data->current_filetype != REGULAR_FILE)
     {
       /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
@@ -173,8 +187,8 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   size = arg_READ4.count;
 
   LogFullDebug(COMPONENT_NFS_V4,
-               "   NFS4_OP_READ: offset = %"PRIu64" length = %llu",
-               offset, size);
+               "   NFS4_OP_READ: offset = %llu  length = %llu",
+               (unsigned long long)offset, size);
 
   if((data->pexport->options & EXPORT_OPTION_MAXOFFSETREAD) ==
      EXPORT_OPTION_MAXOFFSETREAD)
@@ -246,6 +260,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   seek_descriptor.whence = FSAL_SEEK_SET;
   seek_descriptor.offset = offset;
 
+
   if(cache_inode_rdwr(entry,
                       CACHE_CONTENT_READ,
                       &seek_descriptor,
@@ -257,7 +272,9 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                       &eof_met,
                       data->ht,
                       data->pclient,
-                      data->pcontext, TRUE, &cache_status) != CACHE_INODE_SUCCESS)
+                      data->pcontext,
+		      uid,
+		      TRUE, &cache_status) != CACHE_INODE_SUCCESS)
     {
       res_READ4.status = nfs4_Errno(cache_status);
       return res_READ4.status;
@@ -271,8 +288,8 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   res_READ4.READ4res_u.resok4.data.data_val = bufferdata;
 
   LogFullDebug(COMPONENT_NFS_V4,
-               "   NFS4_OP_READ: offset = %"PRIu64"  read length = %llu eof=%u",
-               offset, read_size, eof_met);
+               "   NFS4_OP_READ: offset = %llu  read length = %llu eof=%u",
+               (unsigned long long)offset, read_size, eof_met);
 
   /* Is EOF met or not ? */
   if(eof_met == TRUE)
@@ -284,22 +301,135 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   res_READ4.status = NFS4_OK;
 
   return res_READ4.status;
-}                               /* nfs4_op_read */
+}                               /* nfs41_op_read */
 
 /**
- * nfs4_op_read_Free: frees what was allocared to handle nfs4_op_read.
+ * nfs41_op_read_Free: frees what was allocared to handle nfs41_op_read.
  * 
- * Frees what was allocared to handle nfs4_op_read.
+ * Frees what was allocared to handle nfs41_op_read.
  *
- * @param resp  [INOUT]    Pointer to nfs4_op results
+ * @param resp  [INOUT]    Pointer to nfs41_op results
  *
  * @return nothing (void function )
  * 
  */
-void nfs4_op_read_Free(READ4res * resp)
+void nfs41_op_read_Free(READ4res * resp)
 {
   if(resp->status == NFS4_OK)
     if(resp->READ4res_u.resok4.data.data_len != 0)
       Mem_Free(resp->READ4res_u.resok4.data.data_val);
   return;
-}                               /* nfs4_op_read_Free */
+}                               /* nfs41_op_read_Free */
+
+#ifdef _USE_FSALDS
+
+int op_dsread(struct nfs_argop4 *op,
+	      compound_data_t * data,
+	      struct nfs_resop4 *resp)
+
+{
+  fsal_seek_t seek_descriptor;
+  caddr_t bufferdata=0;
+  fsal_handle_t fsalh;
+  fsal_boolean_t eof=0;
+  fsal_off_t offset=0;
+  fsal_size_t size;
+  fsal_size_t amount_read=0;
+  fsal_status_t status;
+  cache_inode_status_t cache_status;
+
+  /* Special stateids are not permitted, nor is any non-zero seqid, by
+     RFC 5661, 13.9.1, pp. 329-330 */
+
+  if ((arg_READ4.stateid.seqid != 0) ||
+      state_anonymous_check(arg_READ4.stateid) ||
+      state_current_check(arg_READ4.stateid) ||
+      state_invalid_check(arg_READ4.stateid))
+    {
+      res_READ4.status = NFS4ERR_BAD_STATEID;
+      return res_READ4.status;
+    }
+
+  /* Only files can be read */
+
+  if(data->current_filetype != REGULAR_FILE)
+    {
+      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
+      if(data->current_filetype == DIR_BEGINNING
+         || data->current_filetype == DIR_CONTINUE)
+        res_READ4.status = NFS4ERR_ISDIR;
+      else
+        res_READ4.status = NFS4ERR_INVAL;
+
+      return res_READ4.status;
+    }
+
+  /* Get the size and offset of the read operation */
+  offset = arg_READ4.offset;
+  size = arg_READ4.count;
+
+  if((data->pexport->options & EXPORT_OPTION_MAXOFFSETREAD) ==
+     EXPORT_OPTION_MAXOFFSETREAD)
+    if((fsal_off_t) (offset + size) > data->pexport->MaxOffsetRead)
+      {
+        res_READ4.status = NFS4ERR_DQUOT;
+        return res_READ4.status;
+      }
+
+  /* Do not read more than FATTR4_MAXREAD */
+  if((data->pexport->options & EXPORT_OPTION_MAXREAD == EXPORT_OPTION_MAXREAD) &&
+     size > data->pexport->MaxRead)
+    {
+      /* the client asked for too much data, 
+       * this should normally not happen because 
+       * client will get FATTR4_MAXREAD value at mount time */
+      size = data->pexport->MaxRead;
+    }
+
+  /* If size == 0 , no I/O is to be made and everything is alright */
+  if(size == 0)
+    {
+      res_READ4.READ4res_u.resok4.eof = FALSE;  /* end of file was not reached because READ occured, and a size = 0 can not lead to eof */
+      res_READ4.READ4res_u.resok4.data.data_len = 0;
+      res_READ4.READ4res_u.resok4.data.data_val = NULL;
+
+      res_READ4.status = NFS4_OK;
+      return res_READ4.status;
+    }
+
+  /* Some work is to be done */
+  if((bufferdata = (char *)Mem_Alloc(size)) == NULL)
+    {
+      res_READ4.status = NFS4ERR_SERVERFAULT;
+      return res_READ4.status;
+    }
+  memset((char *)bufferdata, 0, size);
+
+  seek_descriptor.whence = FSAL_SEEK_SET;
+  seek_descriptor.offset = offset;
+
+  /* Magical nonexistent state management */
+
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
+
+  /* This is subject to change, once the cache happens */
+
+  status=FSAL_ds_read(&fsalh, &seek_descriptor, size,        /* IN */
+		      bufferdata, &amount_read, &eof);
+
+  if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
+    {
+      res_READ4.status = nfs4_Errno(cache_status);
+      return res_READ4.status;
+    }
+
+  res_READ4.READ4res_u.resok4.data.data_len = amount_read;
+  res_READ4.READ4res_u.resok4.data.data_val = bufferdata;
+  res_READ4.READ4res_u.resok4.eof = eof;
+
+  res_READ4.status = NFS4_OK;
+
+  return res_READ4.status;
+}
+
+#endif /* _USE_FSALDS */

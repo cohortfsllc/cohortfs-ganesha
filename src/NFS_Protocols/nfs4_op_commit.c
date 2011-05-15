@@ -101,13 +101,14 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   fsal_attrib_list_t attr;
   cache_inode_status_t cache_status;
 
+#ifdef _USE_FSALMDS
+  fsal_status_t status;
+  fsal_handle_t fsalh;
+#endif /* _USE_FSALMDS */
+
   /* for the moment, read/write are not done asynchronously, no commit is necessary */
   resp->resop = NFS4_OP_COMMIT;
   res_COMMIT4.status = NFS4_OK;
-
-  LogFullDebug(COMPONENT_NFS_V4,
-               "      COMMIT4: Demande de commit sur offset = %"PRIu64", size = %"PRIu32,
-               arg_COMMIT4.offset, (uint32_t)arg_COMMIT4.count);
 
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -149,9 +150,25 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
       return res_COMMIT4.status;
     }
 
-  // FIX ME!! At the moment we just assume the user is _not_ using
-  // the ganesha unsafe buffer. In the future, a check based on
-  // export config params (similar to nfs3_Commit.c) should be made.
+#ifdef _USE_FSALMDS
+
+  /* See if we have a layout */
+  
+#endif /* _USE_FSALMDS */
+#ifdef _USE_FSALDS
+
+  if(nfs4_Is_Fh_DSHandle(&data->currentFH))
+    {
+      return(op_dscommit(op, data, resp));
+    }
+
+#endif /* _USE_FSALDS */
+
+  if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
+    {
+      res_OPEN4.status = NFS4ERR_SERVERFAULT;
+      return res_OPEN4.status;
+    }
 
   if(cache_inode_commit(data->current_entry,
                         arg_COMMIT4.offset,
@@ -159,9 +176,11 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                         &attr,
                         data->ht,
                         data->pclient,
-			data->pcontext,
-                        FSAL_UNSAFE_WRITE_TO_FS_BUFFER,
-                        &cache_status) != CACHE_INODE_SUCCESS)
+                        data->pcontext, 
+			FSAL_UNSAFE_WRITE_TO_FS_BUFFER, /** @todo I had to add this, just for compiling */
+			uid,
+			state_anonymous_stateid,
+			&cache_status) != CACHE_INODE_SUCCESS)
     {
       res_COMMIT4.status = NFS4ERR_INVAL;
       return res_COMMIT4.status;
@@ -176,7 +195,7 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 }                               /* nfs4_op_commit */
 
 /**
- * nfs4_op_commit_Free: frees what was allocared to handle nfs4_op_commit.
+ * nfs41_op_commit_Free: frees what was allocared to handle nfs4_op_commit.
  * 
  * Frees what was allocared to handle nfs4_op_commit.
  *
@@ -185,8 +204,73 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
  * @return nothing (void function )
  * 
  */
-void nfs4_op_commit_Free(COMMIT4res * resp)
+void nfs41_op_commit_Free(COMMIT4res * resp)
 {
   /* Nothing to be done */
   return;
 }                               /* nfs4_op_commit_Free */
+
+#ifdef _USE_FSALDS
+
+int op_dscommit(struct nfs_argop4 *op,
+		compound_data_t * data,
+		struct nfs_resop4 *resp)
+
+{
+  fsal_off_t offset;
+  fsal_handle_t fsalh;
+  fsal_size_t length;
+  fsal_status_t status;
+  cache_inode_status_t cache_status;
+
+  /* Special stateids are not permitted, nor is any non-zero seqid, by
+     RFC 5661, 13.9.1, pp. 329-330 */
+
+  if(data->current_filetype != REGULAR_FILE)
+    {
+      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
+      if(data->current_filetype == DIR_BEGINNING
+         || data->current_filetype == DIR_CONTINUE)
+        res_COMMIT4.status = NFS4ERR_ISDIR;
+      else
+        res_COMMIT4.status = NFS4ERR_INVAL;
+
+      return res_COMMIT4.status;
+    }
+
+  /* Get the size and offset of the read operation */
+  offset = arg_COMMIT4.offset;
+  length = arg_COMMIT4.count;
+
+  /* If size == 0 , no I/O is to be made and everything is alright */
+  if(length == 0)
+    {
+      memcpy(res_COMMIT4.COMMIT4res_u.resok4.writeverf, (char *)&NFS4_write_verifier,
+	     NFS4_VERIFIER_SIZE);
+
+      res_COMMIT4.status = NFS4_OK;
+    }
+
+  /* Magical nonexistent state management */
+
+  nfs4_FhandleToFSAL(&data->currentFH, &fsalh, data->pcontext);
+
+  /* This is subject to change, once the cache happens */
+
+  status=FSAL_ds_commit(&fsalh, offset, length);
+
+  if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
+    {
+      res_COMMIT4.status = nfs4_Errno(cache_status);
+      return res_COMMIT4.status;
+    }
+
+  memcpy(res_COMMIT4.COMMIT4res_u.resok4.writeverf, (char *)&NFS4_write_verifier,
+         NFS4_VERIFIER_SIZE);
+
+  /* If you reach this point, then an error occured */
+  res_COMMIT4.status = NFS4_OK;
+  return res_COMMIT4.status;
+}
+
+#endif /* _USE_FSALDS */

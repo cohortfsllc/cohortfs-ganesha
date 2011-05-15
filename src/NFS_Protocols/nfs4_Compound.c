@@ -145,7 +145,7 @@ static const nfs4_op_desc_t optab4v0[] = {
 static const nfs4_op_desc_t optab4v1[] = {
   {"OP_ACCESS", NFS4_OP_ACCESS, nfs4_op_access},
   {"OP_CLOSE", NFS4_OP_CLOSE, nfs4_op_close},
-  {"OP_COMMIT", NFS4_OP_COMMIT, nfs41_op_commit},
+  {"OP_COMMIT", NFS4_OP_COMMIT, nfs4_op_commit},
   {"OP_CREATE", NFS4_OP_CREATE, nfs4_op_create},
   {"OP_DELEGPURGE", NFS4_OP_DELEGPURGE, nfs4_op_delegpurge},
   {"OP_DELEGRETURN", NFS4_OP_DELEGRETURN, nfs4_op_delegreturn},
@@ -161,11 +161,11 @@ static const nfs4_op_desc_t optab4v1[] = {
   {"OP_OPEN", NFS4_OP_OPEN, nfs4_op_open},
   {"OP_OPENATTR", NFS4_OP_OPENATTR, nfs4_op_openattr},
   {"OP_OPEN_CONFIRM", NFS4_OP_OPEN_CONFIRM, nfs4_op_illegal},   /* OP_OPEN_CONFIRM is deprecated in NFSv4.1 */
-  {"OP_OPEN_DOWNGRADE", NFS4_OP_OPEN_DOWNGRADE, nfs41_op_open_downgrade},
+  {"OP_OPEN_DOWNGRADE", NFS4_OP_OPEN_DOWNGRADE, nfs4_op_open_downgrade},
   {"OP_PUTFH", NFS4_OP_PUTFH, nfs4_op_putfh},
   {"OP_PUTPUBFH", NFS4_OP_PUTPUBFH, nfs4_op_putpubfh},
   {"OP_PUTROOTFH", NFS4_OP_PUTROOTFH, nfs4_op_putrootfh},
-  {"OP_READ", NFS4_OP_READ, nfs41_op_read},
+  {"OP_READ", NFS4_OP_READ, nfs4_op_read},
   {"OP_READDIR", NFS4_OP_READDIR, nfs4_op_readdir},
   {"OP_READLINK", NFS4_OP_READLINK, nfs4_op_readlink},
   {"OP_REMOVE", NFS4_OP_REMOVE, nfs4_op_remove},
@@ -178,7 +178,7 @@ static const nfs4_op_desc_t optab4v1[] = {
   {"OP_SETCLIENTID", NFS4_OP_SETCLIENTID, nfs4_op_setclientid},
   {"OP_SETCLIENTID_CONFIRM", NFS4_OP_SETCLIENTID_CONFIRM, nfs4_op_setclientid_confirm},
   {"OP_VERIFY", NFS4_OP_VERIFY, nfs4_op_verify},
-  {"OP_WRITE", NFS4_OP_WRITE, nfs41_op_write},
+  {"OP_WRITE", NFS4_OP_WRITE, nfs4_op_write},
   {"OP_RELEASE_LOCKOWNER", NFS4_OP_RELEASE_LOCKOWNER, nfs4_op_release_lockowner},
   {"OP_BACKCHANNEL_CTL", NFS4_OP_BACKCHANNEL_CTL, nfs4_op_illegal},     /* tbd */
   {"OP_BIND_CONN_TO_SESSION", NFS4_OP_BIND_CONN_TO_SESSION, nfs4_op_illegal},   /* tbd */
