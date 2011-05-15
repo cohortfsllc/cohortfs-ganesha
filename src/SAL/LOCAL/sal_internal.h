@@ -22,120 +22,88 @@
  * structures.
  ***********************************************************************/
 
-typedef struct __owner_key
+typedef struct open_owner_key__
 {
-  clientid4 clientid;
-  char owner_val[MAXNAMLEN];
-  size_t owner_len;
-} owner_key_t;
+     clientid4 clientid;
+     char owner_val[1024];
+     size_t owner_len;
+} open_owner_key_t;
 
-typedef struct __state_owner
+typedef struct open_owner__
 {
-    owner_key_t key;
-    uint32_t seqid;
-    uint32_t refcount;
-    bool_t lock;
-    struct nfs_resop4* last_response;
-    pthread_mutex_t mutex; /* Only used for NFS4.0, since operations on
-			      the same owner must be serialised */
-    struct __state_owner *related_owner;
-} state_owner_t;
+     open_owner_key_t key;
+     uint32_t seqid;
+     uint32_t refcount;
+     bool_t new;
+     struct nfs_resop4* last_response;
+     pthread_mutex_t mutex; /* Only used for NFS4.0, since operations on
+			       the same owner must be serialised */
+} open_owner_t;
 
-typedef struct __localshare
+typedef struct lock_owner__
 {
-    state_owner_t* open_owner;
-    uint32_t share_access;
-    uint32_t share_deny;
-    bool_t locks;
-    cache_inode_openref_t* openref;
-} localshare_t;
+     state_lock_owner_t key;
+     uint32_t seqid;
+     uint32_t refcount;
+     struct nfs_resop4* last_response;
+     pthread_mutex_t mutex;
+} lock_owner_info_t;
 
-typedef struct __localdelegation
+typedef struct openref_key__
 {
-    open_delegation_type4 type;
-    nfs_space_limit4 limit;
-} localdelegation_t;
+     fsal_handle_t handle;
+     uid_t uid;
+} openref_key_t;
 
-#ifdef _USE_NFS4_1
-
-typedef struct __localdir_delegation
+typedef struct openref__
 {
-    bitmap4 notification_types;
-    attr_notice4 child_attr_delay;
-    attr_notice4 dir_attr_delay;
-    bitmap4 child_attributes;
-    bitmap4 dir_attributes;
-} localdir_delegation_t;
+     openref_key_t key;
+     fsal_file_t descriptor;
+     fsal_openflags_t openflags;
+     uint32_t refcount;
+} openref_t;
 
-#endif
-
-typedef struct __locallock
+typedef struct share__
 {
-    struct __state* openstate;
-    state_owner_t* lock_owner;
-} locallock_t;
+     open_owner_t* open_owner;
+     uint32_t share_access;
+     uint32_t share_deny;
+     openref_t* openref;
+} share_state_t;
 
-#ifdef _USE_FSALMDS
-
-typedef struct __locallayout
+typedef struct lock__
 {
-    layouttype4 type;
-    struct __locallayoutentry* layoutentries;
-} locallayout_t;
+     struct state__* open_state;
+     lock_owner_info_t* lock_owner;
+} lock_state_t;
 
-typedef struct __locallayoutentry
+typedef struct state__
 {
-    layouttype4 type;
-    layoutiomode4 iomode;
-    offset4 offset;
-    length4 length;
-    bool_t return_on_close;
-    fsal_layoutdata_t* layoutdata;
-    struct __locallayoutentry* next;
-    struct __locallayoutentry* prev;
-} locallayoutentry_t;
-
-#endif
-
-typedef struct __state
-{
-    struct __entryheader* header;
-    stateid4 stateid;
-    clientid4 clientid;
-    statetype type;
-    union
-    {
-	localshare_t share;
-	locallock_t lock;
-	localdelegation_t delegation;
-#ifdef _USE_NFS4_1
-	localdir_delegation_t dir_delegation;
-#endif
-#ifdef _USE_FSALMDS
-	locallayout_t layout;
-#endif
-    } state;
-    struct __state* prev;
-    struct __state* next;
-    struct __state* prevfh;
-    struct __state* nextfh;
+     struct perfile_state__* perfile;
+     stateid4 stateid;
+     clientid4 clientid;
+     state_type_t type;
+     
+     union
+     {
+	  share_state_t share;
+	  lock_state_t lock;
+     } state;
 } state_t;
 
-typedef struct __entryheader
+typedef struct perfile_state__
 {
-    fsal_handle_t handle; /* Filehandle */
-    pthread_rwlock_t lock; /* Per-filehandle read/write lock */
-    uint32_t max_share; /* Most expansive share */
-    uint32_t max_deny; /* Most restrictive deny */
-    uint32_t anonreaders; /* Number of anonymous readers (old NFS or
-			     all-zeroes) */
-    uint32_t anonwriters; /* Number of anonymous writers (old NFS or
-			     all-zeroes) */
-    bool_t read_delegations; /* if any read delegations exist */
-    bool_t write_delegation; /* If any write delegations exist */
-    bool_t dir_delegations; /* If any directory delegations exist */
-    state_t* states;
-} entryheader_t;
+     fsal_handle_t handle; /* Filehandle */
+     pthread_rwlock_t lock; /* Per-filehandle read/write lock */
+     uint32_t access_readers; /* Number of clients with read access */
+     uint32_t access_writers; /* Number of clients with write access */
+     uint32_t deny_readers; /* Number of clients blocking read access */
+     uint32_t deny_writers; /* Number of clients blocking write access */
+     uint32_t anon_readers; /* Number of anonymous readers (old NFS or
+			      all-zeroes) */
+     uint32_t anon_writers; /* Number of anonymous writers (old NFS or
+			      all-zeroes) */
+} perfile_state_t;
 
 /************************************************************************
  * Global variables 
@@ -143,164 +111,109 @@ typedef struct __entryheader
  * Pools and hashtables
  ***********************************************************************/
 
-extern state_t* statechain;
+extern prealloc_pool perfile_state_pool;
+extern prealloc_pool open_owner_pool;
+extern prealloc_pool lock_owner_pool;
+extern prealloc_pool state_pool;
+extern prealloc_pool openref_pool;
 
-extern pthread_mutex_t entrymutex;
-extern pthread_mutex_t ownermutex;
-
-#ifdef _USE_FSALMDS
-extern prealloc_pool layoutentrypool;
-#endif
-extern prealloc_pool entryheaderpool;
-extern prealloc_pool ownerpool;
-extern prealloc_pool statepool;
-
-extern hash_table_t* stateidtable;
-extern hash_table_t* entrytable;
-extern hash_table_t* openownertable;
-extern hash_table_t* lockownertable;
+extern hash_table_t* stateid_table;
+extern hash_table_t* perfile_state_table;
+extern hash_table_t* open_owner_table;
+extern hash_table_t* lock_owner_table;
+extern hash_table_t* share_state_table;
+extern hash_table_t* lock_state_table;
+extern hash_table_t* openref_table;
 
 /************************************************************************
  * Internal Functions
  ***********************************************************************/
 
-hash_table_t* init_stateidtable(void);
-hash_table_t* init_entrytable(void);
-hash_table_t* init_openownertable(void);
-hash_table_t* init_lockownertable(void);
-entryheader_t* lookupheader(fsal_handle_t* handle);
-state_t* newstate(clientid4 clientid, entryheader_t* header);
-void chain(state_t* state, entryheader_t* header);
-state_t* iterate_entry(entryheader_t* entry, state_t** state);
+/* Initialisation functions */
+
+hash_table_t* init_stateid_table(void);
+hash_table_t* init_perfile_state_table(void);
+hash_table_t* init_open_owner_table(void);
+hash_table_t* init_lock_owner_table(void);
+hash_table_t* init_share_state_table(void);
+hash_table_t* init_lock_state_table(void);
+
+/* Generic state management */
+
+int assign_stateid(state_t* state);
 int lookup_state(stateid4 stateid, state_t** state);
-void killstate(state_t* state);
-void filltaggedstate(state_t* state, taggedstate* outstate);
-void fillsharestate(state_t* cur, sharestate* outshare,
-		    entryheader_t* header);
-void filldelegationstate(state_t* cur, delegationstate* outdelegation,
-			 entryheader_t* header);
-#ifdef _USE_NFS4_1
-void filldir_delegationstate(state_t* cur,
-			     dir_delegationstate* outdir_delegation,
-			     entryheader_t* header);
-#endif
-void filllockstate(state_t* cur, lockstate* outdir_delegation,
-		   entryheader_t* header);
-state_owner_t* acquire_owner(char* name, size_t len,
-			     clientid4 clientid, bool_t lock,
-			     bool_t wantmutex, bool_t* created);
+int acquire_perfile_state(fsal_handle_t *handle,
+			  perfile_state_t** perfile);
+int lookup_perfile_state(fsal_handle_t* handle,
+			 perfile_state_t** perfile); 
 
-int killowner(state_owner_t* owner);
+/* Unexported share functionality */
+int open_owners_equal(open_owner_key_t* owner1,
+		      open_owner_key_t* owner2);
+hash_table_t* init_open_owner_table(void);
+hash_table_t* init_share_state_table(void);
+hash_table_t* init_openref_table(void);
 
-/* Prototypes for realisations */
-
-int localstate_create_share(fsal_handle_t *handle, open_owner4 open_owner,
-			    clientid4 clientid, uint32_t share_access,
-			    uint32_t share_deny,
-			    cache_inode_openref_t* openref,
-			    stateid4* stateid);
-int localstate_upgrade_share(uint32_t share_access, uint32_t share_deny,
-			     stateid4* stateid);
-int localstate_downgrade_share(uint32_t share_access, uint32_t share_deny,
-			       stateid4* stateid);
-int localstate_delete_share(stateid4 stateid);
-int localstate_check_share(fsal_handle_t handle, uint32_t share_access,
-			   uint32_t share_deny);
-int localstate_query_share(fsal_handle_t *handle, clientid4 clientid,
-			   open_owner4 open_owner, sharestate*
-			   outshare);
-int localstate_start_32read(fsal_handle_t *handle);
-int localstate_start_32write(fsal_handle_t *handle);
-int localstate_end_32read(fsal_handle_t *handle);
-int localstate_end_32write(fsal_handle_t *handle);
-int localstate_create_delegation(fsal_handle_t *handle, clientid4 clientid,
-				 open_delegation_type4 type,
-				 nfs_space_limit4 limit,
+/* Share functionality realisations */
+int localstate_open_owner_begin41(clientid4 clientid,
+				  open_owner4 nfs_open_owner,
+				  state_share_trans_t** transaction);
+int localstate_open_stateid_begin41(stateid4 stateid,
+				    state_share_trans_t**
+				    transaction);
+int localstate_share_open(state_share_trans_t* transaction,
+			  fsal_handle_t* handle,
+			  fsal_op_context_t* context,
+			  uint32_t share_access,
+			  uint32_t share_deny,
+			  uint32_t uid);
+int localstate_share_close(state_share_trans_t* transaction,
+			   fsal_handle_t* handle,
+			   fsal_op_context_t* context);
+int localstate_share_downgrade(state_share_trans_t* transaction,
+			       fsal_handle_t* handle,
+			       uint32_t share_access,
+			       uint32_t share_deny);
+int localstate_share_commit(state_share_trans_t* transaction);
+int localstate_share_abort(state_share_trans_t* transaction);
+int localstate_share_dispose_transaction(state_share_trans_t*
+					 transaction);
+int localstate_share_get_stateid(state_share_trans_t* transaction,
 				 stateid4* stateid);
-int localstate_delete_delegation(stateid4 stateid);
-int localstate_query_delegation(fsal_handle_t *handle, clientid4 clientid,
-				delegationstate* outdelegation);
-int localstate_check_delegation(fsal_handle_t *handle,
-				open_delegation_type4 type);
-#ifdef _USE_NFS4_1
-int localstate_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-				     bitmap4 notification_types,
-				     attr_notice4 child_attr_delay,
-				     attr_notice4 dir_attr_delay,
-				     bitmap4 child_attributes,
-				     bitmap4 dir_attributes,
-				     stateid4* stateid);
-int localstate_delete_dir_delegation(stateid4 stateid);
-int localstate_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-				    dir_delegationstate* outdir_delegation);
-#endif
-int localstate_check_delegation(fsal_handle_t *handle,
-				open_delegation_type4 type);
-int localstate_create_lock_state(fsal_handle_t *handle,
-				 stateid4 open_stateid,
-				 lock_owner4 lock_owner,
-				 clientid4 clientid,
-				 stateid4* stateid);
-int localstate_delete_lock_state(stateid4 stateid);
-int localstate_query_lock_state(fsal_handle_t *handle,
-				stateid4 open_stateid,
-				lock_owner4 lock_owner,
-				clientid4 clientid,
-				lockstate* outlockstate);
-int localstate_lock_inc_state(stateid4* stateid);
-#ifdef _USE_FSALMDS
-int localstate_create_layout_state(fsal_handle_t* handle,
-				   stateid4 ostateid,
-				   clientid4 clientid,
-				   layouttype4 type,
-				   stateid4* stateid);
-int localstate_delete_layout_state(stateid4 stateid);
-int localstate_query_layout_state(fsal_handle_t *handle,
-				  clientid4 clientid,
-				  layouttype4 type,
-				  layoutstate* outlayoutstate);
-int localstate_add_layout_segment(layouttype4 type,
-				  layoutiomode4 iomode,
-				  offset4 offset,
-				  length4 length,
-				  bool_t return_on_close,
-				  fsal_layoutdata_t* layoutdata,
-				  stateid4 stateid);
-int localstate_mod_layout_segment(layoutiomode4 iomode,
-				  offset4 offset,
-				  length4 length,
-				  fsal_layoutdata_t* layoutdata,
-				  stateid4 stateid,
-				  uint64_t segid);
-int localstate_free_layout_segment(stateid4 stateid,
-				   uint64_t segid);
-int localstate_layout_inc_state(stateid4* stateid);
-int localstate_iter_layout_entries(stateid4 stateid,
-				   uint64_t* cookie,
-				   bool_t* finished,
-				   layoutsegment* segment);
-void filllayoutstate(state_t* cur, layoutstate* outlayout,
-		     entryheader_t* header);
-#endif
-int localstate_lock_filehandle(fsal_handle_t *handle,
-			       statelocktype rw);
-int localstate_unlock_filehandle(fsal_handle_t *handle);
-int localstate_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
-				     uint64_t* cookie, bool_t* finished,
-				     taggedstate* outstate);
-int localstate_iterate_by_clientid(clientid4 clientid, statetype type,
-				   uint64_t* cookie, bool_t* finished,
-				   taggedstate* outstate);
-int localstate_retrieve_state(stateid4 stateid,
-			      taggedstate* outstate);
-int localstate_lock_state_owner(state_owner4 state_owner, bool_t lock,
-			   seqid4 seqid, bool_t* new,
-			   nfs_resop4** response);
+int localstate_share_get_nfs4err(state_share_trans_t* transaction,
+				 nfsstat4* error);
+int localstate_start_anonread(fsal_handle_t* handle,
+			      int uid,
+			      fsal_op_context_t* context,
+			      fsal_file_t** descriptor);
+int localstate_start_anonwrite(fsal_handle_t* handle,
+			       int uid,
+			       fsal_op_context_t* context,
+			       fsal_file_t** descriptor);
+int localstate_end_anonread(fsal_handle_t* handle,
+			    int uid);
+int localstate_end_anonwrite(fsal_handle_t* handle,
+			     int uid);
+int localstate_share_descriptor(fsal_handle_t* handle,
+				stateid4* stateid,
+				fsal_file_t** descriptor);
 
-int localstate_unlock_state_owner(state_owner4 state_owner, bool_t lock);
+/* Unexported lock functionality */
+unsigned int hash_lock_owner(state_lock_owner_t* owner, uint32_t* h1,
+			     uint32_t* h2);
+/* Lock functionality realisations */
+int localstate_open_to_lock_owner_begin41(fsal_handle_t *handle,
+					  clientid4 clientid,
+					  stateid4 open_stateid,
+					  lock_owner4 nfs_lock_owner, 
+					  state_lock_trans_t** transaction); 
 
-int localstate_save_response(state_owner4 state_owner, bool_t lock,
-			     nfs_resop4* response);
+int localstate_exist_lock_owner_begin41(fsal_handle_t *handle,
+					clientid4 clientid,
+					stateid4 lock_stateid,
+					state_lock_trans_t**
+					transaction);
+/* Init/Shutdown functions */
 int localstate_init(void);
 int localstate_shutdown(void);
 #endif                                                /* _SAL_INTERNAL */

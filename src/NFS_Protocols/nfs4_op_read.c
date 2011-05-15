@@ -158,8 +158,8 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 
   if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
     {
-      res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      return res_OPEN4.status;
+      res_READ4.status = NFS4ERR_SERVERFAULT;
+      return res_READ4.status;
     }
 
   /* Manage access type MDONLY */
@@ -260,7 +260,6 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   seek_descriptor.whence = FSAL_SEEK_SET;
   seek_descriptor.offset = offset;
 
-
   if(cache_inode_rdwr(entry,
                       CACHE_CONTENT_READ,
                       &seek_descriptor,
@@ -272,8 +271,8 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                       &eof_met,
                       data->ht,
                       data->pclient,
-                      data->pcontext,
 		      uid,
+                      data->pcontext,
 		      TRUE, &cache_status) != CACHE_INODE_SUCCESS)
     {
       res_READ4.status = nfs4_Errno(cache_status);
@@ -304,7 +303,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 }                               /* nfs41_op_read */
 
 /**
- * nfs41_op_read_Free: frees what was allocared to handle nfs41_op_read.
+ * nfs4_op_read_Free: frees what was allocared to handle nfs41_op_read.
  * 
  * Frees what was allocared to handle nfs41_op_read.
  *
@@ -313,7 +312,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
  * @return nothing (void function )
  * 
  */
-void nfs41_op_read_Free(READ4res * resp)
+void nfs4_op_read_Free(READ4res * resp)
 {
   if(resp->status == NFS4_OK)
     if(resp->READ4res_u.resok4.data.data_len != 0)

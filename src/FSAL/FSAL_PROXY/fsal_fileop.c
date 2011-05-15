@@ -83,7 +83,7 @@
 fsal_status_t PROXYFSAL_open_by_name(proxyfsal_handle_t * dirhandle,    /* IN */
                                      fsal_name_t * filename,    /* IN */
                                      proxyfsal_op_context_t * p_context,        /* IN */
-                                     fsal_openflags_t openflags,        /* IN */
+                                     fsal_openflags_t * openflags,        /* IN */
                                      proxyfsal_file_t * file_descriptor,        /* OUT */
                                      fsal_attrib_list_t * file_attributes       /* [ IN/OUT ] */
     )
@@ -172,14 +172,14 @@ fsal_status_t PROXYFSAL_open_by_name(proxyfsal_handle_t * dirhandle,    /* IN */
   fsal_internal_proxy_create_fattr_bitmap(&bitmap);
 
   share_access = 0;
-  if(openflags & FSAL_O_RDWR == FSAL_O_RDWR)
+  if(*openflags & FSAL_O_RDWR == FSAL_O_RDWR)
     share_access |= OPEN4_SHARE_ACCESS_BOTH;
 
-  if(openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
+  if(*openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
     share_access |= OPEN4_SHARE_ACCESS_READ;
 
-  if((openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
-     (openflags & FSAL_O_APPEND == FSAL_O_APPEND))
+  if((*openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
+     (*openflags & FSAL_O_APPEND == FSAL_O_APPEND))
     share_access |= OPEN4_SHARE_ACCESS_WRITE;
 
   /* >> you can check if this is a file if the information
@@ -258,7 +258,7 @@ fsal_status_t PROXYFSAL_open_by_name(proxyfsal_handle_t * dirhandle,    /* IN */
       &file_descriptor->fhandle) == FALSE)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open_by_name);
 
-  file_descriptor->openflags = openflags;
+  file_descriptor->openflags = *openflags;
   file_descriptor->current_offset = 0;
   file_descriptor->pcontext = p_context;
 
@@ -312,7 +312,7 @@ fsal_status_t PROXYFSAL_open_by_name(proxyfsal_handle_t * dirhandle,    /* IN */
 
 static fsal_status_t PROXYFSAL_open_stateless(proxyfsal_handle_t * filehandle,  /* IN */
                                               proxyfsal_op_context_t * p_context,       /* IN */
-                                              fsal_openflags_t openflags,       /* IN */
+                                              fsal_openflags_t * openflags,       /* IN */
                                               proxyfsal_file_t * file_descriptor,       /* OUT */
                                               fsal_attrib_list_t * file_attributes      /* [ IN/OUT ] */
     )
@@ -371,14 +371,14 @@ static fsal_status_t PROXYFSAL_open_stateless(proxyfsal_handle_t * filehandle,  
   fsal_internal_proxy_create_fattr_bitmap(&bitmap);
 
   share_access = 0;
-  if(openflags & FSAL_O_RDWR == FSAL_O_RDWR)
+  if(*openflags & FSAL_O_RDWR == FSAL_O_RDWR)
     share_access |= OPEN4_SHARE_ACCESS_BOTH;
 
-  if(openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
+  if(*openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
     share_access |= OPEN4_SHARE_ACCESS_READ;
 
-  if((openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
-     (openflags & FSAL_O_APPEND == FSAL_O_APPEND))
+  if((*openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
+     (*openflags & FSAL_O_APPEND == FSAL_O_APPEND))
     share_access |= OPEN4_SHARE_ACCESS_WRITE;
 
   /* >> you can check if this is a file if the information
@@ -437,7 +437,7 @@ static fsal_status_t PROXYFSAL_open_stateless(proxyfsal_handle_t * filehandle,  
 
   /* >> fill output struct << */
   memcpy((char *)&file_descriptor->fhandle, filehandle, sizeof(proxyfsal_handle_t));
-  file_descriptor->openflags = openflags;
+  file_descriptor->openflags = *openflags;
   file_descriptor->current_offset = 0;
   file_descriptor->pcontext = p_context;
 
@@ -487,7 +487,7 @@ static fsal_status_t PROXYFSAL_open_stateless(proxyfsal_handle_t * filehandle,  
 
 fsal_status_t PROXYFSAL_open(proxyfsal_handle_t * filehandle,   /* IN */
                              proxyfsal_op_context_t * p_context,        /* IN */
-                             fsal_openflags_t openflags,        /* IN */
+                             fsal_openflags_t * openflags,        /* IN */
                              proxyfsal_file_t * file_descriptor,        /* OUT */
                              fsal_attrib_list_t * file_attributes       /* [ IN/OUT ] */
     )
@@ -509,7 +509,7 @@ fsal_status_t PROXYFSAL_open(proxyfsal_handle_t * filehandle,   /* IN */
     }
 
   fsal_status =
-      PROXYFSAL_open_stateless(filehandle, p_context, openflags, file_descriptor,
+      PROXYFSAL_open_stateless(filehandle, p_context, *openflags, file_descriptor,
                                file_attributes);
   Return(fsal_status.major, fsal_status.minor, INDEX_FSAL_open);
 }
@@ -969,7 +969,7 @@ fsal_status_t PROXYFSAL_close_by_fileid(proxyfsal_file_t * file_descriptor /* IN
 fsal_status_t PROXYFSAL_open_by_fileid(proxyfsal_handle_t * filehandle, /* IN */
                                        fsal_u64_t fileid,       /* IN */
                                        proxyfsal_op_context_t * p_context,      /* IN */
-                                       fsal_openflags_t openflags,      /* IN */
+                                       fsal_openflags_t * openflags,      /* IN */
                                        proxyfsal_file_t * file_descriptor,      /* OUT */
                                        fsal_attrib_list_t *
                                        file_attributes /* [ IN/OUT ] */ )
@@ -1072,14 +1072,14 @@ fsal_status_t PROXYFSAL_open_by_fileid(proxyfsal_handle_t * filehandle, /* IN */
   fsal_internal_proxy_create_fattr_bitmap(&bitmap);
 
   share_access = 0;
-  if(openflags & FSAL_O_RDWR == FSAL_O_RDWR)
+  if(*openflags & FSAL_O_RDWR == FSAL_O_RDWR)
     share_access |= OPEN4_SHARE_ACCESS_BOTH;
 
-  if(openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
+  if(*openflags & FSAL_O_RDONLY == FSAL_O_RDONLY)
     share_access |= OPEN4_SHARE_ACCESS_READ;
 
-  if((openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
-     (openflags & FSAL_O_APPEND == FSAL_O_APPEND))
+  if((*openflags & FSAL_O_WRONLY == FSAL_O_WRONLY) ||
+     (*openflags & FSAL_O_APPEND == FSAL_O_APPEND))
     share_access |= OPEN4_SHARE_ACCESS_WRITE;
 
   /* >> you can check if this is a file if the information
@@ -1178,7 +1178,7 @@ fsal_status_t PROXYFSAL_open_by_fileid(proxyfsal_handle_t * filehandle, /* IN */
       Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open_by_fileid);
     }
 
-  file_descriptor->openflags = openflags;
+  file_descriptor->openflags = *openflags;
   file_descriptor->current_offset = 0;
   file_descriptor->pcontext = p_context;
 

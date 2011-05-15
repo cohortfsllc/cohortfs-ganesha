@@ -73,6 +73,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_proto_tools.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * nfs3_Commit: Implements NFSPROC3_COMMIT
@@ -107,6 +108,7 @@ int nfs3_Commit(nfs_arg_t * parg,
   fsal_attrib_list_t pre_attr;
   fsal_attrib_list_t *ppre_attr;
   uint64_t typeofcommit;
+  int uid = 0;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -114,6 +116,11 @@ int nfs3_Commit(nfs_arg_t * parg,
       sprint_fhandle3(str, &(parg->arg_commit3.file));
       LogDebug(COMPONENT_NFSPROTO,
                "REQUEST PROCESSING: Calling nfs3_Commit handle: %s", str);
+    }
+
+  if (!nfs_finduid(preq, pexport, pclient, &uid))
+    {
+      return NFS3ERR_SERVERFAULT;
     }
 
   /* to avoid setting it on each error case */
@@ -150,8 +157,10 @@ int nfs3_Commit(nfs_arg_t * parg,
   if(cache_inode_commit(pentry,
                         parg->arg_commit3.offset,
                         parg->arg_commit3.count,
-                        &pre_attr,
-                        ht, pclient, pcontext, typeofcommit, &cache_status) != CACHE_INODE_SUCCESS)
+                        &pre_attr, ht, pclient, pcontext,
+                        typeofcommit, uid,
+			state_anonymous_stateid,
+			&cache_status) != CACHE_INODE_SUCCESS)
     {
       pres->res_commit3.status = NFS3ERR_IO;;
 

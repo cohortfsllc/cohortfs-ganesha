@@ -189,7 +189,7 @@ fsal_status_t PROXYFSAL_rcp(proxyfsal_handle_t * filehandle,    /* IN */
 
   }
 
-  st = FSAL_open(filehandle, p_context, fs_flags, &fs_fd, NULL);
+  st = FSAL_open(filehandle, p_context, &fs_flags, &fs_fd, NULL);
 
   if(FSAL_IS_ERROR(st))
     {
@@ -478,7 +478,7 @@ fsal_status_t PROXYFSAL_rcp_by_name(proxyfsal_handle_t * filehandle,    /* IN */
       LogFullDebug(COMPONENT_FSAL, "Openning FSAL file with flags: %s", msg);
     }
 
-  st = FSAL_open_by_name(filehandle, pfilename, p_context, fs_flags, &fs_fd, NULL);
+  st = FSAL_open_by_name(filehandle, &pfilename, p_context, fs_flags, &fs_fd, NULL);
 
   if(FSAL_IS_ERROR(st))
     {

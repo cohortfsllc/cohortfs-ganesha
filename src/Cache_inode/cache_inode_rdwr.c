@@ -97,6 +97,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
                                       fsal_boolean_t * p_fsal_eof,
                                       hash_table_t * ht,
                                       cache_inode_client_t * pclient,
+				      int uid,
                                       fsal_op_context_t * pcontext,
 				      uint64_t stable, 
                                       cache_inode_status_t * pstatus)
@@ -111,9 +112,7 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
   fsal_attrib_list_t post_write_attr;
   fsal_status_t fsal_status_getattr;
   struct stat buffstat;
-  cache_inode_openref_t* openref;
-  taggedstate state;
-  fsal_file_t descriptor;
+  fsal_file_t* descriptor;
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
@@ -339,7 +338,8 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 
 	  if (!state_anonymous_check(stateid))
 	    {
-	      if(state_retrieve_state(stateid, &state) !=
+	      if(state_share_descriptor(&(pentry->object.file.handle),
+					&stateid, &descriptor) !=
 		 ERR_STATE_NO_ERROR)
 		{
 		  V_w(&pentry->lock);
@@ -348,99 +348,52 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
 		  return *pstatus;
 		}
-	      if ((!(state.u.share.share_access &
-		     OPEN4_SHARE_ACCESS_READ) &&
-		   (read_or_write == CACHE_INODE_READ)) ||
-		  (!(state.u.share.share_access &
-		     OPEN4_SHARE_ACCESS_WRITE) &&
-		   (read_or_write == CACHE_INODE_WRITE)))
-		{
-		  V_w(&pentry->lock);
-		  *pstatus == CACHE_INODE_INVALID_ARGUMENT;
-		  /* stats */
-		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
-		  return *pstatus;
-		}
-	      descriptor = state.u.share.openref->descriptor;
 	    }
 	  else
 	    {
-	      int rc = 0;
-	      if (state_lock_filehandle(&pentry->object.file.handle,
-					writelock)
-		  != ERR_STATE_NO_ERROR)
-		{
-		  V_w(&pentry->lock);
-		  *pstatus == CACHE_INODE_STATE_ERROR;
-		  /* stats */
-		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
-		  return *pstatus;
-		}
 	      if (read_or_write == CACHE_INODE_READ)
-		rc = state_start_32read(&pentry->object.file.handle);
-	      else
-		rc = state_start_32write(&pentry->object.file.handle);
-	      state_unlock_filehandle(&pentry->object.file.handle);
-	      if (rc != ERR_STATE_NO_ERROR)
 		{
-		  V_w(&pentry->lock);
-		  *pstatus == CACHE_INODE_STATE_CONFLICT;
-		  /* stats */
-		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
-		  return *pstatus;
+		  *pstatus =
+		    state_start_anonread(&pentry->object.file.handle,
+					 uid,
+					 pcontext,
+					 &descriptor);
 		}
-	      fsal_status = FSAL_open(&pentry->object.file.handle,
-				      pcontext,
-				      (CACHE_INODE_READ ?
-				       FSAL_O_RDONLY :
-				       FSAL_O_WRONLY),
-				      &descriptor, NULL);
-	      if (FSAL_IS_ERROR(fsal_status))
+	      else
+		{
+		*pstatus =
+		  state_start_anonwrite(&pentry->object.file.handle,
+					uid,
+					pcontext,
+					&descriptor);
+		}
+	      if (*pstatus != CACHE_INODE_SUCCESS)
 		{
 		  V_w(&pentry->lock);
-		  *pstatus = cache_inode_error_convert(fsal_status);
+		  /* stats */
 		  pclient->stat.func_stats.nb_err_unrecover[statindex] += 1;
 		  return *pstatus;
 		}
 	    }
-          rw_lock_downgrade(&pentry->lock);
 
           /* Call FSAL_read or FSAL_write */
 
           switch (read_or_write)
             {
             case CACHE_INODE_READ:
-#ifdef _USE_MFSL
-              fsal_status = MFSL_read(&descriptor,
-                                      seek_descriptor,
-                                      io_size,
-                                      buffer,
-                                      pio_size, p_fsal_eof, &pclient->mfsl_context, NULL);
-#else
-              fsal_status = FSAL_read(&descriptor,
+              fsal_status = FSAL_read(descriptor,
                                       seek_descriptor,
                                       io_size, buffer, pio_size, p_fsal_eof);
-#endif
               break;
 
             case CACHE_INODE_WRITE:
-#ifdef _USE_MFSL
-              fsal_status = MFSL_write(&descriptor,
-                                       seek_descriptor,
-                                       io_size, buffer, pio_size, &pclient->mfsl_context, NULL);
-#else
-              fsal_status = FSAL_write(&descriptor,
+              fsal_status = FSAL_write(descriptor,
                                        seek_descriptor, io_size, buffer, pio_size);
-#endif
 
               /* Alright, the unstable write is complete. Now if it was supposed to be a stable write
                * we can sync to the hard drive. */
               if(stable == FSAL_SAFE_WRITE_TO_FS) {
-#ifdef _USE_MFSL
-                fsal_status = MFSL_sync(&descriptor, NULL);
-#else
-                fsal_status = FSAL_sync(&descriptor);
-#endif
+                fsal_status = FSAL_sync(descriptor);
                 if(FSAL_IS_ERROR(fsal_status))
                   LogMajor(COMPONENT_CACHE_INODE,
                            "cache_inode_rdwr: fsal_sync() failed: fsal_status.major = %d",
@@ -476,14 +429,12 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t * pentry,
 
 	  if (state_anonymous_check(stateid))
 	    {
-	      FSAL_close(&descriptor);
-	      state_lock_filehandle(&pentry->object.file.handle,
-				    writelock);
 	      if (read_or_write == CACHE_INODE_READ)
-		state_end_32read(&pentry->object.file.handle);
+		state_end_anonread(&pentry->object.file.handle,
+				   uid);
 	      else
-		state_end_32write(&pentry->object.file.handle);
-	      state_unlock_filehandle(&pentry->object.file.handle);
+		state_end_anonwrite(&pentry->object.file.handle,
+				    uid);
 	    }
 
           LogFullDebug(COMPONENT_CACHE_INODE,

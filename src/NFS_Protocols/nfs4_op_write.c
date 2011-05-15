@@ -166,8 +166,8 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
   if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
     {
-      res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      return res_OPEN4.status;
+      res_WRITE4.status = NFS4ERR_SERVERFAULT;
+      return res_WRITE4.status;
     }
 
   /* vnode to manage is the current one */
@@ -290,7 +290,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                       &eof_met,
                       data->ht,
                       data->pclient,
-                      data->pcontext, uid,
+                      uid, data->pcontext,
 		      stable_flag, &cache_status) != CACHE_INODE_SUCCESS)
     {
       res_WRITE4.status = nfs4_Errno(cache_status);
@@ -312,7 +312,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 }                               /* nfs41_op_write */
 
 /**
- * nfs41_op_write_Free: frees what was allocared to handle nfs41_op_write.
+ * nfs4_op_write_Free: frees what was allocared to handle nfs41_op_write.
  * 
  * Frees what was allocared to handle nfs41_op_write.
  *
@@ -321,7 +321,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
  * @return nothing (void function )
  * 
  */
-void nfs41_op_write_Free(WRITE4res * resp)
+void nfs4_op_write_Free(WRITE4res * resp)
 {
   /* Nothing to be done */
   return;

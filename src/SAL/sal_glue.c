@@ -33,322 +33,173 @@ sal_functions_t state_getfunctions(void);
 
 #endif                          /* _USE_SHARED_FSAL */
 
-int state_create_share(fsal_handle_t *handle, open_owner4 open_owner,
-		       clientid4 clientid, uint32_t share_access,
-		       uint32_t share_deny,
-		       cache_inode_openref_t* openref, stateid4* stateid)
+int
+state_open_owner_begin41(clientid4 clientid,
+			 open_owner4 nfs_open_owner,
+			 state_share_trans_t** transaction)
 {
-    return sal_functions.state_create_share(handle, open_owner,
-					    clientid, share_access,
-					    share_deny, openref, stateid);
+     return (sal_functions.
+	    state_open_owner_begin41(clientid,
+				     nfs_open_owner,
+				     transaction));
 }
 
-int state_upgrade_share(uint32_t share_access, uint32_t share_deny,
-			stateid4* stateid)
+int
+state_open_stateid_begin41(stateid4 stateid,
+			   state_share_trans_t** transaction)
 {
-    return sal_functions.state_upgrade_share(share_access, share_deny,
-			stateid);
+     return (sal_functions.state_open_stateid_begin41(stateid,
+						      transaction));
 }
 
-int state_downgrade_share(uint32_t share_access, uint32_t share_deny,
-			  stateid4* stateid)
+
+int
+state_share_open(state_share_trans_t* transaction,
+		 fsal_handle_t* handle,
+		 fsal_op_context_t* context,
+		 uint32_t share_access,
+		 uint32_t share_deny,
+		 uint32_t uid)
 {
-    return sal_functions.state_downgrade_share(share_access,
-			  share_deny, stateid);
+     return (sal_functions.state_share_open(transaction,
+					    handle,
+					    context,
+					    share_access,
+					    share_deny,
+					    uid));
 }
 
-int state_delete_share(stateid4 stateid)
+int
+state_share_close(state_share_trans_t* transaction,
+		  fsal_handle_t* handle,
+		  fsal_op_context_t* context)
 {
-    return sal_functions.state_delete_share(stateid);
+     return (sal_functions.state_share_close(transaction,
+					     handle,
+					     context));
+	  
 }
 
-int state_query_share(fsal_handle_t *handle, clientid4 clientid,
-		      open_owner4 open_owner,
-		      sharestate* outshare)
-{
-    return sal_functions.state_query_share(handle, clientid, open_owner,
-					   outshare);
-}
-
-int state_check_share(fsal_handle_t handle, uint32_t share_access,
+int
+state_share_downgrade(state_share_trans_t* transaction,
+		      fsal_handle_t* handle,
+		      uint32_t share_access,
 		      uint32_t share_deny)
 {
-  return sal_functions.state_check_share(handle, share_access,
-					 share_deny);
+     return (sal_functions.state_share_downgrade(transaction,
+						 handle,
+						 share_access,
+						 share_deny));
 }
 
-
-int state_start_32read(fsal_handle_t *handle)
+int
+state_share_commit(state_share_trans_t* transaction)
 {
-    return sal_functions.state_start_32read(handle);
+     return (sal_functions.state_share_commit(transaction));
 }
 
-int state_start_32write(fsal_handle_t *handle)
+int
+state_share_abort(state_share_trans_t* transaction)
 {
-    return sal_functions.state_start_32write(handle);
+     return (sal_functions.state_share_abort(transaction));
 }
 
-int state_end_32read(fsal_handle_t *handle)
+int
+state_share_dispose_transaction(state_share_trans_t* transaction)
 {
-    return sal_functions.state_end_32read(handle);
+     return (sal_functions.
+	     state_share_dispose_transaction(transaction));
 }
 
-int state_end_32write(fsal_handle_t *handle)
+int
+state_share_get_stateid(state_share_trans_t* transaction,
+			stateid4* stateid)
 {
-    return sal_functions.state_end_32write(handle);
+     return (sal_functions.
+	     state_share_get_stateid(transaction,
+				     stateid));
 }
 
-int state_create_delegation(fsal_handle_t *handle, clientid4 clientid,
-			    open_delegation_type4 type,
-			    nfs_space_limit4 limit,
-			    stateid4* stateid)
+int
+state_share_get_nfs4err(state_share_trans_t* transaction,
+			nfsstat4* error)
 {
-    return sal_functions.state_create_delegation(handle, clientid,
-						 type, limit,
-						 stateid);
+     return (sal_functions.
+	     state_share_get_nfs4err(transaction,
+				     error));
 }
 
-int state_delete_delegation(stateid4 stateid)
+int
+state_start_anonread(fsal_handle_t* handle,
+		     int uid,
+		     fsal_op_context_t* context,
+		     fsal_file_t** descriptor)
 {
-    return sal_functions.state_delete_delegation(stateid);
+     return (sal_functions.
+	     state_start_anonread(handle,
+				  uid,
+				  context,
+				  descriptor));
+	     
 }
 
-int state_query_delegation(fsal_handle_t *handle, clientid4 clientid,
-			   delegationstate* outdelegation)
+int
+state_start_anonwrite(fsal_handle_t* handle,
+		      int uid,
+		      fsal_op_context_t* context,
+		      fsal_file_t** descriptor)
 {
-    return sal_functions.state_query_delegation(handle, clientid,
-				  outdelegation);
+
+     return (sal_functions.
+	     state_start_anonwrite(handle,
+				   uid,
+				   context,
+				   descriptor));
+	     
 }
 
-int state_check_delegation(fsal_handle_t *handle,
-			   open_delegation_type4 type)
+int
+state_end_anonread(fsal_handle_t* handle,
+		   int uid)
 {
-    return sal_functions.state_check_delegation(handle,
-						type);
+     return (sal_functions.
+	     state_end_anonread(handle,
+				uid));
 }
 
-#ifdef _USE_NFS4_1
-int state_create_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-				bitmap4 notification_types,
-				attr_notice4 child_attr_delay,
-				attr_notice4 dir_attr_delay,
-				bitmap4 child_attributes,
-				bitmap4 dir_attributes,
-				stateid4* stateid)
+int
+state_end_anonwrite(fsal_handle_t* handle,
+		    int uid)
 {
-    return sal_functions.state_create_dir_delegation(handle, clientid,
-						     notification_types,
-						     child_attr_delay,
-						     dir_attr_delay,
-						     child_attributes,
-						     dir_attributes,
-						     stateid);
+     return (sal_functions.
+	     state_end_anonwrite(handle,
+				 uid));
+	  
 }
 
-int state_delete_dir_delegation(stateid4 stateid)
+int
+state_share_descriptor(fsal_handle_t* handle,
+		       stateid4* stateid,
+		       fsal_file_t** descriptor)
 {
-    return sal_functions.state_delete_dir_delegation(stateid);
+     return (sal_functions.
+	     state_share_descriptor(handle,
+				    stateid,
+				    descriptor));
 }
 
-int state_query_dir_delegation(fsal_handle_t *handle, clientid4 clientid,
-			       dir_delegationstate* outdir_delegation)
+int
+state_init(void)
 {
-    return sal_functions.state_query_dir_delegation(handle, clientid,
-						    outdir_delegation);
+     return (sal_functions.state_init());
 }
-#endif
 
-#if 0
-
-
-int state_create_lock_state(fsal_handle_t *handle,
-			    stateid4 open_stateid,
-			    lock_owner4 lock_owner,
-			    clientid4 clientid,
-			    fsal_lockdesc_t* lockdata,
-			    stateid4* stateid)
+int
+state_shutdown(void)
 {
-    return sal_functions.state_create_lock_state(handle,
-						 open_stateid,
-						 lock_owner,
-						 clientid,
-						 lockdata,
-						 stateid);
+     return (sal_functions.state_shutdown());
 }
 
-int state_delete_lock_state(stateid4 stateid)
-{
-    return sal_functions.state_delete_lock_state(stateid);
-}
-
-int state_query_lock_state(fsal_handle_t *handle,
-			   stateid4 open_stateid,
-			   lock_owner4 lock_owner,
-			   clientid4 clientid,
-			   lockstate* outlockstate)
-{
-    return sal_functions.state_query_lock_state(handle,
-						open_stateid,
-						lock_owner,
-						clientid,
-						outlockstate);
-}
-
-int state_inc_lock_state(stateid4* stateid)
-{
-    return sal_functions.state_inc_lock_state(stateid);
-}
-
-int state_lock_inc_state(stateid4* stateid)
-{
-    return state_lock_inc_state(stateid);
-}
-
-#endif /* 0 */
-
-#ifdef _USE_FSALMDS
-
-int state_create_layout_state(fsal_handle_t* handle,
-			      stateid4 ostateid,
-			      clientid4 clientid,
-			      layouttype4 type,
-			      stateid4* stateid)
-{
-    return sal_functions.state_create_layout_state(handle,
-						   ostateid,
-						   clientid,
-						   type,
-						   stateid);
-}
-
-int state_delete_layout_state(stateid4 stateid)
-{
-    return sal_functions.state_delete_layout_state(stateid);
-}
-
-int state_query_layout_state(fsal_handle_t *handle,
-			     clientid4 clientid,
-			     layouttype4 type,
-			     layoutstate* outlayoutstate)
-{
-    return sal_functions.state_query_layout_state(handle,
-						  type,
-						  clientid,
-						  outlayoutstate);
-}
-
-int state_add_layout_segment(layouttype4 type,
-			     layoutiomode4 iomode,
-			     offset4 offset,
-			     length4 length,
-			     bool_t return_on_close,
-			     fsal_layoutdata_t* layoutdata,
-			     stateid4 stateid)
-{
-    return sal_functions.state_add_layout_segment(type, iomode, offset,
-						  length,
-						  return_on_close,
-						  layoutdata, stateid);
-}
-
-int state_mod_layout_segment(layoutiomode4 iomode,
-			     offset4 offset,
-			     length4 length,
-			     fsal_layoutdata_t* layoutdata,
-			     stateid4 stateid,
-			     uint64_t segid)
-{
-    return sal_functions.state_mod_layout_segment(iomode, offset,
-						  length, layoutdata,
-						  stateid, segid);
-}
-
-int state_free_layout_segment(stateid4 stateid,
-			      uint64_t segid)
-{
-    return sal_functions.state_free_layout_segment(stateid,
-						   segid);
-}
-
-int state_layout_inc_state(stateid4* stateid)
-{
-    return sal_functions.state_layout_inc_state(stateid);
-}
-
-int state_iter_layout_entries(stateid4 stateid,
-			      uint64_t* cookie,
-			      bool_t* finished,
-			      layoutsegment* segment)
-{
-    return sal_functions.state_iter_layout_entries(stateid, cookie,
-						   finished, segment);
-}
-
-#endif
-
-int state_lock_filehandle(fsal_handle_t *handle,
-			  statelocktype rw)
-{
-    return sal_functions.state_lock_filehandle(handle, rw);
-}
-
-int state_unlock_filehandle(fsal_handle_t *handle)
-{
-    return sal_functions.state_unlock_filehandle(handle);
-}
-
-int state_iterate_by_filehandle(fsal_handle_t *handle, statetype type,
-				uint64_t* cookie, bool_t* finished,
-				taggedstate* outstate)
-{
-    return sal_functions.state_iterate_by_filehandle(handle, type,
-						     cookie, finished,
-						     outstate);
-}
-
-int state_iterate_by_clientid(clientid4 clientid, statetype type,
-			      uint64_t* cookie, bool_t* finished,
-			      taggedstate* outstate)
-{
-    return sal_functions.state_iterate_by_clientid(clientid, type,
-						   cookie, finished,
-						   outstate);
-}
-
-int state_retrieve_state(stateid4 stateid, taggedstate* outstate)
-{
-    return sal_functions.state_retrieve_state(stateid, outstate);
-}
-
-int state_lock_state_owner(state_owner4 state_owner, bool_t lock,
-			   seqid4 seqid, bool_t* new,
-			   nfs_resop4** response)
-{
-    return sal_functions.state_lock_state_owner(state_owner, lock,
-						seqid, new, response);
-}
-
-int state_unlock_state_owner(state_owner4 state_owner, bool_t lock)
-{
-    return sal_functions.state_unlock_state_owner(state_owner, lock);
-}
-
-int state_save_response(state_owner4 state_owner, bool_t lock,
-			nfs_resop4* response)
-{
-    return sal_functions.state_save_response(state_owner, lock,
-					     response);
-}
-
-int state_init(void)
-{
-    return sal_functions.state_init();
-}
-
-int state_shutdown(void)
-{
-    return sal_functions.state_shutdown();
-}
 
 #ifdef _USE_SHARED_SAL
 int state_loadlibrary(char *path)

@@ -110,9 +110,6 @@
 #define NB_PREALLOC_HASH_CACHE_INODE 1000
 #define NB_PREALLOC_LRU_CACHE_INODE 1000
 
-#define PRIME_OPENREF 29
-#define NB_PREALLOC_OPENREF 1024
-
 #define PRIME_IP_NAME            17
 #define NB_PREALLOC_HASH_IP_NAME 10
 #define IP_NAME_EXPIRATION       36000
@@ -284,7 +281,6 @@ typedef struct nfs_rpc_dupreq_param__
 typedef struct nfs_cache_layer_parameter__
 {
   cache_inode_parameter_t cache_param;
-  cache_inode_openref_params_t openref_param;
   cache_inode_client_parameter_t cache_inode_client_param;
   cache_content_client_parameter_t cache_content_client_param;
   cache_inode_gc_policy_t gcpol;

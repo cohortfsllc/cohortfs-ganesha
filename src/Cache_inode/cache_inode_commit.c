@@ -51,6 +51,7 @@
 #include "cache_content.h"
 #include "stuff_alloc.h"
 #include "nfs_core.h"
+#include "sal.h"
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -92,6 +93,8 @@ cache_inode_commit(cache_entry_t * pentry,
                    cache_inode_client_t * pclient,
                    fsal_op_context_t * pcontext,
                    uint64_t typeofcommit,
+		   int uid,
+		   stateid4 stateid,
                    cache_inode_status_t * pstatus)
 {
     cache_inode_status_t status;
@@ -100,7 +103,33 @@ cache_inode_commit(cache_entry_t * pentry,
     fsal_boolean_t eof;
     cache_inode_unstable_data_t *udata;
     fsal_status_t fsal_status;
-    cache_inode_openref_t* openref;
+    fsal_file_t* descriptor;
+
+    if (!state_anonymous_check(stateid))
+      {
+	if(state_share_descriptor(&(pentry->object.file.handle),
+				  &stateid, &descriptor) !=
+	   ERR_STATE_NO_ERROR)
+	  {
+	    V_w(&pentry->lock);
+	    *pstatus == CACHE_INODE_STATE_ERROR;
+	    /* stats */
+	    return *pstatus;
+	  }
+      }
+    else
+      {
+	*pstatus =
+	  state_start_anonwrite(&pentry->object.file.handle,
+				uid,
+				pcontext,
+				&descriptor);
+	if (*pstatus != CACHE_INODE_SUCCESS)
+	  {
+	    V_w(&pentry->lock);
+	    return *pstatus;
+	  }
+      }
 
     /* If we aren't using the Ganesha write buffer, then we're using the filesystem
      * write buffer so execute a normal fsal_sync() call. */
@@ -108,25 +137,7 @@ cache_inode_commit(cache_entry_t * pentry,
 
       P_w(&pentry->lock);
 
-      if (cache_inode_get_openref(pentry->object.file.handle,
-				  OPEN4_SHARE_ACCESS_READ,
-				  0,
-				  pcontext,
-				  &openref))
-	  {
-	      V_w(&pentry->lock);
-	      
-	      /* stats */
-	      pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_COMMIT] += 1;
-	      
-	      return *pstatus;
-	  }
-      
-#ifdef _USE_MFSL      
-      fsal_status = MFSL_sync(&(openref->descriptor), NULL); 
-#else
-      fsal_status = FSAL_sync(&(openref->descriptor));
-#endif
+      fsal_status = FSAL_sync(descriptor);
       if(FSAL_IS_ERROR(fsal_status)) {
         LogMajor(COMPONENT_CACHE_INODE,
                  "cache_inode_rdwr: fsal_sync() failed: fsal_status.major = %d",
@@ -142,36 +153,16 @@ cache_inode_commit(cache_entry_t * pentry,
       }
       *pstatus = CACHE_INODE_SUCCESS;
 
-      if(cache_inode_kill_openref(openref) != CACHE_INODE_SUCCESS)
-        {
-          LogEvent(COMPONENT_CACHE_INODE,
-                   "cache_inode_rdwr: cache_inode_close = %d",
-                   *pstatus);
-          
-          V_w(&pentry->lock);
-          
-          /* stats */
-          pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_COMMIT] += 1;
-          
-          return *pstatus;
-        }
-
       V_w(&pentry->lock);      
       return *pstatus;
     }
 
+    state_end_anonwrite(&pentry->object.file.handle,
+			uid);
+
     /* Ok, it looks like we're using the Ganesha write buffer. This means we
      * will either be writing to the buffer, or writing a stable write to the
      * file system if the buffer is already full. */
-
-    stateid4 anon =
-      {
-	.seqid = 1,
-	.other = {0xff, 0xff, 0xff,
-		  0xff, 0xff, 0xff,
-		  0xff, 0xff, 0xff,
-		  0xff, 0xff, 0xff}
-      };
 
     udata = &pentry->object.file.unstable_data;
     if(udata->buffer == NULL)
@@ -188,9 +179,9 @@ cache_inode_commit(cache_entry_t * pentry,
             status = cache_inode_rdwr(pentry,
                                       CACHE_INODE_WRITE,
                                       &seek_descriptor, udata->length,
-                                      &size_io_done, anon, pfsal_attr,
+                                      &size_io_done, stateid, pfsal_attr,
                                       udata->buffer, &eof, ht,
-                                      pclient, pcontext, TRUE, pstatus);
+                                      pclient, uid, pcontext, TRUE, pstatus);
             if (status != CACHE_INODE_SUCCESS)
                 return *pstatus;
 
@@ -217,9 +208,9 @@ cache_inode_commit(cache_entry_t * pentry,
                                     &seek_descriptor,
                                     count,
                                     &size_io_done,
-                                    anon, pfsal_attr,
+                                    stateid, pfsal_attr,
                                     (char *)(udata->buffer + offset - udata->offset),
-                                    &eof, ht, pclient,
+                                    &eof, ht, pclient, uid,
                                     pcontext, TRUE, pstatus);
     }
   /* Regulat exit */

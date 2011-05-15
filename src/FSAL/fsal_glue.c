@@ -236,7 +236,7 @@ fsal_status_t FSAL_close(fsal_file_t * p_file_descriptor /* IN */ )
 fsal_status_t FSAL_open_by_fileid(fsal_handle_t * filehandle,   /* IN */
                                   fsal_u64_t fileid,    /* IN */
                                   fsal_op_context_t * p_context,        /* IN */
-                                  fsal_openflags_t openflags,   /* IN */
+                                  fsal_openflags_t * openflags,   /* IN */
                                   fsal_file_t * file_descriptor,        /* OUT */
                                   fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
 {

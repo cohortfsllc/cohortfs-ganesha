@@ -87,7 +87,6 @@ uint32_t staterr2nfs4err(uint32_t staterr)
 #endif
 	  break;
       case ERR_STATE_NOMUTATE:
-      case ERR_STATE_PREEXISTS:
       case ERR_STATE_FAIL:
       default:
 	  return NFS4ERR_SERVERFAULT;
@@ -95,35 +94,40 @@ uint32_t staterr2nfs4err(uint32_t staterr)
       }
 }
 
-bool_t state_anonymous_check(stateid4 stateid)
+bool_t
+state_anonymous_check(stateid4 stateid)
 {
-  return (state_anonymous_exact_check(stateid) ||
-	  state_bypass_check(stateid));
+     return (state_anonymous_exact_check(stateid) ||
+	     state_bypass_check(stateid));
 }
 
-bool_t state_anonymous_exact_check(stateid4 stateid)
+bool_t
+state_anonymous_exact_check(stateid4 stateid)
 {
-  return !memcmp(&stateid, &state_anonymous_stateid, sizeof(stateid4));
+     return !memcmp(&stateid, &state_anonymous_stateid, sizeof(stateid4));
 }
 
-bool_t state_bypass_check(stateid4 stateid)
+bool_t
+state_bypass_check(stateid4 stateid)
 {
-  return !memcmp(&stateid, &state_bypass_stateid, sizeof(stateid4));
+     return !memcmp(&stateid, &state_bypass_stateid, sizeof(stateid4));
 }
 
-bool_t state_current_check(stateid4 stateid)
+bool_t
+state_current_check(stateid4 stateid)
 {
-  return !memcmp(&stateid, &state_current_stateid, sizeof(stateid4));
+     return !memcmp(&stateid, &state_current_stateid, sizeof(stateid4));
 }
 
-bool_t state_invalid_check(stateid4 stateid)
+bool_t
+state_invalid_check(stateid4 stateid)
 {
-  return !memcmp(&stateid, &state_invalid_stateid, sizeof(stateid4));
+     return !memcmp(&stateid, &state_invalid_stateid, sizeof(stateid4));
 }
 
 static bool_t
-compare_nfs3_lockowner(state_lockowner_t* owner1,
-		       state_lockowner_t* owner2)
+compare_nfs3_lockowner(state_lock_owner_t* owner1,
+		       state_lock_owner_t* owner2)
 {
     LogMajor(COMPONENT_STATES,
 	     "NFS3 owner comparison is not implemented.  Please go to line %d in file %s and implement it.",
@@ -132,21 +136,21 @@ compare_nfs3_lockowner(state_lockowner_t* owner1,
 }
 
 static bool_t
-compare_nfs4_lockowner(state_lockowner_t* owner1,
-		       state_lockowner_t* owner2)
+compare_nfs4_lockowner(state_lock_owner_t* owner1,
+		       state_lock_owner_t* owner2)
 {
     return ((owner1->u.nfs4_owner.clientid ==
 	     owner2->u.nfs4_owner.clientid) &&
-	    (owner1->u.nfs4_owner.owner.owner_len ==
-	     owner2->u.nfs4_owner.owner.owner_len) &&
-	    (memcmp((void*) owner1->u.nfs4_owner.owner.owner_val,
-		    (void*) owner2->u.nfs4_owner.owner.owner_val,
-		    owner1->u.nfs4_owner.owner.owner_len) == 0));
+	    (owner1->u.nfs4_owner.owner_len ==
+	     owner2->u.nfs4_owner.owner_len) &&
+	    (memcmp((void*) owner1->u.nfs4_owner.owner_val,
+		    (void*) owner2->u.nfs4_owner.owner_val,
+		    owner1->u.nfs4_owner.owner_len) == 0));
 }
 
 bool_t
-state_compare_lockowner(state_lockowner_t* owner1,
-			state_lockowner_t* owner2)
+state_compare_lockowner(state_lock_owner_t* owner1,
+			state_lock_owner_t* owner2)
 {
     switch (owner1->owner_type) {
     case LOCKOWNER_NFS3:

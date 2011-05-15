@@ -870,6 +870,8 @@ AC_CONFIG_FILES([include/Makefile
                  include/PNFS/Makefile
 		 include/PNFS/SPNFS_LIKE/Makefile
 		 include/PNFS/PARALLEL_FS/Makefile
+		 include/SAL/Makefile
+		 include/SAL/SAL_LOCAL/Makefile
                  BuddyMalloc/Makefile
                  Common/Makefile
                  support/Makefile

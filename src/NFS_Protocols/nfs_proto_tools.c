@@ -95,7 +95,10 @@ extern nfs_parameter_t nfs_param;
  * @return TRUE if successful, FALSE otherwise 
  *
  */
-int nfs_finduid(compound_data_t* data, uid_t* uid)
+int nfs_finduid(struct svc_req *reqp,
+		exportlist_t *pexport,
+		cache_inode_client_t *pclient,
+		uid_t* uid)
 {
   exportlist_client_entry_t related_client;
   struct user_cred user_credentials;
@@ -115,11 +118,11 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
   char *ptr;
 
 
-  pworker = (nfs_worker_data_t *) data->pclient->pworker;
+  pworker = (nfs_worker_data_t *) pclient->pworker;
 
   if(nfs_export_check_access(&pworker->hostaddr,
-                             data->reqp,
-                             data->pexport,
+                             reqp,
+                             pexport,
                              nfs_param.core_param.nfs_program,
                              nfs_param.core_param.mnt_program,
                              pworker->ht_ip_stats,
@@ -129,8 +132,8 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
 			     FALSE) == FALSE)
     return FALSE;
 
-  rpcxid = get_rpc_xid(data->reqp);
-  switch (data->reqp->rq_cred.oa_flavor)
+  rpcxid = get_rpc_xid(reqp);
+  switch (reqp->rq_cred.oa_flavor)
     {
     case AUTH_NONE:
       /* Nothing to be done here... */
@@ -138,7 +141,7 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
 
     case AUTH_UNIX:
       /* We map the rq_cred to Authunix_parms */
-      punix_creds = (struct authunix_parms *)data->reqp->rq_clntcred;
+      punix_creds = (struct authunix_parms *)reqp->rq_clntcred;
 
       /* Get the uid/gid couple */
       caller_uid = punix_creds->aup_uid;
@@ -176,7 +179,7 @@ int nfs_finduid(compound_data_t* data, uid_t* uid)
 
   /* Do we have root access ? */
   if((caller_uid == 0) && !(related_client.options & EXPORT_OPTION_ROOT))
-    caller_uid = data->pexport->anonymous_uid;
+    caller_uid = pexport->anonymous_uid;
 
   *uid = caller_uid;
   

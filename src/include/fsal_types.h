@@ -540,11 +540,16 @@ typedef struct fsal_dirent__
 typedef fsal_ushort_t fsal_openflags_t;
 
 #define FSAL_O_RDONLY   0x0001  /* read only  */
-#define FSAL_O_RDWR     0x0002  /* read/write */
-#define FSAL_O_WRONLY   0x0004  /* write only */
-#define FSAL_O_APPEND   0x0008  /* append     */
-#define FSAL_O_TRUNC    0x0010  /* truncate   */
-#define FSAL_O_CREATE   0x0020  /* truncate   */
+#define FSAL_O_WRONLY   0x0002  /* write only */
+#define FSAL_O_RDWR     0x0003  /* read/write */
+
+/* These are all WRONLY.  In practice it doesn't matter since nothing
+   passes them.  TRUNC and APPEND as open modes are meaningless in the
+   context of NFS, and CREATE doesn't make sense in the current
+   implementaiton in which FSAL_create and FSAL_open are separate. */
+#define FSAL_O_APPEND   0x0002  /* append     */
+#define FSAL_O_TRUNC    0x0002  /* truncate   */
+#define FSAL_O_CREATE   0x0002  /* truncate   */
 
 /** Describes an absolute or relative
  *  position in a file.

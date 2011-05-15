@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "sal.h"
 
 /**
  *
@@ -100,6 +101,7 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   fsal_attrib_list_t attr;
   cache_inode_status_t cache_status;
+  int uid;
 
 #ifdef _USE_FSALMDS
   fsal_status_t status;
@@ -166,8 +168,8 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
   if (!nfs_finduid(data->reqp, data->pexport, data->pclient, &uid))
     {
-      res_OPEN4.status = NFS4ERR_SERVERFAULT;
-      return res_OPEN4.status;
+      res_COMMIT4.status = NFS4ERR_SERVERFAULT;
+      return res_COMMIT4.status;
     }
 
   if(cache_inode_commit(data->current_entry,
@@ -204,7 +206,7 @@ int nfs4_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
  * @return nothing (void function )
  * 
  */
-void nfs41_op_commit_Free(COMMIT4res * resp)
+void nfs4_op_commit_Free(COMMIT4res * resp)
 {
   /* Nothing to be done */
   return;

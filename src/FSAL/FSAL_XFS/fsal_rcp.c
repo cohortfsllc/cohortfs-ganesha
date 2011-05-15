@@ -190,7 +190,7 @@ fsal_status_t XFSFSAL_rcp(xfsfsal_handle_t * filehandle,        /* IN */
       LogFullDebug(COMPONENT_FSAL, "Openning FSAL file with flags: %s", msg);
     }
 
-  st = XFSFSAL_open(filehandle, p_context, fs_flags, &fs_fd, NULL);
+  st = XFSFSAL_open(filehandle, p_context, &fs_flags, &fs_fd, NULL);
 
   if(FSAL_IS_ERROR(st))
     {

@@ -73,6 +73,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_tools.h"
 #include "nfs_file_handle.h"
+#include "sal.h"
 
 /**
  *
@@ -95,10 +96,7 @@ int nfs4_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 {
   int rc = 0;
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_close";
-  cache_inode_status_t cache_status;
-  bool_t new = FALSE;
-  nfs_resop4* saved = NULL;
-  stateid4 stateid = arg_CLOSE4.open_stateid;
+  state_share_trans_t* transaction;
 
   memset(&res_CLOSE4, 0, sizeof(res_CLOSE4));
   resp->resop = NFS4_OP_CLOSE;
@@ -145,17 +143,28 @@ int nfs4_op_close(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
       return res_CLOSE4.status;
     }
 
-  if(cache_inode_close(data->current_entry,
-                       data->pclient,
-		       &cache_status, &stateid) != CACHE_INODE_SUCCESS)
+  if((rc = state_open_stateid_begin41(arg_CLOSE4.open_stateid,
+				      &transaction)) != 0)
     {
-      res_CLOSE4.status = nfs4_Errno(cache_status);
+      res_CLOSE4.status = staterr2nfs4err(rc);
       return res_CLOSE4.status;
     }
+     
+  state_share_close(transaction,
+		    &(data->current_entry->object.file.handle),
+		    data->pcontext);
 
-  res_CLOSE4.CLOSE4res_u.open_stateid = stateid;
+  if (state_share_commit(transaction) == ERR_STATE_NO_ERROR)
+    {
+      res_CLOSE4.CLOSE4res_u.open_stateid = state_invalid_stateid;
+      res_CLOSE4.status = NFS4_OK;
+    }
+  else
+    {
+      state_share_get_nfs4err(transaction, &res_CLOSE4.status);
+    }
 
-  res_CLOSE4.status = NFS4_OK;
+  state_share_dispose_transaction(transaction);
   return res_CLOSE4.status;
 }                               /* nfs4_op_close */
 

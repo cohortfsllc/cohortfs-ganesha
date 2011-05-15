@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * nfs4_op_open_downgrade: The NFS4_OP_OPEN_DOWNGRADE
@@ -96,6 +97,8 @@ int nfs4_op_open_downgrade(struct nfs_argop4 *op,
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_open_downgrade";
 
   cache_inode_status_t cache_status;
+  int rc = 0;
+  state_share_trans_t* transaction;
 
   resp->resop = NFS4_OP_OPEN_DOWNGRADE;
   res_OPEN_DOWNGRADE4.status = NFS4_OK;
@@ -136,9 +139,31 @@ int nfs4_op_open_downgrade(struct nfs_argop4 *op,
       return res_OPEN_DOWNGRADE4.status;
     }
 
-  /* Successful exit */
-  res_OPEN_DOWNGRADE4.status = NFS4_OK;
+  if((rc = state_open_stateid_begin41(arg_OPEN_DOWNGRADE4.open_stateid,
+				      &transaction)) != 0)
+    {
+      res_OPEN_DOWNGRADE4.status = staterr2nfs4err(rc);
+      return res_OPEN_DOWNGRADE4.status;
+    }
 
+  state_share_downgrade(transaction,
+			&(data->current_entry->object.file.handle),
+			arg_OPEN_DOWNGRADE4.share_access,
+			arg_OPEN_DOWNGRADE4.share_deny);
+
+  if (state_share_commit(transaction) == ERR_STATE_NO_ERROR)
+    {
+      state_share_get_stateid(transaction,
+			      &(res_OPEN_DOWNGRADE4.OPEN_DOWNGRADE4res_u.
+				resok4.open_stateid));
+      res_OPEN_DOWNGRADE4.status = NFS4_OK;
+    }
+  else
+    {
+      state_share_get_nfs4err(transaction, &res_OPEN_DOWNGRADE4.status);
+    }
+  
+  state_share_dispose_transaction(transaction);
   return res_OPEN_DOWNGRADE4.status;
 }                               /* nfs4_op_opendowngrade */
 

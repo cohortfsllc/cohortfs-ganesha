@@ -69,7 +69,7 @@ include_HEADERS = ganesha_fuse_wrap.h
 endif
 
 
-SUBDIRS = FSAL MFSL PNFS
+SUBDIRS = FSAL MFSL PNFS SAL
 
 doc:
 	doxygen ./doxygen.conf.stuff_alloc

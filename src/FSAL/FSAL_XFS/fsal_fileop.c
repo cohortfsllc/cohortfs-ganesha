@@ -81,7 +81,7 @@
 fsal_status_t XFSFSAL_open_by_name(xfsfsal_handle_t * dirhandle,        /* IN */
                                    fsal_name_t * filename,      /* IN */
                                    xfsfsal_op_context_t * p_context,    /* IN */
-                                   fsal_openflags_t openflags,  /* IN */
+                                   fsal_openflags_t * openflags,  /* IN */
                                    xfsfsal_file_t * file_descriptor,    /* OUT */
                                    fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
 {
@@ -132,7 +132,7 @@ fsal_status_t XFSFSAL_open_by_name(xfsfsal_handle_t * dirhandle,        /* IN */
  */
 fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
                            xfsfsal_op_context_t * p_context,    /* IN */
-                           fsal_openflags_t openflags,  /* IN */
+                           fsal_openflags_t * openflags,  /* IN */
                            xfsfsal_file_t * p_file_descriptor,  /* OUT */
                            fsal_attrib_list_t * p_file_attributes       /* [ IN/OUT ] */
     )
@@ -152,13 +152,13 @@ fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open);
 
   /* convert fsal open flags to posix open flags */
-  rc = fsal2posix_openflags(openflags, &posix_flags);
+  rc = fsal2posix_openflags(*openflags, &posix_flags);
 
   /* flags conflicts. */
   if(rc)
     {
       LogEvent(COMPONENT_FSAL, "Invalid/conflicting flags : %#X",
-                        openflags);
+                        *openflags);
       Return(rc, 0, INDEX_FSAL_open);
     }
 
@@ -190,7 +190,7 @@ fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
   /* No required, the open would have failed if not permitted */
   status =
       fsal_internal_testAccess(p_context,
-                               openflags & FSAL_O_RDONLY ? FSAL_R_OK : FSAL_W_OK,
+                               *openflags & FSAL_O_RDONLY ? FSAL_R_OK : FSAL_W_OK,
                                &buffstat, NULL);
   if(FSAL_IS_ERROR(status))
     {
@@ -205,7 +205,7 @@ fsal_status_t XFSFSAL_open(xfsfsal_handle_t * p_filehandle,     /* IN */
   ReleaseTokenFSCall();
 
   /* set the read-only flag of the file descriptor */
-  p_file_descriptor->ro = openflags & FSAL_O_RDONLY;
+  p_file_descriptor->ro = *openflags & FSAL_O_RDONLY;
 
   /* output attributes */
   if(p_file_attributes)
@@ -521,7 +521,7 @@ fsal_status_t XFSFSAL_close(xfsfsal_file_t * p_file_descriptor  /* IN */
 fsal_status_t XFSFSAL_open_by_fileid(xfsfsal_handle_t * filehandle,     /* IN */
                                      fsal_u64_t fileid, /* IN */
                                      xfsfsal_op_context_t * p_context,  /* IN */
-                                     fsal_openflags_t openflags,        /* IN */
+                                     fsal_openflags_t * openflags,        /* IN */
                                      xfsfsal_file_t * file_descriptor,  /* OUT */
                                      fsal_attrib_list_t *
                                      file_attributes /* [ IN/OUT ] */ )

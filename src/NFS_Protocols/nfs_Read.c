@@ -119,6 +119,7 @@ int nfs_Read(nfs_arg_t * parg,
   cache_inode_file_type_t filetype;
   fsal_boolean_t eof_met;
   cache_content_policy_data_t datapol;
+  int uid;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -146,6 +147,11 @@ int nfs_Read(nfs_arg_t * parg,
     }
 
   datapol.UseMaxCacheSize = FALSE;
+
+  if (!nfs_finduid(preq, pexport, pclient, &uid))
+    {
+      return NFS3ERR_SERVERFAULT;
+    }
 
   if(preq->rq_vers == NFS_V3)
     {
@@ -369,7 +375,8 @@ int nfs_Read(nfs_arg_t * parg,
                           data,
                           &eof_met,
                           ht,
-                          pclient, pcontext, TRUE, &cache_status) == CACHE_INODE_SUCCESS)
+                          pclient, uid, pcontext,
+			  TRUE, &cache_status) == CACHE_INODE_SUCCESS)
 
         {
           switch (preq->rq_vers)

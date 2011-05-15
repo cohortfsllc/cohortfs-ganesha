@@ -122,6 +122,7 @@ int nfs_Write(nfs_arg_t * parg,
   cache_inode_file_type_t filetype;
   fsal_boolean_t eof_met;
   uint64_t stable_flag = FSAL_SAFE_WRITE_TO_FS;
+  int uid;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -161,6 +162,11 @@ int nfs_Write(nfs_arg_t * parg,
   cache_content_policy_data_t datapol;
 
   datapol.UseMaxCacheSize = FALSE;
+
+  if (!nfs_finduid(preq, pexport, pclient, &uid))
+    {
+      return NFS3ERR_SERVERFAULT;
+    }
 
   if(preq->rq_vers == NFS_V3)
     {
@@ -427,7 +433,7 @@ int nfs_Write(nfs_arg_t * parg,
                           &eof_met,
                           ht,
                           pclient,
-                          pcontext, stable_flag, &cache_status) == CACHE_INODE_SUCCESS)
+                          uid, pcontext, stable_flag, &cache_status) == CACHE_INODE_SUCCESS)
         {
 
 

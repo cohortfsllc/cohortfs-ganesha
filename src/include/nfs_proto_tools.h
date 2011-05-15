@@ -76,7 +76,10 @@
 
 uint64_t nfs_htonl64(uint64_t arg64);
 uint64_t nfs_ntohl64(uint64_t arg64);
-
+int nfs_finduid(struct svc_req *reqp,
+		exportlist_t *pexport,
+		cache_inode_client_t *pclient,
+		uid_t* uid);
 void nfs_FhandleToStr(u_long     rq_vers,
                       fhandle2  *pfh2,
                       nfs_fh3   *pfh3,

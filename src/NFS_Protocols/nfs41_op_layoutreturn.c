@@ -99,6 +99,7 @@
 int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
                           struct nfs_resop4 *resp)
 {
+#if 0
   bool_t nomore = FALSE;
   fsal_status_t fsal_status;
   cache_inode_status_t cache_status;
@@ -250,6 +251,7 @@ int nfs41_op_layoutreturn(struct nfs_argop4 *op, compound_data_t * data,
       res_LAYOUTRETURN4.lorr_status = NFS4ERR_INVAL;
       return res_LAYOUTRETURN4.lorr_status;
     }
+#endif
 #endif
 
   res_LAYOUTRETURN4.lorr_status = NFS4_OK;

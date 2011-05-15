@@ -554,22 +554,6 @@ int nfs_set_param_default(nfs_parameter_t * p_nfs_param)
   p_nfs_param->cache_layers_param.cache_param.hparam.val_to_str = display_cache;
   p_nfs_param->cache_layers_param.cache_param.hparam.name = "Cache Inode";
 
-  p_nfs_param->cache_layers_param.openref_param.nb_openref_prealloc
-    = NB_PREALLOC_OPENREF;
-  p_nfs_param->cache_layers_param.openref_param.hparam.index_size
-    = PRIME_OPENREF;
-  p_nfs_param->cache_layers_param.openref_param.hparam.alphabet_length = 10;
-  p_nfs_param->cache_layers_param.openref_param.hparam.hash_func_key
-    = cache_inode_openref_hash_func;
-  p_nfs_param->cache_layers_param.openref_param.hparam.hash_func_rbt
-    = cache_inode_openref_rbt_func;
-  p_nfs_param->cache_layers_param.openref_param.hparam.compare_key
-    = cache_inode_compare_key_openref;
-  p_nfs_param->cache_layers_param.openref_param.hparam.key_to_str
-    = cache_inode_display_openref;
-  p_nfs_param->cache_layers_param.openref_param.hparam.val_to_str
-    = cache_inode_display_openref;
-
   /* Cache inode parameters : Garbage collection policy */
   p_nfs_param->cache_layers_param.gcpol.file_expiration_delay = -1;     /* No gc */
   p_nfs_param->cache_layers_param.gcpol.directory_expiration_delay = -1;        /* No gc */
@@ -1525,13 +1509,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
       exit(1);
     }
   LogInfo(COMPONENT_INIT, "Cache Inode library successfully initialized");
-
-  /* Openref initialization */
-  if (openref_init(nfs_param.cache_layers_param.openref_param))
-    {
-      LogMajor(COMPONENT_INIT, "NFS_INIT: Openref Layer could not be initialized.");
-      exit(1);
-    }
 
   /* Set the cache inode GC policy */
   cache_inode_set_gc_policy(nfs_param.cache_layers_param.gcpol);
