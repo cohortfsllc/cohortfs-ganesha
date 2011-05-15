@@ -1,1 +1,1 @@
-noinst_HEADERS = fsal_types.h
+noinst_HEADERS = sal_types.h
