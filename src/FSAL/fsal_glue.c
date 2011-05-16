@@ -462,7 +462,7 @@ fsal_status_t FSAL_unlock(fsal_file_t* descriptor, /* IN */
 			  fsal_off_t offset, /* IN */
 			  fsal_size_t length, /* IN */
 			  fsal_locktype_t type, /* IN */
-			  fsal_lockowner_t owner, /* IN */
+			  fsal_lockowner_t* owner, /* IN */
 			  fsal_filelockinfo_t* fileinfo /* IN/OUT */
     )
 {

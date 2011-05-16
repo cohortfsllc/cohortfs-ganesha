@@ -30,6 +30,16 @@ localsal_functions =
      .state_end_anonread = localstate_end_anonread,
      .state_end_anonwrite = localstate_end_anonwrite,
      .state_share_descriptor = localstate_share_descriptor,
+     .state_open_to_lock_owner_begin41 = localstate_open_to_lock_owner_begin41,
+     .state_exist_lock_owner_begin41 = localstate_exist_lock_owner_begin41,
+     .state_lock = localstate_lock,
+     .state_unlock = localstate_unlock,
+     .state_lock_commit = localstate_lock_commit,
+     .state_lock_abort = localstate_lock_abort,
+     .state_lock_dispose_transaction = localstate_lock_dispose_transaction,
+     .state_lock_get_stateid = localstate_lock_get_stateid,
+     .state_lock_get_nfs4err = localstate_lock_get_nfs4err,
+     .state_lock_get_nfs4conflict = localstate_lock_get_nfs4conflict,
      .state_init = localstate_init,
      .state_shutdown = localstate_shutdown
 };

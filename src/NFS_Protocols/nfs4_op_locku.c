@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * 
@@ -100,14 +101,10 @@ int nfs4_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_locku";
   cache_inode_status_t cache_status;
   unsigned int rc = 0;
+  state_lock_trans_t* transaction;
 
   /* Lock are not supported */
   resp->resop = NFS4_OP_LOCKU;
-
-#ifndef _WITH_NFSV4_LOCKS
-  res_LOCKU4.status = NFS4ERR_LOCK_NOTSUPP;
-  return res_LOCKU4.status;
-#else
 
   /* If there is no FH */
   if(nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -165,78 +162,38 @@ int nfs4_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
         }
     }
 
-  /* Check for correctness of the provided stateid */
-  if((rc =
-      nfs4_Check_Stateid(&arg_LOCKU4.lock_stateid, data->current_entry, 0LL)) != NFS4_OK)
+  if (data->minorversion == 0)
     {
-      res_LOCKU4.status = rc;
+      res_LOCKU4.status = NFS4ERR_NOTSUPP;
       return res_LOCKU4.status;
     }
 
-  /* Get the related state */
-  if(cache_inode_get_state(arg_LOCKU4.lock_stateid.other,
-                           &pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
+  if ((rc = state_exist_lock_owner_begin41(&(data->current_entry->
+					     object.file.handle),
+					   data->psession->clientid,
+					   (arg_LOCKU4.lock_stateid),
+					   &transaction))
+      != ERR_STATE_NO_ERROR)
     {
-      if(cache_status == CACHE_INODE_NOT_FOUND)
-        res_LOCKU4.status = NFS4ERR_LOCK_RANGE;
-      else
-        res_LOCKU4.status = nfs4_Errno(cache_status);
-
+      res_LOCKU4.status = staterr2nfs4err(rc);
       return res_LOCKU4.status;
     }
 
-  /* Check the seqid */
-  if((arg_LOCKU4.seqid != pstate_found->powner->seqid) &&
-     (arg_LOCKU4.seqid != pstate_found->powner->seqid + 1))
+  state_unlock(transaction, arg_LOCKU4.offset, arg_LOCKU4.length);
+
+  if ((rc = state_lock_commit(transaction)) != ERR_STATE_NO_ERROR)
     {
-      res_LOCKU4.status = NFS4ERR_BAD_SEQID;
-      return res_LOCKU4.status;
+      state_lock_get_nfs4err(transaction, &res_LOCKU4.status);
+    }
+  else
+    {
+      state_lock_get_stateid(transaction, &(res_LOCKU4.LOCKU4res_u.
+					    lock_stateid));
+      res_LOCKU4.status = NFS4_OK;
     }
 
-  /* Check the seqid for the lock */
-  if((arg_LOCKU4.lock_stateid.seqid != pstate_found->seqid) &&
-     (arg_LOCKU4.lock_stateid.seqid != pstate_found->seqid + 1))
-    {
-      res_LOCKU4.status = NFS4ERR_BAD_SEQID;
-      return res_LOCKU4.status;
-    }
-
-  /* Increment the seqid for the open-stateid related to this lock */
-  pstate_open = (cache_inode_state_t *) (pstate_found->state_data.lock.popenstate);
-  if(pstate_open != NULL)
-    {
-      pstate_open->seqid += 1;    /** @todo BUGAZOMEU may not be useful */
-      if(pstate_open->state_data.share.lockheld > 0)
-        pstate_open->state_data.share.lockheld -= 1;
-    }
-
-  /* Increment the seqid */
-  pstate_found->seqid += 1;
-  res_LOCKU4.LOCKU4res_u.lock_stateid.seqid = pstate_found->seqid;
-  memcpy(res_LOCKU4.LOCKU4res_u.lock_stateid.other, pstate_found->stateid_other, 12);
-
-  P(pstate_found->powner->lock);
-  pstate_found->powner->seqid += 1;
-  V(pstate_found->powner->lock);
-
-  /* Increment the seqid for the related open_owner */
-  P(pstate_found->powner->related_owner->lock);
-  pstate_found->powner->related_owner->seqid += 1;
-  V(pstate_found->powner->related_owner->lock);
-
-  /* Remove the state associated with the lock */
-  if(cache_inode_del_state(pstate_found,
-                           data->pclient, &cache_status) != CACHE_INODE_SUCCESS)
-    {
-      res_LOCKU4.status = nfs4_Errno(cache_status);
-      return res_LOCKU4.status;
-    }
-
-  /* Successful exit */
-  res_LOCKU4.status = NFS4_OK;
+  state_lock_dispose_transaction(transaction);
   return res_LOCKU4.status;
-#endif
 }                               /* nfs4_op_locku */
 
 /**

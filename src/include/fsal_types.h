@@ -576,12 +576,12 @@ typedef struct fsal_seek__
 
 /** File locking info */
 
-#define FSAL_LOCKTYPE_BLOCK 0x02;
-#define FSAL_LOCKTYPE_EXCLUSIVE 0x01;
+#define FSAL_LOCKTYPE_BLOCK 0x02
+#define FSAL_LOCKTYPE_EXCLUSIVE 0x01
 
 typedef uint16_t fsal_locktype_t;
 
-typedef void* fsal_lockowner_t;
+typedef struct state_lock_owner__ fsal_lockowner_t;
 
 /* This indicates that locks are completely unsupported. */
 

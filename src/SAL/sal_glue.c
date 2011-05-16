@@ -189,6 +189,111 @@ state_share_descriptor(fsal_handle_t* handle,
 }
 
 int
+state_open_to_lock_owner_begin41(fsal_handle_t *handle,
+				 clientid4 clientid, 
+				 stateid4 open_stateid,
+				 lock_owner4 nfs_lock_owner,
+				 state_lock_trans_t** transaction)
+{
+     return (sal_functions.
+	     state_open_to_lock_owner_begin41(handle, clientid,
+					      open_stateid,
+					      nfs_lock_owner, 
+					      transaction));
+}
+
+int
+state_exist_lock_owner_begin41(fsal_handle_t *handle,
+			       clientid4 clientid,
+			       stateid4 lock_stateid,
+			       state_lock_trans_t** transaction)
+{
+     return (sal_functions.
+	     state_exist_lock_owner_begin41(handle,
+					    clientid,
+					    lock_stateid,
+					    transaction));
+}
+
+int
+state_lock(state_lock_trans_t* transaction,
+	   uint64_t offset,
+	   uint64_t length,
+	   bool_t exclusive,
+	   bool_t blocking)
+{
+     return (sal_functions.state_lock(transaction,
+				      offset,
+				      length,
+				      exclusive,
+				      blocking));
+}
+
+int
+state_unlock(state_lock_trans_t* transaction,
+	     uint64_t offset,
+	     uint64_t length)
+{
+     return (sal_functions.state_unlock(transaction,
+					offset,
+					length));
+}
+
+int
+state_lock_commit(state_lock_trans_t* transaction)
+{
+     return (sal_functions.
+	     state_lock_commit(transaction));
+}
+
+int
+state_lock_abort(state_lock_trans_t* transaction)
+{
+     return (sal_functions.state_lock_abort(transaction));
+}
+
+int
+state_lock_dispose_transaction(state_lock_trans_t* transaction)
+{
+     return (sal_functions.
+	     state_lock_dispose_transaction( transaction));
+}
+     
+int
+state_lock_get_stateid(state_lock_trans_t* transaction,
+		       stateid4* stateid)
+{
+     return (sal_functions.
+	     state_lock_get_stateid(transaction,
+				    stateid));
+}
+
+int
+state_lock_get_nfs4err(state_lock_trans_t* transaction,
+		       nfsstat4* error)
+{
+     return (sal_functions.
+	     state_lock_get_nfs4err(transaction,
+				    error));
+}
+
+int
+state_lock_get_nfs4conflict(state_lock_trans_t* transaction,
+			    uint64_t* offset,
+			    uint64_t* length,
+			    uint32_t* type,
+			    lock_owner4* lock_owner)
+{
+     return (sal_functions.
+	     state_lock_get_nfs4conflict(transaction,
+					 offset,
+					 length,
+					 type,
+					 lock_owner));
+	     
+}
+
+int
 state_init(void)
 {
      return (sal_functions.state_init());

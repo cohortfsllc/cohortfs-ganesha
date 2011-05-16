@@ -74,6 +74,7 @@
 #include "nfs_proto_functions.h"
 #include "nfs_file_handle.h"
 #include "nfs_tools.h"
+#include "sal.h"
 
 /**
  * 
@@ -97,7 +98,6 @@
 
 int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop4 *resp)
 {
-  #if 0
   char __attribute__ ((__unused__)) funcname[] = "nfs4_op_lock";
   int rc = 0;
   state_lock_trans_t* transaction;
@@ -106,6 +106,8 @@ int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   lock_owner4 conflict_owner;
   int failcode;
   stateid4 stateid;
+  bool_t exclusive = FALSE;
+  bool_t blocking = FALSE;
 
   /* If there is no FH */
   if (nfs4_Is_Fh_Empty(&(data->currentFH)))
@@ -171,23 +173,26 @@ int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 
   length = arg_LOCK4.length;
   offset = arg_LOCK4.offset;
-  
-  if ((rc = state_nfs4_locktype_to_state_locktype(arg_LOCK4.locktype,
-						  &locktype)) != 0)
-    {
-          res_LOCK4.status = staterr2nfs4err(rc);
-          return res_LOCK4.status;
-    }
 
+  if ((arg_LOCK4.locktype == WRITE_LT) ||
+      (arg_LOCK4.locktype == WRITEW_LT)) {
+    exclusive = TRUE;
+  }
+
+  if ((arg_LOCK4.locktype == READW_LT) ||
+      (arg_LOCK4.locktype == WRITEW_LT)) {
+    blocking = TRUE;
+  }
+  
   switch (arg_LOCK4.locker.new_lock_owner)
     {
     case TRUE:
       if ((rc =
 	  state_open_to_lock_owner_begin41(&(data->current_entry->
 					     object.file.handle),
-					   data->psession.clientid,
-					   &(arg_LOCK4.locker.locker4_u.
-					     open_owner.open_stateid),
+					   data->psession->clientid,
+					   (arg_LOCK4.locker.locker4_u.
+					    open_owner.open_stateid),
 					   (arg_LOCK4.locker.locker4_u.
 					    open_owner.lock_owner),
 					   &transaction))
@@ -200,7 +205,7 @@ int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
     case FALSE:
       if ((rc = state_exist_lock_owner_begin41(&(data->current_entry->
 						 object.file.handle),
-					       data->psession.clientid,
+					       data->psession->clientid,
 					       (arg_LOCK4.locker.
 						locker4_u.lock_owner.lock_stateid),
 					       &transaction))
@@ -211,43 +216,28 @@ int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
         }
     }
 
-  state_lock(transaction, offset, length, locktype);
+  state_lock(transaction, offset, length, exclusive, blocking);
   
-  if ((rc = state_lock_commit(transaction)) != 0)
+  if ((rc = state_lock_commit(transaction)) != ERR_STATE_NO_ERROR)
     {
-      rc = state_lock_fetchfail_nfs4(transaction, &offset, &length,
-				     &failcode);
-      rc |= state_lock_dispose(transaction);
-      if (rc != 0)
+      state_lock_get_nfs4err(transaction, &res_LOCK4.status);
+      if (res_LOCK4.status == NFS4ERR_DENIED)
 	{
-	  res_LOCK4.status = NFS4ERR_SERVERFAULT;
+	  state_lock_get_nfs4conflict(transaction,
+				      &res_LOCK4.LOCK4res_u.denied.offset,
+				      &res_LOCK4.LOCK4res_u.denied.length,
+				      &res_LOCK4.LOCK4res_u.denied.locktype,
+				      &res_LOCK4.LOCK4res_u.denied.owner);
 	}
-      else
-	{
-	  res_LOCK4.status = staterr2nfs4err(failcode);
-	  if (res_LOCK4.status == NFS4ERR_DENIED)
-	    {
-	      res_LOCK4.LOCK4res_u.denied.offset = offset;
-	      res_LOCK4.lock4res_u.denied.length = length;
-	      res_LOCK4.lock4res_u.denied.locktype = locktype;
-	      res_LOCK4.lock4res_u.denied.owner = conflict_owner;
-	    }
-	}
+      state_lock_dispose_transaction(transaction);
       return res_LOCK4.status;
     }
 
-  rc = state_lock_fetchsucc_nfs4(transaction, &stateid);
-  rc |= state_lock_dispose(transaction);
-  if (rc != 0)
-    {
-      res_LOCK4.status = NFS4ERR_SERVERFAULT;
-      return res_LOCK4.status;
-    }
+  state_lock_get_stateid(transaction, &stateid);
+  state_lock_dispose_transaction(transaction);
 
-  res_LOCK4.lock4res_u.resok4.lock_stateid = stateid;
+  res_LOCK4.LOCK4res_u.resok4.lock_stateid = stateid;
 
-#endif /* 0 */
-  
   res_LOCK4.status = NFS4_OK;
   return res_LOCK4.status;
 }                               /* nfs4_op_lock */

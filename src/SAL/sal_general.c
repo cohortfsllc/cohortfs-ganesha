@@ -149,8 +149,8 @@ compare_nfs4_lockowner(state_lock_owner_t* owner1,
 }
 
 bool_t
-state_compare_lockowner(state_lock_owner_t* owner1,
-			state_lock_owner_t* owner2)
+state_compare_lock_owner(state_lock_owner_t* owner1,
+			 state_lock_owner_t* owner2)
 {
     switch (owner1->owner_type) {
     case LOCKOWNER_NFS3:

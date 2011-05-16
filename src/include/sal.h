@@ -64,7 +64,7 @@ extern stateid4 state_invalid_stateid;
  * NFSv3 and NFSv4 lock ownership.  It is passed to the FSAL.
  */
 
-typedef struct lockowner__
+typedef struct state_lock_owner__
 {
      enum {
 	  LOCKOWNER_NFS3, /*!< Lock is owned by an NFSv3 client */
@@ -185,6 +185,45 @@ int state_share_descriptor(fsal_handle_t* handle,
  * giving the set of all locks on a file with a stateid and a
  * (filehandle, clientid, open-stateid, lock_owner) tuple.
  */
+
+int state_open_to_lock_owner_begin41(fsal_handle_t *handle,
+				     clientid4 clientid, 
+				     stateid4 open_stateid,
+				     lock_owner4 nfs_lock_owner,
+				     state_lock_trans_t** transaction);
+
+int state_exist_lock_owner_begin41(fsal_handle_t *handle,
+				   clientid4 clientid,
+				   stateid4 lock_stateid,
+				   state_lock_trans_t** transaction);
+
+int state_lock(state_lock_trans_t* transaction,
+	       uint64_t offset,
+	       uint64_t length,
+	       bool_t exclusive,
+	       bool_t blocking);
+
+int state_unlock(state_lock_trans_t* transaction,
+		 uint64_t offset,
+		 uint64_t length);
+
+int state_lock_commit(state_lock_trans_t* transaction);
+
+int state_lock_abort(state_lock_trans_t* transaction);
+
+int state_lock_dispose_transaction(state_lock_trans_t* transaction);
+     
+int state_lock_get_stateid(state_lock_trans_t* transaction,
+			   stateid4* stateid);
+
+int state_lock_get_nfs4err(state_lock_trans_t* transaction,
+			   nfsstat4* error);
+
+int state_lock_get_nfs4conflict(state_lock_trans_t* transaction,
+				uint64_t* offset,
+				uint64_t* length,
+				uint32_t* type,
+				lock_owner4* lock_owner);
 
 /**
  * state_anonymous_check: Check for anonymous state
@@ -347,6 +386,46 @@ typedef struct __sal_functions
      int (*state_share_descriptor)(fsal_handle_t* handle,
 				   stateid4* stateid,
 				   fsal_file_t** descriptor);
+
+     int (*state_open_to_lock_owner_begin41)(fsal_handle_t *handle,
+					     clientid4 clientid, 
+					     stateid4 open_stateid,
+					     lock_owner4 nfs_lock_owner,
+					     state_lock_trans_t** transaction);
+
+     int (*state_exist_lock_owner_begin41)(fsal_handle_t *handle,
+					   clientid4 clientid,
+					   stateid4 lock_stateid,
+					   state_lock_trans_t** transaction);
+
+     int (*state_lock)(state_lock_trans_t* transaction,
+		       uint64_t offset,
+		       uint64_t length,
+		       bool_t exclusive,
+		       bool_t blocking);
+
+     int (*state_unlock)(state_lock_trans_t* transaction,
+			 uint64_t offset,
+			 uint64_t length);
+
+     int (*state_lock_commit)(state_lock_trans_t* transaction);
+
+     int (*state_lock_abort)(state_lock_trans_t* transaction);
+
+     int (*state_lock_dispose_transaction)(state_lock_trans_t* transaction);
+     
+     int (*state_lock_get_stateid)(state_lock_trans_t* transaction,
+				   stateid4* stateid);
+
+     int (*state_lock_get_nfs4err)(state_lock_trans_t* transaction,
+				   nfsstat4* error);
+
+     int (*state_lock_get_nfs4conflict)(state_lock_trans_t* transaction,
+					uint64_t* offset,
+					uint64_t* length,
+					uint32_t* type,
+					lock_owner4* lock_owner);
+     
      int (*state_init)(void);
      int (*state_shutdown)(void);
 } sal_functions_t;

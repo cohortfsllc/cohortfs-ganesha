@@ -224,18 +224,47 @@ int localstate_share_descriptor(fsal_handle_t* handle,
 /* Unexported lock functionality */
 unsigned int hash_lock_owner(state_lock_owner_t* owner, uint32_t* h1,
 			     uint32_t* h2);
+
 /* Lock functionality realisations */
 int localstate_open_to_lock_owner_begin41(fsal_handle_t *handle,
-					  clientid4 clientid,
+					  clientid4 clientid, 
 					  stateid4 open_stateid,
-					  lock_owner4 nfs_lock_owner, 
-					  state_lock_trans_t** transaction); 
+					  lock_owner4 nfs_lock_owner,
+					  state_lock_trans_t** transaction);
 
 int localstate_exist_lock_owner_begin41(fsal_handle_t *handle,
 					clientid4 clientid,
 					stateid4 lock_stateid,
-					state_lock_trans_t**
-					transaction);
+					state_lock_trans_t** transaction);
+
+int localstate_lock(state_lock_trans_t* transaction,
+		    uint64_t offset,
+		    uint64_t length,
+		    bool_t exclusive,
+		    bool_t blocking);
+
+int localstate_unlock(state_lock_trans_t* transaction,
+		       uint64_t offset,
+		       uint64_t length);
+
+int localstate_lock_commit(state_lock_trans_t* transaction);
+
+int localstate_lock_abort(state_lock_trans_t* transaction);
+
+int localstate_lock_dispose_transaction(state_lock_trans_t* transaction);
+     
+int localstate_lock_get_stateid(state_lock_trans_t* transaction,
+			   stateid4* stateid);
+
+int localstate_lock_get_nfs4err(state_lock_trans_t* transaction,
+				nfsstat4* error);
+
+int localstate_lock_get_nfs4conflict(state_lock_trans_t* transaction,
+				     uint64_t* offset,
+				     uint64_t* length,
+				     uint32_t* type,
+				     lock_owner4* lock_owner);
+
 /* Init/Shutdown functions */
 int localstate_init(void);
 int localstate_shutdown(void);
