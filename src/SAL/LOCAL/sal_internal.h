@@ -63,7 +63,7 @@ typedef struct openref__
      uint32_t refcount;
 } openref_t;
 
-typedef struct share__
+typedef struct share_state__
 {
      open_owner_t* open_owner;
      uint32_t share_access;
@@ -71,11 +71,32 @@ typedef struct share__
      openref_t* openref;
 } share_state_t;
 
-typedef struct lock__
+typedef struct lock_state__
 {
      struct state__* open_state;
      lock_owner_info_t* lock_owner;
+     bool_t acquired_a_lock;
+     fsal_filelockinfo_t filelockinfo;
 } lock_state_t;
+
+typedef struct lock__ {
+     uint64_t offset;
+     uint64_t length;
+     bool_t exclusive;
+     bool_t blocking;
+     struct state__* state;
+     struct lock__* prev;
+     struct lock__* next;
+} lock_t;
+
+typedef enum lock_overlap__ {
+     LOCKS_DISJOINT = 0,
+     LOCKS_EQUAL = 1,
+     LOCK1_SUPERSET = 2,
+     LOCK1_SUBSET = 3,
+     LOCK1_BEGINS_BEFORE = 4,
+     LOCK1_ENDS_AFTER = 5
+} lock_overlap_t;
 
 typedef struct state__
 {
@@ -83,7 +104,6 @@ typedef struct state__
      stateid4 stateid;
      clientid4 clientid;
      state_type_t type;
-     
      union
      {
 	  share_state_t share;
@@ -95,18 +115,20 @@ typedef struct perfile_state__
 {
      fsal_handle_t handle; /* Filehandle */
      pthread_rwlock_t lock; /* Per-filehandle read/write lock */
+     uint32_t refcount;
      uint32_t access_readers; /* Number of clients with read access */
      uint32_t access_writers; /* Number of clients with write access */
      uint32_t deny_readers; /* Number of clients blocking read access */
      uint32_t deny_writers; /* Number of clients blocking write access */
      uint32_t anon_readers; /* Number of anonymous readers (old NFS or
-			      all-zeroes) */
+			       all-zeroes) */
      uint32_t anon_writers; /* Number of anonymous writers (old NFS or
 			      all-zeroes) */
+     lock_t* locks; /* All locks on this file */
 } perfile_state_t;
 
 /************************************************************************
- * Global variables 
+ * Global variables
  *
  * Pools and hashtables
  ***********************************************************************/
@@ -116,6 +138,7 @@ extern prealloc_pool open_owner_pool;
 extern prealloc_pool lock_owner_pool;
 extern prealloc_pool state_pool;
 extern prealloc_pool openref_pool;
+extern prealloc_pool lock_pool;
 
 extern hash_table_t* stateid_table;
 extern hash_table_t* perfile_state_table;

@@ -11,8 +11,7 @@
 #include "nfs_core.h"
 #include "log_macros.h"
 #include "sal_internal.h"
-
-#if 0
+#include "fsal.h"
 
 /************************************************************************
  * File Private Lock Functions
@@ -21,13 +20,226 @@
  * nowhere else.
  ***********************************************************************/
 
+void
+link_lock(lock_t** chain,
+	  lock_t* lock)
+{
+     if (chain) {
+	  lock->next = *chain;
+	  lock->prev = NULL;
+	  (*chain)->prev = lock;
+     } else {
+	  lock->next = NULL;
+     }
+     lock->prev = NULL;
+     *chain = lock;
+}
+
+void
+unlink_lock(lock_t** chain,
+	    lock_t* lock)
+{
+     if (lock->prev) {
+	  lock->prev->next = lock->next;
+     } else {
+	  *chain = lock->next;
+     }
+
+     if (lock->next) {
+	  lock->next->prev = lock->prev;
+     }
+}
+
+lock_overlap_t
+overlap(lock_t* lock1,
+	lock_t* lock2)
+{
+     uint64_t lock1_last_byte = 0;
+     uint64_t lock2_last_byte = 0;
+
+     lock1_last_byte = ((lock1->length == NFS4_UINT64_MAX) ?
+			NFS4_UINT64_MAX :
+			lock1->offset + lock1->length - 1);
+     lock2_last_byte = ((lock2->length == NFS4_UINT64_MAX) ?
+			NFS4_UINT64_MAX :
+			lock2->offset + lock2->length - 1);
+
+     if (lock1->offset < lock2->offset) {
+	  if (lock1_last_byte < lock2->offset) {
+	       return LOCKS_DISJOINT;
+	  } else if (lock1_last_byte > lock2_last_byte) {
+	       return LOCK1_SUPERSET;
+	  } else {
+	       return LOCK1_BEGINS_BEFORE;
+	  }
+     } else if (lock1->offset > lock2->offset) {
+	  if (lock1_last_byte > lock2_last_byte) {
+	       return LOCKS_DISJOINT;
+	  } else if (lock1_last_byte < lock2_last_byte) {
+	       return LOCK1_SUBSET;
+	  } else {
+	       return LOCK1_ENDS_AFTER;
+	  }
+     } else {
+	  return LOCKS_EQUAL;
+     }
+}
+
+lock_t*
+find_conflict(lock_t* chain,
+	      lock_t* candidate)
+{
+     lock_t* conflicting = NULL;
+     lock_t* index;
+     for (index = chain; index; index = index->next) {
+	  if (overlap(candidate, index)) {
+	       if (candidate->exclusive ||
+		   index->exclusive) {
+		    if (state_compare_lockowner(index->state->state.lock.
+						lock_owner->key,
+						(candidate->state->state.lock.
+						 lock_owner->key))) {
+			 conflicting = index;
+			 break;
+		    }
+	       }
+	  }
+     }
+}
+
+void
+set_lock(lock_t* lock, lock_t** chain)
+{
+     /* We assume all conflict detection has already been done.  We
+	merely update locks sharing our state.  This is not quite
+	correct, so I need to come back and add in the 9.5 semantics. */
+
+     lock_t* index;
+
+     for (index = *chain; index; index = index->next) {
+	  if (index->state != lock->state)
+	       continue;
+	  switch (overlap(lock, index)) {
+	  case LOCKS_DISJOINT:
+	       link_lock(chain, lock);
+	       break;
+
+	  case LOCKS_EQUAL:
+	       index->exclusive = lock->exclusive;
+	       ReleaseToPool(lock, &lock_pool);
+	       break;
+
+	  case LOCK1_SUPERSET:
+	       unlink_lock(chain, index);
+	       ReleaseToPool(index, &lock_pool);
+	       link_lock(chain, lock);
+	       break;
+
+	  case LOCK1_SUBSET:
+	       if (lock->exclusive == index->exclusive) {
+		    ReleaseToPool(lock, &lock_pool);
+	       } else {
+		    lock_t* after;
+		    GetFromPool(after, &lock_owner_pool, lock_t);
+		    *after = *index;
+		    index->length = lock->offset - index->offset;
+		    after->offset = lock->offset + lock->length;
+		    after->length = (index->offset + after->length
+				     - after->offset);
+		    link_lock(chain, lock);
+		    link_lock(chain, after);
+	       }
+	       break;
+
+	  case LOCK1_BEGINS_BEFORE:
+	       if (lock->exclusive == index->exclusive) {
+		    if (index->length == NFS4_UINT64_MAX) {
+			 index->offset = lock->offset;
+		    } else {
+			 index->length = (index->length + index->offset -
+					  lock->offset);
+			 index->offset = lock->offset;
+		    }
+		    ReleaseToPool(lock, &lock_pool);
+	       } else {
+		    if (index->length == NFS4_UINT64_MAX) {
+			 index->offset = lock->offset + lock->length;
+		    } else {
+			 index->length = (index->length + index->offset -
+					  (lock->length + lock->offset));
+			 index->offset = lock->offset + lock->length;
+		    }
+		    link_lock(chain, lock);
+	       }
+
+	  case LOCK1_ENDS_AFTER:
+	       if (lock->exclusive == index->exclusive) {
+		    index->length = (lock->offset + lock->length -
+				     index->offset);
+		    ReleaseToPool(lock, &lock_pool);
+	       } else {
+		    index->length = lock->offset - index->offset;
+		    link_lock(chain, lock);
+	       }
+	  }
+     }
+}
+
+void
+clear_lock(lock_t* lock, lock_t** chain)
+{
+     lock_t* index;
+
+     for (index = *chain; index; index = index->next) {
+	  if (index->state != lock->state)
+	       continue;
+	  switch (overlap(lock, index)) {
+	  case LOCKS_DISJOINT:
+	       break;
+
+	  case LOCKS_EQUAL:
+	       unlink_lock(chain, index);
+	       ReleaseToPool(index, &lock_pool);
+	       break;
+
+	  case LOCK1_SUPERSET:
+	       unlink_lock(chain, index);
+	       ReleaseToPool(index, &lock_pool);
+	       break;
+
+	  case LOCK1_SUBSET: {
+	       lock_t* after;
+	       GetFromPool(after, &lock_owner_pool, lock_t);
+	       *after = *index;
+	       index->length = lock->offset - index->offset;
+	       after->offset = lock->offset + lock->length;
+	       after->length = (index->offset + after->length
+				- after->offset);
+	       break;
+
+	  }
+	  case LOCK1_BEGINS_BEFORE:
+	       if (index->length == NFS4_UINT64_MAX) {
+		    index->offset = lock->offset + lock->length;
+	       } else {
+		    index->length = (index->length + index->offset -
+				     (lock->length + lock->offset));
+		    index->offset = lock->offset + lock->length;
+	       }
+
+	  case LOCK1_ENDS_AFTER:
+	       index->length = lock->offset - index->offset;
+	  }
+     }
+}
+
 static int
 lock_owner_cmp_func(hash_buffer_t* key1,
 		    hash_buffer_t* key2)
 {
      state_lock_owner_t* owner1 = (state_lock_owner_t*) key1->pdata;
      state_lock_owner_t* owner2 = (state_lock_owner_t*) key2->pdata;
-     
+
      return !(state_compare_lockowner(owner1, owner2));
 }
 
@@ -44,16 +256,16 @@ static unsigned int
 hash_nfs4_lock_owner(state_lock_owner_t* owner, uint32_t* h1, uint32_t* h2)
 {
      Lookup3_hash_buff_dual((char*)&(owner->u.nfs4_owner.clientid),
-			    sizeof(clientid4), 
+			    sizeof(clientid4),
 			    h1, h2);
-     
+
      Lookup3_hash_buff_dual((char*)(owner->u.nfs4_owner.owner_val),
 			    owner->u.nfs4_owner.owner_len,
 			    h1, h2);
      return 1;
 }
 
-static unsigned int 
+static unsigned int
 lock_owner_hash_func(hash_parameter_t* hashparm,
 		     hash_buffer_t* keybuff,
 		     uint32_t* hashval,
@@ -82,10 +294,38 @@ lock_owner_hash_params = {
      .hash_func_both = lock_owner_hash_func,
      .compare_key = lock_owner_cmp_func,
      .key_to_str = NULL,
-     .val_to_str = NULL 
+     .val_to_str = NULL
 };
 
-static unsigned int 
+static int
+lock_state_cmp_func(hash_buffer_t* key1,
+		    hash_buffer_t* key2)
+{
+     fsal_status_t status;
+     state_t* state1 = (state_t*) key1->pdata;
+     state_t* state2 = (state_t*) key2->pdata;
+     fsal_handle_t* handle1 = &state1->perfile->handle;
+     fsal_handle_t* handle2 = &state2->perfile->handle;
+     state_lock_owner_t* lock_owner1 =
+	  &(state1->state.lock.lock_owner->key);
+     state_lock_owner_t* lock_owner2 =
+	  &(state2->state.lock.lock_owner->key);
+     open_owner_key_t* open_owner1 =
+	  &(state1->state.lock.open_state->state.share.open_owner->key);
+     open_owner_key_t* open_owner2 =
+	  &(state2->state.lock.open_state->state.share.open_owner->key);
+
+     if (FSAL_handlecmp(handle1, handle2,
+			&status)) {
+	  if (open_owners_equal(open_owner1, open_owner2)) {
+	       return !(state_compare_lockowner(lock_owner1, lock_owner2));
+	  }
+     } else {
+	  return 0;
+     }
+}
+
+static unsigned int
 lock_state_hash_func(hash_parameter_t* hashparm,
 		     hash_buffer_t* keybuff,
 		     uint32_t* hashval,
@@ -120,6 +360,12 @@ lock_state_hash_func(hash_parameter_t* hashparm,
      return rc;
 }
 
+static int
+localsalstringnoop(hash_buffer_t * pbuff, char *str)
+{
+     return 0;
+}
+
 static hash_parameter_t
 lock_state_hash_params = {
      .index_size = 29,
@@ -148,7 +394,6 @@ acquire_lock_owner(state_lock_owner_t* ownerkey,
     if ((ownerkey->owner_type == LOCKOWNER_INTERNAL) ||
 	(ownerkey->owner_type == LOCKOWNER_EXTERNAL)) {
 	 *owner = NULL;
-	 LogCrit("acquire_lock_owner: Attempt made to create owner of special type.\n");
 	 return ERR_STATE_FAIL;
     }
 
@@ -157,35 +402,35 @@ acquire_lock_owner(state_lock_owner_t* ownerkey,
 	 return ERR_STATE_FAIL;
     }
 
-    *owner->key = ownerkey;
-    key.pdata = (caddr_t) &(owner->key);
+    (*owner)->key = *ownerkey;
+    key.pdata = (caddr_t) &((*owner)->key);
     key.len = sizeof(state_lock_owner_t);
-    *owner->seqid = 0;
-    *owner->refcount = 1; /* Every lock_owner gets created with a
+    (*owner)->seqid = 0;
+    (*owner)->refcount = 1; /* Every lock_owner gets created with a
 			     refcount of 1, to prevent races. */
-    *owner->last_response = NULL;
-    pthread_mutex_init(&(*owner->mutex), NULL);
+    (*owner)->last_response = NULL;
+    pthread_mutex_init(&((*owner)->mutex), NULL);
     val.pdata = (caddr_t) *owner;
     val.len = sizeof(lock_owner_info_t);
-    rc = HashTable_Set_Or_Fetch(lock_table, &key, &val);
+    rc = HashTable_Set_Or_Fetch(lock_owner_table, &key, &val);
     if (rc == HASHTABLE_SUCCESS) {
 	 if (created) {
 	      *created = TRUE;
 	      return ERR_STATE_NO_ERROR;
 	 }
     } else if (rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS) {
-	 ReleaseToPool(*owner, &ownerpool);
+	 ReleaseToPool(*owner, &lock_owner_pool);
 	 *owner = (lock_owner_info_t*) val.pdata;
 	 return ERR_STATE_NO_ERROR;
     } else {
-	 ReleaseToPool(*owner, &ownerpool);
+	 ReleaseToPool(*owner, &lock_owner_pool);
 	 *owner = NULL;
 	 return ERR_STATE_FAIL;
     }
 }
 
 static void
-maybe_kill_lock_owner(&owner)
+maybe_kill_lock_owner(lock_owner_info_t* owner)
 {
      hash_buffer_t key;
 
@@ -195,9 +440,9 @@ maybe_kill_lock_owner(&owner)
 	  key.len = sizeof(open_owner_key_t);
 	  HashTable_Del(lock_owner_table, &key, NULL, NULL);
 	  pthread_mutex_ulock(&owner->mutex);
-	  ReleaseToPool(*owner, &owner_pool);
+	  ReleaseToPool(owner, &lock_owner_pool);
      } else {
-	  pthread_mutex_ulock(&owner->mutex);
+	  pthread_mutex_ulock(&(owner->mutex));
      }
 }
 
@@ -220,18 +465,18 @@ acquire_lock_state(lock_owner_info_t* owner,
 	 return ERR_STATE_FAIL;
     }
 
-    *lock_state->state.lock.lock_owner = owner;
-    *lock_state->state.lock.open_state = open_state;
-    *lock_state->perfile = perfile;
+    (*lock_state)->state.lock.lock_owner = owner;
+    (*lock_state)->state.lock.open_state = open_state;
+    (*lock_state)->perfile = perfile;
     key.pdata = (caddr_t) *lock_state;
     key.len = sizeof(state_t);
-    *lock_state->type = LOCKSTATE;
+    (*lock_state)->type = STATE_LOCK;
     val.pdata = (caddr_t) *lock_state;
     val.len = sizeof(state_t);
     rc = HashTable_Set_Or_Fetch(lock_state_table, &key, &val);
     if (rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS) {
 	 ReleaseToPool(*lock_state, &state_pool);
-	 *lock_state = (lock_owner_info_t*) val.pdata;
+	 (*lock_state) = (state_t*) val.pdata;
 	 return ERR_STATE_NO_ERROR;
     } else if (rc != HASHTABLE_SUCCESS) {
 	 ReleaseToPool(*lock_state, &state_pool);
@@ -242,7 +487,7 @@ acquire_lock_state(lock_owner_info_t* owner,
     if (owner->key.owner_type == LOCKOWNER_NFS3) {
 	 /* Do NFS3 Things */
     } else if (owner->key.owner_type == LOCKOWNER_NFS4) {
-	 lock_state->clientid = owner->key.u.nfs4_owner.clientid;
+	 (*lock_state)->clientid = owner->key.u.nfs4_owner.clientid;
 	 if (rc = assign_stateid(*lock_state) != 0) {
 	      ReleaseToPool(*lock_state, &state_pool);
 	      *lock_state = NULL;
@@ -259,7 +504,7 @@ acquire_lock_state(lock_owner_info_t* owner,
     } else {
 	 LogCrit(COMPONENT_STATES, "Attempt to initialise lock state for "
 		 "unknown type of owner.\n");
-	 return ERR_STATE_FIL;
+	 return ERR_STATE_FAIL;
     }
 }
 
@@ -274,7 +519,7 @@ unsigned int
 hash_lock_owner(state_lock_owner_t* owner, uint32_t* h1, uint32_t* h2)
 {
      unsigned int rc = 0;
-     
+
      switch(owner->owner_type) {
      case LOCKOWNER_NFS3:
 	  *h1 = *h2 = (('N' << 0x18) |
@@ -295,7 +540,8 @@ hash_lock_owner(state_lock_owner_t* owner, uint32_t* h1, uint32_t* h2)
      default:
 	  rc = 0;
 	  LogCrit(COMPONENT_STATES,
-		  "open_owner_hash_func: Owner type %d should never be stored in the hash table.\n",
+		  "open_owner_hash_func: Owner type %d should never be stored "
+		  "in the hash table.\n",
 		  owner->owner_type);
      }
 }
@@ -370,11 +616,10 @@ localstate_open_to_lock_owner_begin41(fsal_handle_t *handle,
      state_t* open_state = NULL;
      state_lock_owner_t owner_key;
      lock_owner_info_t* owner;
-     int rc = 0;
      bool_t owner_created = FALSE;
-     
+
      /* Retrieve or create header for per-filehandle chain */
-     
+
      if ((rc = acquire_perfile_state(handle, &perfile)) !=
 	 ERR_STATE_NO_ERROR) {
 	  LogMajor(COMPONENT_STATES,
@@ -382,69 +627,70 @@ localstate_open_to_lock_owner_begin41(fsal_handle_t *handle,
 		   "find/create per-file state header.");
 	  return rc;
      }
-     
+
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  return ERR_STATE_FAIL;
      }
-     
+
      if ((rc = lookup_state(open_stateid, &open_state))
 	 != ERR_STATE_NO_ERROR) {
-	  pthread_rwlock_unlock(perfile->lock);
+	  pthread_rwlock_unlock(&(perfile->lock));
 	  return rc;
      }
-     
+
      if (!open_state) {
 	  pthread_rwlock_unlock(&(perfile->lock));
 	  return ERR_STATE_FAIL;
      }
-     
+
      if ((open_state->type != STATE_SHARE) ||
 	 (open_state->clientid != clientid)) {
-	  pthread_rwlock_unlock(perfile->lock);
+	  pthread_rwlock_unlock((&perfile->lock));
 	  return ERR_STATE_BAD;
      }
-     
-     ownerkey.owner_type = LOCKOWNER_NFS4;
-     ownerkey.nfs4_owner.clientid = clientid;
-     ownerkey.nfs4_owner.owner.owner_len
+
+     owner_key.owner_type = LOCKOWNER_NFS4;
+     owner_key.u.nfs4_owner.clientid = clientid;
+     owner_key.u.nfs4_owner.owner_len
 	  = nfs_lock_owner.owner.owner_len;
-     memcpy(ownerkey.nfs4_owner.owner.val,
-	    nfs_lock_owner.owner.owner_val, 
+     memcpy(owner_key.u.nfs4_owner.owner_val,
+	    nfs_lock_owner.owner.owner_val,
 	    nfs_lock_owner.owner.owner_len);
-     
+
      if ((rc = acquire_lock_owner(&owner_key,
 				  &owner_created,
 				  &owner))
 	 != ERR_STATE_NO_ERROR) {
-	  pthread_rwlock_unlock(perfile->lock);
+	  pthread_rwlock_unlock(&(perfile->lock));
 	  return rc;
      }
-     
-     if ((rc = acquire_lock_state(&owner, open_state, perfile, NULL,
-				  &state)) != 0) { 
-	  pthread_rwlock_unlock(perfile->lock);
-	  maybe_kill_lock_owner(&owner);
-	  return rc;
+
+     if (!owner_created) {
+	  if ((rc = pthread_lock_mutex(&(owner->mutex))) != 0) {
+	       pthread_rwlock_unlock((&perfile->lock));
+	       maybe_kill_lock_owner(owner);
+	       return ERR_STATE_FAIL;
+	  }
+
+	  owner->refcount++;
+	  pthread_unlock_mutex(&(owner->mutex));
      }
 
      /* Every lock state increments the reference count on a lock
 	owner by 1.  If this is a new owner, the reference count has
 	already been set to 1. */
 
-     if (!owner_created) {
-	  if ((rc = pthread_lock_mutex(lock_owner->mutex)) != 0) {
-	       pthread_rwlock_unlock(perfile->lock);
-	       maybe_kill_lock_owner(&owner);
-	       return ERR_STATE_FAIL;
-	  }
-
-	  lock_owner->refcount++;
-	  pthread_unlock_mutex(lock_owner->mutex);
+     if ((rc = acquire_lock_state(owner, open_state, perfile, NULL,
+				  &state)) != 0) {
+	  pthread_rwlock_unlock(&(perfile->lock));
+	  maybe_kill_lock_owner(owner);
+	  return rc;
      }
-     
-     *transaction = Mem_Alloc(sizeof(state_lock_transaction_t));
-     *transaction->status = TRANSACT_LIVE;
-     *transaction->lock_state = state;
+
+     *transaction
+	  = (state_lock_trans_t*) Mem_Alloc(sizeof(state_lock_trans_t));
+     (*transaction)->status = TRANSACT_LIVE;
+     (*transaction)->lock_state = state;
 
      return ERR_STATE_NO_ERROR;
 }
@@ -476,10 +722,9 @@ localstate_exist_lock_owner_begin41(fsal_handle_t *handle,
 {
      int rc = 0;
      state_t* lock_state = NULL;
-     int rc = 0;
      perfile_state_t* perfile;
 
-     
+
      /* Retrieve or create header for per-filehandle chain */
 
      if ((rc = acquire_perfile_state(handle, &perfile)) !=
@@ -489,33 +734,305 @@ localstate_exist_lock_owner_begin41(fsal_handle_t *handle,
 		   "find/create per-file state header.");
 	  return rc;
      }
-     
+
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  return ERR_STATE_FAIL;
      }
-     
+
      if ((rc = lookup_state(lock_stateid, &lock_state))
 	 != ERR_STATE_NO_ERROR) {
-	  pthread_rwlock_unlock(perfile->lock);
+	  pthread_rwlock_unlock(&(perfile->lock));
 	  return rc;
      }
-     
+
      if (!lock_state) {
-	  pthread_rwlock_unlock(perfile->lock);
+	  pthread_rwlock_unlock((&perfile->lock));
 	  return ERR_STATE_FAIL;
      }
-     
+
      if ((lock_state->type != STATE_LOCK) ||
-	 (open_state->clientid != clientid)) {
-	  pthread_rwlock_unlock(perfile->lock);
+	 (lock_state->clientid != clientid)) {
+	  pthread_rwlock_unlock(&(perfile->lock));
 	  return ERR_STATE_BAD;
      }
 
-     *transaction = Mem_Alloc(sizeof(state_lock_transaction_t));
-     *transaction->status = TRANSACT_LIVE;
-     *transaction->lock_state = state;
-     
+     *transaction
+	  = (state_lock_trans_t*) Mem_Alloc(sizeof(state_lock_trans_t));
+     (*transaction)->status = TRANSACT_LIVE;
+     (*transaction)->lock_state = lock_state;
+
      return ERR_STATE_NO_ERROR;
 }
 
-#endif /* 0 */
+int
+localstate_lock(state_lock_trans_t* transaction,
+		uint64_t offset,
+		uint64_t length,
+		bool_t exclusive,
+		bool_t blocking)
+{
+     int rc = 0;
+     state_t* lock_state = NULL;
+     perfile_state_t* perfile;
+     uint16_t locktype;
+     state_lock_owner_t lock_owner;
+     fsal_status_t fsal_status;
+     lock_t* conflicting;
+     lock_t* to_add;
+
+     if (transaction->status != TRANSACT_LIVE) {
+	  return ERR_STATE_DEAD_TRANSACTION;
+     }
+
+     GetFromPool(transaction->to_set, &lock_pool, lock_t);
+     transaction->to_set->offset = offset;
+     transaction->to_set->length = length;
+     transaction->to_set->exclusive = exclusive;
+     transaction->to_set->blocking = blocking;
+     transaction->to_set->state = transaction->lock_state;
+
+     /* Check for conlflicts of our own */
+
+     if ((conflicting = find_conflict(transaction->lock_state->perfile->locks,
+				      transaction->to_set))) {
+	  GetFromPool(transaction->conflicting, &lock_pool, lock_t);
+	  *transaction->conflicting = *conflicting;
+	  transaction->status = TRANSACT_FAILED;
+	  transaction->errcode = ERR_STATE_CONFLICT;
+	  transaction->errsource = ERROR_SOURCE_SAL;
+	  pthread_rwlock_unlock(&(perfile->lock));
+	  return ERR_STATE_CONFLICT;
+     }
+     /* Push down to the FSAL */
+
+
+/*
+     locktype = ((exclusive && FSAL_LOCKTYPE_EXCLUSIVE) |
+     (blocking && FSAL_LOCKTYPE_BLOCK)); */
+
+     lock_owner = transaction->lock_state->state.lock.lock_owner->key;
+
+     fsal_status
+	  = FSAL_lock(&(transaction->lock_state->state.lock.
+			open_state->state.share->openref->descriptor),
+		      &offset,
+		      &length,
+		      &locktype,
+		      &lock_owner,
+		      &(transaction->lock_state->state.lock.filelockinfo));
+
+     if (FSAL_IS_ERROR(fsal_status)) {
+	  if (fsal_status.major == ERR_FSAL_CONFLICT) {
+	       transaction->errorcode = ERR_STATE_CONFLICT;
+	       transaction->errorsource = ERROR_SOURCE_SAL;
+	       transaction->status = TRANSACT_FAILED;
+	       GetFromPool(transaction->conflicting, lock_pool, lock_t);
+	       transaction->conflicting->offset = offset;
+	       transaction->conflicting->length = length;
+	       transaction->conflicting->exclusive
+		    = (locktype || FSAL_LOCKTYPE_EXCLUSIVE);
+	       transaction->conflicting->blocking
+		    = (locktype || FSAL_LOCKTYPE_BLOCKING);
+	       transaction->conflicting->state = NULL;
+	       pthread_rwlock_unlock(perfile->lock);
+	       return ERR_STATE_CONFLICT;
+	  } else {
+	       transaction->errorcode = fsal_status.major;
+	       transaction->errorsource = ERROR_SOURCE_FSAL;
+	       transaction->status = TRANSACT_FAILED;
+	       pthread_rwlock_unlock(perfile->lock);
+	       return ERR_STATE_CONFLICT;
+	  }
+     }
+
+     /* Update the state */
+
+     GetFromPool(to_add, lock_pool, lock_t);
+     *to_add = *transaction->to_set;
+
+     set_lock(to_add,
+	      &(transaction->lock_state->perfile->locks));
+
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_unlock(state_lock_trans_t* transaction,
+		  uint64_t offset,
+		  uint64_t length)
+{
+     int rc = 0;
+     state_t* lock_state = NULL;
+     int rc = 0;
+     perfile_state_t* perfile;
+     uint16_t locktype;
+     state_lockowner_t lockowner;
+     fsal_status_t fsal_status;
+
+     if (transaction->status != TRANSACT_LIVE) {
+	  return ERR_STATE_DEAD_TRANSACTION;
+     }
+
+     GetFromPool(transaction->to_free, lock_pool, lock_t);
+     transaction->to_free->offset = offset;
+     transaction->to_free->length = length;
+     transaction->to_free->exclusive = 0;
+     transaction->to_free->blocking = 0;
+     transaction->to_free->state = transaction->lock_state;
+
+     /* Push down to the FSAL */
+
+     locktype = 0;
+
+     lockowner = transaction->lock_state->state.lock.lock_owner->key;
+
+     fsal_status
+	  = FSAL_unlock(&(transaction->lock_state->state.lock.
+			  open_state->openref->descriptor),
+			offset,
+			length,
+			lockowner,
+			&(transaction->lock_state->filelockinfo));
+
+     if (FSAL_IS_ERROR(fsal_status)) {
+	       transaction->errorcode = fsal_status.major;
+	       transaction->errorsource = ERROR_SOURCE_FSAL;
+	       transaction->status = TRANSACT_FAILED;
+	       pthread_rwlock_unlock(perfile->lock);
+	       return ERR_STATE_CONFLICT;
+	  }
+
+     /* Update the state */
+
+     clear_lock(to_free,
+		&(transaction->lock_state->perfile->locks));
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_lock_commit(state_share_trans_t* transaction)
+{
+     if ((transaction->status != TRANSACT_LIVE) &&
+	 (transaction->status != TRANSACT_PYRRHIC_VICTORY)) {
+	  return ERR_STATE_DEAD_TRANSACTION;
+     }
+
+     transaction->status = ((transaction->status = TRANSACT_LIVE) ?
+			    TRANSACT_COMPLETED :
+			    TRANSACT_PYRRHIC_VICTORY);
+
+     transaction->lock_state->stateid.seqid++;
+
+     pthread_rwlock_unlock(transaction->lockstate->perfile->lock);
+
+     return ((transaction->status == TRANSACT_LIVE) ?
+	     ERR_STATE_NO_ERROR :
+	     transaction->errcode);
+}
+
+localstate_lock_abort(state_share_trans_t* transaction)
+{
+     if (transaction->status != TRANSACT_LIVE) {
+	  return ERR_STATE_DEAD_TRANSACTION;
+     }
+
+     transaction->status = TRANSACT_ABORTED;
+     pthread_rwlock_unlock(transaction->lockstate->perfile->lock);
+
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_lock_dispose_transaction(state_share_trans_t* transaction)
+{
+     if (transaction->status = TRANSACT_LIVE) {
+	  localstatestate_share_abort(transaction);
+     }
+
+     if (transaction->to_set) {
+	  ReleaseToPool(transaction->to_set, &lock_pool);
+     }
+     if (transaction->to_free) {
+	  ReleaseToPool(transaction->to_free, &lock_pool);
+     }
+     if (transaction->conflicting) {
+	  ReleaseToPool(transaction->conflicting, &lock_pool);
+     }
+
+     Mem_Free(transaction);
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_lock_get_stateid(state_share_trans_t* transaction,
+			    stateid4* stateid)
+{
+     if (transaction->status != TRANSACT_COMPLETED) {
+	  return ERR_STATE_NOENT;
+     }
+
+     *stateid = transaction->lock_state->stateid;
+
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_lock_get_nfs4err(state_share_trans_t* transaction,
+			    nfsstat4* error)
+{
+     if ((transaction->status == TRANSACT_LIVE) ||
+	 (transaction->status == TRANSACT_ABORTED)) {
+	  return ERR_STATE_NOENT;
+     }
+
+     if (transaction->status == TRANSACT_COMPLETED) {
+	  *error = NFS4_OK;
+     } else if (transaction->errsource == ERROR_SOURCE_SAL) {
+	  *error = staterr2nfs4err(transaction->errcode);
+     } else if (transaction->errsource == ERROR_SOURCE_FSAL) {
+	  fsal_status_t fsal_status;
+	  fsal_status.major = transaction->errcode;
+	  *error =
+	       nfs4_Errno(cache_inode_error_convert(fsal_status));
+     } else {
+	  *error = NFS4ERR_SERVERFAULT;
+     }
+
+     return ERR_STATE_NO_ERROR;
+}
+
+int
+localstate_lock_get_nfs4conflict(state_share_trans_t* transaction,
+				 uint64_t* offset,
+				 uint64_t* length,
+				 uint32_t* type,
+				 lock_owner4* lock_owner)
+{
+     if (transaction->errcode != ERR_STATE_CONFLICT ||
+	 !transaction->conflicting) {
+	  return ERR_STATE_NOENT;
+     }
+
+     *offset = transaction->conflicting->offset;
+     *length = transaction->conflicting->length;
+     *type = (transaction->conflicting->exclusive ?
+	      WRITE_LT :
+	      READ_LT);
+     if (transaction->lock_state->state.lock.lock_owner->key.owner_type
+	 == LOCKOWNER_NFS4) {
+	  lock_owner4->clientid
+	       = (transaction->lock_state->state.lock.lock_owner->
+		  key.u.nfs4_owner.clientid);
+	  lock_owner4->owner.owner_len
+	       = (transaction->lock_state->state.lock.lock_owner->
+		  key.u.nfs4_owner.owner_len);
+	  lock_owner4->owner.owner_val
+	       = (transaction->lock_state->state.lock.lock_owner->
+		  key.u.nfs4_owner.owner_val);
+     } else {
+	  lock_owner4->clientid = 0;
+	  lock_owner4->owner.owner_len = 0;
+	  lock_owner4->owner.owner_val = NULL;
+     }
+     return ERR_STATE_NO_ERROR;
+}

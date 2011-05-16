@@ -149,10 +149,10 @@ share_state_cmp_func(hash_buffer_t* key1,
      fsal_handle_t* handle1 = &state1->perfile->handle;
      fsal_handle_t* handle2 = &state2->perfile->handle;
      open_owner_key_t* open_owner1 =
-	  &(state1->state.share.open_owner->key); 
+	  &(state1->state.share.open_owner->key);
      open_owner_key_t* open_owner2 =
-	  &(state2->state.share.open_owner->key); 
-  
+	  &(state2->state.share.open_owner->key);
+
      if (FSAL_handlecmp(handle1, handle2,
 			&status)) {
 	  return !(open_owners_equal(open_owner1, open_owner2));
@@ -1073,7 +1073,7 @@ localstate_share_dispose_transaction(state_share_trans_t* transaction)
 {
      if (transaction->status = TRANSACT_LIVE) {
 	  localstatestate_share_abort(transaction);
-     } 
+     }
 
      Mem_Free(transaction);
      return ERR_STATE_NO_ERROR;
@@ -1101,7 +1101,7 @@ localstate_share_get_nfs4err(state_share_trans_t* transaction,
 	 (transaction->status == TRANSACT_ABORTED)) {
 	  return ERR_STATE_NOENT;
      }
-     
+
      if (transaction->status == TRANSACT_COMPLETED) {
 	  *error = NFS4_OK;
      } else if (transaction->errsource == ERROR_SOURCE_SAL) {
@@ -1114,7 +1114,7 @@ localstate_share_get_nfs4err(state_share_trans_t* transaction,
      } else {
 	  *error = NFS4ERR_SERVERFAULT;
      }
-     
+
      return ERR_STATE_NO_ERROR;
 }
 
@@ -1175,7 +1175,7 @@ localstate_share_descriptor(fsal_handle_t* handle,
 	  rc = ERR_STATE_FAIL;
 	  goto out;
      }
-     
+
      if (pthread_rwlock_rdlock(&(state->perfile->lock)) != 0) {
 	  rc = ERR_STATE_FAIL;
 	  goto out;

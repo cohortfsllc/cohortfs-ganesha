@@ -25,11 +25,11 @@
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
-#endif                          /* HAVE_CONFIG_H */ 
+#endif /* HAVE_CONFIG_H */
 
 #ifdef _SOLARIS
 #include "solaris_port.h"
-#endif                          /* _SOLARIS */
+#endif /* _SOLARIS */
 
 #include "log_macros.h"
 #include "fsal_types.h"

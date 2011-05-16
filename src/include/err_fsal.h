@@ -162,12 +162,12 @@ static family_error_t __attribute__ ((__unused__)) tab_errstatus_FSAL[] =
 #define ERR_FSAL_RANGE          20012
   {
   ERR_FSAL_RANGE, "ERR_FSAL_RANGE", "Unsupported subrange operation attempted"},
-#define ERR_FSAL_DEADLOCK       20013
+#define ERR_FSAL_REVOKED       20013
   {
-  ERR_FSAL_RANGE, "ERR_FSAL_REVOKED", "The resources was revoked by the substrate filesystem"},
-#define ERR_FSAL_REVOKED        20014
+  ERR_FSAL_REVOKED, "ERR_FSAL_REVOKED", "The resources was revoked by the substrate filesystem"},
+#define ERR_FSAL_DEADLOCK        20014
   {
-  ERR_FSAL_RANGE, "ERR_FSAL_DEADLOCK", "Requested operation would deadlock"},
+  ERR_FSAL_DEADLOCK, "ERR_FSAL_DEADLOCK", "Requested operation would deadlock"},
   {
   ERR_NULL, "ERR_NULL", ""}
 };

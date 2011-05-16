@@ -16,7 +16,7 @@
 #include "lookup3.h"
 
 /************************************************************************
- * Global pools 
+ * Global pools
  *
  * A few pools for local data structures.
  ***********************************************************************/
@@ -26,9 +26,10 @@ prealloc_pool open_owner_pool;
 prealloc_pool lock_owner_pool;
 prealloc_pool state_pool;
 prealloc_pool openref_pool;
+prealloc_pool lock_pool;
 
 /************************************************************************
- * Hash Tables 
+ * Hash Tables
  *
  * I am not entirely happy with this data structure, but it will get
  * the job done for now.
@@ -51,23 +52,23 @@ display_stateid_key(hash_buffer_t * pbuff, char *str)
 {
      unsigned int i = 0;
      unsigned int len = 0;
-     
+
      for(i = 0; i < 12; i++)
 	  len += sprintf(&(str[i * 2]), "%02x", (unsigned char)pbuff->pdata[i]);
      return len;
-}                               /* display_state_id_val */
+}
 
 static int
 display_stateid_val(hash_buffer_t * pbuff, char *str)
 {
     return 0;
-}                               /* display_state_id_val */
+}
 
 static int
 compare_stateid(hash_buffer_t * buff1, hash_buffer_t * buff2)
 {
-     return memcmp(buff1->pdata, buff2->pdata, 12);        /* The value 12 is fixed by RFC3530 */
-}                               /* compare_state_id */
+     return memcmp(buff1->pdata, buff2->pdata, 12);
+}
 
 static unsigned long
 stateid_value_hash_func(hash_parameter_t * p_hparam,
@@ -76,19 +77,19 @@ stateid_value_hash_func(hash_parameter_t * p_hparam,
      unsigned int sum = 0;
      unsigned int i = 0;
      unsigned char c;
-     
+
      /* Compute the sum of all the characters */
      for(i = 0; i < 12; i++)
      {
 	  c = ((char *)buffclef->pdata)[i];
 	  sum += c;
      }
-     
+
      LogFullDebug(COMPONENT_STATES, "---> state_id_value_hash_func=%lu",
 		  (unsigned long)(sum % p_hparam->index_size));
-     
+
      return (unsigned long)(sum % p_hparam->index_size);
-}                               /*  client_id_reverse_value_hash_func */
+}
 
 static unsigned long
 stateid_rbt_hash_func(hash_parameter_t * p_hparam,
@@ -97,20 +98,22 @@ stateid_rbt_hash_func(hash_parameter_t * p_hparam,
      u_int32_t i1 = 0;
      u_int32_t i2 = 0;
      u_int32_t i3 = 0;
-     
+
      if(isFullDebug(COMPONENT_STATES)) {
 	  char str[25];
-	    
+
 	  sprint_mem(str, (char *)buffclef->pdata, 12);
-	  LogFullDebug(COMPONENT_SESSIONS, "         ----- state_id_rbt_hash_func : %s", str);
+	  LogFullDebug(COMPONENT_SESSIONS,
+		       "         ----- state_id_rbt_hash_func : %s", str);
      }
-    
+
      memcpy(&i1, &(buffclef->pdata[0]), sizeof(u_int32_t));
      memcpy(&i2, &(buffclef->pdata[4]), sizeof(u_int32_t));
      memcpy(&i3, &(buffclef->pdata[8]), sizeof(u_int32_t));
-     
-     LogFullDebug(COMPONENT_STATES, "--->  state_id_rbt_hash_func=%lu", (unsigned long)(i1 ^ i2 ^ i3));
-     
+
+     LogFullDebug(COMPONENT_STATES, "--->  state_id_rbt_hash_func=%lu",
+		  (unsigned long)(i1 ^ i2 ^ i3));
+
      return (unsigned long)(i1 ^ i2 ^ i3);
 }
 
@@ -159,7 +162,7 @@ static int
 handle_compare_key_fsal(hash_buffer_t * buff1, hash_buffer_t * buff2)
 {
      fsal_status_t status;
-     
+
      return (FSAL_handlecmp((fsal_handle_t*)buff1->pdata,
 			    (fsal_handle_t*)buff2->pdata,
 			    &status));
@@ -230,7 +233,7 @@ assign_stateid(state_t* state)
      {
 	  LogCrit(COMPONENT_STATES,
 		  "Unable to create new stateid.  This should not happen.");
-	    
+
 	  return ERR_STATE_FAIL;
      }
 
@@ -242,14 +245,14 @@ lookup_state(stateid4 stateid, state_t** state)
 {
      int rc = 0;
      hash_buffer_t key, val;
-    
+
      key.pdata = stateid.other;
      key.len = 12;
-    
+
      rc = HashTable_Get(stateid_table, &key, &val);
 
      *state = NULL;
-    
+
      if (rc == HASHTABLE_ERROR_NO_SUCH_KEY)
 	  return ERR_STATE_NOENT;
      else if (rc != HASHTABLE_SUCCESS)
@@ -277,7 +280,7 @@ acquire_perfile_state(fsal_handle_t *handle,
 {
      hash_buffer_t key, val;
      int rc = 0;
-     
+
      *perfile = NULL;
 
      GetFromPool(*perfile, &perfile_state_pool, perfile_state_t);
@@ -308,7 +311,7 @@ acquire_perfile_state(fsal_handle_t *handle,
 	  *perfile = NULL;
 	  return ERR_STATE_FAIL;
      }
-     
+
      return ERR_STATE_NO_ERROR;
 }
 

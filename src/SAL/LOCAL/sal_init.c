@@ -37,25 +37,21 @@ int localstate_init(void)
 		   "state_init: could not initialise open owner table.");
 	  return ERR_STATE_FAIL;
      }
-#if 0
      if (!init_lock_owner_table()) {
 	  LogMajor(COMPONENT_STATES,
 		   "state_init: could not initialise lock owner table.");
 	  return ERR_STATE_FAIL;
      }
-#endif
      if (!init_share_state_table()) {
 	  LogMajor(COMPONENT_STATES,
 		   "state_init: could not initialise share state table.");
 	  return ERR_STATE_FAIL;
      }
-#if 0
      if (!init_lock_state_table()) {
 	  LogMajor(COMPONENT_STATES,
 		   "state_init: could not initialise lock state table.");
 	  return ERR_STATE_FAIL;
      }
-#endif
      if (!init_openref_table()) {
 	  LogMajor(COMPONENT_STATES,
 		   "state_init: could not initialise openref table.");
@@ -67,7 +63,8 @@ int localstate_init(void)
      InitPool(&open_owner_pool, 1000, open_owner_t, NULL, NULL);
      InitPool(&lock_owner_pool, 1000, lock_owner_info_t, NULL, NULL);
      InitPool(&openref_pool, 1000, openref_t, NULL, NULL);
-     
+     InitPool(&lock_pool, 1000, lock_t, NULL, NULL);
+
      return ERR_STATE_NO_ERROR;
 }
 

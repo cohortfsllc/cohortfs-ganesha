@@ -24,4 +24,8 @@ typedef struct state_lock_trans__ {
      state_trans_status_t status;
      state_trans_errsource_t errsource;
      uint32_t errcode;
+     struct state__* lock_state;
+     struct lock__* to_set;
+     struct lock__* to_free;
+     struct lock__* conflicting;
 } state_lock_trans_t;
