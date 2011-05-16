@@ -118,7 +118,29 @@ XFSFSAL_lock(xfsfsal_file_t* descriptor, /* IN */
 	     xfsfsal_lockpromise_t* promise /* OUT */
     )
 {
-    Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_lock);
+  int retval;
+  int errsv = 0;
+  int fd = descriptor->fd;
+  struct flock poslock;
+
+  poslock.l_type = ((*type & FSAL_LOCKTYPE_EXCLUSIVE) ?
+		    F_WRLCK :
+		    F_RDLCK);
+  poslock.l_whence = SEEK_SET;
+  poslock.l_start = *offset;
+  poslock.l_len = *length;
+  
+  errno = 0;
+  retval = fcntl(fd, F_SETLK, &poslock);
+
+
+  if(retval)
+    {
+      Return(posix2fsal_error(errno), errno, INDEX_FSAL_lock);
+    }
+
+  /* granted lock */
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_lock);
 }
 
 /**
@@ -180,7 +202,22 @@ XFSFSAL_unlock(xfsfsal_file_t* descriptor, /* IN */
 	       fsal_filelockinfo_t* fileinfo /* IN/OUT */
     )
 {
-    Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_unlock);
+  int retval;
+  int fd = descriptor->fd;
+  struct flock poslock;
+
+  poslock.l_type = F_UNLCK;
+  poslock.l_whence = SEEK_SET;
+  poslock.l_start = offset;
+  poslock.l_len = length;
+
+  errno = 0;
+
+  retval = fcntl(fd, F_SETLK, &poslock);
+  if(retval)
+    Return(posix2fsal_error(errno), errno, INDEX_FSAL_unlock);
+
+  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_unlock);
 }
 
 /**
@@ -246,7 +283,6 @@ XFSFSAL_unlock(xfsfsal_file_t* descriptor, /* IN */
  *        - Other error codes when something abnormal occurs.
  */
 
-
 fsal_status_t
 XFSFSAL_lockt(xfsfsal_file_t* descriptor, /* IN */
 	      fsal_off_t* offset, /* IN/OUT */
@@ -258,101 +294,3 @@ XFSFSAL_lockt(xfsfsal_file_t* descriptor, /* IN */
 {
     Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_lockt);
 }
-
-
-#ifdef undef
-
-static int do_blocking_lock(xfsfsal_file_t * obj_handle, xfsfsal_lockdesc_t * ldesc)
-{
-  /*
-   * Linux client have this grant hack of pooling for
-   * availablity when we returned NLM4_BLOCKED. It just
-   * poll with a large timeout. So depend on the hack for
-   * now. Later we should really do the block lock support
-   */
-  errno = EAGAIN;
-  return -1;
-}
-
-/**
- * FSAL_lock:
- */
-fsal_status_t XFSFSAL_lock(xfsfsal_file_t * obj_handle,
-                           xfsfsal_lockdesc_t * ldesc, fsal_boolean_t blocking)
-{
-  int retval;
-  int errsv = 0;
-
-  int fd = obj_handle->fd;
-
-  errno = 0;
-  /*
-   * First try a non blocking lock request. If we fail due to
-   * lock already being held, and if blocking is set for
-   * a child and do a waiting lock
-   */
-  retval = fcntl(fd, F_SETLK, &ldesc->flock);
-  if(retval)
-    {
-      if((errno == EACCES) || (errno == EAGAIN))
-        {
-          if(blocking)
-            {
-              do_blocking_lock(obj_handle, ldesc);
-            }
-        }
-      Return(posix2fsal_error(errno), errno, INDEX_FSAL_lock);
-    }
-  /* granted lock */
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_lock);
-}
-
-/**
- * FSAL_changelock:
- * Not implemented.
- */
-fsal_status_t XFSFSAL_changelock(xfsfsal_lockdesc_t * lock_descriptor,  /* IN / OUT */
-                                 fsal_lockparam_t * lock_info   /* IN */
-    )
-{
-
-  /* sanity checks. */
-  if(!lock_descriptor)
-    Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_changelock);
-
-  Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_changelock);
-
-}
-
-/**
- * FSAL_unlock:
- *
- */
-fsal_status_t XFSFSAL_unlock(xfsfsal_file_t * obj_handle, xfsfsal_lockdesc_t * ldesc)
-{
-  int retval;
-  int fd = obj_handle->fd;
-
-  errno = 0;
-  ldesc->flock.l_type = F_UNLCK;
-  retval = fcntl(fd, F_SETLK, &ldesc->flock);
-  if(retval)
-    Return(posix2fsal_error(errno), errno, INDEX_FSAL_unlock);
-
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_unlock);
-}
-
-fsal_status_t XFSFSAL_getlock(xfsfsal_file_t * obj_handle, xfsfsal_lockdesc_t * ldesc)
-{
-  int retval;
-  int fd = obj_handle->fd;
-
-  errno = 0;
-  retval = fcntl(fd, F_GETLK, &ldesc->flock);
-  if(retval)
-    Return(posix2fsal_error(errno), errno, INDEX_FSAL_getlock);
-
-  Return(ERR_FSAL_NO_ERROR, 0, INDEX_FSAL_getlock);
-}
-
-#endif /* undef */
