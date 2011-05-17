@@ -25,7 +25,7 @@
 
 
 /**
- * \file    nfs41_op_open.c
+ * \file    nfs4_op_open.c
  * \author  $Author: deniel $
  * \date    $Date: 2005/11/28 17:02:51 $
  * \version $Revision: 1.18 $
@@ -200,6 +200,8 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
       return res_OPEN4.status;
     }
 
+  printf("I am the nfs4_op_open function.\n");
+
   /* Switch to filter out errors */
   switch (arg_OPEN4.claim.claim)
     {
@@ -330,6 +332,8 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 					    fsal_attrib_list_t */
 	bool_t created = FALSE; /* File was created */
 	bool_t truncated = FALSE; /* Existing file was truncated */
+
+	printf("I am being asked to create a file.\n");
 
 	memset(&fsal_crattrs, 0, sizeof(fsal_attrib_list_t));
 
@@ -618,8 +622,9 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
 	= OPEN4_RESULT_LOCKTYPE_POSIX; 
     }
 
-  if (state_share_commit(transaction))
+  if (state_share_commit(transaction) == ERR_STATE_NO_ERROR)
     {
+      printf("My commit was successful!\n");
       state_share_get_stateid(transaction,
 			      &(res_OPEN4.OPEN4res_u.resok4.stateid));
       res_OPEN4.status = NFS4_OK;
@@ -627,6 +632,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
     }
   else
     {
+      printf("My commit failed.\n");
       if (res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_len)
 	{
 	  Mem_Free((char *)res_OPEN4.OPEN4res_u.resok4.attrset.bitmap4_val);

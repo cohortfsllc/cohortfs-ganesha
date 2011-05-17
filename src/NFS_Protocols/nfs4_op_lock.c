@@ -109,6 +109,8 @@ int nfs4_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   bool_t exclusive = FALSE;
   bool_t blocking = FALSE;
 
+  resp->resop = NFS4_OP_LOCK;
+
   /* If there is no FH */
   if (nfs4_Is_Fh_Empty(&(data->currentFH)))
     {

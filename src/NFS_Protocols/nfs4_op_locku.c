@@ -103,7 +103,6 @@ int nfs4_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   unsigned int rc = 0;
   state_lock_trans_t* transaction;
 
-  /* Lock are not supported */
   resp->resop = NFS4_OP_LOCKU;
 
   /* If there is no FH */

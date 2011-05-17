@@ -163,13 +163,13 @@ share_state_cmp_func(hash_buffer_t* key1,
 
 static unsigned int 
 share_state_hash_func(hash_parameter_t* hashparm,
-		     hash_buffer_t* keybuff,
-		     uint32_t* hashval,
-		     uint32_t* rbtval)
+		      hash_buffer_t* keybuff,
+		      uint32_t* hashval,
+		      uint32_t* rbtval)
 {
      uint32_t h1 = 0;
      uint32_t h2 = 0;
-     state_t* state = (state_t*) keybuff;
+     state_t* state = (state_t*) keybuff->pdata;
      fsal_handle_t* handle = &state->perfile->handle;
      open_owner_key_t* open_owner =
 	  &(state->state.share.open_owner->key); 
@@ -376,9 +376,9 @@ acquire_openref(fsal_handle_t* handle,
 	       }
 	  }
 	  else if (((currentmode == FSAL_O_RDONLY) &&
-		    (share_access | OPEN4_SHARE_ACCESS_WRITE)) ||
+		    (share_access & OPEN4_SHARE_ACCESS_WRITE)) ||
 		   ((currentmode == FSAL_O_WRONLY) &&
-		    (share_access | OPEN4_SHARE_ACCESS_READ)))
+		    (share_access & OPEN4_SHARE_ACCESS_READ)))
 	       currentmode = FSAL_O_RDWR;
      }
      
@@ -498,6 +498,7 @@ start_anon(fsal_handle_t *handle,
      int errsource;
      bool_t perfile_lock_acquired = FALSE;
      openref_t* openref;
+
      
      /* Retrieve or create header for per-filehandle chain */
      
@@ -510,10 +511,13 @@ start_anon(fsal_handle_t *handle,
 	  goto out;
      }
      
+     printf("I am start_anon.\n");
+     printf("I am acquiring the lock on %llx.\n", perfile);
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  rc = CACHE_INODE_STATE_ERROR;
 	  goto out;
      } else {
+	  printf("I have acquired the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = TRUE;
      }
 
@@ -550,9 +554,11 @@ start_anon(fsal_handle_t *handle,
      }
      
      rc = CACHE_INODE_SUCCESS;
+
 out:
      if (perfile_lock_acquired) {
 	  pthread_rwlock_unlock(&(perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = FALSE;
      }
      return rc;
@@ -570,6 +576,7 @@ end_anon(fsal_handle_t *handle,
      openref_t* openref;
      
      /* Retrieve or create header for per-filehandle chain */
+
      
      if ((rc = acquire_perfile_state(handle, &perfile)) !=
 	 ERR_STATE_NO_ERROR) {
@@ -580,10 +587,13 @@ end_anon(fsal_handle_t *handle,
 	  goto out;
      }
      
+     printf("I am end_anon.\n");
+     printf("I am acquiring the lock on %llx.\n", perfile);
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  rc = CACHE_INODE_STATE_ERROR;
 	  goto out;
      } else {
+	  printf("I have acquired the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = TRUE;
      }
 
@@ -610,6 +620,7 @@ end_anon(fsal_handle_t *handle,
 out:
      if (perfile_lock_acquired) {
 	  pthread_rwlock_unlock(&(perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = FALSE;
      }
      return rc;
@@ -667,7 +678,6 @@ localstate_open_owner_begin41(clientid4 clientid,
 			      state_share_trans_t** transaction)
 {
      int rc = 0;
-     perfile_state_t* perfile;
      state_t* state = NULL;
      open_owner_t* owner;
      bool_t owner_created = FALSE;
@@ -678,7 +688,6 @@ localstate_open_owner_begin41(clientid4 clientid,
 				  &owner_created,
 				  &owner))
 	 != ERR_STATE_NO_ERROR) {
-	  pthread_rwlock_unlock(&(perfile->lock));
 	  return rc;
 }
      
@@ -688,7 +697,6 @@ localstate_open_owner_begin41(clientid4 clientid,
 
      if (!owner_created) {
 	  if ((rc = pthread_mutex_lock(&(owner->mutex))) != 0) {
-	       pthread_rwlock_unlock(&(perfile->lock));
 	       maybe_kill_open_owner(owner);
 	       return ERR_STATE_FAIL;
 	  }
@@ -721,6 +729,7 @@ localstate_open_stateid_begin41(stateid4 stateid,
      *transaction = (state_share_trans_t*) Mem_Alloc(sizeof(state_share_trans_t));
      (*transaction)->status = TRANSACT_LIVE;
      (*transaction)->share_state = share_state;
+     (*transaction)->owner = share_state->state.share.open_owner;
 
      return ERR_STATE_NO_ERROR;
 }
@@ -762,6 +771,8 @@ localstate_share_open(state_share_trans_t* transaction,
 	  goto out;
      }
      
+     printf("I am localstate_share_open.\n");
+     printf("I am acquiring the lock on %llx.\n", perfile);
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  transaction->status = TRANSACT_FAILED;
 	  transaction->errsource = ERROR_SOURCE_SAL;
@@ -769,6 +780,7 @@ localstate_share_open(state_share_trans_t* transaction,
 	  goto out;
      } else {
 	  perfile_lock_acquired = TRUE;
+	  printf("I have acquired the lock on %llx.\n", perfile);
      }
 	  
      /* If there is no share state, create or find it. */
@@ -846,10 +858,10 @@ localstate_share_open(state_share_trans_t* transaction,
 	  } else {
 	       transaction->share_state->state.share.openref = openref;
 	       state->state.share.share_access |= share_access;
-	       if (share_access | OPEN4_SHARE_ACCESS_READ) {
+	       if (share_access & OPEN4_SHARE_ACCESS_READ) {
 		    perfile->access_readers++;
 	       }
-	       if (share_access | OPEN4_SHARE_ACCESS_WRITE) {
+	       if (share_access & OPEN4_SHARE_ACCESS_WRITE) {
 		    perfile->access_writers++;
 	       }
 	  }
@@ -859,10 +871,10 @@ localstate_share_open(state_share_trans_t* transaction,
 
      if (share_deny) {
 	  state->state.share.share_deny |= share_deny;
-	  if (share_deny | OPEN4_SHARE_DENY_READ) {
+	  if (share_deny & OPEN4_SHARE_DENY_READ) {
 	       perfile->deny_readers++;
 	  }
-	  if (share_deny | OPEN4_SHARE_DENY_WRITE) {
+	  if (share_deny & OPEN4_SHARE_DENY_WRITE) {
 	       perfile->deny_writers++;
 	  }
      }
@@ -879,6 +891,7 @@ localstate_share_open(state_share_trans_t* transaction,
 out:
      if (perfile_lock_acquired) {
 	  pthread_rwlock_unlock(&(perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = FALSE;
      }
      return rc;
@@ -915,27 +928,30 @@ localstate_share_close(state_share_trans_t* transaction,
 	  transaction->status = TRANSACT_FAILED;
 	  rc = transaction->errcode = ERR_STATE_FAIL;
      } 
-     
+
+     printf("I am localstate_share_close.\n");
+     printf("I am acquiring the lock on %llx.\n", perfile);
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  transaction->status = TRANSACT_FAILED;
 	  transaction->errsource = ERROR_SOURCE_SAL;
 	  rc = transaction->errcode = ERR_STATE_FAIL;
 	  goto out;
      } else {
+	  printf("I have acquired the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = TRUE;
      }
 
-     if (state->state.share.share_access | OPEN4_SHARE_ACCESS_READ) {
+     if (state->state.share.share_access & OPEN4_SHARE_ACCESS_READ) {
 	  perfile->access_readers--;
      }
-     if (state->state.share.share_access | OPEN4_SHARE_ACCESS_WRITE) {
+     if (state->state.share.share_access & OPEN4_SHARE_ACCESS_WRITE) {
 	  perfile->access_writers--;
      }
-     if (state->state.share.share_deny | OPEN4_SHARE_DENY_READ) {
+     if (state->state.share.share_deny & OPEN4_SHARE_DENY_READ) {
 	  perfile->deny_readers--;
      }
-     if (state->state.share.share_deny | OPEN4_SHARE_DENY_READ) {
-	  perfile->deny_readers--;
+     if (state->state.share.share_deny & OPEN4_SHARE_DENY_WRITE) {
+	  perfile->deny_writers--;
      }
 
      state->state.share.openref->refcount--;
@@ -955,6 +971,7 @@ localstate_share_close(state_share_trans_t* transaction,
 out:
      if (perfile_lock_acquired) {
 	  pthread_rwlock_unlock(&(perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = FALSE;
      }
      return rc;
@@ -994,29 +1011,32 @@ localstate_share_downgrade(state_share_trans_t* transaction,
 	  rc = transaction->errcode = ERR_STATE_FAIL;
      } 
      
+     printf("I am localstate_share_downgrade.\n");
+     printf("I am acquiring the lock on %llx.\n", perfile);
      if (pthread_rwlock_wrlock(&(perfile->lock)) != 0) {
 	  transaction->status = TRANSACT_FAILED;
 	  transaction->errsource = ERROR_SOURCE_SAL;
 	  rc = transaction->errcode = ERR_STATE_FAIL;
 	  goto out;
      } else {
+	  printf("I have acquired the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = TRUE;
      }
 
      access_relinquished = state->state.share.share_access &~ share_access;
      deny_relinquished = state->state.share.share_deny &~ share_deny;
 
-     if (access_relinquished | OPEN4_SHARE_ACCESS_READ) {
+     if (access_relinquished & OPEN4_SHARE_ACCESS_READ) {
 	  perfile->access_readers--;
      }
-     if (access_relinquished | OPEN4_SHARE_ACCESS_WRITE) {
+     if (access_relinquished & OPEN4_SHARE_ACCESS_WRITE) {
 	  perfile->access_writers--;
      }
-     if (deny_relinquished | OPEN4_SHARE_DENY_READ) {
+     if (deny_relinquished & OPEN4_SHARE_DENY_READ) {
 	  perfile->deny_readers--;
      }
-     if (deny_relinquished | OPEN4_SHARE_DENY_READ) {
-	  perfile->deny_readers--;
+     if (deny_relinquished & OPEN4_SHARE_DENY_WRITE) {
+	  perfile->deny_writers--;
      }
 
      state->state.share.share_access = share_access;
@@ -1027,6 +1047,7 @@ localstate_share_downgrade(state_share_trans_t* transaction,
 out:
      if (perfile_lock_acquired) {
 	  pthread_rwlock_unlock(&(perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", perfile);
 	  perfile_lock_acquired = FALSE;
      }
      return rc;
@@ -1040,7 +1061,7 @@ localstate_share_commit(state_share_trans_t* transaction)
 	  return ERR_STATE_DEAD_TRANSACTION;
      }
 
-     transaction->status = ((transaction->status = TRANSACT_LIVE) ?
+     transaction->status = ((transaction->status == TRANSACT_LIVE) ?
 			    TRANSACT_COMPLETED :
 			    TRANSACT_PYRRHIC_VICTORY);
 
@@ -1164,7 +1185,6 @@ localstate_share_descriptor(fsal_handle_t* handle,
 			    fsal_file_t** descriptor)
 {
      int rc = 0;
-     perfile_state_t* perfile;
      bool_t perfile_lock_acquired = FALSE;
      state_t* state;
 
@@ -1176,19 +1196,25 @@ localstate_share_descriptor(fsal_handle_t* handle,
 	  goto out;
      }
 
+     printf("I am localstate_share_descriptor.\n");
+     printf("I am acquiring the lock on %llx.\n", state->perfile);
      if (pthread_rwlock_rdlock(&(state->perfile->lock)) != 0) {
 	  rc = ERR_STATE_FAIL;
 	  goto out;
      } else {
+	  printf("I have acquired the lock on %llx.\n", state->perfile);
 	  perfile_lock_acquired = TRUE;
      }
 
      *descriptor = &(state->state.share.openref->descriptor);
      rc = ERR_STATE_NO_ERROR;
 
+     
+
 out:
      if (perfile_lock_acquired) {
-	  pthread_rwlock_unlock(&(perfile->lock));
+	  pthread_rwlock_unlock(&(state->perfile->lock));
+	  printf("I have relinquished the lock on %llx.\n", state->perfile);
      }
 
      return rc;

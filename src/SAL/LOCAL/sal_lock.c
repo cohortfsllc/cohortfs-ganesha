@@ -333,7 +333,7 @@ lock_state_hash_func(hash_parameter_t* hashparm,
 {
      uint32_t h1 = 0;
      uint32_t h2 = 0;
-     state_t* lock_state = (state_t*) keybuff;
+     state_t* lock_state = (state_t*) keybuff->pdata;
      fsal_handle_t* handle = &lock_state->perfile->handle;
      open_owner_key_t* open_owner
 	  = (lock_state->state.lock.open_state ?

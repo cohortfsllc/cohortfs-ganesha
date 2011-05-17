@@ -94,6 +94,8 @@
 #define fsal_filelockinfo_t xfsfsal_filelockinfo_t
 #define fsal_lockpromise_t xfsfsal_lockpromise_t
 
+#define print_xfs_handle(x) do {int i; printf("I am printing a filehandle.  It is for inode 0x%lx.\n", (x)->data.inode); printf("Its value is: 0x"); for(i = 0; i <= (x)->data.handle_len; i++) {printf("%hhx", (x)->data.handle_val[i]);}printf("\n");} while (0)
+
 typedef union {
  struct
   {

@@ -281,6 +281,8 @@ acquire_perfile_state(fsal_handle_t *handle,
      hash_buffer_t key, val;
      int rc = 0;
 
+     print_xfs_handle(handle);
+
      *perfile = NULL;
 
      GetFromPool(*perfile, &perfile_state_pool, perfile_state_t);
@@ -288,7 +290,7 @@ acquire_perfile_state(fsal_handle_t *handle,
 	  return ERR_STATE_FAIL;
      }
 
-     (*perfile)->handle = *handle;
+     (*perfile)->handle = (*handle);
 
      key.pdata = (caddr_t) &((*perfile)->handle);
      key.len = sizeof(fsal_handle_t);
@@ -301,7 +303,10 @@ acquire_perfile_state(fsal_handle_t *handle,
      (*perfile)->anon_readers = 0;
      (*perfile)->anon_writers = 0;
 
-     rc = HashTable_Set_Or_Fetch(lock_state_table, &key, &val);
+     val.pdata = (caddr_t) *perfile;
+     val.len = sizeof(perfile_state_t);
+
+     rc = HashTable_Set_Or_Fetch(perfile_state_table, &key, &val);
      if (rc == HASHTABLE_ERROR_KEY_ALREADY_EXISTS) {
 	  ReleaseToPool(*perfile, &perfile_state_pool);
 	  *perfile = (perfile_state_t*) val.pdata;
