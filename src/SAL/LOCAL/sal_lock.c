@@ -24,7 +24,7 @@ void
 link_lock(lock_t** chain,
 	  lock_t* lock)
 {
-     if (chain) {
+     if (*chain) {
 	  lock->next = *chain;
 	  lock->prev = NULL;
 	  (*chain)->prev = lock;
@@ -95,10 +95,11 @@ find_conflict(lock_t* chain,
 	  if (overlap(candidate, index)) {
 	       if (candidate->exclusive ||
 		   index->exclusive) {
-		    if (state_compare_lock_owner(index->state->state.lock.
-						 lock_owner->key,
-						 (candidate->state->state.lock.
-						  lock_owner->key))) {
+		    if (!(state_compare_lock_owner(index->state->state.lock.
+						   lock_owner->key,
+						   (candidate->state->state.lock.
+						    lock_owner->key))))
+		    {
 			 conflicting = index;
 			 break;
 		    }
@@ -116,75 +117,79 @@ set_lock(lock_t* lock, lock_t** chain)
 
      lock_t* index;
 
-     for (index = *chain; index; index = index->next) {
-	  if (index->state != lock->state)
-	       continue;
-	  switch (overlap(lock, index)) {
-	  case LOCKS_DISJOINT:
-	       link_lock(chain, lock);
-	       break;
-
-	  case LOCKS_EQUAL:
-	       index->exclusive = lock->exclusive;
-	       ReleaseToPool(lock, &lock_pool);
-	       break;
-
-	  case LOCK1_SUPERSET:
-	       unlink_lock(chain, index);
-	       ReleaseToPool(index, &lock_pool);
-	       link_lock(chain, lock);
-	       break;
-
-	  case LOCK1_SUBSET:
-	       if (lock->exclusive == index->exclusive) {
-		    ReleaseToPool(lock, &lock_pool);
-	       } else {
-		    lock_t* after;
-		    GetFromPool(after, &lock_owner_pool, lock_t);
-		    *after = *index;
-		    index->length = lock->offset - index->offset;
-		    after->offset = lock->offset + lock->length;
-		    after->length = (index->offset + after->length
-				     - after->offset);
+     if (!(*chain)) {
+	  link_lock(chain, lock);
+     } else {
+	  for (index = *chain; index; index = index->next) {
+	       if (index->state != lock->state)
+		    continue;
+	       switch (overlap(lock, index)) {
+	       case LOCKS_DISJOINT:
 		    link_lock(chain, lock);
-		    link_lock(chain, after);
-	       }
-	       break;
-
-	  case LOCK1_BEGINS_BEFORE:
-	       if (lock->exclusive == index->exclusive) {
-		    if (index->length == NFS4_UINT64_MAX) {
-			 index->offset = lock->offset;
+		    break;
+		    
+	       case LOCKS_EQUAL:
+		    index->exclusive = lock->exclusive;
+		    ReleaseToPool(lock, &lock_pool);
+		    break;
+		    
+	       case LOCK1_SUPERSET:
+		    unlink_lock(chain, index);
+		    ReleaseToPool(index, &lock_pool);
+		    link_lock(chain, lock);
+		    break;
+		    
+	       case LOCK1_SUBSET:
+		    if (lock->exclusive == index->exclusive) {
+			 ReleaseToPool(lock, &lock_pool);
 		    } else {
-			 index->length = (index->length + index->offset -
-					  lock->offset);
-			 index->offset = lock->offset;
+			 lock_t* after;
+			 GetFromPool(after, &lock_owner_pool, lock_t);
+			 *after = *index;
+			 index->length = lock->offset - index->offset;
+			 after->offset = lock->offset + lock->length;
+			 after->length = (index->offset + after->length
+					  - after->offset);
+			 link_lock(chain, lock);
+			 link_lock(chain, after);
 		    }
-		    ReleaseToPool(lock, &lock_pool);
-	       } else {
-		    if (index->length == NFS4_UINT64_MAX) {
-			 index->offset = lock->offset + lock->length;
+		    break;
+		    
+	       case LOCK1_BEGINS_BEFORE:
+		    if (lock->exclusive == index->exclusive) {
+			 if (index->length == NFS4_UINT64_MAX) {
+			      index->offset = lock->offset;
+			 } else {
+			      index->length = (index->length + index->offset -
+					       lock->offset);
+			      index->offset = lock->offset;
+			 }
+			 ReleaseToPool(lock, &lock_pool);
 		    } else {
-			 index->length = (index->length + index->offset -
-					  (lock->length + lock->offset));
-			 index->offset = lock->offset + lock->length;
+			 if (index->length == NFS4_UINT64_MAX) {
+			      index->offset = lock->offset + lock->length;
+			 } else {
+			      index->length = (index->length + index->offset -
+					       (lock->length + lock->offset));
+			      index->offset = lock->offset + lock->length;
+			 }
+			 link_lock(chain, lock);
 		    }
-		    link_lock(chain, lock);
-	       }
-
-	  case LOCK1_ENDS_AFTER:
-	       if (lock->exclusive == index->exclusive) {
-		    index->length = (lock->offset + lock->length -
-				     index->offset);
-		    ReleaseToPool(lock, &lock_pool);
-	       } else {
-		    index->length = lock->offset - index->offset;
-		    link_lock(chain, lock);
+		    
+	       case LOCK1_ENDS_AFTER:
+		    if (lock->exclusive == index->exclusive) {
+			 index->length = (lock->offset + lock->length -
+					  index->offset);
+			 ReleaseToPool(lock, &lock_pool);
+		    } else {
+			 index->length = lock->offset - index->offset;
+			 link_lock(chain, lock);
+		    }
 	       }
 	  }
      }
 }
-
+     
 void
 clear_lock(lock_t* lock, lock_t** chain)
 {
@@ -689,6 +694,7 @@ localstate_open_to_lock_owner_begin41(fsal_handle_t *handle,
 
      *transaction
 	  = (state_lock_trans_t*) Mem_Alloc(sizeof(state_lock_trans_t));
+     memset(*transaction, 0, sizeof(state_lock_trans_t));
      (*transaction)->status = TRANSACT_LIVE;
      (*transaction)->lock_state = state;
 
@@ -758,6 +764,7 @@ localstate_exist_lock_owner_begin41(fsal_handle_t *handle,
 
      *transaction
 	  = (state_lock_trans_t*) Mem_Alloc(sizeof(state_lock_trans_t));
+     memset(*transaction, 0, sizeof(state_lock_trans_t));
      (*transaction)->status = TRANSACT_LIVE;
      (*transaction)->lock_state = lock_state;
 
@@ -792,7 +799,7 @@ localstate_lock(state_lock_trans_t* transaction,
      transaction->to_set->blocking = blocking;
      transaction->to_set->state = transaction->lock_state;
 
-     /* Check for conlflicts of our own */
+     /* Check for conflicts of our own */
 
      if ((conflicting = find_conflict(transaction->lock_state->perfile->locks,
 				      transaction->to_set))) {
@@ -806,10 +813,8 @@ localstate_lock(state_lock_trans_t* transaction,
      }
      /* Push down to the FSAL */
 
-
-/*
      locktype = ((exclusive && FSAL_LOCKTYPE_EXCLUSIVE) |
-     (blocking && FSAL_LOCKTYPE_BLOCK)); */
+		 (blocking && FSAL_LOCKTYPE_BLOCK));
 
      lock_owner = transaction->lock_state->state.lock.lock_owner->key;
 
@@ -920,7 +925,7 @@ localstate_lock_commit(state_lock_trans_t* transaction)
 	  return ERR_STATE_DEAD_TRANSACTION;
      }
 
-     transaction->status = ((transaction->status = TRANSACT_LIVE) ?
+     transaction->status = ((transaction->status == TRANSACT_LIVE) ?
 			    TRANSACT_COMPLETED :
 			    TRANSACT_PYRRHIC_VICTORY);
 
