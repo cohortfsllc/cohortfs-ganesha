@@ -145,9 +145,9 @@ typedef struct __deviceaddrlink {
 
 typedef deviceaddrinfo cephfsal_layoutdata_t;
 
+#endif /* _USE_FSALMDS */
+
 typedef void* cephfsal_filelockinfo_t;
 typedef void* cephfsal_lockpromise_t;
-
-#endif /* _USE_FSALMDS */
 
 #endif                          /* _FSAL_TYPES_SPECIFIC_H */

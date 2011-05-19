@@ -234,7 +234,7 @@ fsal_status_t CEPHFSAL_rcp(cephfsal_handle_t * filehandle,      /* IN */
   }
 #endif
 
-  st = CEPHFSAL_open(filehandle, p_context, fs_flags, &fs_fd, NULL);
+  st = CEPHFSAL_open(filehandle, p_context, &fs_flags, &fs_fd, NULL);
 
   if(FSAL_IS_ERROR(st))
     {

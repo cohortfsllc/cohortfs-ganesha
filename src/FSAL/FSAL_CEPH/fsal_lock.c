@@ -162,7 +162,7 @@ CEPHFSAL_unlock(cephfsal_file_t* descriptor, /* IN */
 		fsal_off_t offset, /* IN */
 		fsal_size_t length, /* IN */
 		fsal_locktype_t type, /* IN */
-		fsal_lockowner_t owner, /* IN */
+		fsal_lockowner_t* owner, /* IN */
 		fsal_filelockinfo_t* fileinfo /* IN/OUT */
     )
 {
@@ -234,12 +234,12 @@ CEPHFSAL_unlock(cephfsal_file_t* descriptor, /* IN */
 
 
 fsal_status_t
-FSAL_lockt(cephfsal_file_t* descriptor, /* IN */
-	   fsal_off_t* offset, /* IN/OUT */
-	   fsal_size_t* length, /* IN/OUT */
-	   fsal_locktype_t* type, /* IN/OUT */
-	   fsal_lockowner_t* owner, /* IN/OUT */
-	   fsal_filelockinfo_t* fileinfo /* IN/OUT */
+CEPHFSAL_lockt(cephfsal_file_t* descriptor, /* IN */
+	       fsal_off_t* offset, /* IN/OUT */
+	       fsal_size_t* length, /* IN/OUT */
+	       fsal_locktype_t* type, /* IN/OUT */
+	       fsal_lockowner_t* owner, /* IN/OUT */
+	       fsal_filelockinfo_t* fileinfo /* IN/OUT */
     )
 {
     Return(ERR_FSAL_NOTSUPP, 0, INDEX_FSAL_lockt);

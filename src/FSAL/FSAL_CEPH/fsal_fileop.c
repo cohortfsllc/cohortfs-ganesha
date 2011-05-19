@@ -76,7 +76,7 @@
  */
 fsal_status_t CEPHFSAL_open(cephfsal_handle_t * filehandle,     /* IN */
 			    cephfsal_op_context_t * p_context,  /* IN */
-			    fsal_openflags_t openflags,     /* IN */
+			    fsal_openflags_t * openflags,     /* IN */
 			    cephfsal_file_t * file_descriptor,  /* OUT */
 			    fsal_attrib_list_t * file_attributes    /* [ IN/OUT ] */
     )
@@ -94,7 +94,7 @@ fsal_status_t CEPHFSAL_open(cephfsal_handle_t * filehandle,     /* IN */
   if(!filehandle || !p_context || !file_descriptor)
     Return(ERR_FSAL_FAULT, 0, INDEX_FSAL_open);
 
-  rc = fsal2posix_openflags(openflags, &posix_flags);
+  rc = fsal2posix_openflags(*openflags, &posix_flags);
 
   /* flags conflicts. */
   if(rc)
@@ -171,7 +171,7 @@ fsal_status_t CEPHFSAL_open(cephfsal_handle_t * filehandle,     /* IN */
 fsal_status_t CEPHFSAL_open_by_name(cephfsal_handle_t * dirhandle,      /* IN */
 				    fsal_name_t * filename, /* IN */
 				    cephfsal_op_context_t * p_context,  /* IN */
-				    fsal_openflags_t openflags,     /* IN */
+				    fsal_openflags_t * openflags,     /* IN */
 				    cephfsal_file_t * file_descriptor,  /* OUT */
 				    fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
 {
@@ -422,7 +422,7 @@ fsal_status_t CEPHFSAL_close(fsal_file_t * file_descriptor  /* IN */
 fsal_status_t CEPHFSAL_open_by_fileid(fsal_handle_t * filehandle,   /* IN */
                                   fsal_u64_t fileid,    /* IN */
                                   fsal_op_context_t * p_context,        /* IN */
-                                  fsal_openflags_t openflags,   /* IN */
+                                  fsal_openflags_t * openflags,   /* IN */
                                   fsal_file_t * file_descriptor,        /* OUT */
                                   fsal_attrib_list_t * file_attributes /* [ IN/OUT ] */ )
 {

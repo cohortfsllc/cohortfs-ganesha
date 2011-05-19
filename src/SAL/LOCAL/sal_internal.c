@@ -281,8 +281,6 @@ acquire_perfile_state(fsal_handle_t *handle,
      hash_buffer_t key, val;
      int rc = 0;
 
-     print_xfs_handle(handle);
-
      *perfile = NULL;
 
      GetFromPool(*perfile, &perfile_state_pool, perfile_state_t);

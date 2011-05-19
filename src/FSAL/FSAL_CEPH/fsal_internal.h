@@ -177,14 +177,14 @@ fsal_status_t CEPHFSAL_closedir(cephfsal_dir_t * p_dir_descriptor /* IN */ );
 fsal_status_t CEPHFSAL_open_by_name(cephfsal_handle_t * dirhandle,        /* IN */
                                    fsal_name_t * filename,      /* IN */
                                    cephfsal_op_context_t * p_context,    /* IN */
-                                   fsal_openflags_t openflags,  /* IN */
+                                   fsal_openflags_t * openflags,  /* IN */
                                    cephfsal_file_t * file_descriptor,    /* OUT */
                                    fsal_attrib_list_t *
                                    file_attributes /* [ IN/OUT ] */ );
 
 fsal_status_t CEPHFSAL_open(cephfsal_handle_t * p_filehandle,     /* IN */
                            cephfsal_op_context_t * p_context,    /* IN */
-                           fsal_openflags_t openflags,  /* IN */
+                           fsal_openflags_t * openflags,  /* IN */
                            cephfsal_file_t * p_file_descriptor,  /* OUT */
                            fsal_attrib_list_t * p_file_attributes /* [ IN/OUT ] */ );
 
@@ -207,7 +207,7 @@ fsal_status_t CEPHFSAL_close(cephfsal_file_t * p_file_descriptor /* IN */ );
 fsal_status_t CEPHFSAL_open_by_fileid(cephfsal_handle_t * filehandle,     /* IN */
                                      fsal_u64_t fileid, /* IN */
                                      cephfsal_op_context_t * p_context,  /* IN */
-                                     fsal_openflags_t openflags,        /* IN */
+                                     fsal_openflags_t * openflags,        /* IN */
                                      cephfsal_file_t * file_descriptor,  /* OUT */
                                      fsal_attrib_list_t *
                                      file_attributes /* [ IN/OUT ] */ );
@@ -284,7 +284,7 @@ fsal_status_t CEPHFSAL_unlock(cephfsal_file_t* descriptor, /* IN */
 			      fsal_off_t offset, /* IN */
 			      fsal_size_t length, /* IN */
 			      fsal_locktype_t type, /* IN */
-			      fsal_lockowner_t owner, /* IN */
+			      fsal_lockowner_t * owner, /* IN */
 			      cephfsal_filelockinfo_t* fileinfo /* IN/OUT */
     );
 
