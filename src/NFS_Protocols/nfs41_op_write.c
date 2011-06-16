@@ -10,16 +10,16 @@
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 3 of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
+ *
  * ---------------------------------------
  */
 
@@ -302,13 +302,13 @@ int nfs41_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
 
 /**
  * nfs41_op_write_Free: frees what was allocared to handle nfs41_op_write.
- * 
+ *
  * Frees what was allocared to handle nfs41_op_write.
  *
  * @param resp  [INOUT]    Pointer to nfs41_op results
  *
  * @return nothing (void function )
- * 
+ *
  */
 void nfs41_op_write_Free(WRITE4res * resp)
 {
@@ -319,8 +319,8 @@ void nfs41_op_write_Free(WRITE4res * resp)
 #ifdef _USE_FSALDS
 
 int op_dswrite(struct nfs_argop4 *op,
-	       compound_data_t * data,
-	       struct nfs_resop4 *resp)
+               compound_data_t * data,
+               struct nfs_resop4 *resp)
 
 {
   fsal_seek_t seek_descriptor;
@@ -332,6 +332,7 @@ int op_dswrite(struct nfs_argop4 *op,
   fsal_status_t status;
   cache_inode_status_t cache_status;
   bool_t stable_flag;
+  fsal_handle_t handle;
 
   /* Special stateids are not permitted, nor is any non-zero seqid, by
      RFC 5661, 13.9.1, pp. 329-330 */
@@ -344,21 +345,8 @@ int op_dswrite(struct nfs_argop4 *op,
       return res_WRITE4.status;
     }
 
-  /* Only files can be read */
-
-  if(data->current_filetype != REGULAR_FILE)
-    {
-      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
-      if(data->current_filetype == DIR_BEGINNING
-         || data->current_filetype == DIR_CONTINUE)
-        res_WRITE4.status = NFS4ERR_ISDIR;
-      else
-        res_WRITE4.status = NFS4ERR_INVAL;
-
-      return res_WRITE4.status;
-    }
-
-  if((nfs_param.core_param.use_nfs_commit == TRUE) && (arg_WRITE4.stable == UNSTABLE4))
+  if((nfs_param.core_param.use_nfs_commit == TRUE) &&
+     (arg_WRITE4.stable == UNSTABLE4))
     {
       stable_flag = FALSE;
     }
@@ -379,14 +367,16 @@ int op_dswrite(struct nfs_argop4 *op,
         return res_WRITE4.status;
       }
 
-  /* The size to be written should not be greater than FATTR4_MAXWRITESIZE because this value is asked 
-   * by the client at mount time, but we check this by security */
-  if((data->pexport->options & EXPORT_OPTION_MAXWRITE == EXPORT_OPTION_MAXWRITE) &&
+  /* The size to be written should not be greater than
+   * FATTR4_MAXWRITESIZE because this value is asked by the client at
+   * mount time, but we check this by security */
+  if((data->pexport->options & EXPORT_OPTION_MAXWRITE
+      == EXPORT_OPTION_MAXWRITE) &&
      length > data->pexport->MaxWrite)
     {
       /*
        * The client asked for too much data, we
-       * must restrict him 
+       * must restrict him
        */
       length = data->pexport->MaxWrite;
     }
@@ -418,7 +408,7 @@ int op_dswrite(struct nfs_argop4 *op,
   /* This is subject to change, once the cache happens */
 
   status=FSAL_ds_write(&fsalh, &seek_descriptor, length,        /* IN */
-		       bufferdata, &write_amount, stable_flag);
+                       bufferdata, &write_amount, stable_flag);
 
   if (cache_inode_error_convert(status) != CACHE_INODE_SUCCESS)
     {

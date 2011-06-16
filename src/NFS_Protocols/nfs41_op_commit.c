@@ -214,21 +214,6 @@ int op_dscommit(struct nfs_argop4 *op,
   fsal_status_t status;
   cache_inode_status_t cache_status;
 
-  /* Special stateids are not permitted, nor is any non-zero seqid, by
-     RFC 5661, 13.9.1, pp. 329-330 */
-
-  if(data->current_filetype != REGULAR_FILE)
-    {
-      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
-      if(data->current_filetype == DIR_BEGINNING
-         || data->current_filetype == DIR_CONTINUE)
-        res_COMMIT4.status = NFS4ERR_ISDIR;
-      else
-        res_COMMIT4.status = NFS4ERR_INVAL;
-
-      return res_COMMIT4.status;
-    }
-
   /* Get the size and offset of the read operation */
   offset = arg_COMMIT4.offset;
   length = arg_COMMIT4.count;

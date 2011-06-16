@@ -338,20 +338,6 @@ int op_dsread(struct nfs_argop4 *op,
       return res_READ4.status;
     }
 
-  /* Only files can be read */
-
-  if(data->current_filetype != REGULAR_FILE)
-    {
-      /* If the source is no file, return EISDIR if it is a directory and EINAVL otherwise */
-      if(data->current_filetype == DIR_BEGINNING
-         || data->current_filetype == DIR_CONTINUE)
-        res_READ4.status = NFS4ERR_ISDIR;
-      else
-        res_READ4.status = NFS4ERR_INVAL;
-
-      return res_READ4.status;
-    }
-
   /* Get the size and offset of the read operation */
   offset = arg_READ4.offset;
   size = arg_READ4.count;
