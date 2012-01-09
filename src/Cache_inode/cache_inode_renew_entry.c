@@ -294,10 +294,10 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  cache_inode_dir_entry_t *d_dirent;
 	  int i = 0;
 	  
-	  d_node = avltree_first(&pentry->object.dir.dentries);
+	  d_node = avltree_first(&pentry->object.dir.avl);
       	  do {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
-					      node_n);
+					      node_hk);
 	      if (d_dirent->pentry->internal_md.valid_state == VALID) {
 	          FSAL_name2str(&(d_dirent->name), name, 1023);
                   LogDebug(COMPONENT_CACHE_INODE,
@@ -393,10 +393,10 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  cache_inode_dir_entry_t *d_dirent;
 	  int i = 0;
 	  
-	  d_node = avltree_first(&pentry->object.dir.dentries);
+	  d_node = avltree_first(&pentry->object.dir.avl);
       	  do {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
-					      node_n);
+					      node_hk);
 	      if (d_dirent->pentry->internal_md.valid_state == VALID) {
 	          FSAL_name2str(&(d_dirent->name), name, 1023);
                   LogDebug(COMPONENT_CACHE_INODE,
