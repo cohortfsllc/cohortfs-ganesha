@@ -122,6 +122,7 @@ cache_inode_status_t cache_inode_kill_entry( cache_entry_t          * pentry,
       ( pentry->internal_md.type == CHARACTER_FILE ) ||
       ( pentry->internal_md.type == BLOCK_FILE ) )
    {
+
      free_lock( pentry, lock_how ) ; 
 
      *pstatus = CACHE_INODE_SUCCESS;

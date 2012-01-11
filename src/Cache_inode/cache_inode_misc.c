@@ -512,6 +512,16 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
       pentry->object.dir.has_been_readdir = CACHE_INODE_NO;
       pentry->object.dir.nbactive = 0;
       pentry->object.dir.referral = NULL;
+
+      /* initialize dirent rw_lock */
+      if (rw_lock_init(&(pentry->object.dir.dirent_rw_lock)) != 0)
+        {
+           LogDebug(COMPONENT_CACHE_INODE,
+              "cache_inode_new_entry: rw_lock_init returned %d (%s)",
+              errno, strerror(errno));
+	      break;
+         }
+
       /* init avl tree */
       cache_inode_avl_init(pentry);
       break;
@@ -1592,7 +1602,8 @@ cache_inode_status_t cache_inode_reload_content(char *path, cache_entry_t * pent
  * cache_inode_invalidate_dirent: unassociate a directory entry, 
  * invalidating the containing cache entry.
  *
- * Removes directory entry association.  Cache entry is locked.
+ * Removes directory entry association.  Cache entry is write locked, and
+ * also dir.dirent_rw_lock is write locked.
  *
  * @param pentry [INOUT] entry to be managed
  * @param pclient [IN] related pclient
@@ -1605,8 +1616,8 @@ cache_inode_status_t cache_inode_reload_content(char *path, cache_entry_t * pent
     cache_inode_client_t * pclient)
 {
 
-    /* Fine-grained updates are possible, but the parent_iter must be replaced
-     * with a set of link records, and these must be reliable. */
+    /* Fine-grained updates are possible.  In support of this, a change to thread
+     * related dirents directly is planned. */
     cache_inode_release_dirents(pentry, pclient, CACHE_INODE_AVL_BOTH);
 
     /* invalidate pentry */
@@ -1652,10 +1663,12 @@ void cache_inode_invalidate_related_dirents(  cache_entry_t        * pentry,
       /* If I reached this point, then parent_iter->parent is not null
        * and is a valid cache_inode pentry */
       P_w(&parent->lock);
+      P_w(&parent->object.dir.dirent_rw_lock);
 
       /* Check for type of the parent */
       if(parent->internal_md.type != DIRECTORY)
         {
+          V_w(&pentry->object.dir.dirent_rw_lock);
           V_w(&parent->lock);
           /* Major parent incoherency: parent is not a directory */
           LogDebug(COMPONENT_CACHE_INODE,
@@ -1670,6 +1683,7 @@ void cache_inode_invalidate_related_dirents(  cache_entry_t        * pentry,
       /* Invalidate related. */
       cache_inode_invalidate_related_dirent(parent, pclient);
 
+      V_w(&pentry->object.dir.dirent_rw_lock);
       V_w(&parent->lock);
     }
 }                               /* cache_inode_invalidate_related_dirent */

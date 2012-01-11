@@ -341,6 +341,8 @@ struct cache_entry_t
       char *referral;                           /**< NULL is not a referral, is not this a 'referral string' */
       struct avltree avl;                       /**< Children */
       unsigned int collisions;                  /**< For future heuristics. Expect 0. */
+      rw_lock_t dirent_rw_lock;                 /**< Dirent lock, orders AFTER cache entry lock, must be taken
+                                                 **< exclusive on dirent recycle (but not incref)            */
     } dir;                                      /**< DIR related field                */
 
     struct cache_inode_special_object__

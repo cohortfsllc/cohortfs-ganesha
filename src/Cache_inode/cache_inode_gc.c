@@ -199,7 +199,9 @@ static int cache_inode_gc_clean_entry(cache_entry_t * pentry,
 
   /* Release all dirents  Related entries are already invalidated
    * by the caller */
+  P_w(&pentry->object.dir.dirent_rw_lock);
   cache_inode_release_dirents(pentry, pgcparam->pclient, CACHE_INODE_AVL_BOTH);
+  V_w(&pentry->object.dir.dirent_rw_lock);
 
   /* Release symlink, if applicable */
   if (pentry->internal_md.type == SYMBOLIC_LINK)
@@ -271,10 +273,14 @@ static int cache_inode_gc_invalidate_related_dirents(
           return LRU_LIST_DO_NOT_SET_INVALID;
         }
 
+      /* also need dirent lock, in this order */
+      P_w(&parent_iter->parent->object.dir.dirent_rw_lock);
+
       /* Invalidate related */
       cache_inode_invalidate_related_dirent(
 	  parent_iter->parent, pgcparam->pclient);
 
+      V_w(&parent_iter->parent->object.dir.dirent_rw_lock);
       V_w(&parent_iter->parent->lock);
     }
 

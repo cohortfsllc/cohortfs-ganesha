@@ -364,6 +364,8 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
   if(pentry != NULL)
     {
       /* Yes, we did ! */
+      P_w(&pentry_parent->object.dir.dirent_rw_lock); /* dirent WLOCK */
+
       switch (dirent_op)
         {
         case CACHE_INODE_DIRENT_OP_REMOVE:
@@ -395,8 +397,11 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
                       LogDebug(COMPONENT_NFS_READDIR,
                                "DIRECTORY: failed renaming dirent (%s, %s)",
                                pname->name, newname->name);
-                      /* XXX force an invalidate -- not sure what type, yet
-                       * XXX fix */
+                      /* XXX force an invalidate of pentry_parent--the caller
+                       * should try to do the operation on the FSAL and return
+                       * that result to the client.  Cleanup of existing dirents
+                       * is in cache_inode_readdir_populate, if reread. */
+                      pentry_parent->object.dir.has_been_readdir = CACHE_INODE_NO;
                   }
 	      } else {
 		  *pstatus = CACHE_INODE_SUCCESS;
@@ -411,7 +416,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
           break;
 
         }                       /* switch */
-    }
+    } /* pentry != NULL */
 
   if (*pstatus == CACHE_INODE_SUCCESS) {
       /* As noted, if a mutating operation was performed, we must
@@ -424,6 +429,10 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
        * readers more involved.  Another approach would be to do it in the
        * background, scheduled from here. */
   }
+
+  /* if pentry exists, we have it exclusive locked */
+  if (pentry != NULL)
+      V_w(&pentry_parent->object.dir.dirent_rw_lock); /* dirent !WLOCK */
 
   return pentry;
 }                               /* cache_inode_operate_cached_dirent */
@@ -811,12 +820,15 @@ cache_inode_status_t cache_inode_readdir_populate(
       return *pstatus;
     }
 
+  /* dirent_rw_lock WLOCK */
+  P_w(&pentry_dir->object.dir.dirent_rw_lock);
+
   /* Invalidate all the dirents */
   if(cache_inode_invalidate_all_cached_dirent(pentry_dir,
                                               ht,
                                               pclient,
 					      pstatus) != CACHE_INODE_SUCCESS)
-    return *pstatus;
+      goto unlock;
 
   /* Open the directory */
   dir_attributes.asked_attributes = pclient->attrmask;
@@ -848,7 +860,7 @@ cache_inode_status_t cache_inode_readdir_populate(
 
           *pstatus = CACHE_INODE_FSAL_ESTALE;
         }
-      return *pstatus;
+      goto unlock;
     }
 
   /* Loop for readding the directory */
@@ -877,7 +889,7 @@ cache_inode_status_t cache_inode_readdir_populate(
       if(FSAL_IS_ERROR(fsal_status))
         {
           *pstatus = cache_inode_error_convert(fsal_status);
-          return *pstatus;
+          goto unlock;
         }
 
       for(iter = 0; iter < nbfound; iter++)
@@ -945,8 +957,7 @@ cache_inode_status_t cache_inode_readdir_populate(
 
                       *pstatus = CACHE_INODE_FSAL_ESTALE;
                     }
-
-                  return *pstatus;
+                  goto unlock;
                 }
             }
 
@@ -966,7 +977,7 @@ cache_inode_status_t cache_inode_readdir_populate(
 		                              pcontext, 
 		                              FALSE,  /* This is population and no creation */
 		                              pstatus)) == NULL)
-            return *pstatus;
+              goto unlock;
 
           cache_status = cache_inode_add_cached_dirent(
 	      pentry_parent,
@@ -980,7 +991,7 @@ cache_inode_status_t cache_inode_readdir_populate(
 
           if(cache_status != CACHE_INODE_SUCCESS
              && cache_status != CACHE_INODE_ENTRY_EXISTS)
-            return *pstatus;
+            goto unlock;
 
           /*
            * Remember the FSAL readdir cookie associated with this dirent.  This
@@ -1016,12 +1027,15 @@ cache_inode_status_t cache_inode_readdir_populate(
   if(FSAL_IS_ERROR(fsal_status))
     {
       *pstatus = cache_inode_error_convert(fsal_status);
-      return *pstatus;
+      goto unlock;
     }
 
   /* End of work */
   pentry_dir->object.dir.has_been_readdir = CACHE_INODE_YES;
   *pstatus = CACHE_INODE_SUCCESS;
+
+unlock:
+  V_w(&pentry_dir->object.dir.dirent_rw_lock); /* !WLOCK */
   return *pstatus;
 }                               /* cache_inode_readdir_populate */
 
@@ -1155,21 +1169,21 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                                              pcontext,
                                              pstatus ) ;    
   
-  P_w(&dir_pentry->lock);
+  P_w(&dir_pentry->lock); /* cache entry WLOCK */
 
   /* Renew the entry (to avoid having it being garbagged */
   if(cache_inode_renew_entry(dir_pentry, NULL, ht, pclient, pcontext,
 			     pstatus) != CACHE_INODE_SUCCESS)
     {
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_GETATTR])++;
-      V_w(&dir_pentry->lock);
+      V_w(&dir_pentry->lock); /* !WLOCK */
       return *pstatus;
     }
 
   /* readdir can be done only with a directory */
   if(dir_pentry->internal_md.type != DIRECTORY)
     {
-      V_w(&dir_pentry->lock);
+      V_w(&dir_pentry->lock); /* !WLOCK */
       *pstatus = CACHE_INODE_BAD_TYPE;
 
       /* stats */
@@ -1188,7 +1202,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 				 pcontext,
 				 pstatus) != CACHE_INODE_SUCCESS)
     {
-      V_w(&dir_pentry->lock);
+      V_w(&dir_pentry->lock); /* !WLOCK */
 
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_READDIR])++;
       return *pstatus;
@@ -1209,16 +1223,23 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
       /* stats */
       (pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_READDIR])++;
 
-      V_w(&dir_pentry->lock);
+      V_w(&dir_pentry->lock); /* !WLOCK */
       return *pstatus;
     }
   }
 
+  /* XXX transition to dirent_rw_lock, NOT preserving atomicity.   If we
+   * desire that, an acceptable pattern would be P_r(&dirent_rw_lock)
+   * before cache_inode_readdir_populate, and up/downgrading there.  This
+   * would have less concurrency, and we are not required by protocol to
+   * prevent a race when the directory is mutating--the cookie verifier
+   * protects consistency. */
+  V_w(&dir_pentry->lock); /* !WLOCK */
+
   /* deal with dentry cache invalidates */
   revalidate_cookie_cache(dir_pentry, pclient);
 
-  /* Downgrade Writer lock to a reader one. */
-  rw_lock_downgrade(&dir_pentry->lock);
+  P_r(&dir_pentry->object.dir.dirent_rw_lock); /* RLOCK */
 
   /* deal with initial cookie value:
    * 1. cookie is invalid (-should- be checked by caller)
@@ -1233,8 +1254,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
       /* Nb., cache_inode_avl_qp_insert_s ensures k > 2 */
       if (cookie < 3) {
 	  *pstatus = CACHE_INODE_BAD_COOKIE;
-	  V_r(&dir_pentry->lock);
-	  return *pstatus;
+          goto unlock;
       }
 
       /* we assert this can now succeed */
@@ -1246,8 +1266,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                        __func__,
                        cookie);
 	  *pstatus = CACHE_INODE_NOT_FOUND;
-	  V_r(&dir_pentry->lock);
-	  return *pstatus;
+	  goto unlock;
       }
 
       dirent_node = &dirent->node_hk;
@@ -1316,15 +1335,13 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
   *pstatus = cache_inode_valid(dir_pentry, CACHE_INODE_OP_GET, pclient);
 
   /* stats */
-  if(*pstatus != CACHE_INODE_SUCCESS) {
+  if(*pstatus != CACHE_INODE_SUCCESS)
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_READDIR])++;
-      V_r(&dir_pentry->lock);
-  }
-  else {
+  else
       (pclient->stat.func_stats.nb_success[CACHE_INODE_READDIR])++;
-      *unlock = TRUE;
-  }
 
+unlock:
+  V_r(&dir_pentry->object.dir.dirent_rw_lock); /* !RLOCK */
   return *pstatus;
 }                               /* cache_inode_readdir */
 
