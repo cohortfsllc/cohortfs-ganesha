@@ -34,6 +34,8 @@
 #include <pthread.h>
 #include "log_macros.h"
 
+#define LOCK_TRACING 1
+
 /* My habit with mutex */
 
 #define P( mutex )                                                          \
@@ -59,15 +61,24 @@ typedef struct _RW_LOCK
   pthread_cond_t condWrite;
   pthread_cond_t condRead;
   pthread_mutex_t mcond;
+#if defined(LOCK_TRACING)
+    struct {
+        char func[128];
+        int line;
+    } id;
+#endif
 } rw_lock_t;
 
 int rw_lock_init(rw_lock_t * plock);
 int rw_lock_destroy(rw_lock_t * plock);
 int P_w(rw_lock_t * plock);
+int P_w_impl(rw_lock_t * plock, const char *func, int line);
 int V_w(rw_lock_t * plock);
 int P_r(rw_lock_t * plock);
 int V_r(rw_lock_t * plock);
 int rw_lock_downgrade(rw_lock_t * plock);
 int rw_lock_upgrade(rw_lock_t * plock);
+
+#define P_w(lock) P_w_impl((lock), __func__, __LINE__)
 
 #endif                          /* _RW_LOCK */

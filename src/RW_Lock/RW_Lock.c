@@ -46,11 +46,14 @@
  */
 static void print_lock(char *s, rw_lock_t * plock)
 {
-  
+#if LOCK_TRACING  
   LogFullDebug(COMPONENT_RW_LOCK,
-               "%s: id = %u:  Lock State: nbr_active = %d, nbr_waiting = %d, nbw_active = %d, nbw_waiting = %d",
-               s, (unsigned int)pthread_self(), plock->nbr_active, plock->nbr_waiting,
-               plock->nbw_active, plock->nbw_waiting);
+               "%s: id = %u:  Lock State: nbr_active = %d, nbr_waiting = %d, nbw_active = %d, nbw_waiting = %d %s %d",
+               s, (unsigned int)pthread_self(),
+               plock->nbr_active, plock->nbr_waiting,
+               plock->nbw_active, plock->nbw_waiting,
+               plock->id.func, plock->id.line);
+#endif
 }                               /* print_lock */
 
 /* 
@@ -106,9 +109,9 @@ int V_r(rw_lock_t * plock)
 }                               /* V_r */
 
 /*
- * Take the lock for writting 
+ * Take the lock for writing 
  */
-int P_w(rw_lock_t * plock)
+int P_w_impl(rw_lock_t * plock, const char *func, int line)
 {
   P(plock->mutexProtect);
 
@@ -119,6 +122,13 @@ int P_w(rw_lock_t * plock)
   /* nobody must be active obtain exclusive lock */
   while(plock->nbr_active > 0 || plock->nbw_active > 0)
     pthread_cond_wait(&plock->condWrite, &plock->mutexProtect);
+
+#if defined(LOCK_TRACING)
+  /* for blown semaphore source tracking, store the function
+   * and line */
+  snprintf(plock->id.func, 128, "%s", func);
+  plock->id.line = line;
+#endif
 
   /* I become active and no more waiting */
   plock->nbw_waiting--;
@@ -162,6 +172,13 @@ int V_w(rw_lock_t * plock)
       print_lock("V_w.3", plock);
 
     }
+
+#if 0 && defined(LOCK_TRACING)
+  /* for blown semaphore source tracking, clear the function
+   * and line */
+  plock->id.func[0] = 0;
+  plock->id.line = 0;
+#endif
   V(plock->mutexProtect);
 
   print_lock("V_w.end", plock);
