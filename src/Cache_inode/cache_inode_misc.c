@@ -47,6 +47,7 @@
 #include "fsal.h"
 #include "cache_inode.h"
 #include "cache_inode_avl.h"
+#include "cache_inode_lru.h"
 #include "cache_content.h"
 #include "stuff_alloc.h"
 #include "nfs4_acls.h"
@@ -351,8 +352,10 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
       *pstatus = CACHE_INODE_ENTRY_EXISTS;
 
       LogDebug(COMPONENT_CACHE_INODE,
-               "cache_inode_new_entry: Trying to add an already existing entry. Found entry %p type: %d State: %d, New type: %d",
-               pentry, pentry->internal_md.type, pentry->internal_md.valid_state, type);
+               "cache_inode_new_entry: Trying to add an already existing entry."
+               " Found entry %p type: %d State: %d, New type: %d",
+               pentry,
+               pentry->internal_md.type, pentry->internal_md.valid_state, type);
 
       /* stats */
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_NEW_ENTRY])++;
@@ -360,11 +363,12 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
       return pentry;
     }
 
-  GetFromPool(pentry, &pclient->pool_entry, cache_entry_t);
+  pentry = cache_inode_lru_get(pclient, pstatus, LRU_FLAG_NONE);
+  assert(pentry->lru.refcount == SENTINEL_REFCOUNT);
   if(pentry == NULL)
     {
       LogCrit(COMPONENT_CACHE_INODE,
-              "cache_inode_new_entry: Can't allocate a new entry from cache pool");
+              "cache_inode_new_entry: cache inode get failed");
       *pstatus = CACHE_INODE_MALLOC_ERROR;
 
       /* stats */
@@ -377,7 +381,8 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
 
   if(rw_lock_init(&(pentry->lock)) != 0)
     {
-      ReleaseToPool(pentry, &pclient->pool_entry);
+      /* recycle */
+      cache_inode_lru_unref(pentry, pclient, LRU_FLAG_NONE);
       LogCrit(COMPONENT_CACHE_INODE,
               "cache_inode_new_entry: rw_lock_init returned %d (%s)",
               errno, strerror(errno));
@@ -389,20 +394,23 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
       return NULL;
     }
 
-  /* Call FSAL to get information about the object if not provided.  If attributes 
-   * are provided as pfsal_attr parameter, use them. Call FSAL_getattrs otherwise. */
+  /* Call FSAL to get information about the object if not provided.  If
+   * attributes are provided as pfsal_attr parameter, use them. Call
+   * FSAL_getattrs otherwise. */
   if(pfsal_attr == NULL)
     {
        fsal_attributes.asked_attributes = pclient->attrmask;
-       fsal_status = FSAL_getattrs(&pfsdata->handle, pcontext, &fsal_attributes);
+       fsal_status = FSAL_getattrs(&pfsdata->handle,
+                                   pcontext,
+                                   &fsal_attributes);
 
        if(FSAL_IS_ERROR(fsal_status))
          {
-           /* Put the entry back in its pool */
+           cache_inode_lru_unref(pentry, pclient, LRU_FLAG_NONE);
            LogCrit(COMPONENT_CACHE_INODE,
-                   "cache_inode_new_entry: FSAL_getattrs failed for pentry = %p",
+                   "cache_inode_new_entry: FSAL_getattrs failed for pentry "
+                   "= %p",
                    pentry);
-           ReleaseToPool(pentry, &pclient->pool_entry);
            *pstatus = cache_inode_error_convert(fsal_status);
 
            if(fsal_status.major == ERR_FSAL_STALE)
@@ -410,14 +418,21 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
                 cache_inode_status_t kill_status;
 
                 LogCrit(COMPONENT_CACHE_INODE,
-                        "cache_inode_new_entry: Stale FSAL File Handle detected for pentry = %p",
+                        "cache_inode_new_entry: Stale FSAL File Handle "
+                        "detected for pentry = %p",
                         pentry);
 
-                if(cache_inode_kill_entry(pentry, NO_LOCK, ht, pclient, &kill_status) !=
-                   CACHE_INODE_SUCCESS)
+                /* XXXX fix LRU handling in kill_entry */
+                if(cache_inode_kill_entry(pentry,
+                                          NO_LOCK,
+                                          ht,
+                                          pclient,
+                                          &kill_status) != CACHE_INODE_SUCCESS)
                     LogCrit(COMPONENT_CACHE_INODE,
-                            "cache_inode_new_entry: Could not kill entry %p, status = %u",
-                             pentry, kill_status);
+                            "cache_inode_new_entry: Could not kill entry %p, "
+                            "status = %u",
+                            pentry,
+                            kill_status);
 
               }
               /* stats */
@@ -438,10 +453,6 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
   pentry->internal_md.read_time = 0;
   pentry->internal_md.mod_time = pentry->internal_md.alloc_time = time(NULL);
   pentry->internal_md.refresh_time = pentry->internal_md.alloc_time;
-
-  pentry->gc_lru_entry = NULL;
-  pentry->gc_lru = NULL;
-
   pentry->policy = policy ;
 
   /* No parent for now, it will be added in cache_inode_add_cached_dirent */
@@ -451,8 +462,10 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
     {
     case REGULAR_FILE:
       LogDebug(COMPONENT_CACHE_INODE,
-               "cache_inode_new_entry: Adding a REGULAR_FILE pentry=%p policy=%u",
-               pentry, policy );
+               "cache_inode_new_entry: Adding a REGULAR_FILE pentry=%p "
+               "policy=%u",
+               pentry,
+               policy );
 
       pentry->object.file.handle = pfsdata->handle;
 #ifdef _USE_MFSL
@@ -936,8 +949,6 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
 
   cache_inode_status_t cache_status;
   cache_content_status_t cache_content_status;
-  LRU_status_t lru_status;
-  LRU_entry_t *plru_entry = NULL;
   cache_content_client_t *pclient_content = NULL;
   cache_content_entry_t *pentry_content = NULL;
 #ifndef _NO_BUDDY_SYSTEM
@@ -946,32 +957,6 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
 
   if(pentry == NULL)
     return CACHE_INODE_INVALID_ARGUMENT;
-
-  /* Invalidate former entry if needed */
-  if(pentry->gc_lru != NULL && pentry->gc_lru_entry)
-    {
-      if(LRU_invalidate(pentry->gc_lru, pentry->gc_lru_entry) != LRU_LIST_SUCCESS)
-        {
-          if (pentry->object.symlink)
-            cache_inode_release_symlink(pentry, &pclient->pool_entry_symlink);
-          ReleaseToPool(pentry, &pclient->pool_entry);
-          return CACHE_INODE_LRU_ERROR;
-        }
-    }
-
-  if((plru_entry = LRU_new_entry(pclient->lru_gc, &lru_status)) == NULL)
-    {
-      if (pentry->object.symlink)
-        cache_inode_release_symlink(pentry, &pclient->pool_entry_symlink);
-      ReleaseToPool(pentry, &pclient->pool_entry);
-      return CACHE_INODE_LRU_ERROR;
-    }
-  plru_entry->buffdata.pdata = (caddr_t) pentry;
-  plru_entry->buffdata.len = sizeof(cache_entry_t);
-
-  /* Setting the anchors */
-  pentry->gc_lru = pclient->lru_gc;
-  pentry->gc_lru_entry = plru_entry;
 
   /* Update internal md */
   /*
@@ -994,11 +979,11 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
   pclient->call_since_last_gc++;
 
   /* If open/close fd cache is used for FSAL, manage it here */
-    LogFullDebug(COMPONENT_CACHE_INODE_GC,
-                 "--------> use_cache=%u fileno=%d last_op=%u time(NULL)=%u delta=%u retention=%u",
-                 pclient->use_cache, pentry->object.file.open_fd.fileno,
-                 (unsigned int)pentry->object.file.open_fd.last_op, (unsigned int)time(NULL),
-                 (unsigned int)(time(NULL) - pentry->object.file.open_fd.last_op), (unsigned int)pclient->retention);
+  LogFullDebug(COMPONENT_CACHE_INODE_GC,
+               "--------> use_cache=%u fileno=%d last_op=%u time(NULL)=%u delta=%u retention=%u",
+               pclient->use_cache, pentry->object.file.open_fd.fileno,
+               (unsigned int)pentry->object.file.open_fd.last_op, (unsigned int)time(NULL),
+               (unsigned int)(time(NULL) - pentry->object.file.open_fd.last_op), (unsigned int)pclient->retention);
 
   if(pentry->internal_md.type == REGULAR_FILE)
     {
@@ -1048,33 +1033,6 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
 #endif
 
 #endif
-  LogFullDebug(COMPONENT_CACHE_INODE_GC,
-               "(pthread_self=%p) LRU GC state: nb_entries=%d nb_invalid=%d nb_call_gc=%d param.nb_call_gc_invalid=%d",
-               (caddr_t)pthread_self(),
-               pclient->lru_gc->nb_entry,
-               pclient->lru_gc->nb_invalid,
-               pclient->lru_gc->nb_call_gc,
-               pclient->lru_gc->parameter.nb_call_gc_invalid);
-
-  LogFullDebug(COMPONENT_CACHE_INODE_GC,
-               "LRU GC state: nb_entries=%d nb_invalid=%d nb_call_gc=%d param.nb_call_gc_invalid=%d",
-               pclient->lru_gc->nb_entry,
-               pclient->lru_gc->nb_invalid,
-               pclient->lru_gc->nb_call_gc,
-               pclient->lru_gc->parameter.nb_call_gc_invalid);
-
-  LogFullDebug(COMPONENT_CACHE_INODE_GC,
-               "LRU GC state: nb_entries=%d nb_invalid=%d nb_call_gc=%d param.nb_call_gc_invalid=%d",
-               pclient->lru_gc->nb_entry,
-               pclient->lru_gc->nb_invalid,
-               pclient->lru_gc->nb_call_gc,
-               pclient->lru_gc->parameter.nb_call_gc_invalid);
-
-
-  /* Call LRU_gc_invalid to get ride of the unused invalid lru entries */
-  if(LRU_gc_invalid(pclient->lru_gc, NULL) != LRU_LIST_SUCCESS)
-    return CACHE_INODE_LRU_ERROR;
-
   return CACHE_INODE_SUCCESS;
 }                               /* cache_inode_valid */
 
@@ -1090,7 +1048,8 @@ cache_inode_status_t cache_inode_valid(cache_entry_t * pentry,
  * @return nothing (void function).
  *
  */
-void cache_inode_get_attributes(cache_entry_t * pentry, fsal_attrib_list_t * pattr)
+void cache_inode_get_attributes(cache_entry_t * pentry,
+                                fsal_attrib_list_t * pattr)
 {
   /* The pentry is supposed to be locked */
   switch (pentry->internal_md.type)
