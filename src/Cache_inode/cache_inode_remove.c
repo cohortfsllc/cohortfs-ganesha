@@ -114,16 +114,6 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
       return status;
     }
 
-  /* Invalidate the related LRU gc entry (no more required) */
-  if(to_remove_entry->gc_lru_entry != NULL)
-    {
-      if(LRU_invalidate(to_remove_entry->gc_lru, to_remove_entry->gc_lru_entry)
-         != LRU_LIST_SUCCESS)
-        {
-          return CACHE_INODE_LRU_ERROR;
-        }
-    }
-
   /* delete the entry from the cache */
   fsaldata.handle = *pfsal_handle_remove;
 

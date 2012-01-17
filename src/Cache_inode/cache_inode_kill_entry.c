@@ -170,18 +170,6 @@ cache_inode_status_t cache_inode_kill_entry( cache_entry_t          * pentry,
       return *pstatus;
     }
 
-  /* Invalidate the related LRU gc entry (no more required) */
-  if(pentry->gc_lru_entry != NULL)
-    {
-      if(LRU_invalidate(pentry->gc_lru, pentry->gc_lru_entry) != LRU_LIST_SUCCESS)
-        {
-          free_lock( pentry, lock_how ) ; 
-
-          *pstatus = CACHE_INODE_LRU_ERROR;
-          return *pstatus;
-        }
-    }
-
   fsaldata.handle = *pfsal_handle;
   fsaldata.cookie = DIR_START;
 
