@@ -46,6 +46,7 @@
 #include "HashTable.h"
 #include "fsal.h"
 #include "cache_inode.h"
+#include "cache_inode_lru.h"
 #include "cache_content.h"
 #include "stuff_alloc.h"
 #include "nfs4_acls.h"
@@ -199,6 +200,9 @@ cache_inode_status_t cache_inode_kill_entry( cache_entry_t          * pentry,
       *pstatus = CACHE_INODE_NOT_FOUND;
       return *pstatus;
     }
+    
+  /* return HashTable (sentinel) reference */
+  (void) cache_inode_lru_unref(pentry, pclient, LRU_FLAG_NONE);
 
   /* Release the hash key data */
   cache_inode_release_fsaldata_key(&old_key, pclient);

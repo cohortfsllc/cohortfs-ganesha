@@ -24,6 +24,7 @@
 #include "HashTable.h"
 #include "fsal.h"
 #include "cache_inode.h"
+#include "cache_inode_lru.h"
 #include "cache_content.h"
 #include "stuff_alloc.h"
 
@@ -134,6 +135,8 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
 
   if((rc != HASHTABLE_SUCCESS) && (rc != HASHTABLE_ERROR_NO_SUCH_KEY))
     {
+      /* XXX this seems to logically prevent relcaiming the HashTable LRU reference,
+       * but it seems to indicate a very serious problem */
       cache_inode_release_fsaldata_key(&key, pclient);
       return CACHE_INODE_INCONSISTENT_ENTRY;
     }
@@ -141,6 +144,10 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
   /* release the key that was stored in hash table */
   if(rc != HASHTABLE_ERROR_NO_SUCH_KEY)
     {
+    
+      /* return Hashtable (sentinel) reference */
+      (void) cache_inode_lru_unref(to_remove_entry, pclient, LRU_FLAG_NONE);
+      
       cache_inode_release_fsaldata_key(&old_key, pclient);
 
       /* Sanity check: old_value.pdata is expected to be equal to pentry,
