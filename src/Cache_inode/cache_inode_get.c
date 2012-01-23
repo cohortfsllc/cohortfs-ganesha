@@ -63,6 +63,8 @@
  * 
  * Gets an entry by using its fsdata as a key and caches it if needed.
  *
+ * If a cache entry is returned, its refcount is +1.
+ *
  * @param fsdata [IN] file system data
  * @param pattr [OUT] pointer to the attributes for the result. 
  * @param ht [IN] hash table used for the cache, unused in this call.
@@ -93,6 +95,8 @@ cache_entry_t *cache_inode_get( cache_inode_fsal_data_t * pfsdata,
  * FSAL point of view. This could lead to hang (same P_w taken twice on the same entry). To deal this, a check feature is 
  * added through the plocation argument.
  *
+ * If a cache entry is returned, its refcount is +1.
+ *
  * @param fsdata [IN] file system data
  * @param plocation [IN] pentry used as "location form where the call is done". Usually a son of a parent entry
  * @param pattr [OUT] pointer to the attributes for the result. 
@@ -122,6 +126,7 @@ cache_entry_t *cache_inode_get_located(cache_inode_fsal_data_t * pfsdata,
   int hrc = 0;
   fsal_attrib_list_t fsal_attributes;
   cache_inode_fsal_data_t *ppoolfsdata = NULL;
+  void *htoken;
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
@@ -148,14 +153,17 @@ cache_entry_t *cache_inode_get_located(cache_inode_fsal_data_t * pfsdata,
       return NULL;
     }
 
-  switch (hrc = HashTable_Get(ht, &key, &value))
+  switch (hrc = HashTable_GetEx(ht, &key, &value, &htoken))
     {
     case HASHTABLE_SUCCESS:
       /* Entry exists in the cache and was found */
       pentry = (cache_entry_t *) value.pdata;
       
-      /* get initial reference for this call path */
+      /* XXX pentry->refcount is +1 -- this MAY be racy, we need to extend
+       * the ht critical section to cover the ref */
       (void) cache_inode_lru_ref(pentry, LRU_FLAG_NONE);
+      
+      HashTable_Release(ht, htoken);
 
       /* return attributes additionally */
       cache_inode_get_attributes(pentry, pattr);
@@ -328,14 +336,6 @@ cache_entry_t *cache_inode_get_located(cache_inode_fsal_data_t * pfsdata,
 
   /* Want to ASSERT pclient at this point */
   *pstatus = CACHE_INODE_SUCCESS;
-  
-  if (pentry->object.symlink != NULL) {
-  	int stop_here;
-	stop_here = 1;
-	if (stop_here) {
-		stop_here = 2;
-	}
-  }
 
   /* valid the found entry, if this is not feasable, returns nothing to the client */
   if( plocation != NULL )
@@ -358,6 +358,10 @@ cache_entry_t *cache_inode_get_located(cache_inode_fsal_data_t * pfsdata,
 
   /* Free this key */
   cache_inode_release_fsaldata_key(&key, pclient);
+  
+  /* XXX pentry->refcount is +1 -- this MAY be racy, we need to extend
+   * the ht critical section to cover the ref */
+  (void) cache_inode_lru_ref(pentry, LRU_FLAG_NONE);
 
   return pentry;
 }  /* cache_inode_get_located */

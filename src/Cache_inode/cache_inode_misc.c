@@ -299,7 +299,7 @@ void cache_inode_release_fsaldata_key(hash_buffer_t * pkey,
  * @param ht [INOUT] hash table used for the cache.
  * @param pclient [INOUT]ressource allocated by the client for the nfs management.
  * @param pcontext [IN] FSAL credentials for the operation.
- * @param create_flag [IN] a flag which shows if the entry is newly created or not
+ * @param create_flag [IN] flags, eg, if the entry is newly created or not, require "extra" ref
  * @param pstatus [OUT] returned status.
  *
  * @return the same as *pstatus
@@ -314,7 +314,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
                                      hash_table_t              * ht,
                                      cache_inode_client_t      * pclient,
                                      fsal_op_context_t         * pcontext,
-                                     unsigned int                create_flag,
+                                     unsigned int                flags,
                                      cache_inode_status_t      * pstatus)
 {
   cache_entry_t *pentry = NULL;
@@ -324,6 +324,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
   int rc = 0;
   off_t size_in_cache;
   cache_content_status_t cache_content_status ;
+  void *htoken;
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
@@ -345,7 +346,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
     }
 
   /* Check if the entry doesn't already exists */
-  if(HashTable_Get(ht, &key, &value) == HASHTABLE_SUCCESS)
+  if(HashTable_GetEx(ht, &key, &value, &htoken) == HASHTABLE_SUCCESS)
     {
       /* Entry is already in the cache, do not add it */
       pentry = (cache_entry_t *) value.pdata;
@@ -356,6 +357,12 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
                " Found entry %p type: %d State: %d, New type: %d",
                pentry,
                pentry->internal_md.type, pentry->internal_md.valid_state, type);
+
+       /* conditionally take an extra reference */
+       if (flags & CACHE_INODE_FLAG_EXREF)
+           (void) cache_inode_lru_ref(pentry, LRU_FLAG_NONE);
+	 
+      HashTable_Release(ht, htoken); /* XXX this is releasing alock held since HashTable_Get returned */
 
       /* stats */
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_NEW_ENTRY])++;
@@ -723,7 +730,7 @@ cache_entry_t *cache_inode_new_entry(cache_inode_fsal_data_t   * pfsdata,
 
   /* if entry is a REGULAR_FILE and has a related data cache entry from a previous server instance that crashed, recover it */
   /* This is done only when this is not a creation (when creating a new file, it is impossible to have it cached)           */
-  if(type == REGULAR_FILE && create_flag == FALSE)
+  if(type == REGULAR_FILE && (! (flags * CACHE_INODE_FLAG_CREATE)))
     {
       cache_content_test_cached(pentry,
                                 (cache_content_client_t *) pclient->pcontent_client,
@@ -1413,7 +1420,7 @@ void cache_inode_mutex_destroy(cache_entry_t * pentry)
  * @return nothing (void function)
  *
  */
-void cache_inode_print_dir(cache_entry_t * cache_entry_root)
+void cache_inode_print_dir(cache_entry_t * cache_entry_root)/* release internal ref */
 {
   struct avltree_node *dirent_node;
   cache_inode_dir_entry_t *dirent;
@@ -1699,6 +1706,9 @@ void cache_inode_release_dirents( cache_entry_t           * pentry,
                                             cache_inode_dir_entry_t,
                                             node_hk);
              avltree_remove(dirent_node, tree);
+	     (void) cache_inode_lru_unref(dirent->pentry,
+                                          pclient,
+                                          LRU_FLAG_NONE); /* internal ref */
              ReleaseToPool(dirent, &pclient->pool_dir_entry);
 	     dirent_node = next_dirent_node;
 	   }
