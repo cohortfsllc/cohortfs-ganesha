@@ -96,7 +96,6 @@ int nfs_Read(nfs_arg_t * parg,
   fsal_attrib_list_t attr;
   fsal_attrib_list_t pre_attr;
   fsal_attrib_list_t *ppre_attr;
-  int rc;
   cache_inode_status_t cache_status = CACHE_INODE_SUCCESS;
   cache_content_status_t content_status;
   fsal_seek_t seek_descriptor;
@@ -107,6 +106,7 @@ int nfs_Read(nfs_arg_t * parg,
   cache_inode_file_type_t filetype;
   fsal_boolean_t eof_met;
   cache_content_policy_data_t datapol;
+  int rc = NFS_REQ_OK;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -151,11 +151,14 @@ int nfs_Read(nfs_arg_t * parg,
                                   NULL, &pre_attr, pcontext, pclient, ht, &rc)) == NULL)
     {
       /* Stale NFS FH ? */
-      return rc;
+      goto out;
     }
 
   if((preq->rq_vers == NFS_V3) && (nfs3_Is_Fh_Xattr(&(parg->arg_read3.file))))
-    return nfs3_Read_Xattr(parg, pexport, pcontext, pclient, ht, preq, pres);
+  {
+    rc = nfs3_Read_Xattr(parg, pexport, pcontext, pclient, ht, preq, pres);
+    goto out;
+  }
 
   if(cache_inode_access(pentry,
                         FSAL_READ_ACCESS,
@@ -174,7 +177,8 @@ int nfs_Read(nfs_arg_t * parg,
           pres->res_read3.status = nfs3_Errno(cache_status);
           break;
         }
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   /* get directory attributes before action (for V3 reply) */
@@ -204,7 +208,8 @@ int nfs_Read(nfs_arg_t * parg,
           break;
         }
 
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   /* For MDONLY export, reject write operation */
@@ -233,7 +238,8 @@ int nfs_Read(nfs_arg_t * parg,
                           &(pres->res_read3.READ3res_u.resfail.file_attributes),
                           NULL, NULL, NULL, NULL, NULL, NULL);
 
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   /* Extract the argument from the request */
@@ -287,7 +293,8 @@ int nfs_Read(nfs_arg_t * parg,
                               &(pres->res_read3.READ3res_u.resfail.file_attributes),
                               NULL, NULL, NULL, NULL, NULL, NULL);
 
-          return NFS_REQ_OK;
+          rc = NFS_REQ_OK;
+          goto out;
         }
     }
 
@@ -319,7 +326,8 @@ int nfs_Read(nfs_arg_t * parg,
 
       if(data == NULL)
         {
-          return NFS_REQ_DROP;
+          rc = NFS_REQ_DROP;
+          goto out;
         }
 
       seek_descriptor.whence = FSAL_SEEK_SET;
@@ -351,7 +359,8 @@ int nfs_Read(nfs_arg_t * parg,
               /* If we are here, there was an error */
               if(nfs_RetryableError(cache_status))
                 {
-                  return NFS_REQ_DROP;
+                  rc = NFS_REQ_DROP;
+                  goto out;
                 }
 
               nfs_SetFailedStatus(pcontext, pexport,
@@ -363,7 +372,8 @@ int nfs_Read(nfs_arg_t * parg,
                                   &(pres->res_read3.READ3res_u.resfail.file_attributes),
                                   NULL, NULL, NULL, NULL, NULL, NULL);
 
-              return NFS_REQ_OK;
+              rc = NFS_REQ_OK;
+              goto out;
             }
         }
 
@@ -416,14 +426,16 @@ int nfs_Read(nfs_arg_t * parg,
               break;
             }                   /* switch */
 
-          return NFS_REQ_OK;
+          rc = NFS_REQ_OK;
+          goto out;
         }
     }
 
   /* If we are here, there was an error */
   if(nfs_RetryableError(cache_status))
     {
-      return NFS_REQ_DROP;
+      rc = NFS_REQ_DROP;
+      goto out;
     }
 
   nfs_SetFailedStatus(pcontext, pexport,
@@ -435,7 +447,15 @@ int nfs_Read(nfs_arg_t * parg,
                       &(pres->res_read3.READ3res_u.resfail.file_attributes),
                       NULL, NULL, NULL, NULL, NULL, NULL);
 
-  return NFS_REQ_OK;
+  rc = NFS_REQ_OK;
+
+out:
+  /* return references */
+  if (pentry)
+      cache_inode_put(pentry, pclient);
+
+  return (rc);
+
 }                               /* nfs_Read */
 
 /**
