@@ -108,10 +108,10 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
   fsal_attrib_list_t attributes_symlink;
   fsal_attrib_list_t attr_parent_after;
   fsal_attrib_list_t *ppre_attr;
-  int rc;
   cache_inode_status_t cache_status;
   cache_inode_status_t cache_status_parent;
   fsal_handle_t *pfsal_handle;
+  int rc = NFS_REQ_OK;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -159,7 +159,7 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                                          pcontext, pclient, ht, &rc)) == NULL)
     {
       /* Stale NFS FH ? */
-      return rc;
+      goto out;;
     }
 
   /* get directory attributes before action (for V3 reply) */
@@ -185,7 +185,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
           break;
         }
 
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   switch (preq->rq_vers)
@@ -238,7 +239,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                                                              &cache_status)) == NULL)
                 {
                   pres->res_symlink3.status = NFS3ERR_IO;
-                  return NFS_REQ_OK;
+                  rc = NFS_REQ_OK;
+                  goto out;
                 }
 
               /* Some clients (like the Spec NFS benchmark) set attributes with the NFSPROC3_SYMLINK request */
@@ -247,7 +249,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                  0)
                 {
                   pres->res_create3.status = NFS3ERR_INVAL;
-                  return NFS_REQ_OK;
+                  rc = NFS_REQ_OK;
+                  goto out;
                 }
 
               /* Mode is managed above (in cache_inode_create), there is no need 
@@ -286,10 +289,13 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                                           &(pres->res_symlink3.SYMLINK3res_u.resok.
                                             dir_wcc), NULL, NULL, NULL);
 
-                      if(nfs_RetryableError(cache_status))
-                        return NFS_REQ_DROP;
+                      if(nfs_RetryableError(cache_status)) {
+                        rc = NFS_REQ_DROP;
+                        goto out;
+                      }
 
-                      return NFS_REQ_OK;
+                      rc = NFS_REQ_OK;
+                      goto out;
                     }
                 }
 
@@ -297,7 +303,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                   data_val = Mem_Alloc(NFS3_FHSIZE)) == NULL)
                 {
                   pres->res_symlink3.status = NFS3ERR_IO;
-                  return NFS_REQ_OK;
+                  rc = NFS_REQ_OK;
+                  goto out;
                 }
 
               if(nfs3_FSALToFhandle
@@ -308,7 +315,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                            post_op_fh3_u.handle.data.data_val);
 
                   pres->res_symlink3.status = NFS3ERR_BADHANDLE;
-                  return NFS_REQ_OK;
+                  rc = NFS_REQ_OK;
+                  goto out;
                 }
 
               /* The the parent pentry attributes for building Wcc Data */
@@ -323,7 +331,8 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                            post_op_fh3_u.handle.data.data_val);
 
                   pres->res_symlink3.status = NFS3ERR_BADHANDLE;
-                  return NFS_REQ_OK;
+                  rc = NFS_REQ_OK;
+                  goto out;
                 }
 
               /* Set Post Op Fh3 structure */
@@ -348,14 +357,16 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
               break;
             }                   /* switch */
 
-          return NFS_REQ_OK;
+          rc = NFS_REQ_OK;
+          goto out;
         }
     }
 
   /* If we are here, there was an error */
   if(nfs_RetryableError(cache_status))
     {
-      return NFS_REQ_DROP;
+      rc = NFS_REQ_DROP;
+      goto out;
     }
 
   nfs_SetFailedStatus(pcontext, pexport,
@@ -369,7 +380,18 @@ int nfs_Symlink(nfs_arg_t * parg /* IN  */ ,
                       &(pres->res_symlink3.SYMLINK3res_u.resfail.dir_wcc),
                       NULL, NULL, NULL);
 
-  return NFS_REQ_OK;
+  rc = NFS_REQ_OK;
+
+out:
+  /* return references */
+  if (parent_pentry)
+      cache_inode_put(parent_pentry, pclient);
+
+  if (symlink_pentry)
+      cache_inode_put(symlink_pentry, pclient);
+
+  return (rc);
+
 }                               /* nfs_Symlink */
 
 /**
