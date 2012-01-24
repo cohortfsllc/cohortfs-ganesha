@@ -98,7 +98,6 @@ int nfs_Link(nfs_arg_t * parg,
   cache_entry_t *target_pentry;
   cache_entry_t *parent_pentry;
   cache_inode_status_t cache_status = CACHE_INODE_SUCCESS;
-  int rc;
   fsal_attrib_list_t *ppre_attr;
   fsal_attrib_list_t parent_attr;
   fsal_attrib_list_t target_attr;
@@ -108,6 +107,7 @@ int nfs_Link(nfs_arg_t * parg,
   cache_inode_file_type_t target_filetype;
   short to_exportid = 0;
   short from_exportid = 0;
+  int rc = NFS_REQ_OK;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -161,7 +161,7 @@ int nfs_Link(nfs_arg_t * parg,
                                          pcontext, pclient, ht, &rc)) == NULL)
     {
       /* Stale NFS FH ? */
-      return rc;
+      goto out;
     }
   ppre_attr = &parent_attr;
 
@@ -176,7 +176,7 @@ int nfs_Link(nfs_arg_t * parg,
                                          pcontext, pclient, ht, &rc)) == NULL)
     {
       /* Stale NFS FH ? */
-      return rc;
+      goto out;;
     }
 
   /* Extract the filetype */
@@ -197,7 +197,8 @@ int nfs_Link(nfs_arg_t * parg,
           pres->res_link3.status = NFS3ERR_NOTDIR;
           break;
         }
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   switch (preq->rq_vers)
@@ -294,7 +295,8 @@ int nfs_Link(nfs_arg_t * parg,
                           break;
                         }       /* switch */
 
-                      return NFS_REQ_OK;
+                      rc = NFS_REQ_OK;
+                      goto out;
 
                     }           /* if( cache_inode_link ... */
                 }               /* if( cache_inode_getattr ... */
@@ -305,7 +307,8 @@ int nfs_Link(nfs_arg_t * parg,
   /* If we are here, there was an error */
   if(nfs_RetryableError(cache_status))
     {
-      return NFS_REQ_DROP;
+      rc = NFS_REQ_DROP;
+      goto out;
     }
 
   nfs_SetFailedStatus(pcontext, pexport,
@@ -320,7 +323,18 @@ int nfs_Link(nfs_arg_t * parg,
                       &(pres->res_link3.LINK3res_u.resfail.linkdir_wcc),
                       NULL, NULL, NULL);
 
-  return NFS_REQ_OK;
+  rc = NFS_REQ_OK;
+
+out:
+  /* return references */
+  if (target_pentry)
+      cache_inode_put(target_pentry, pclient);
+
+  if (parent_pentry)
+      cache_inode_put(parent_pentry, pclient);
+
+  return (rc);
+
 }                               /* nfs_Link */
 
 /**
