@@ -98,7 +98,6 @@ int nfs_Create(nfs_arg_t * parg,
   fsal_accessmode_t mode = 0;
   cache_entry_t *file_pentry = NULL;
   cache_entry_t *parent_pentry = NULL;
-  int rc;
   fsal_attrib_list_t parent_attr;
   fsal_attrib_list_t attr;
   fsal_attrib_list_t attr_newfile;
@@ -109,6 +108,7 @@ int nfs_Create(nfs_arg_t * parg,
   cache_inode_status_t cache_status_lookup;
   cache_inode_file_type_t parent_filetype;
   fsal_handle_t *pfsal_handle;
+  int rc = NFS_REQ_OK;
 
   if(isDebug(COMPONENT_NFSPROTO))
     {
@@ -136,7 +136,8 @@ int nfs_Create(nfs_arg_t * parg,
 
   if((preq->rq_vers == NFS_V3) && (nfs3_Is_Fh_Xattr(&(parg->arg_create3.where.dir))))
     {
-      return nfs3_Create_Xattr(parg, pexport, pcontext, pclient, ht, preq, pres);
+      rc = nfs3_Create_Xattr(parg, pexport, pcontext, pclient, ht, preq, pres);
+      goto out;
     }
 
   if(preq->rq_vers == NFS_V3)
@@ -158,7 +159,7 @@ int nfs_Create(nfs_arg_t * parg,
                                          pcontext, pclient, ht, &rc)) == NULL)
     {
       /* Stale NFS FH ? */
-      return rc;
+      goto out;
     }
 
   /* get directory attributes before action (for V3 reply) */
@@ -184,7 +185,8 @@ int nfs_Create(nfs_arg_t * parg,
           break;
         }
 
-      return NFS_REQ_OK;
+      rc = NFS_REQ_OK;
+      goto out;
     }
 
   switch (preq->rq_vers)
@@ -248,7 +250,11 @@ int nfs_Create(nfs_arg_t * parg,
                                            &file_name,
                                            pexport->cache_inode_policy,
                                            &attr,
-                                           ht, pclient, pcontext, &cache_status_lookup);
+                                           ht,
+                                           pclient,
+                                           pcontext,
+                                           &cache_status_lookup,
+                                           CACHE_INODE_FLAG_NONE);
 
           if((cache_status_lookup == CACHE_INODE_NOT_FOUND) ||
              ((cache_status_lookup == CACHE_INODE_SUCCESS)
@@ -287,7 +293,8 @@ int nfs_Create(nfs_arg_t * parg,
                                                 &parg->arg_create2.attributes) == 0)
                         {
                           pres->res_dirop2.status = NFSERR_IO;
-                          return NFS_REQ_OK;
+                          rc = NFS_REQ_OK;
+                          goto out;
                           break;
                         }
                       break;
@@ -299,7 +306,8 @@ int nfs_Create(nfs_arg_t * parg,
                                                 obj_attributes) == 0)
                         {
                           pres->res_create3.status = NFS3ERR_INVAL;
-                          return NFS_REQ_OK;
+                          rc = NFS_REQ_OK;
+                          goto out;
                         }
                       break;
                     }
@@ -341,10 +349,13 @@ int nfs_Create(nfs_arg_t * parg,
                                               &(pres->res_create3.CREATE3res_u.resfail.
                                                 dir_wcc), NULL, NULL, NULL);
 
-                          if(nfs_RetryableError(cache_status))
-                            return NFS_REQ_DROP;
+                          if(nfs_RetryableError(cache_status)) {
+                              rc = NFS_REQ_DROP;
+                              goto out;
+                          }
 
-                          return NFS_REQ_OK;
+                          rc = NFS_REQ_OK;
+                          goto out;
                         }
 
                       /* Get the resulting attributes from the Cache Inode */
@@ -368,10 +379,13 @@ int nfs_Create(nfs_arg_t * parg,
                                               &(pres->res_create3.CREATE3res_u.resfail.
                                                 dir_wcc), NULL, NULL, NULL);
 
-                          if(nfs_RetryableError(cache_status))
-                            return NFS_REQ_DROP;
+                          if(nfs_RetryableError(cache_status)) {
+                            rc = NFS_REQ_DROP;
+                            goto out;
+                          }
 
-                          return NFS_REQ_OK;
+                          rc = NFS_REQ_OK;
+                          goto out;
                         }
 
                     }
@@ -410,7 +424,8 @@ int nfs_Create(nfs_arg_t * parg,
                                                                      "Filehandle V3 in nfs3_Create")) == NULL)
                             {
                               pres->res_create3.status = NFS3ERR_IO;
-                              return NFS_REQ_OK;
+                              rc = NFS_REQ_OK;
+                              goto out;
                             }
 
                           /* Set Post Op Fh3 structure */
@@ -422,7 +437,8 @@ int nfs_Create(nfs_arg_t * parg,
                                        post_op_fh3_u.handle.data.data_val);
 
                               pres->res_create3.status = NFS3ERR_BADHANDLE;
-                              return NFS_REQ_OK;
+                              rc = NFS_REQ_OK;
+                              goto out;
                             }
 
                           /* Set Post Op Fh3 structure */
@@ -453,7 +469,8 @@ int nfs_Create(nfs_arg_t * parg,
                           pres->res_create3.status = NFS3_OK;
                           break;
                         }       /* switch */
-                      return NFS_REQ_OK;
+                      rc = NFS_REQ_OK;
+                      goto out;
                     }
                 }
             }
@@ -503,8 +520,9 @@ int nfs_Create(nfs_arg_t * parg,
                                   &(pres->res_create3.CREATE3res_u.resfail.dir_wcc),
                                   NULL, NULL, NULL);
 
-              return NFS_REQ_OK;
-            }                   /* if( cache_status_lookup == CACHE_INODE_NOT_FOUND ) */
+              rc = NFS_REQ_OK;
+              goto out;
+            } /* if( cache_status_lookup == CACHE_INODE_NOT_FOUND ) */
         }
     }
 
@@ -523,10 +541,22 @@ int nfs_Create(nfs_arg_t * parg,
   /* If we are here, there was an error */
   if(nfs_RetryableError(cache_status))
     {
-      return NFS_REQ_DROP;
+      rc = NFS_REQ_DROP;
+      goto out;
     }
 
-  return NFS_REQ_OK;
+  rc = NFS_REQ_OK;
+
+out:
+  /* return references */
+  if (file_pentry)
+      cache_inode_put(file_pentry, pclient);
+
+  if (parent_pentry)
+      cache_inode_put(parent_pentry, pclient);
+
+  return (rc);
+
 }                               /* nfs_Create */
 
 /**
