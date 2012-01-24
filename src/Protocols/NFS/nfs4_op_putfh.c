@@ -46,6 +46,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <sys/file.h>           /* for having FNDELAY */
+#include <assert.h>
 #include "HashData.h"
 #include "HashTable.h"
 #include "rpc.h"
@@ -147,12 +148,20 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
   LogHandleNFS4("NFS4_OP_PUTFH CURRENT FH: ", &arg_PUTFH4.object);
 
-  /* If the filehandle is not pseudo hs file handle, get the entry related to it, otherwise use fake values */
+  /* If the filehandle is not pseudo hs file handle, get the entry related to
+   * it, otherwise use fake values */
   if(nfs4_Is_Fh_Pseudo(&(data->currentFH)))
     {
-      data->current_entry = NULL;
-      data->current_filetype = DIRECTORY;
-      data->pexport = NULL;     /* No exportlist is related to pseudo fs */
+        /* XXX we must ensure that the current and saved cache entries are
+         * non-null only when the caller holds one reference corresponding
+         * to each assignment.  Code overwriting a pointer to one of these
+         * special entries must first release that reference. */
+        if (data->current_entry) {
+            cache_inode_put(data->current_entry, data->pclient);
+        }
+        data->current_entry = NULL;
+        data->current_filetype = DIRECTORY;
+        data->pexport = NULL; /* No exportlist is related to pseudo fs */
     }
   else
     {
@@ -169,7 +178,8 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 #endif 
         }
 
-      /* Build the pentry */
+      /* Build the pentry.  Refcount +1. */
+      assert (data->current_entry == NULL); /* XXX we just assigned NULL */
       if((data->current_entry = nfs_FhandleToCache(NFS_V4,
                                                    NULL,
                                                    NULL,
@@ -187,7 +197,6 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 
       /* Extract the filetype */
       data->current_filetype = cache_inode_fsal_type_convert(attr.type);
-
     }
 
   return NFS4_OK;

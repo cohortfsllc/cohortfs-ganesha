@@ -167,6 +167,7 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   /* If data->current_entry is empty, repopulate it */
   if(data->current_entry == NULL)
     {
+      /* refcount +1 */
       if((data->current_entry = nfs_FhandleToCache(NFS_V4,
                                                    NULL,
                                                    NULL,
@@ -425,7 +426,9 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                                              &attr_newfile,
                                              data->ht,
                                              data->pclient,
-                                             data->pcontext, &cache_status);
+                                             data->pcontext,
+                                             &cache_status,
+                                             CACHE_INODE_FLAG_NONE);
 
           if(cache_status != CACHE_INODE_NOT_FOUND)
             {
@@ -598,6 +601,14 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                   memcpy(data->currentFH.nfs_fh4_val, newfh4.nfs_fh4_val,
                          newfh4.nfs_fh4_len);
 
+                  /* XXX we must ensure that the current and saved cache
+                   * entries are  non-null only when the caller holds one
+                   * reference corresponding to each assignment.  Code
+                   * overwriting a pointer to one of these special entries
+                   * must first release that reference. */
+                  if (data->current_entry) {
+                      cache_inode_put(data->current_entry, data->pclient);
+                  }                  
                   data->current_entry = pentry_lookup;
                   data->current_filetype = REGULAR_FILE;
 
@@ -685,6 +696,16 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                               memcpy(data->currentFH.nfs_fh4_val, newfh4.nfs_fh4_val,
                                      newfh4.nfs_fh4_len);
 
+                              /* XXX we must ensure that the current and saved
+                               * cache entries are  non-null only when the
+                               * caller holds one reference corresponding to
+                               * each assignment.  Code overwriting a pointer
+                               * to one of these special entries must first
+                               * release that reference. */
+                              if (data->current_entry) {
+                                  cache_inode_put(data->current_entry,
+                                                  data->pclient);
+                              }
                               data->current_entry = pentry_lookup;
                               data->current_filetype = REGULAR_FILE; 
 
@@ -829,7 +850,9 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                                                       data->ht,
                                                       data->pclient,
                                                       data->pcontext,
-                                                      &cache_status)) == NULL)
+                                                      &cache_status,
+                                                      CACHE_INODE_FLAG_NONE))
+                 == NULL)
                 {
                   res_OPEN4.status = nfs4_Errno(cache_status);
                   cause2 = " cache_inode_lookup";
@@ -1061,6 +1084,14 @@ int nfs4_op_open(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
   data->currentFH.nfs_fh4_len = newfh4.nfs_fh4_len;
   memcpy(data->currentFH.nfs_fh4_val, newfh4.nfs_fh4_val, newfh4.nfs_fh4_len);
 
+  /* XXX we must ensure that the current and saved cache entries are
+   * non-null only when the caller holds one reference corresponding
+   * to each assignment.  Code overwriting a pointer to one of these
+   * special entries must first release that reference. */
+  if (data->current_entry) {
+      cache_inode_put(data->current_entry,
+                      data->pclient);
+  }
   data->current_entry = pentry_newfile;
   data->current_filetype = REGULAR_FILE;
 
