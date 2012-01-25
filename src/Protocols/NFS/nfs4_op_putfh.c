@@ -179,6 +179,10 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 #endif
         }
 
+      /* As usual, protect existing refcounts */
+      if (data->current_entry) {
+          cache_inode_put(data->current_entry, data->pclient);
+      }
 #ifdef _USE_FSALDS
       /* The export and fsalid should be updated, but DS handles
          don't support metdata operations.  Thus, we can't call into
@@ -191,22 +195,25 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
       else
 #endif /* _USE_FSALDS */
         {
-             /* Build the pentry.  Refcount +1. */
-             assert (data->current_entry == NULL); /* XXX we just assigned NULL */
-             if((data->current_entry = nfs_FhandleToCache(NFS_V4,
-                                                          NULL,
-                                                          NULL,
-                                                          &(data->currentFH),
-                                                          NULL,
-                                                          NULL,
-                                                          &(res_PUTFH4.status),
-                                                          &attr,
-                                                          data->pcontext,
-                                                          data->pclient,
-                                                          data->ht,
-                                                          &rc)) == NULL)
-                  /* Extract the filetype */
-                  data->current_filetype = cache_inode_fsal_type_convert(attr.type);
+          /* Build the pentry.  Refcount +1. */
+          if((data->current_entry = nfs_FhandleToCache(NFS_V4,
+                                                       NULL,
+                                                       NULL,
+                                                       &(data->currentFH),
+                                                       NULL,
+                                                       NULL,
+                                                       &(res_PUTFH4.status),
+                                                       &attr,
+                                                       data->pcontext,
+                                                       data->pclient,
+                                                       data->ht,
+                                                       &rc)) == NULL)
+            {
+              res_PUTFH4.status = NFS4ERR_BADHANDLE;
+              return res_PUTFH4.status;
+            }
+          /* Extract the filetype */
+          data->current_filetype = cache_inode_fsal_type_convert(attr.type);
         }
     }
 
