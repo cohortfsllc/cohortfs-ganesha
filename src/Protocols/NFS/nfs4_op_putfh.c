@@ -178,8 +178,11 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
 #endif 
         }
 
+      /* As usual, protect existing refcounts */
+      if (data->current_entry) {
+          cache_inode_put(data->current_entry, data->pclient);
+      }
       /* Build the pentry.  Refcount +1. */
-      assert (data->current_entry == NULL); /* XXX we just assigned NULL */
       if((data->current_entry = nfs_FhandleToCache(NFS_V4,
                                                    NULL,
                                                    NULL,
