@@ -52,7 +52,6 @@
 #include "nfs_core.h"
 #include "cache_inode.h"
 #include "err_cache_inode.h"
-#include "cache_inode_lru.h"
 #include "cache_content.h"
 #include "err_cache_content.h"
 #include "nfs_file_handle.h"
@@ -1532,10 +1531,6 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
 
   LogDebug(COMPONENT_THREAD,
            "sigmgr thread started");
-
-  /* init cache_inode_lru -- request threads should not race its
-   * initialization */
-  cache_inode_lru_pkginit(&attr_thr);
 
   /* Starting all of the worker thread */
   for(i = 0; i < nfs_param.core_param.nb_worker; i++)
