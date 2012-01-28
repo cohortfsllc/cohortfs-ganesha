@@ -202,7 +202,8 @@ cache_inode_status_t cache_inode_kill_entry( cache_entry_t          * pentry,
     }
     
   /* return HashTable (sentinel) reference */
-  (void) cache_inode_lru_unref(pentry, pclient, LRU_FLAG_NONE);
+  (void) cache_inode_lru_unref(pentry, pclient, LRU_FLAG_NONE,
+      "cache_inode_kill_entry");
 
   /* Release the hash key data */
   cache_inode_release_fsaldata_key(&old_key, pclient);
