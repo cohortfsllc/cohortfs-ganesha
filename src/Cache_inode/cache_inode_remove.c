@@ -135,8 +135,8 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
 
   if((rc != HASHTABLE_SUCCESS) && (rc != HASHTABLE_ERROR_NO_SUCH_KEY))
     {
-      /* XXX this seems to logically prevent relcaiming the HashTable LRU reference,
-       * but it seems to indicate a very serious problem */
+      /* XXX this seems to logically prevent relcaiming the HashTable LRU
+       * reference, and it seems to indicate a very serious problem */
       cache_inode_release_fsaldata_key(&key, pclient);
       return CACHE_INODE_INCONSISTENT_ENTRY;
     }
