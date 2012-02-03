@@ -308,6 +308,7 @@ static bool_t LogList(const char        * reason,
   return FALSE;
 }
 
+#ifdef _USE_BLOCKING_LOCKS
 static bool_t LogBlockedList(const char        * reason,
                              cache_entry_t     * pentry,
                              struct glist_head * list)
@@ -344,6 +345,7 @@ static bool_t LogBlockedList(const char        * reason,
 
   return FALSE;
 }
+#endif /* _USE_BLOCKING_LOCKS */
 
 void LogLock(log_components_t     component,
              log_levels_t         debug,
@@ -2228,6 +2230,7 @@ state_status_t state_lock(cache_entry_t         * pentry,
       /* Discard lock entry */
       remove_from_locklist(found_entry, pclient);
     }
+#ifdef _USE_BLOCKING_LOCKS
   else if(*pstatus == STATE_LOCK_BLOCKED)
     {
       /* Mark entry as blocking and attach block_data */
@@ -2250,6 +2253,7 @@ state_status_t state_lock(cache_entry_t         * pentry,
 
       return *pstatus;
     }
+#endif /* _USE_BLOCKING_LOCKS */
   else
     {
       LogMajor(COMPONENT_STATE,
