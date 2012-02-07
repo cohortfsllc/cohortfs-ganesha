@@ -96,7 +96,6 @@ cache_inode_status_t cache_inode_is_dir_empty_WithLock(cache_entry_t * pentry)
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  */
 cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
-                                                hash_table_t * ht,
                                                 cache_inode_client_t * pclient)
 {
   fsal_handle_t *pfsal_handle_remove;
@@ -127,7 +126,7 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
     }
 
   /* use the key to delete the entry */
-  rc = HashTable_Del(ht, &key, &old_key, &old_value);
+  rc = HashTable_Del(fh_to_cache_entry_ht, &key, &old_key, &old_value);
 
   if(rc)
     LogCrit(COMPONENT_CACHE_INODE,
@@ -144,11 +143,11 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
   /* release the key that was stored in hash table */
   if(rc != HASHTABLE_ERROR_NO_SUCH_KEY)
     {
-    
+
       /* return Hashtable (sentinel) reference */
         (void) cache_inode_lru_unref(to_remove_entry, pclient, LRU_FLAG_NONE,
             "cache_inode_remove");
-      
+
       cache_inode_release_fsaldata_key(&old_key, pclient);
 
       /* Sanity check: old_value.pdata is expected to be equal to pentry,
@@ -190,7 +189,6 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
  * @param pentry  [IN]     entry for the parent directory to be managed.
  * @param name    [IN]     name of the entry that we are looking for in the cache.
  * @param pattr   [OUT]    attributes for the entry that we have found.
- * @param ht      [IN]     hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  * @param pcontext   [IN]    FSAL credentials
  * @param pstatus [OUT]   returned status.
@@ -202,7 +200,6 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
 cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /**< Parent entry */
                                            fsal_name_t * pnode_name,
                                            fsal_attrib_list_t * pattr,
-                                           hash_table_t * ht,
                                            cache_inode_client_t * pclient,
                                            fsal_op_context_t * pcontext,
                                            cache_inode_status_t * pstatus, int use_mutex)
@@ -230,7 +227,6 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
                 FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_DELETE_CHILD);
   if((status = cache_inode_access_sw(pentry,
                                      access_mask,
-                                     ht,
                                      pclient,
                                      pcontext, &status, FALSE)) != CACHE_INODE_SUCCESS)
     {
@@ -248,10 +244,9 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
                                                pnode_name,
                                                CACHE_INODE_JOKER_POLICY,
                                                &remove_attr,
-                                               ht,
-                                               pclient, 
-                                               pcontext, 
-                                               &status, 
+                                               pclient,
+                                               pcontext,
+                                               &status,
                                                FALSE)) == NULL)
     {
       *pstatus = status;
@@ -332,7 +327,7 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
                        "cache_inode_remove: Stale FSAL FH detected for pentry %p, fsal_status=(%u,%u)",
                        pentry, fsal_status.major, fsal_status.minor);
 
-              if(cache_inode_kill_entry(pentry, WT_LOCK, ht, pclient, &kill_status) !=
+              if(cache_inode_kill_entry(pentry, WT_LOCK, pclient, &kill_status) !=
                  CACHE_INODE_SUCCESS)
                 LogCrit(COMPONENT_CACHE_INODE,
                         "cache_inode_remove: Could not kill entry %p, status = %u",
@@ -362,7 +357,7 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
     }
 
   /* Remove the entry from parent dir_entries avl */
-  cache_inode_remove_cached_dirent(pentry, pnode_name, ht, pclient, &status);
+  cache_inode_remove_cached_dirent(pentry, pnode_name, pclient, &status);
 
   LogFullDebug(COMPONENT_CACHE_INODE,
                "cache_inode_remove_cached_dirent: status=%d", status);
@@ -425,21 +420,21 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
                 }
             }
         }
-	
-      if((*pstatus =
-      	cache_inode_clean_internal(to_remove_entry, ht,
-					 pclient)) != CACHE_INODE_SUCCESS)
-    	{
-      	  if(use_mutex)
-	  {
-	    V_w(&pentry->lock);
-	    V_w(&to_remove_entry->lock);
-	  }
 
-      	  LogCrit(COMPONENT_CACHE_INODE,
-	   	   "cache_inode_clean_internal ERROR %d", *pstatus);
-      	return *pstatus;
-      }
+      if((*pstatus =
+          cache_inode_clean_internal(to_remove_entry,
+                                     pclient)) != CACHE_INODE_SUCCESS)
+        {
+          if(use_mutex)
+            {
+              V_w(&pentry->lock);
+              V_w(&to_remove_entry->lock);
+            }
+
+          LogCrit(COMPONENT_CACHE_INODE,
+                  "cache_inode_clean_internal ERROR %d", *pstatus);
+          return *pstatus;
+        }
 
       /* Finally put the main pentry back to pool */
       if(use_mutex)
@@ -481,7 +476,6 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
  * @param pentry  [IN]    entry for the parent directory to be managed.
  * @param name    [IN]    name of the entry that we are looking for in the cache.
  * @param pattr   [OUT]   attributes for the entry that we have found.
- * @param ht      [IN]    hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  * @param pcontext   [IN]    FSAL credentials
  * @param pstatus [OUT]   returned status.
@@ -493,13 +487,12 @@ cache_inode_status_t cache_inode_remove_sw(cache_entry_t * pentry,             /
 cache_inode_status_t cache_inode_remove_no_mutex(cache_entry_t * pentry,             /**< Parent entry */
                                                  fsal_name_t * pnode_name,
                                                  fsal_attrib_list_t * pattr,
-                                                 hash_table_t * ht,
                                                  cache_inode_client_t * pclient,
                                                  fsal_op_context_t * pcontext,
                                                  cache_inode_status_t * pstatus)
 {
   return cache_inode_remove_sw(pentry,
-                               pnode_name, pattr, ht, pclient, pcontext, pstatus, FALSE);
+                               pnode_name, pattr, pclient, pcontext, pstatus, FALSE);
 }                               /* cache_inode_remove_no_mutex */
 
 /**
@@ -511,7 +504,6 @@ cache_inode_status_t cache_inode_remove_no_mutex(cache_entry_t * pentry,        
  * @param pentry [IN] entry for the parent directory to be managed.
  * @param name [IN] name of the entry that we are looking for in the cache.
  * @param pattr [OUT] attributes for the entry that we have found.
- * @param ht      [IN] hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  * @param pcontext [IN] FSAL credentials
  * @param pstatus [OUT] returned status.
@@ -523,11 +515,10 @@ cache_inode_status_t cache_inode_remove_no_mutex(cache_entry_t * pentry,        
 cache_inode_status_t cache_inode_remove(cache_entry_t * pentry,             /**< Parent entry */
                                         fsal_name_t * pnode_name,
                                         fsal_attrib_list_t * pattr,
-                                        hash_table_t * ht,
                                         cache_inode_client_t * pclient,
                                         fsal_op_context_t * pcontext,
                                         cache_inode_status_t * pstatus)
 {
   return cache_inode_remove_sw(pentry,
-                               pnode_name, pattr, ht, pclient, pcontext, pstatus, TRUE);
+                               pnode_name, pattr, pclient, pcontext, pstatus, TRUE);
 }                               /* cache_inode_remove_no_mutex */

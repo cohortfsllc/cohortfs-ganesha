@@ -213,7 +213,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* get attributes of parent directory, for 'change4' info replyed */
   if((cache_status = cache_inode_getattr(pentry_parent,
                                          &attr_parent,
-                                         data->ht,
                                          data->pclient,
                                          data->pcontext,
                                          &cache_status)) != CACHE_INODE_SUCCESS)
@@ -269,7 +268,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           &create_arg,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -299,7 +297,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           &create_arg,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -325,7 +322,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           NULL,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -351,7 +347,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           NULL,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -380,7 +375,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           &create_arg,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -409,7 +403,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
                                           mode,
                                           &create_arg,
                                           &attr_new,
-                                          data->ht,
                                           data->pclient,
                                           data->pcontext, &cache_status)) == NULL)
         {
@@ -469,7 +462,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
     {
       if((cache_status = cache_inode_setattr(pentry_new,
                                              &sattr,
-                                             data->ht,
                                              data->pclient,
                                              data->pcontext,
                                              &cache_status)) != CACHE_INODE_SUCCESS)
@@ -500,7 +492,6 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t * data, struct nfs_res
   /* Get the change info on parent directory after the operation was successfull */
   if((cache_status = cache_inode_getattr(pentry_parent,
                                          &attr_parent,
-                                         data->ht,
                                          data->pclient,
                                          data->pcontext,
                                          &cache_status)) != CACHE_INODE_SUCCESS)

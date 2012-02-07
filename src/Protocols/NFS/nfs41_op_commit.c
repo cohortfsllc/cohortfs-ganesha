@@ -166,7 +166,6 @@ int nfs41_op_commit(struct nfs_argop4 *op, compound_data_t * data, struct nfs_re
                         arg_COMMIT4.offset,
                         arg_COMMIT4.count,
                         &attr,
-                        data->ht,
                         data->pclient,
                         data->pcontext,
                         FSAL_UNSAFE_WRITE_TO_FS_BUFFER,

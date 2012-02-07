@@ -1665,7 +1665,6 @@ int nfs4_op_lookup_pseudo(struct nfs_argop4 *op,
       fsdata.cookie = 0;
       if((pentry = cache_inode_make_root(&fsdata,
                                          data->pexport->cache_inode_policy,
-                                         data->ht,
                                          ((cache_inode_client_t *) data->pclient),
                                          data->pcontext, &cache_status)) == NULL)
         {
@@ -1679,7 +1678,6 @@ int nfs4_op_lookup_pseudo(struct nfs_argop4 *op,
       /* Get the attributes (costless: the attributes was cached when the root pentry was created */
       if(cache_inode_getattr(pentry,
                              &attr,
-                             data->ht,
                              ((cache_inode_client_t *) data->pclient),
                              data->pcontext, &cache_status) != CACHE_INODE_SUCCESS)
         {
@@ -1954,7 +1952,6 @@ int nfs4_op_readdir_pseudo(struct nfs_argop4 *op,
       fsdata.cookie = 0;
       if((pentry = cache_inode_make_root(&fsdata,
                                          data->pexport->cache_inode_policy,
-                                         data->ht,
                                          ((cache_inode_client_t *) data->pclient),
                                          data->pcontext, &cache_status)) == NULL)
         {
@@ -1968,7 +1965,6 @@ int nfs4_op_readdir_pseudo(struct nfs_argop4 *op,
       /* Get the attributes (costless: the attributes was cached when the root pentry was created */
       if(cache_inode_getattr(pentry,
                              &attr,
-                             data->ht,
                              ((cache_inode_client_t *) data->pclient),
                              data->pcontext, &cache_status) != CACHE_INODE_SUCCESS)
         {

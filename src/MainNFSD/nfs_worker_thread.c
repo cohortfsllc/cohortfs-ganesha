@@ -1415,7 +1415,6 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 						     pexport, 
 						     pfsal_op_ctx,
                                                      &(pworker_data->cache_inode_client), 
-                                                     pworker_data->ht, 
                                                      ptr_req, 
                                                      &res_nfs); 
 

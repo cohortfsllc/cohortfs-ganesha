@@ -282,7 +282,7 @@ void *stats_thread(void *addr)
 
       /* Pinting the cache inode hash stat */
       /* This is done only on worker[0]: the hashtable is shared and worker 0 always exists */
-      HashTable_GetStats(workers_data[0].ht, &hstat);
+      HashTable_GetStats(fh_to_cache_entry_ht, &hstat);
 
       fprintf(stats_file,
               "CACHE_INODE_HASH,%s;%u,%u,%u,%u|%u,%u,%u|%u,%u,%u|%u,%u,%u|%u,%u,%u\n",

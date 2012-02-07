@@ -68,7 +68,6 @@
  * @param nbwanted [IN] Maximum number of directory entries wanted.
  * @param peod_met [OUT] A flag to know if end of directory was met during this call.
  * @param dirent_array [OUT] the resulting array of found directory entries.
- * @param ht [IN] hash table used for the cache, unused in this call.
  * @param unlock [OUT] the caller shall release read-lock on pentry when done
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  * @param pcontext [IN] FSAL credentials
@@ -85,7 +84,6 @@ static cache_inode_status_t cache_inode_readdir_nonamecache( cache_entry_t * pen
                                                              uint64_t *pend_cookie,
                                                              cache_inode_endofdir_t *peod_met,
                                                              cache_inode_dir_entry_t **dirent_array,
-                                                             hash_table_t *ht,
                                                              int *unlock,
                                                              cache_inode_client_t *pclient,
                                                              fsal_op_context_t *pcontext,
@@ -140,7 +138,7 @@ static cache_inode_status_t cache_inode_readdir_nonamecache( cache_entry_t * pen
                    "cache_inode_readdir: Stale FSAL File Handle detected for pentry = %p, fsal_status=(%u,%u)",
                    pentry_dir, fsal_status.major, fsal_status.minor);
 
-          if(cache_inode_kill_entry(pentry_dir, WT_LOCK, ht, pclient, &kill_status) !=
+          if(cache_inode_kill_entry(pentry_dir, WT_LOCK, pclient, &kill_status) !=
              CACHE_INODE_SUCCESS)
             LogCrit(COMPONENT_CACHE_INODE,
                     "cache_inode_readdir: Could not kill entry %p, status = %u",
@@ -208,7 +206,6 @@ static cache_inode_status_t cache_inode_readdir_nonamecache( cache_entry_t * pen
       if( ( dirent_array[iter]->pentry= cache_inode_get( &entry_fsdata,
                                                          policy,
                                                          &fsal_dirent_array[iter].attributes,
-                                                         ht,
                                                          pclient,
                                                          pcontext,
                                                          pstatus ) ) == NULL )
@@ -322,7 +319,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 {
   cache_entry_t *pentry = NULL;
   cache_inode_dir_entry_t dirent_key[1], *dirent, *dirent2;
-  LRU_List_state_t vstate;
+  cache_inode_entry_valid_state_t vstate;
 
   /* Directory mutation generally invalidates outstanding 
    * readdirs, hence any cached cookies, so in these cases we 
@@ -356,8 +353,8 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
   if (vstate == VALID || vstate == STALE) {
 
       if (vstate == STALE)
-      	LogDebug(COMPONENT_CACHE_INODE,
-		"DIRECTORY: found STALE cache entry");
+          LogDebug(COMPONENT_CACHE_INODE,
+                   "DIRECTORY: found STALE cache entry");
 
       /* Entry was found */
         pentry = dirent->pentry;
@@ -497,8 +494,6 @@ cache_entry_t *cache_inode_lookup_cached_dirent(cache_entry_t * pentry_parent,
  * @param name          [IN]    name of the entry to add.
  * @param pentry_added  [IN]    the pentry added to the dirent array
  * @param pentry_next   [OUT]   the next pentry to use for next call.
- * @param ht            [IN]    hash table used for the cache, unused in this
- *                              call.
  * @param pclient       [INOUT] resource allocated by the client for the nfs
  *                              management.
  * @param pstatus       [OUT]   returned status.
@@ -511,7 +506,6 @@ cache_inode_status_t cache_inode_add_cached_dirent(
     cache_entry_t * pentry_parent,
     fsal_name_t * pname,
     cache_entry_t * pentry_added,
-    hash_table_t * ht,
     cache_inode_dir_entry_t **pnew_dir_entry,
     cache_inode_client_t * pclient,
     fsal_op_context_t * pcontext,
@@ -562,22 +556,22 @@ cache_inode_status_t cache_inode_add_cached_dirent(
 
   /* add to avl */
   if (cache_inode_avl_qp_insert(pentry_parent, new_dir_entry) == -1) {
-  	/* collision, tree not updated--release both pool objects and return
-         * err */
-	ReleaseToPool(next_parent_entry, &pclient->pool_parent);
-	ReleaseToPool(new_dir_entry, &pclient->pool_dir_entry);
-	*pstatus = CACHE_INODE_ENTRY_EXISTS;
-	return *pstatus;
+       /* collision, tree not updated--release both pool objects and return
+        * err */
+      ReleaseToPool(next_parent_entry, &pclient->pool_parent);
+      ReleaseToPool(new_dir_entry, &pclient->pool_dir_entry);
+      *pstatus = CACHE_INODE_ENTRY_EXISTS;
+      return *pstatus;
   }
 
   *pnew_dir_entry = new_dir_entry;
 
-  /* we're going to succeed */  
-  pentry_parent->object.dir.nbactive++;  
+  /* we're going to succeed */
+  pentry_parent->object.dir.nbactive++;
   new_dir_entry->pentry = pentry_added;
-  
-  /* XXX take internal ref.  I believe we know that pentry_parent is locked, but
-   * we should cross-check and annotate that. */
+
+  /* XXX take internal ref.  I believe we know that pentry_parent is
+   * locked, but we should cross-check and annotate that. */
   (void) cache_inode_lru_ref(pentry_added);
 
   /* link with the parent entry (insert as first entry) */
@@ -597,7 +591,6 @@ cache_inode_status_t cache_inode_add_cached_dirent(
  *
  * @param pentry_parent [INOUT] cache entry representing the directory to be
  * managed.
- * @param ht [IN] hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs
  * management.
  * @param pstatus [OUT] returned status.
@@ -607,7 +600,6 @@ cache_inode_status_t cache_inode_add_cached_dirent(
  */
 cache_inode_status_t cache_inode_invalidate_all_cached_dirent(
     cache_entry_t *pentry,
-    hash_table_t *ht,
     cache_inode_client_t *pclient,
     cache_inode_status_t *pstatus)
 {
@@ -641,7 +633,6 @@ cache_inode_status_t cache_inode_invalidate_all_cached_dirent(
  * @param pentry_parent [INOUT] cache entry representing the directory to be
  * managed.
  * @param name [IN] name of the entry to remove.
- * @param ht [IN] hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs
  * management.
  * @param pstatus [OUT] returned status.
@@ -652,7 +643,6 @@ cache_inode_status_t cache_inode_invalidate_all_cached_dirent(
 cache_inode_status_t cache_inode_remove_cached_dirent(
     cache_entry_t * pentry_parent,
     fsal_name_t * pname,
-    hash_table_t * ht,
     cache_inode_client_t * pclient,
     cache_inode_status_t * pstatus)
 {
@@ -762,7 +752,6 @@ static void debug_print_dirents(cache_entry_t *dir_pentry)
  *
  * @param pentry [IN]  entry for the parent directory to be read. This must be
  * a DIRECTORY
- * @param ht [IN] hash table used for the cache, unused in this call.
  * @param pclient [INOUT] ressource allocated by the client for the nfs
  * management.
  * @param pcontext [IN] FSAL credentials
@@ -772,7 +761,6 @@ static void debug_print_dirents(cache_entry_t *dir_pentry)
 cache_inode_status_t cache_inode_readdir_populate(
     cache_entry_t * pentry_dir,
     cache_inode_policy_t policy,
-    hash_table_t * ht,
     cache_inode_client_t * pclient,
     fsal_op_context_t * pcontext,
     cache_inode_status_t * pstatus)
@@ -829,9 +817,8 @@ cache_inode_status_t cache_inode_readdir_populate(
 
   /* Invalidate all the dirents */
   if(cache_inode_invalidate_all_cached_dirent(pentry_dir,
-                                              ht,
                                               pclient,
-					      pstatus) != CACHE_INODE_SUCCESS)
+                                              pstatus) != CACHE_INODE_SUCCESS)
     return *pstatus;
 
   /* Open the directory */
@@ -856,7 +843,7 @@ cache_inode_status_t cache_inode_readdir_populate(
                    "cache_inode_readdir: Stale FSAL File Handle detected for pentry = %p, fsal_status=(%u,%u)",
                    pentry_dir, fsal_status.major, fsal_status.minor);
 
-          if(cache_inode_kill_entry(pentry_dir, WT_LOCK, ht, pclient, &kill_status) !=
+          if(cache_inode_kill_entry(pentry_dir, WT_LOCK, pclient, &kill_status) !=
              CACHE_INODE_SUCCESS)
             LogCrit(COMPONENT_CACHE_INODE,
                     "cache_inode_readdir: Could not kill entry %p, status = %u",
@@ -953,7 +940,7 @@ cache_inode_status_t cache_inode_readdir_populate(
                                "cache_inode_readdir: Stale FSAL File Handle detected for pentry = %p, fsal_status=(%u,%u)",
                                pentry_dir, fsal_status.major, fsal_status.minor );
 
-                      if(cache_inode_kill_entry(pentry_dir, WT_LOCK, ht, pclient, &kill_status) !=
+                      if(cache_inode_kill_entry(pentry_dir, WT_LOCK, pclient, &kill_status) !=
                          CACHE_INODE_SUCCESS)
                         LogCrit(COMPONENT_CACHE_INODE,
                                 "cache_inode_readdir: Could not kill entry %p, status = %u",
@@ -969,30 +956,28 @@ cache_inode_status_t cache_inode_readdir_populate(
           /* Try adding the entry, if it exists then this existing entry is
              returned */
           new_entry_fsdata.handle = array_dirent[iter].handle;
-	  new_entry_fsdata.cookie = 0; /* XXX needed? */
+          new_entry_fsdata.cookie = 0; /* XXX needed? */
 
           if((pentry = cache_inode_new_entry( &new_entry_fsdata,
-		                              &array_dirent[iter].attributes,
-		                              type, 
+                                              &array_dirent[iter].attributes,
+                                              type,
                                               policy,
-		                              &create_arg,
-		                              NULL, 
-		                              ht, 
-		                              pclient, 
-		                              pcontext, 
-		                              CACHE_INODE_FLAG_EXREF, /* no creation flag */
-		                              pstatus)) == NULL)
+                                              &create_arg,
+                                              NULL,
+                                              pclient,
+                                              pcontext,
+                                              CACHE_INODE_FLAG_EXREF, /* no creation flag */
+                                              pstatus)) == NULL)
             return *pstatus;
 
-          cache_status = cache_inode_add_cached_dirent(
-	      pentry_parent,
-	      &(array_dirent[iter].name),
-	      pentry,
-	      ht,
-	      &new_dir_entry,
-	      pclient,
-	      pcontext,
-	      pstatus);
+          cache_status
+            = cache_inode_add_cached_dirent(pentry_parent,
+                                            &(array_dirent[iter].name),
+                                            pentry,
+                                            &new_dir_entry,
+                                            pclient,
+                                            pcontext,
+                                            pstatus);
 
           if(cache_status != CACHE_INODE_SUCCESS
              && cache_status != CACHE_INODE_ENTRY_EXISTS)
@@ -1001,10 +986,10 @@ cache_inode_status_t cache_inode_readdir_populate(
           /*
            * Remember the FSAL readdir cookie associated with this dirent.  This
            * is needed for partial directory reads.
-           * 
+           *
            * to_uint64 should be a lightweight operation--it is in the current
            * default implementation.  We think the right thing -should- happen
-           * therefore with if _USE_MFSL. 
+           * therefore with if _USE_MFSL.
            *
            * I'm ignoring the status because the default operation is a memcmp--
            * we already -have- the cookie. */
@@ -1081,7 +1066,6 @@ static inline void revalidate_cookie_cache(cache_entry_t *dir_pentry,
  * @param nbwanted [IN] Maximum number of directory entries wanted.
  * @param peod_met [OUT] A flag to know if end of directory was met during this call.
  * @param dirent_array [OUT] the resulting array of found directory entries.
- * @param ht [IN] hash table used for the cache, unused in this call.
  * @param unlock [OUT] the caller shall release read-lock on pentry when done
  * @param pclient [INOUT] ressource allocated by the client for the nfs management.
  * @param pcontext [IN] FSAL credentials
@@ -1100,7 +1084,6 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                                          uint64_t *pend_cookie,
                                          cache_inode_endofdir_t *peod_met,
                                          cache_inode_dir_entry_t **dirent_array,
-                                         hash_table_t *ht,
                                          int *unlock,
                                          cache_inode_client_t *pclient,
                                          fsal_op_context_t *pcontext,
@@ -1159,23 +1142,22 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
   if( !CACHE_INODE_KEEP_CONTENT( dir_pentry->policy ) )
     return  cache_inode_readdir_nonamecache( dir_pentry,
                                              policy,
-                                             cookie, 
-                                             nbwanted, 
-                                             pnbfound, 
+                                             cookie,
+                                             nbwanted,
+                                             pnbfound,
                                              pend_cookie,
                                              peod_met,
-                                             dirent_array, 
-                                             ht, 
+                                             dirent_array,
                                              unlock,
                                              pclient,
                                              pcontext,
-                                             pstatus ) ;    
-  
+                                             pstatus ) ;
+
   P_w(&dir_pentry->lock);
 
   /* Renew the entry (to avoid having it being garbagged */
-  if(cache_inode_renew_entry(dir_pentry, NULL, ht, pclient, pcontext,
-			     pstatus) != CACHE_INODE_SUCCESS)
+  if(cache_inode_renew_entry(dir_pentry, NULL, pclient, pcontext,
+                             pstatus) != CACHE_INODE_SUCCESS)
     {
       (pclient->stat.func_stats.nb_err_retryable[CACHE_INODE_GETATTR])++;
       V_w(&dir_pentry->lock);
@@ -1200,9 +1182,9 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                 FSAL_ACE4_MASK_SET(FSAL_ACE_PERM_LIST_DIR);
   if(cache_inode_access_no_mutex(dir_pentry,
                                  access_mask,
-                                 ht, pclient,
-				 pcontext,
-				 pstatus) != CACHE_INODE_SUCCESS)
+                                 pclient,
+                                 pcontext,
+                                 pstatus) != CACHE_INODE_SUCCESS)
     {
       V_w(&dir_pentry->lock);
 
@@ -1218,9 +1200,8 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
     /* populate the cache */
     if(cache_inode_readdir_populate(dir_pentry,
                                     policy,
-		  		    ht,
-				    pclient,
-				    pcontext, pstatus) != CACHE_INODE_SUCCESS)
+                                    pclient,
+                                    pcontext, pstatus) != CACHE_INODE_SUCCESS)
     {
       /* stats */
       (pclient->stat.func_stats.nb_err_unrecover[CACHE_INODE_READDIR])++;

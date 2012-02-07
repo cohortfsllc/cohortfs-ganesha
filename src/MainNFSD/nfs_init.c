@@ -82,6 +82,7 @@
 nfs_parameter_t nfs_param;
 time_t ServerBootTime = 0;
 nfs_worker_data_t *workers_data = NULL;
+hash_table_t *fh_to_cache_entry_ht = NULL; /* Cache inode handle lookup table */
 verifier4 NFS4_write_verifier;  /* NFS V4 write verifier */
 writeverf3 NFS3_write_verifier; /* NFS V3 write verifier */
 
@@ -1545,11 +1546,15 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
     }
   LogEvent(COMPONENT_THREAD,
            "%d worker threads were started successfully",
-	   nfs_param.core_param.nb_worker);
+           nfs_param.core_param.nb_worker);
 
   /* Start State Async threads */
   if(!flush_datacache_mode)
+    {
+#ifdef _USE_BLOCKING_LOCKS
     state_async_thread_start();
+#endif /* _USE_BLOCKING_LOCKS */
+    }
 
   /* Starting the rpc dispatcher thread */
   if((rc =
@@ -1663,8 +1668,6 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
 
 static void nfs_Init(const nfs_start_info_t * p_start_info)
 {
-  hash_table_t *ht = NULL;      /* Cache inode main hash table */
-
   cache_inode_status_t cache_status;
   state_status_t state_status;
   fsal_status_t fsal_status;
@@ -1722,7 +1725,7 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 #endif
 
   /* Cache Inode Initialisation */
-  if((ht =
+  if((fh_to_cache_entry_ht =
       cache_inode_init(nfs_param.cache_layers_param.cache_param, &cache_status)) == NULL)
     {
       LogFatal(COMPONENT_INIT,
@@ -1857,9 +1860,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
         LogFatal(COMPONENT_INIT,
                  "Error while initializing worker data #%d", i);
 
-      /* Set the pointer for the Cache inode hash table */
-      workers_data[i].ht = ht;
-
       sprintf(name, "IP Stats for worker %d", i);
       nfs_param.ip_stats_param.hash_param.name = Str_Dup(name);
       ht_ip_stats[i] = nfs_Init_ip_stats(nfs_param.ip_stats_param);
@@ -1923,7 +1923,7 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
     }                           /* for i */
 
   /* Admin initialisation */
-  nfs_Init_admin_data(ht);
+  nfs_Init_admin_data();
 
   /* Set the stats to zero */
   nfs_reset_stats();
@@ -2080,7 +2080,7 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 #endif /* _USE_9P */
 
   /* Create the root entries for each exported FS */
-  if((rc = nfs_export_create_root_entry(nfs_param.pexportlist, ht)) != TRUE)
+  if((rc = nfs_export_create_root_entry(nfs_param.pexportlist)) != TRUE)
     {
       LogFatal(COMPONENT_INIT,
                "Error initializing Cache Inode root entries");
@@ -2090,7 +2090,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
   /* This thread depends on ALL parts of Ganesha being initialized. 
    * So initialize Callback interface after everything else. */
 #ifdef _USE_FSAL_UP
-  nfs_param.fsal_up_param.ht = ht;
   nfs_Init_FSAL_UP(); /* initalizes an event pool */
   create_fsal_up_threads();
 #endif /* _USE_FSAL_UP */
