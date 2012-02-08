@@ -90,6 +90,7 @@ typedef struct file_handle_v4__
 
 #define LEN_FH_STR 1024
 
+
 /* File handle translation utility */
 int nfs4_FhandleToFSAL(nfs_fh4 * pfh4, fsal_handle_t * pfsalhandle,
                        fsal_op_context_t * pcontext);
