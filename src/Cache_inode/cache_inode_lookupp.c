@@ -163,8 +163,6 @@ cache_entry_t *cache_inode_lookupp_sw( cache_entry_t * pentry,
       /* Call cache_inode_get to populate the cache with the parent entry */
       fsdata.cookie = 0;
 
-      /* XXX cache_inode_get_located increments pentry->refcount, so no additional
-       * ref is appropriate */
       if((pentry_parent = cache_inode_get_located( &fsdata,
                                                    pentry,
                                                    pentry->policy, /* same policy as son */

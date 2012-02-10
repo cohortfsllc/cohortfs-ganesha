@@ -190,7 +190,8 @@ static cache_inode_status_t cache_inode_readdir_nonamecache( cache_entry_t * pen
 
       /* Get the related pentry without populating the name cache (but eventually populating the attrs cache */
       entry_fsdata.handle = fsal_dirent_array[iter].handle;
-      entry_fsdata.cookie = 0; /* XXX needed? */
+      entry_fsdata.cookie = 0; /* We should repurpose this to hold
+                                  the exportid -- AE */
 
       /* Allocate a dirent to be returned to the client */
       /** @todo Make sure this piece of memory once the data are used */
@@ -369,45 +370,45 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
         {
         case CACHE_INODE_DIRENT_OP_REMOVE:
             cache_inode_avl_remove(pentry_parent, dirent);
-	    /* release to pool */
-	    ReleaseToPool(dirent, &pclient->pool_dir_entry);
-	    pentry_parent->object.dir.nbactive--;
-	    *pstatus = CACHE_INODE_SUCCESS;
+            /* release to pool */
+            ReleaseToPool(dirent, &pclient->pool_dir_entry);
+            pentry_parent->object.dir.nbactive--;
+            *pstatus = CACHE_INODE_SUCCESS;
           break;
 
         case CACHE_INODE_DIRENT_OP_RENAME:
-	  /* change the installed inode only the rename can succeed */
-	  FSAL_namecpy(&dirent_key->name, newname);
+          /* change the installed inode only the rename can succeed */
+          FSAL_namecpy(&dirent_key->name, newname);
           dirent2 = cache_inode_avl_qp_lookup_s(pentry_parent, dirent_key, 1);
-	  if (dirent2) {
-	    /* rename would cause a collision */
-	    *pstatus = CACHE_INODE_ENTRY_EXISTS;
+          if (dirent2) {
+            /* rename would cause a collision */
+            *pstatus = CACHE_INODE_ENTRY_EXISTS;
 
-	  } else {
-	      /* try to rename in-place */
-              cache_inode_avl_remove(pentry_parent, dirent);
-	      FSAL_namecpy(&dirent->name, newname);
+          } else {
+            /* try to rename in-place */
+            cache_inode_avl_remove(pentry_parent, dirent);
+            FSAL_namecpy(&dirent->name, newname);
+            if (cache_inode_avl_qp_insert(pentry_parent, dirent) == -1) {
+              /* collision, tree state unchanged--unlikely */
+              *pstatus = CACHE_INODE_ENTRY_EXISTS;
+              /* still, try to revert the change in place */
+              FSAL_namecpy(&dirent->name, pname);
               if (cache_inode_avl_qp_insert(pentry_parent, dirent) == -1) {
-		  /* collision, tree state unchanged--unlikely */
-		  *pstatus = CACHE_INODE_ENTRY_EXISTS;
-		  /* still, try to revert the change in place */
-		  FSAL_namecpy(&dirent->name, pname);
-                  if (cache_inode_avl_qp_insert(pentry_parent, dirent) == -1) {
-                      LogDebug(COMPONENT_NFS_READDIR,
-                               "DIRECTORY: failed renaming dirent (%s, %s)",
-                               pname->name, newname->name);
-                      /* XXX force an invalidate -- not sure what type, yet
-                       * XXX fix */
-                  }
-	      } else {
-		  *pstatus = CACHE_INODE_SUCCESS;
-	      }
-	  } /* !found */
+                LogDebug(COMPONENT_NFS_READDIR,
+                         "DIRECTORY: failed renaming dirent (%s, %s)",
+                         pname->name, newname->name);
+                /* XXX force an invalidate -- not sure what type, yet
+                 * XXX fix */
+              }
+            } else {
+              *pstatus = CACHE_INODE_SUCCESS;
+            }
+          } /* !found */
           break;
 
         default:
           /* Should never occurs, in any case, it cost nothing to handle
-	   * this situation */
+           * this situation */
           *pstatus = CACHE_INODE_INVALID_ARGUMENT;
           break;
 
@@ -570,9 +571,7 @@ cache_inode_status_t cache_inode_add_cached_dirent(
   pentry_parent->object.dir.nbactive++;
   new_dir_entry->pentry = pentry_added;
 
-  /* XXX take internal ref.  I believe we know that pentry_parent is
-   * locked, but we should cross-check and annotate that. */
-  (void) cache_inode_lru_ref(pentry_added);
+  cache_inode_lru_ref(pentry_added);
 
   /* link with the parent entry (insert as first entry) */
   next_parent_entry->parent = pentry_parent;
@@ -956,7 +955,7 @@ cache_inode_status_t cache_inode_readdir_populate(
           /* Try adding the entry, if it exists then this existing entry is
              returned */
           new_entry_fsdata.handle = array_dirent[iter].handle;
-          new_entry_fsdata.cookie = 0; /* XXX needed? */
+          new_entry_fsdata.cookie = 0; /* Repurpose for exportid */
 
           if((pentry
               = cache_inode_new_entry( &new_entry_fsdata,
@@ -1313,9 +1312,6 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
   if (! dirent_node)
       *peod_met = END_OF_DIR;
 
-  /* XXX it appears that a cache_inode_valid was already performed in
-   * this call path, in cache_inode_get.  Why do we want to call it
-   * again now? (Matt) */
   *pstatus = cache_inode_valid(dir_pentry, CACHE_INODE_OP_GET, pclient);
 
   /* stats */

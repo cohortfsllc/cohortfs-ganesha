@@ -105,7 +105,7 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
   cache_inode_status_t status;
   hash_buffer_t key, old_key, old_value;
   int rc;
- 
+
   memset( (char *)&fsaldata, 0, sizeof( fsaldata ) ) ;
 
   if((pfsal_handle_remove =
@@ -117,7 +117,6 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
   /* delete the entry from the cache */
   fsaldata.handle = *pfsal_handle_remove;
 
-  /* XXX always DIR_START */
   fsaldata.cookie = DIR_START;
 
   if(cache_inode_fsaldata_2_key(&key, &fsaldata, pclient))
