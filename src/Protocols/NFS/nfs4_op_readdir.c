@@ -329,6 +329,7 @@ int nfs4_op_readdir(struct nfs_argop4 *op,
                   goto out;
                 }
 
+              cache_inode_put(pentry, data->pclient);
               if(!nfs4_FSALToFhandle(&entryFH, entry_FSALhandle, data))
                 {
                   /* Faulty type */
@@ -388,7 +389,6 @@ int nfs4_op_readdir(struct nfs_argop4 *op,
                  break ;
                }
            }
-          cache_inode_put(pentry, data->pclient);
         }                       /* for i */
 
       if((i == num_entries) && (eod_met == END_OF_DIR))
