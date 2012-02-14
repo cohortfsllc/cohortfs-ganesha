@@ -144,8 +144,7 @@ cache_inode_status_t cache_inode_clean_internal(cache_entry_t * to_remove_entry,
     {
 
       /* return Hashtable (sentinel) reference */
-        (void) cache_inode_lru_unref(to_remove_entry, pclient, LRU_FLAG_NONE,
-            "cache_inode_remove");
+      cache_inode_lru_unref(to_remove_entry, pclient, LRU_FLAG_NONE);
 
       cache_inode_release_fsaldata_key(&old_key, pclient);
 
