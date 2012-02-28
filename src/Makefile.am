@@ -6,6 +6,8 @@ else
 BUDDYDIR =
 endif
 
+TIRPCDIR = ../contrib/libtirpc
+
 SUBDIRS = include             \
           Log 		      \
           $(LIBTREEDIR)       \
@@ -24,6 +26,7 @@ SUBDIRS = include             \
           SAL                 \
           File_Content        \
           File_Content_Policy \
+          $(TIRPCDIR)         \
           RPCAL               \
           Protocols           \
           RPCAL               \

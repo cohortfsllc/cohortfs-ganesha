@@ -66,6 +66,7 @@ else
 RQUOTA_LIB = 
 endif
 
+TIRPC_LIB = ../../contrib/libtirpc/src/libtirpc.la
 
 if USE_9P
 DISPATCH_9P_FILES = 9p_dispatcher.c 
@@ -173,6 +174,7 @@ libMainServices_la_LIBADD         =   ../Protocols/NFS/libnfsproto.la           
                                       ../RPCAL/librpcal.la                              \
                                       $(_9P_LIB)                                        \
                                       ../Protocols/XDR/libnfs_mnt_xdr.la                \
+                                      $(TIRPC_LIB)                                      \
                                       ../SemN/libSemN.la                                \
                                       ../RW_Lock/librwlock.la                           \
                                       $(FSAL_UP_LIB_FLAGS)                              \
