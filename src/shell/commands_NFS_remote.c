@@ -73,6 +73,11 @@ typedef unsigned short u_short;
 
 nfs_parameter_t nfs_param;
 
+/* XXX we should not be assigning to a TI-RPC package global.  In particular,
+ * this one has a macro shadowing a struct. */
+#undef rpc_createerr
+struct rpc_createerr rpc_createerr;
+
 /* Function used for debugging */
 #ifdef _DEBUG_NFS_SHELL
 void print_nfs_res(nfs_res_t * p_res)

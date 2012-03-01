@@ -652,22 +652,22 @@ const nfs_function_desc_t *nfs_rpc_get_funcdesc(nfs_request_data_t *preqnfs)
  */
 int nfs_rpc_get_args(nfs_request_data_t * preqnfs, const nfs_function_desc_t *pfuncdesc)
 {
-  SVCXPRT *ptr_svc = preqnfs->xprt;
+  SVCXPRT *xprt = preqnfs->xprt;
   nfs_arg_t *parg_nfs = &preqnfs->arg_nfs;
 
   memset(parg_nfs, 0, sizeof(nfs_arg_t));
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Before svc_getargs on socket %d, xprt=%p",
-               ptr_svc->XP_SOCK, ptr_svc);
+               xprt->xp_fd, xprt);
 
-  if(svc_getargs(ptr_svc, pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs) == FALSE)
+  if(svc_getargs(xprt, pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs) == FALSE)
     {
       struct svc_req *ptr_req = &preqnfs->req;
       LogMajor(COMPONENT_DISPATCH,
                    "svc_getargs failed for Program %d, Version %d, Function %d",
                    (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
-      svcerr_decode(ptr_svc);
+      svcerr_decode(xprt);
       return FALSE;
     }
 
@@ -696,7 +696,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   short exportid;
   LRU_list_t *lru_dupreq = NULL;
   struct svc_req *ptr_req = &preqnfs->req;
-  SVCXPRT *ptr_svc = preqnfs->xprt;
+  SVCXPRT *xprt = preqnfs->xprt;
   nfs_stat_type_t stat_type;
   sockaddr_t hostaddr;
   int port;
@@ -731,12 +731,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   if(pworker_data->pfuncdesc == INVALID_FUNCDESC)
     return;
 
-  if(copy_xprt_addr(&hostaddr, ptr_svc) == 0)
+  if(copy_xprt_addr(&hostaddr, xprt) == 0)
     {
       LogFullDebug(COMPONENT_DISPATCH,
                    "copy_xprt_addr failed for Program %d, Version %d, Function %d",
                    (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
-      svcerr_systemerr(ptr_svc);
+      svcerr_systemerr(xprt);
       return;
     }
 
@@ -778,30 +778,30 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
           LogFullDebug(COMPONENT_DISPATCH,
                        "Before svc_sendreply on socket %d (dup req)",
-                       ptr_svc->XP_SOCK);
+                       xprt->xp_fd);
 
-          P(mutex_cond_xprt[ptr_svc->XP_SOCK]);
+          P(mutex_cond_xprt[xprt->xp_fd]);
 
           if(svc_sendreply
-             (ptr_svc, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
+             (xprt, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
             {
               LogDebug(COMPONENT_DISPATCH,
                        "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
-              svcerr_systemerr(ptr_svc);
+              svcerr_systemerr(xprt);
             }
 
-          V(mutex_cond_xprt[ptr_svc->XP_SOCK]);
+          V(mutex_cond_xprt[xprt->xp_fd]);
 
           LogFullDebug(COMPONENT_DISPATCH,
                        "After svc_sendreply on socket %d (dup req)",
-                       ptr_svc->XP_SOCK);
+                       xprt->xp_fd);
           return;
         }
       else
         {
           LogCrit(COMPONENT_DISPATCH,
                   "Error: Duplicate request rejected because it was found in the cache but is not allowed to be cached.");
-          svcerr_systemerr(ptr_svc);
+          svcerr_systemerr(xprt);
           return;
         }
       break;
@@ -813,7 +813,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                    rpcxid);
       /* Free the arguments */
       if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
-        if(!SVC_FREEARGS(ptr_svc, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
+        if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
           {
             LogCrit(COMPONENT_DISPATCH,
                     "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
@@ -826,20 +826,20 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     case DUPREQ_NOT_FOUND:
       LogCrit(COMPONENT_DISPATCH,
               "Did not find the request in the duplicate request cache and couldn't add the request.");
-      svcerr_systemerr(ptr_svc);
+      svcerr_systemerr(xprt);
       return;
 
       /* oom */
     case DUPREQ_INSERT_MALLOC_ERROR:
       LogCrit(COMPONENT_DISPATCH,
               "Cannot process request, not enough memory available!");
-      svcerr_systemerr(ptr_svc);
+      svcerr_systemerr(xprt);
       return;
 
     default:
       LogCrit(COMPONENT_DISPATCH,
               "Unknown duplicate request cache status. This should never be reached!");
-      svcerr_systemerr(ptr_svc);
+      svcerr_systemerr(xprt);
       return;
     }
 
@@ -884,7 +884,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                (int)ptr_req->rq_proc, dumpfh);
                     }
                   /* Bad argument */
-                  svcerr_auth(ptr_svc, AUTH_FAILED);
+                  svcerr_auth(xprt, AUTH_FAILED);
                   if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
@@ -934,7 +934,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                (int)ptr_req->rq_proc, dumpfh);
                     }
                   /* Bad argument */
-                  svcerr_auth(ptr_svc, AUTH_FAILED);
+                  svcerr_auth(xprt, AUTH_FAILED);
                   if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
@@ -1039,7 +1039,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                            (int)ptr_req->rq_proc, dumpfh);
                 }
               /* Bad argument */
-              svcerr_auth(ptr_svc, AUTH_FAILED);
+              svcerr_auth(xprt, AUTH_FAILED);
               if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                     &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                 {
@@ -1075,7 +1075,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support AUTH_NONE",
                         pexport->dirname);
-                svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                svcerr_auth(xprt, AUTH_TOOWEAK);
                 if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                       &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
@@ -1093,7 +1093,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support AUTH_UNIX",
                         pexport->dirname);
-                svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                svcerr_auth(xprt, AUTH_TOOWEAK);
                 if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                       &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
@@ -1123,7 +1123,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                             __LINE__);
                   }
                 return;
-                svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                svcerr_auth(xprt, AUTH_TOOWEAK);
               }
             else
               {
@@ -1141,7 +1141,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                           LogInfo(COMPONENT_DISPATCH,
                                   "Export %s does not support RPCSEC_GSS_SVC_NONE",
                                   pexport->dirname);
-                          svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                          svcerr_auth(xprt, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                                 &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
@@ -1159,7 +1159,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                           LogInfo(COMPONENT_DISPATCH,
                                   "Export %s does not support RPCSEC_GSS_SVC_INTEGRITY",
                                   pexport->dirname);
-                          svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                          svcerr_auth(xprt, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                                 &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
@@ -1177,7 +1177,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                           LogInfo(COMPONENT_DISPATCH,
                                   "Export %s does not support RPCSEC_GSS_SVC_PRIVACY",
                                   pexport->dirname);
-                          svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                          svcerr_auth(xprt, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                                 &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
@@ -1193,7 +1193,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                       LogInfo(COMPONENT_DISPATCH,
                               "Export %s does not support unknown RPCSEC_GSS_SVC %d",
                               pexport->dirname, (int) svc);
-                      svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+                      svcerr_auth(xprt, AUTH_TOOWEAK);
                       if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                             &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                         {
@@ -1210,7 +1210,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
             LogInfo(COMPONENT_DISPATCH,
                     "Export %s does not support unknown oa_flavor %d",
                     pexport->dirname, (int) ptr_req->rq_cred.oa_flavor);
-            svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+            svcerr_auth(xprt, AUTH_TOOWEAK);
             if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                   &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
               {
@@ -1242,7 +1242,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           LogInfo(COMPONENT_DISPATCH,
                   "Port %d is too high for this export entry, rejecting client",
                   port);
-          svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+          svcerr_auth(xprt, AUTH_TOOWEAK);
           pworker_data->current_xid = 0;    /* No more xid managed */
 
           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
@@ -1262,7 +1262,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         {
           LogInfo(COMPONENT_DISPATCH,
                   "could not get uid and gid, rejecting client");
-          svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+          svcerr_auth(xprt, AUTH_TOOWEAK);
           pworker_data->current_xid = 0;    /* No more xid managed */
 
           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
@@ -1308,7 +1308,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
               "Host %s is not allowed to access this export entry, vers=%d, proc=%d",
               addrbuf,
               (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
-      svcerr_auth( ptr_svc, AUTH_TOOWEAK );
+      svcerr_auth(xprt, AUTH_TOOWEAK);
       pworker_data->current_xid = 0;        /* No more xid managed */
 
       if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
@@ -1380,7 +1380,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
             {
               LogInfo(COMPONENT_DISPATCH,
                       "authentication failed, rejecting client");
-              svcerr_auth(ptr_svc, AUTH_TOOWEAK);
+              svcerr_auth(xprt, AUTH_TOOWEAK);
               pworker_data->current_xid = 0;    /* No more xid managed */
 
               if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
@@ -1532,21 +1532,21 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     }
   else
     {
-      P(mutex_cond_xprt[ptr_svc->XP_SOCK]);
+      P(mutex_cond_xprt[xprt->xp_fd]);
 
       LogFullDebug(COMPONENT_DISPATCH,
                    "Before svc_sendreply on socket %d",
-                   ptr_svc->XP_SOCK);
+                   xprt->xp_fd);
 
       /* encoding the result on xdr output */
-      CheckXprt(ptr_svc);
-      if(svc_sendreply(ptr_svc, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
+      CheckXprt(xprt);
+      if(svc_sendreply(xprt, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
-          svcerr_systemerr(ptr_svc);
+          svcerr_systemerr(xprt);
 
-          V(mutex_cond_xprt[ptr_svc->XP_SOCK]);
+          V(mutex_cond_xprt[xprt->xp_fd]);
 
           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                 &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
@@ -1560,9 +1560,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
       LogFullDebug(COMPONENT_DISPATCH,
                    "After svc_sendreply on socket %d",
-                   ptr_svc->XP_SOCK);
+                   xprt->xp_fd);
 
-      V(mutex_cond_xprt[ptr_svc->XP_SOCK]);
+      V(mutex_cond_xprt[xprt->xp_fd]);
 
       /* Mark request as finished */
       LogFullDebug(COMPONENT_DUPREQ, "YES?: %d", do_dupreq_cache);
@@ -1579,7 +1579,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   /* Free the allocated resources once the work is done */
   /* Free the arguments */
   if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
-    if(!SVC_FREEARGS(ptr_svc, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
+    if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
       {
         LogCrit(COMPONENT_DISPATCH,
                 "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
@@ -2082,7 +2082,7 @@ void *worker_thread(void *IndexArg)
                         pmydata->pending_request->nb_invalid,
                         (unsigned long) pnfsreq->rcontent.nfs.msg.rm_xid);
 
-           if(pnfsreq->rcontent.nfs.xprt->XP_SOCK == 0)
+           if(pnfsreq->rcontent.nfs.xprt->xp_fd == 0)
             {
               LogFullDebug(COMPONENT_DISPATCH,
                            "No RPC management, xp_sock==0");

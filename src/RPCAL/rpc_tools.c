@@ -118,10 +118,12 @@ const char *xprt_type_to_str(xprt_type_t type)
 {
   switch(type)
     {
-      case XPRT_UNKNOWN:    return "UNKNOWN";
       case XPRT_UDP:        return "udp";
       case XPRT_TCP:        return "tcp";
-      case XPRT_RENDEZVOUS: return "rendezvous";
+      case XPRT_TCP_RENDEZVOUS: return "tcp rendezvous";
+      case XPRT_UNKNOWN:    return "UNKNOWN";
+      case XPRT_SCTP:       return "sctp";
+      case XPRT_RDMA:       return "rdma";
     }
   return "INVALID";
 }
@@ -486,6 +488,8 @@ void Clnt_destroy(CLIENT *clnt)
 
 void InitRPC(int num_sock)
 {
+
+#if 0 /* XXXX todo:  pkginit new style */
   /* Allocate resources that are based on the maximum number of open file descriptors */
   Xports = (SVCXPRT **) Mem_Alloc_Label(num_sock * sizeof(SVCXPRT *), "Xports array");
   if(Xports == NULL)
@@ -504,4 +508,6 @@ void InitRPC(int num_sock)
   /* RW_lock need to be initialized */
   rw_lock_init(&Svc_fd_lock);
 #endif
+#endif /* 0 */
+
 }

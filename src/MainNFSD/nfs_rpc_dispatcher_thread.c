@@ -183,13 +183,11 @@ typedef struct proto_data
 
 proto_data pdata[P_COUNT];
 
-#ifdef _USE_TIRPC
 struct netconfig *netconfig_udpv4;
 struct netconfig *netconfig_tcpv4;
 #ifdef _USE_TIRPC_IPV6
 struct netconfig *netconfig_udpv6;
 struct netconfig *netconfig_tcpv6;
-#endif
 #endif
 
 /* RPC Service Sockets and Transports */
@@ -202,8 +200,7 @@ SVCXPRT *tcp_xprt[P_COUNT];
  * unregister: Unregister an RPC program.
  *
  */
-#ifdef _USE_TIRPC
-void unregister(const rpcprog_t prog, const rpcvers_t vers1, const rpcvers_t vers2)
+static void unregister(const rpcprog_t prog, const rpcvers_t vers1, const rpcvers_t vers2)
 {
   rpcvers_t vers;
   for(vers = vers1; vers <= vers2; vers++)
@@ -216,18 +213,8 @@ void unregister(const rpcprog_t prog, const rpcvers_t vers1, const rpcvers_t ver
 #endif
    }
 }
-#else
-void unregister(const u_long prog, const u_long vers1, const u_long vers2)
-{
-  u_long vers;
-  for(vers = vers1; vers <= vers2; vers++)
-    {
-      pmap_unset(prog, vers);
-    }
-}
-#endif
 
-void unregister_rpc(void)
+static void unregister_rpc(void)
 {
   unregister(nfs_param.core_param.program[P_NFS], NFS_V2, NFS_V4);
   unregister(nfs_param.core_param.program[P_MNT], MOUNT_V1, MOUNT_V3);
@@ -275,56 +262,44 @@ static void close_rpc_fd()
 
 void Create_udp(protos prot)
 {
-#ifdef _USE_TIRPC
-  udp_xprt[prot] = Svc_dg_create(udp_socket[prot],
-                                 nfs_param.core_param.max_send_buffer_size,
-                                 nfs_param.core_param.max_recv_buffer_size);
-#else
-  udp_xprt[prot] = Svcudp_bufcreate(udp_socket[prot],
-                                    nfs_param.core_param.max_send_buffer_size,
-                                    nfs_param.core_param.max_recv_buffer_size);
-#endif
-  if(udp_xprt[prot] == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-             "Cannot allocate %s/UDP SVCXPRT", tags[prot]);
+    udp_xprt[prot] = svc_dg_create(udp_socket[prot],
+                                   nfs_param.core_param.max_send_buffer_size,
+                                   nfs_param.core_param.max_recv_buffer_size);
+    if(udp_xprt[prot] == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot allocate %s/UDP SVCXPRT", tags[prot]);
 
 #ifdef _USE_TIRPC_IPV6
-  udp_xprt[prot]->xp_netid = Str_Dup(netconfig_udpv6->nc_netid);
-  udp_xprt[prot]->xp_tp    = Str_Dup(netconfig_udpv6->nc_device);
+    udp_xprt[prot]->xp_netid = Str_Dup(netconfig_udpv6->nc_netid);
+    udp_xprt[prot]->xp_tp    = Str_Dup(netconfig_udpv6->nc_device);
 #endif
 }
 
 void Create_tcp(protos prot)
 {
-#ifdef _USE_TIRPC
-  tcp_xprt[prot] = Svc_vc_create(tcp_socket[prot],
-                                 nfs_param.core_param.max_send_buffer_size,
-                                 nfs_param.core_param.max_recv_buffer_size);
-#else
-  tcp_xprt[prot] = Svctcp_create(tcp_socket[prot],
-                                 nfs_param.core_param.max_send_buffer_size,
-                                 nfs_param.core_param.max_recv_buffer_size);
-#endif
-  if(tcp_xprt[prot] == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-             "Cannot allocate %s/TCP SVCXPRT", tags[prot]);
+    tcp_xprt[prot] = svc_vc_create(tcp_socket[prot],
+                                   nfs_param.core_param.max_send_buffer_size,
+                                   nfs_param.core_param.max_recv_buffer_size);
+    if(tcp_xprt[prot] == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot allocate %s/TCP SVCXPRT", tags[prot]);
 
 #ifdef _USE_TIRPC_IPV6
-  if(listen(socket, pdata[prot].bindaddr_udp6.qlen) != 0)
-    LogFatal(COMPONENT_DISPATCH,
-            "Cannot listen on  %s/TCPv6 SVCXPRT, errno=%u (%s)",
-            tags[prot], errno, strerror(errno));
-
-  tcp_xprt[prot]->xp_netid = Str_Dup(netconfig_tcpv6->nc_netid);
-  tcp_xprt[prot]->xp_tp    = Str_Dup(netconfig_tcpv6->nc_device);
+    if(listen(socket, pdata[prot].bindaddr_udp6.qlen) != 0)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot listen on  %s/TCPv6 SVCXPRT, errno=%u (%s)",
+                 tags[prot], errno, strerror(errno));
+    /* XXX what if we errored above? */
+    tcp_xprt[prot]->xp_netid = Str_Dup(netconfig_tcpv6->nc_netid);
+    tcp_xprt[prot]->xp_tp    = Str_Dup(netconfig_tcpv6->nc_device);
 #endif
 }
 
 /**
- * Create_SVCXPRT: Create the SVCXPRT for each protocol in use.
+ * Create_SVCXPRTs: Create the SVCXPRT for each protocol in use.
  *
  */
-void Create_SVCXPRT(void)
+void Create_SVCXPRTs(void)
 {
   protos p;
 
@@ -427,17 +402,10 @@ void Clean_RPC(void)
 
 cleanup_list_element clean_rpc = {NULL, Clean_RPC};
 
-#ifdef _USE_TIRPC
 #define UDP_REGISTER(prot, vers, netconfig) \
-  svc_reg(udp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
+  svc_register(udp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
 #define TCP_REGISTER(prot, vers, netconfig) \
-  svc_reg(tcp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
-#else
-#define UDP_REGISTER(prot, vers, netconfig) \
-  Svc_register(udp_xprt[prot], nfs_param.core_param.program[prot], (u_long) vers, nfs_rpc_dispatch_dummy, IPPROTO_UDP)
-#define TCP_REGISTER(prot, vers, netconfig) \
-  Svc_register(tcp_xprt[prot], nfs_param.core_param.program[prot], (u_long) vers, nfs_rpc_dispatch_dummy, IPPROTO_TCP)
-#endif
+  svc_register(tcp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
 
 void Register_program(protos prot, int flag, int vers)
 {
@@ -494,53 +462,50 @@ void Register_program(protos prot, int flag, int vers)
  */
 void nfs_Init_svc()
 {
-  int one = 1;
-  protos p;
+    protos p;
+    svc_init_params svc_params;
+    int one = 1;
 
-  /* Initialize all the sockets to -1 because it makes some code later easier */
-  for(p = P_NFS; p < P_COUNT; p++)
-    {
-      udp_socket[p] = -1;
-      tcp_socket[p] = -1;
-    }
+    LogInfo(COMPONENT_DISPATCH, "NFS INIT: Core options = %d",
+            nfs_param.core_param.core_options);
 
-  LogInfo(COMPONENT_DISPATCH, "NFS INIT: Core options = %d",
-          nfs_param.core_param.core_options);
+    LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
+  
+    /* New TI-RPC package init function */
+    svc_params.flags = SVC_INIT_EPOLL; /* use EPOLL event mgmt */
+    svc_params.max_connections = nfs_param.core_param.nb_max_fd;
+    svc_params.max_events = 1024; /* length of epoll event queue:  don't know good values for this */
 
-  InitRPC(nfs_param.core_param.nb_max_fd);
-
-#ifdef _USE_TIRPC
-  LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
+    svc_init(&svc_params);
 
   /* Get the netconfig entries from /etc/netconfig */
-  if((netconfig_udpv4 = (struct netconfig *)getnetconfigent("udp")) == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-             "Cannot get udp netconfig, cannot get a entry for udp in netconfig file. Check file /etc/netconfig...");
+    if((netconfig_udpv4 = (struct netconfig *)getnetconfigent("udp")) == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot get udp netconfig, cannot get a entry for udp in netconfig file. Check file /etc/netconfig...");
 
-  /* Get the netconfig entries from /etc/netconfig */
-  if((netconfig_tcpv4 = (struct netconfig *)getnetconfigent("tcp")) == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-            "Cannot get tcp netconfig, cannot get a entry for tcp in netconfig file. Check file /etc/netconfig...");
+    /* Get the netconfig entries from /etc/netconfig */
+    if((netconfig_tcpv4 = (struct netconfig *)getnetconfigent("tcp")) == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot get tcp netconfig, cannot get a entry for tcp in netconfig file. Check file /etc/netconfig...");
 
-  /* A short message to show that /etc/netconfig parsing was a success */
-  LogFullDebug(COMPONENT_DISPATCH, "netconfig found for UDPv4 and TCPv4");
-#endif
+    /* A short message to show that /etc/netconfig parsing was a success */
+    LogFullDebug(COMPONENT_DISPATCH, "netconfig found for UDPv4 and TCPv4");
 
 #ifdef _USE_TIRPC_IPV6
-  LogInfo(COMPONENT_DISPATCH, "NFS INIT: Using IPv6");
+    LogInfo(COMPONENT_DISPATCH, "NFS INIT: Using IPv6");
+
+    /* Get the netconfig entries from /etc/netconfig */
+    if((netconfig_udpv6 = (struct netconfig *)getnetconfigent("udp6")) == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot get udp6 netconfig, cannot get a entry for udp6 in netconfig file. Check file /etc/netconfig...");
 
   /* Get the netconfig entries from /etc/netconfig */
-  if((netconfig_udpv6 = (struct netconfig *)getnetconfigent("udp6")) == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-             "Cannot get udp6 netconfig, cannot get a entry for udp6 in netconfig file. Check file /etc/netconfig...");
+    if((netconfig_tcpv6 = (struct netconfig *)getnetconfigent("tcp6")) == NULL)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Cannot get tcp6 netconfig, cannot get a entry for tcp in netconfig file. Check file /etc/netconfig...");
 
-  /* Get the netconfig entries from /etc/netconfig */
-  if((netconfig_tcpv6 = (struct netconfig *)getnetconfigent("tcp6")) == NULL)
-    LogFatal(COMPONENT_DISPATCH,
-             "Cannot get tcp6 netconfig, cannot get a entry for tcp in netconfig file. Check file /etc/netconfig...");
-
-  /* A short message to show that /etc/netconfig parsing was a success */
-  LogFullDebug(COMPONENT_DISPATCH, "netconfig found for UDPv6 and TCPv6");
+    /* A short message to show that /etc/netconfig parsing was a success */
+    LogFullDebug(COMPONENT_DISPATCH, "netconfig found for UDPv6 and TCPv6");
 #endif
 
   /* Allocate the UDP and TCP sockets for the RPC */
@@ -548,6 +513,10 @@ void nfs_Init_svc()
   for(p = P_NFS; p < P_COUNT; p++)
     if(test_for_additional_nfs_protocols(p))
       {
+        /* Initialize all the sockets to -1 because it makes some code later easier */
+        udp_socket[p] = -1;
+        tcp_socket[p] = -1;
+
         udp_socket[p] = socket(P_FAMILY, SOCK_DGRAM, IPPROTO_UDP);
 
         if(udp_socket[p] == -1)
@@ -629,8 +598,8 @@ void nfs_Init_svc()
   unregister_rpc();
   RegisterCleanup(&clean_rpc);
 
-  /* Allocation of the SVCXPRT */
-  Create_SVCXPRT();
+  /* Set up well-known xprt handles */
+  Create_SVCXPRTs();
 
 #ifdef _HAVE_GSSAPI
   /* Acquire RPCSEC_GSS basis if needed */
@@ -914,8 +883,13 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
         goto free_req;
 
+#if 0
       /* Update a copy of SVCXPRT and pass it to the worker thread to use it. */
       pnfsreq->rcontent.nfs.xprt_copy = Svcxprt_copy(pnfsreq->rcontent.nfs.xprt_copy, xprt);
+#else
+      /* XXX Danger Will Robinson! */
+      pnfsreq->rcontent.nfs.xprt_copy = xprt;
+#endif
       if(pnfsreq->rcontent.nfs.xprt_copy == NULL)
         goto free_req;
 
@@ -1271,7 +1245,7 @@ void constructor_nfs_request_data_t(void *ptr)
   nfs_request_data_t * pdata = (nfs_request_data_t *) ptr;
 
   memset(pdata, 0, sizeof(*pdata));
-  pdata->xprt_copy = Svcxprt_copycreate();
+  pdata->xprt_copy = NULL; /* Svcxprt_copycreate() */
 }
 
 /**
