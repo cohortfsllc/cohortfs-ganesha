@@ -43,7 +43,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "rpc.h"
+#include "ganesha_rpc.h"
 #include "LRU_List.h"
 #include "fsal.h"
 #ifdef _USE_MFSL

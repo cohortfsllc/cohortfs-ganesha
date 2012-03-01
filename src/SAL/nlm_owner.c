@@ -48,7 +48,7 @@
 #include "nlm4.h"
 #include "sal_functions.h"
 #include "nsm.h"
-#include "rpc.h"
+#include "ganesha_rpc.h"
 
 //TODO FSF: check if can optimize by using same reference as key and value
 

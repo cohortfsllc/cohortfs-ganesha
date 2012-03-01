@@ -35,7 +35,7 @@ typedef unsigned short u_short;
 #endif
 #endif
 
-#include "rpc.h"
+#include "ganesha_rpc.h"
 #include <string.h>
 #include "fsal.h"
 #include "cache_inode.h"
