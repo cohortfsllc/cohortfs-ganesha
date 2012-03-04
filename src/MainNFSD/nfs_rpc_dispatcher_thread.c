@@ -48,6 +48,7 @@
 #include <fcntl.h>
 #include <sys/file.h>           /* for having FNDELAY */
 #include <sys/select.h>
+#include <assert.h>
 #include "HashData.h"
 #include "HashTable.h"
 #include "log.h"
@@ -86,6 +87,27 @@ buddy_stats_t          global_tcp_dispatcher_buddy_stat;
 /* This structure exists per tcp dispatcher thread */
 buddy_stats_t __thread local_tcp_dispatcher_buddy_stat;
 #endif
+
+/* TI-RPC event channels.  Each channel is a thread servicing an event
+ * demultiplexer. */
+
+struct rpc_evchan {
+    uint32_t chan_id;
+    pthread_t thread_id;
+};
+
+#define N_TCP_EVENT_CHAN  3 /* we don't really want to have too many, relative to the
+                             * number of available cores. */
+#define UDP_EVENT_CHAN    0 /* put udp on a dedicated channel */
+#define TCP_RDVS_CHAN     1 /* accepts new tcp connections */
+#define TCP_EVCHAN_0      2
+#define N_EVENT_CHAN N_TCP_EVENT_CHAN + 2
+
+static struct rpc_evchan rpc_evchan[N_EVENT_CHAN];
+
+static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
+                          void *u_data);
+static bool_t nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */);
 
 #if !defined(_NO_BUDDY_SYSTEM) && defined(_DEBUG_MEMLEAKS)
 /**
@@ -269,6 +291,15 @@ void Create_udp(protos prot)
         LogFatal(COMPONENT_DISPATCH,
                  "Cannot allocate %s/UDP SVCXPRT", tags[prot]);
 
+    /* Hook xp_getreq */
+    (void) SVC_CONTROL(udp_xprt[prot], SVCSET_XP_GETREQ, nfs_rpc_getreq_ng);
+
+    /* bind xprt to channel--unregister it from the global event
+     * channel (if applicable) */
+    (void) svc_rqst_evchan_reg(rpc_evchan[UDP_EVENT_CHAN].chan_id, udp_xprt[prot],
+                               SVC_RQST_FLAG_XPRT_UREG);
+
+    /* XXXX why are we doing this?  Is it also stale (see below)? */
 #ifdef _USE_TIRPC_IPV6
     udp_xprt[prot]->xp_netid = Str_Dup(netconfig_udpv6->nc_netid);
     udp_xprt[prot]->xp_tp    = Str_Dup(netconfig_udpv6->nc_device);
@@ -284,6 +315,18 @@ void Create_tcp(protos prot)
         LogFatal(COMPONENT_DISPATCH,
                  "Cannot allocate %s/TCP SVCXPRT", tags[prot]);
 
+    /* bind xprt to channel--unregister it from the global event
+     * channel (if applicable) */
+    (void) svc_rqst_evchan_reg(rpc_evchan[TCP_RDVS_CHAN].chan_id, tcp_xprt[prot],
+                               SVC_RQST_FLAG_XPRT_UREG);
+
+    /* Hook xp_getreq */
+    (void) SVC_CONTROL(tcp_xprt[prot], SVCSET_XP_GETREQ, nfs_rpc_getreq_ng);
+
+    /* Hook xp_rdvs -- allocate new xprts to event channels */
+    (void) SVC_CONTROL(tcp_xprt[prot], SVCSET_XP_RDVS, nfs_rpc_rdvs);
+
+/* XXXX the following code cannot compile (socket, binadaddr_udp6 are gone) (Matt) */
 #ifdef _USE_TIRPC_IPV6
     if(listen(socket, pdata[prot].bindaddr_udp6.qlen) != 0)
         LogFatal(COMPONENT_DISPATCH,
@@ -403,9 +446,12 @@ void Clean_RPC(void)
 cleanup_list_element clean_rpc = {NULL, Clean_RPC};
 
 #define UDP_REGISTER(prot, vers, netconfig) \
-  svc_register(udp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
+    svc_register(udp_xprt[prot], nfs_param.core_param.program[prot], (u_long) vers, \
+                 nfs_rpc_dispatch_dummy, IPPROTO_UDP)
+
 #define TCP_REGISTER(prot, vers, netconfig) \
-  svc_register(tcp_xprt[prot], nfs_param.core_param.program[prot], (rpcvers_t) vers, nfs_rpc_dispatch_dummy, netconfig)
+    svc_register(tcp_xprt[prot], nfs_param.core_param.program[prot], (u_long) vers, \
+                 nfs_rpc_dispatch_dummy, IPPROTO_TCP)
 
 void Register_program(protos prot, int flag, int vers)
 {
@@ -415,6 +461,7 @@ void Register_program(protos prot, int flag, int vers)
               "Registering %s V%d/UDP",
               tags[prot], (int)vers);
 
+      /* XXXX fix svc_register! */
       if(!UDP_REGISTER(prot, vers, netconfig_udpv4))
         LogFatal(COMPONENT_DISPATCH,
                  "Cannot register %s V%d on UDP",
@@ -456,27 +503,49 @@ void Register_program(protos prot, int flag, int vers)
 /**
  * nfs_Init_svc: Init the svc descriptors for the nfs daemon.
  *
- * Perform all the required initialization for the SVCXPRT pointer.
+ * Perform all the required initialization for the RPC subsystem and event
+ * channels.
  *
- *
+ * @param attr_thr  pointer to a set of pre-initialized pthread attributes that
+ * should be used for new threads
  */
-void nfs_Init_svc()
+void nfs_Init_svc(pthread_attr_t *attr_thr)
 {
     protos p;
     svc_init_params svc_params;
+    int ix, code = 0;
     int one = 1;
 
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: Core options = %d",
             nfs_param.core_param.core_options);
 
+#ifndef _NO_BUDDY_SYSTEM
+    /* Initialisation of the Buddy Malloc */
+    LogInfo(COMPONENT_DISPATCH,
+            "Initialization of memory manager");
+    if(BuddyInit(&nfs_param.buddy_param_tcp_mgr)!= BUDDY_SUCCESS)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Memory manager could not be initialized");
+#endif
+
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
   
     /* New TI-RPC package init function */
     svc_params.flags = SVC_INIT_EPOLL; /* use EPOLL event mgmt */
+    svc_params.flags |= SVC_INIT_NOREG_XPRTS; /* don't call xprt_register */
     svc_params.max_connections = nfs_param.core_param.nb_max_fd;
-    svc_params.max_events = 1024; /* length of epoll event queue:  don't know good values for this */
+    svc_params.max_events = 1024; /* length of epoll event queue */
 
     svc_init(&svc_params);
+
+    for (ix = 0; ix < N_EVENT_CHAN; ++ix) {
+        rpc_evchan[ix].chan_id = 0;
+        if ((code = svc_rqst_new_evchan(&rpc_evchan[ix].chan_id, NULL /* u_data */,
+                                        SVC_RQST_FLAG_NONE)))
+            LogFatal(COMPONENT_DISPATCH,
+                     "Cannot create TI-RPC event channel (%d, %d)", ix, code);
+        /* XXX bail?? */
+    }
 
   /* Get the netconfig entries from /etc/netconfig */
     if((netconfig_udpv4 = (struct netconfig *)getnetconfigent("udp")) == NULL)
@@ -648,6 +717,59 @@ void nfs_Init_svc()
 
 }                               /* nfs_Init_svc */
 
+/*
+ * Start service threads.
+ */
+void nfs_rpc_dispatch_threads(pthread_attr_t *attr_thr)
+{
+    int ix, code = 0;
+
+    /* Start event channel service threads */
+    for (ix = 0; ix < N_EVENT_CHAN; ++ix) {
+        if((code = pthread_create(&rpc_evchan[ix].thread_id,
+                                  attr_thr,
+                                  rpc_dispatcher_thread,
+                                  (void *) &rpc_evchan[ix].chan_id)) != 0) {
+            LogFatal(COMPONENT_THREAD,
+                   "Could not create rpc_dispatcher_thread #%u, error = %d (%s)",
+                     ix, errno, strerror(errno));
+        }
+    }
+    LogEvent(COMPONENT_THREAD,
+             "%d rpc dispatcher threads were started successfully",
+             N_EVENT_CHAN); 
+}
+
+/*
+ * Rendezvous callout.  This routine will be called by TI-RPC after newxprt
+ * has been accepted.
+ *
+ * Register newxprt on a TCP event channel.  Balancing events/channels could
+ * become involved.  To start with, just cycle through them as new connections
+ * are accepted.
+ */
+static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
+                          void *u_data)
+{
+    static uint32_t next_chan = TCP_EVCHAN_0;
+    pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+    uint32_t tchan;
+
+    pthread_mutex_lock(&mtx);
+
+    tchan = next_chan;
+    assert((next_chan >= TCP_EVCHAN_0) && (next_chan < N_EVENT_CHAN));
+    if (++next_chan >= N_EVENT_CHAN)
+        next_chan = TCP_EVCHAN_0;
+
+    pthread_mutex_unlock(&mtx);
+
+    (void) svc_rqst_evchan_reg(rpc_evchan[tchan].chan_id, xprt,
+                               SVC_RQST_FLAG_NONE);
+
+    return (0);
+}
+
 /**
  * Selects the smallest request queue,
  * whome the worker is ready and is not garbagging.
@@ -741,8 +863,8 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
 
   /* Get a worker to do the job */
 #ifndef _NO_MOUNT_LIST
-  if((udp_socket[P_MNT] == xprt->XP_SOCK) ||
-     (tcp_socket[P_MNT] == xprt->XP_SOCK))
+  if((udp_socket[P_MNT] == xprt->xp_fd) ||
+     (tcp_socket[P_MNT] == xprt->xp_fd))
     {
       /* worker #0 is dedicated to mount protocol */
       worker_index = 0;
@@ -756,7 +878,7 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Use request from Worker Thread #%u's pool, xprt->xp_sock=%d, thread has %d pending requests",
-               worker_index, xprt->XP_SOCK,
+               worker_index, xprt->xp_fd,
                workers_data[worker_index].pending_request->nb_entry);
 
   /* Get a pnfsreq from the worker's pool */
@@ -796,13 +918,13 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
    */
   LogFullDebug(COMPONENT_DISPATCH,
                "Before calling SVC_RECV on socket %d",
-               pnfsreq->rcontent.nfs.xprt->XP_SOCK);
+               pnfsreq->rcontent.nfs.xprt->xp_fd);
 
   recv_status = SVC_RECV(pnfsreq->rcontent.nfs.xprt, pmsg);
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Status for SVC_RECV on socket %d is %d, xid=%lu",
-               pnfsreq->rcontent.nfs.xprt->XP_SOCK, recv_status,
+               pnfsreq->rcontent.nfs.xprt->xp_fd, recv_status,
                (unsigned long)pmsg->rm_xid);
 
   /* If status is ok, the request will be processed by the related
@@ -828,10 +950,10 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
 
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s disappeared...",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
 
-          if(Xports[pnfsreq->rcontent.nfs.xprt->XP_SOCK] != NULL)
-            SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->XP_SOCK]);
+          if(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd] != NULL)
+            SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd]);
 
           rc = PROCESS_LOST_CONN;
         }
@@ -839,19 +961,19 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_MOREREQS",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
         }
       else if(stat == XPRT_IDLE)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_IDLE",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
         }
       else
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status unknown (%d)",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf, (int)stat);
+                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf, (int)stat);
         }
 
       goto free_req;
@@ -883,9 +1005,13 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
         goto free_req;
 
-#if 0
-      /* Update a copy of SVCXPRT and pass it to the worker thread to use it. */
-      pnfsreq->rcontent.nfs.xprt_copy = Svcxprt_copy(pnfsreq->rcontent.nfs.xprt_copy, xprt);
+#if 1 /* XXXX */
+      /* Update a copy of SVCXPRT and pass it to the worker thread to use it.
+       * This is GOING AWAY.  We don't want to use SVCXPRT to hold request state.
+       * But let's get things working minimally first. 
+       */
+      pnfsreq->rcontent.nfs.xprt_copy = svc_shim_copy_xprt(
+          pnfsreq->rcontent.nfs.xprt_copy, xprt);
 #else
       /* XXX Danger Will Robinson! */
       pnfsreq->rcontent.nfs.xprt_copy = xprt;
@@ -909,6 +1035,32 @@ free_req:
   workers_data[worker_index].passcounter += 1;
   V(workers_data[worker_index].request_pool_mutex);
   return rc;
+}
+
+static bool_t
+nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
+{
+    /* Ok, in the new world, TI-RPC's job is merely to tell us there is activity
+     * on a specific xprt handle.
+     *
+     * Note that we have a builtin mechanism to bind, unbind, and (in response to
+     * connect events, through a new callout made from within the rendezvous in
+     * vc xprts) rebind/rebalance xprt handles to independent event channels, each
+     * with their own platform event demultiplexer.  The current callout is one
+     * event (request, or, if applicable, new vc connect) on the active xprt handle
+     * xprt.
+     *
+     * We are a blocking call from the svc_run thread specific to our current event
+     * channel (whatever it is).  Our goal is to hand off processing of xprt to
+     * a request dispatcher thread as quickly as possible, to minimize latency of
+     * all xprts on this channel.
+     *
+     * Next, the preferred dispatch thread should be, I speculate, one which has
+     * (most) recently handled a request for this xprt.
+     */
+
+    
+    return (TRUE);
 }
 
 /**
@@ -1194,38 +1346,31 @@ void rpc_dispatcher_svc_run()
 }                               /* rpc_dispatcher_svc_run */
 
 /**
- * rpc_dispatcher_thread: thread used for RPC dispatching.
+ * rpc_dispatcher_thread
  *
- * Thead used for RPC dispatching. It gets the requests and then spool it to one of the worker's LRU.
- * The worker chosen is the one with the smaller load (its LRU is the shorter one).
+ * Thread used to service an (epoll, etc) event channel.
  *
- * @param Arg (unused)
+ * @param arg, points to the id of the associated event channel
  *
  * @return Pointer to the result (but this function will mostly loop forever).
  *
  */
-void *rpc_dispatcher_thread(void *Arg)
+void *rpc_dispatcher_thread(void *arg)
 {
-  SetNameFunction("dispatch_thr");
+    int32_t chan_id = *((int32_t *) arg);
+    
+    SetNameFunction("dispatch_thr");
 
-#ifndef _NO_BUDDY_SYSTEM
-  /* Initialisation of the Buddy Malloc */
-  LogInfo(COMPONENT_DISPATCH,
-          "Initialization of memory manager");
-  if(BuddyInit(&nfs_param.buddy_param_tcp_mgr)!= BUDDY_SUCCESS)
-    LogFatal(COMPONENT_DISPATCH,
-             "Memory manager could not be initialized");
-#endif
-  /* Calling dispatcher main loop */
-  LogInfo(COMPONENT_DISPATCH,
-          "Entering nfs/rpc dispatcher");
+    /* Calling dispatcher main loop */
+    LogInfo(COMPONENT_DISPATCH,
+            "Entering nfs/rpc dispatcher");
 
-  LogDebug(COMPONENT_DISPATCH,
-           "My pthread id is %p", (caddr_t) pthread_self());
+    LogDebug(COMPONENT_DISPATCH,
+             "My pthread id is %p", (caddr_t) pthread_self());
 
-  rpc_dispatcher_svc_run();
+    svc_rqst_thrd_run(chan_id, SVC_RQST_FLAG_NONE);
 
-  return NULL;
+    return (NULL);
 }                               /* rpc_dispatcher_thread */
 
 /**

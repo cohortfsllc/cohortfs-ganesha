@@ -662,7 +662,8 @@ void nfs_operate_on_sigusr1() ;
 void nfs_operate_on_sigterm() ;
 void nfs_operate_on_sighup() ;
 
-void nfs_Init_svc(void);
+void nfs_Init_svc();
+void  nfs_rpc_dispatch_threads(pthread_attr_t *attr_thr);
 void nfs_Init_admin_data(hash_table_t *ht);
 int nfs_Init_worker_data(nfs_worker_data_t * pdata);
 int nfs_Init_request_data(nfs_request_data_t * pdata);

@@ -97,7 +97,6 @@ pthread_t worker_thrid[NB_MAX_WORKER_THREAD];
 pthread_t flusher_thrid[NB_MAX_FLUSHER_THREAD];
 nfs_flush_thread_data_t flush_info[NB_MAX_FLUSHER_THREAD];
 
-pthread_t rpc_dispatcher_thrid;
 pthread_t stat_thrid;
 pthread_t stat_exporter_thrid;
 pthread_t admin_thrid;
@@ -1624,16 +1623,8 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
        */
       wait_for_threads_to_awaken();
 
-      /* Starting the rpc dispatcher thread */
-      if((rc =
-	  pthread_create(&rpc_dispatcher_thrid, &attr_thr, rpc_dispatcher_thread,
-			 &nfs_param)) != 0)
-	{
-	  LogFatal(COMPONENT_THREAD,
-		   "Could not create rpc_dispatcher_thread, error = %d (%s)",
-		   errno, strerror(errno));
-	}
-      LogEvent(COMPONENT_THREAD, "rpc dispatcher thread was started successfully");
+      /* Start event channel service threads */
+      nfs_rpc_dispatch_threads(&attr_thr);
 
 #ifdef _USE_9P
       /* Starting the 9p dispatcher thread */
@@ -1913,7 +1904,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 #endif /* _HAVE_GSSAPI */
 
   /* RPC Initialisation - exits on failure*/
-  nfs_Init_svc();
   LogInfo(COMPONENT_INIT,  "RPC ressources successfully initialized");
 
   /* Worker initialisation */
