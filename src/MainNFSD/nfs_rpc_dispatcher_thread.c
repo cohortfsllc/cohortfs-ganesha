@@ -1111,6 +1111,9 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
         LogDebug(COMPONENT_DISPATCH,
                  "A NFS TCP request from an already connected client");
 #endif /* VERBOSE */
+
+    /* XXXX change in progress--for now, do what we always did */
+    process_rpc_request(xprt);
     
     return (TRUE);
 }
