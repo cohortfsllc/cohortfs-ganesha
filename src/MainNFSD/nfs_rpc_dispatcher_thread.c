@@ -1028,6 +1028,8 @@ free_req:
   return rc;
 }
 
+void svc_xprt_dump_xprts(const char *tag);
+
 static bool_t
 nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 {
@@ -1051,20 +1053,24 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
      */
 
     /*
-     * UDP RPCs are quite simple: everything comes to the same socket, so several SVCXPRT
-     * can be defined, one per tbuf to handle the stuff
+     * UDP RPCs are quite simple: everything comes to the same socket, so
+     * several SVCXPRT can be defined, one per tbuf to handle the stuff
      * TCP RPCs are more complex:
-     *   - a unique SVCXPRT exists that deals with initial tcp rendez vous. It does the accept
-     *     with the client, but recv no message from the client. But SVC_RECV on it creates
-     *     a new SVCXPRT dedicated to the client. This specific SVXPRT is bound on TCPSocket
+     *   - a unique SVCXPRT exists that deals with initial tcp rendez vous.
+     *     It does the accept with the client, but recv no message from the
+     *     client. But SVC_RECV on it creates a new SVCXPRT dedicated to the
+     *     client. This specific SVXPRT is bound on TCPSocket
      *
-     * while receiving something on the Svc_fdset, I must know if this is a UDP request,
-     * an initial TCP request or a TCP socket from an already connected client.
+     * while receiving something on the Svc_fdset, I must know if this is a UDP
+     * request, an initial TCP request or a TCP socket from an already connected
+     * client.
      * This is how to distinguish the cases:
      * UDP connections are bound to socket NFS_UDPSocket
      * TCP initial connections are bound to socket NFS_TCPSocket
      * all the other cases are requests from already connected TCP Clients
      */
+
+    svc_xprt_dump_xprts("process_rpc_request");
 
     int rpc_fd = xprt->xp_fd;
 
