@@ -308,9 +308,10 @@ void Create_udp(protos prot)
 
 void Create_tcp(protos prot)
 {
-    tcp_xprt[prot] = svc_vc_create(tcp_socket[prot],
-                                   nfs_param.core_param.max_send_buffer_size,
-                                   nfs_param.core_param.max_recv_buffer_size);
+    tcp_xprt[prot] = svc_vc_create2(tcp_socket[prot],
+                                    nfs_param.core_param.max_send_buffer_size,
+                                    nfs_param.core_param.max_recv_buffer_size,
+                                    SVC_VC_CREATE_FLAG_LISTEN);
     if(tcp_xprt[prot] == NULL)
         LogFatal(COMPONENT_DISPATCH,
                  "Cannot allocate %s/TCP SVCXPRT", tags[prot]);
@@ -1120,6 +1121,8 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 
     /* XXXX change in progress--for now, do what we always did */
     process_rpc_request(xprt);
+
+    svc_xprt_dump_xprts("process_rpc_request exit");
     
     return (TRUE);
 }
