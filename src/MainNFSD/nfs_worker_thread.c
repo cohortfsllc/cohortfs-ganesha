@@ -706,7 +706,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   exportlist_client_entry_t related_client;
   struct user_cred user_credentials;
   int   update_per_share_stats;
-
+  sigset_t mask;
   fsal_op_context_t * pfsal_op_ctx = NULL ;
 
 #ifdef _DEBUG_MEMLEAKS
@@ -780,8 +780,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                        "Before svc_sendreply on socket %d (dup req)",
                        xprt->xp_fd);
 
-          P(mutex_cond_xprt[xprt->xp_fd]);
-
+          /* XXX P(mutex_cond_xprt[xprt->xp_fd]); */
+          svc_dplx_lock_x(xprt, &mask);
           if(svc_sendreply
              (xprt, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
             {
@@ -790,7 +790,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
               svcerr_systemerr(xprt);
             }
 
-          V(mutex_cond_xprt[xprt->xp_fd]);
+          svc_dplx_unlock_x(xprt, &mask);
 
           LogFullDebug(COMPONENT_DISPATCH,
                        "After svc_sendreply on socket %d (dup req)",
@@ -1532,7 +1532,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     }
   else
     {
-      P(mutex_cond_xprt[xprt->xp_fd]);
+      svc_dplx_lock_x(xprt, &mask);
 
       LogFullDebug(COMPONENT_DISPATCH,
                    "Before svc_sendreply on socket %d",
@@ -1545,8 +1545,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           LogDebug(COMPONENT_DISPATCH,
                    "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
           svcerr_systemerr(xprt);
-
-          V(mutex_cond_xprt[xprt->xp_fd]);
+          svc_dplx_unlock_x(xprt, &mask);
 
           if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
                                 &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
@@ -1562,7 +1561,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                    "After svc_sendreply on socket %d",
                    xprt->xp_fd);
 
-      V(mutex_cond_xprt[xprt->xp_fd]);
+      svc_dplx_unlock_x(xprt, &mask);
 
       /* Mark request as finished */
       LogFullDebug(COMPONENT_DUPREQ, "YES?: %d", do_dupreq_cache);

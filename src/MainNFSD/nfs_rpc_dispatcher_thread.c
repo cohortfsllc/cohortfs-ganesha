@@ -756,7 +756,7 @@ static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
 
     pthread_mutex_unlock(&mtx);
 
-    (void) svc_rqst_evchan_reg(rpc_evchan[tchan].chan_id, xprt,
+    (void) svc_rqst_evchan_reg(rpc_evchan[tchan].chan_id, newxprt,
                                SVC_RQST_FLAG_NONE);
 
     return (0);
@@ -944,9 +944,12 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
                    "Client on socket=%d, addr=%s disappeared...",
                    pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
 
+#if 0
           if(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd] != NULL)
             SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd]);
-
+#else
+          SVC_DESTROY(pnfsreq->rcontent.nfs.xprt);
+#endif
           rc = PROCESS_LOST_CONN;
         }
       else if(stat == XPRT_MOREREQS)
@@ -1071,13 +1074,13 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
      * all the other cases are requests from already connected TCP Clients
      */
 
-    svc_xprt_dump_xprts("process_rpc_request");
-
-    int rpc_fd = xprt->xp_fd;
-
     /* The following actions are now purely diagnostic, the only side effect is a message to
      * the log. */
 #ifdef VERBOSE
+    int rpc_rd = xprt->xp_fd;
+
+    svc_xprt_dump_xprts("process_rpc_request");
+
     if(udp_socket[P_NFS] == rpc_fd)
         LogFullDebug(COMPONENT_DISPATCH, "A NFS UDP request");
     else if(udp_socket[P_MNT] == rpc_fd)
@@ -1120,13 +1123,16 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 #endif /* VERBOSE */
 
     /* XXXX change in progress--for now, do what we always did */
+    (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
     process_rpc_request(xprt);
+    (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
 
     svc_xprt_dump_xprts("process_rpc_request exit");
-    
+
     return (TRUE);
 }
 
+#if 0
 /**
  * nfs_rpc_getreq: Do half of the work done by svc_getreqset.
  *
@@ -1287,23 +1293,6 @@ void nfs_rpc_getreq(fd_set * readfds)
 }                               /* nfs_rpc_getreq */
 
 /**
- *
- * print_pending_request: prints an entry related to a pending request in the LRU list.
- *
- * prints an entry related to a pending request in the LRU list.
- *
- * @param data [IN] data stored in a LRU entry to be printed.
- * @param str [OUT] string used to store the result.
- *
- * @return 0 if ok, other values mean an error.
- *
- */
-int print_pending_request(LRU_data_t data, char *str)
-{
-  return snprintf(str, LRU_DISPLAY_STRLEN, "not implemented for now");
-}                               /* print_pending_request */
-
-/**
  * nfs_rpc_dispatcher_svc_run: the same as svc_run.
  *
  * The same as svc_run.
@@ -1408,6 +1397,26 @@ void rpc_dispatcher_svc_run()
 
   return;
 }                               /* rpc_dispatcher_svc_run */
+
+#endif /* 0 */
+
+/**
+ *
+ * print_pending_request: prints an entry related to a pending request in the LRU list.
+ *
+ * prints an entry related to a pending request in the LRU list.
+ *
+ * @param data [IN] data stored in a LRU entry to be printed.
+ * @param str [OUT] string used to store the result.
+ *
+ * @return 0 if ok, other values mean an error.
+ *
+ */
+int print_pending_request(LRU_data_t data, char *str)
+{
+  return snprintf(str, LRU_DISPLAY_STRLEN, "not implemented for now");
+}                               /* print_pending_request */
+
 
 /**
  * rpc_dispatcher_thread

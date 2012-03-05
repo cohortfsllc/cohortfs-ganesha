@@ -67,6 +67,11 @@
 #include "nfs_stat.h"
 #include "SemN.h"
 
+#if 0
+/* XXX This routine was used only in prior revision of the rendezvous_request
+ * which spawned a dedicated thread for each client connection.
+ */
+
 /**
  * rpc_tcp_socket_manager_thread: manages a TCP socket connected to a client.
  *
@@ -179,3 +184,5 @@ void *rpc_tcp_socket_manager_thread(void *Arg)
 
   return NULL;
 }                               /* rpc_tcp_socket_manager_thread */
+
+#endif

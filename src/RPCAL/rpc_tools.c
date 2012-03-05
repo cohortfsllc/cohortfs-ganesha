@@ -71,11 +71,6 @@
 #include "nfs_file_handle.h"
 #include "nfs_dupreq.h"
 
-pthread_mutex_t *mutex_cond_xprt;
-pthread_cond_t *condvar_xprt;
-SVCXPRT **Xports;
-fd_set Svc_fdset;
-
 const char *str_sock_type(int st)
 {
   static char buf[16];
