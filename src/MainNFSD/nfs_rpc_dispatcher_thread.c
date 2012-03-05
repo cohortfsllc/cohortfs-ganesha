@@ -519,15 +519,6 @@ void nfs_Init_svc()
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: Core options = %d",
             nfs_param.core_param.core_options);
 
-#ifndef _NO_BUDDY_SYSTEM
-    /* Initialisation of the Buddy Malloc */
-    LogInfo(COMPONENT_DISPATCH,
-            "Initialization of memory manager");
-    if(BuddyInit(&nfs_param.buddy_param_tcp_mgr)!= BUDDY_SUCCESS)
-        LogFatal(COMPONENT_DISPATCH,
-                 "Memory manager could not be initialized");
-#endif
-
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
   
     /* New TI-RPC package init function */
@@ -1428,6 +1419,16 @@ void *rpc_dispatcher_thread(void *arg)
 
     LogDebug(COMPONENT_DISPATCH,
              "My pthread id is %p", (caddr_t) pthread_self());
+
+#ifndef _NO_BUDDY_SYSTEM
+    /* XXXX check */
+    /* Initialisation of the Buddy Malloc */
+    LogInfo(COMPONENT_DISPATCH,
+            "Initialization of memory manager");
+    if(BuddyInit(&nfs_param.buddy_param_tcp_mgr)!= BUDDY_SUCCESS)
+        LogFatal(COMPONENT_DISPATCH,
+                 "Memory manager could not be initialized");
+#endif
 
     svc_rqst_thrd_run(chan_id, SVC_RQST_FLAG_NONE);
 

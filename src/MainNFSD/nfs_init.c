@@ -1904,6 +1904,7 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 #endif /* _HAVE_GSSAPI */
 
   /* RPC Initialisation - exits on failure*/
+  nfs_Init_svc();
   LogInfo(COMPONENT_INIT,  "RPC ressources successfully initialized");
 
   /* Worker initialisation */
