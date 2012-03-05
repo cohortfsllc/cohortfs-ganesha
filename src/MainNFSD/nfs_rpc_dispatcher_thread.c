@@ -509,7 +509,7 @@ void Register_program(protos prot, int flag, int vers)
  * @param attr_thr  pointer to a set of pre-initialized pthread attributes that
  * should be used for new threads
  */
-void nfs_Init_svc(pthread_attr_t *attr_thr)
+void nfs_Init_svc()
 {
     protos p;
     svc_init_params svc_params;
@@ -1043,22 +1043,83 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
     /* Ok, in the new world, TI-RPC's job is merely to tell us there is activity
      * on a specific xprt handle.
      *
-     * Note that we have a builtin mechanism to bind, unbind, and (in response to
-     * connect events, through a new callout made from within the rendezvous in
-     * vc xprts) rebind/rebalance xprt handles to independent event channels, each
-     * with their own platform event demultiplexer.  The current callout is one
-     * event (request, or, if applicable, new vc connect) on the active xprt handle
-     * xprt.
+     * Note that we have a builtin mechanism to bind, unbind, and (in response
+     * to connect events, through a new callout made from within the rendezvous
+     * in vc xprts) rebind/rebalance xprt handles to independent event channels,
+     * each with their own platform event demultiplexer.  The current callout
+     * is one event (request, or, if applicable, new vc connect) on the active
+     * xprt handle xprt.
      *
-     * We are a blocking call from the svc_run thread specific to our current event
-     * channel (whatever it is).  Our goal is to hand off processing of xprt to
-     * a request dispatcher thread as quickly as possible, to minimize latency of
-     * all xprts on this channel.
+     * We are a blocking call from the svc_run thread specific to our current
+     * event channel (whatever it is).  Our goal is to hand off processing of
+     * xprt to a request dispatcher thread as quickly as possible, to minimize
+     * latency of all xprts on this channel.
      *
      * Next, the preferred dispatch thread should be, I speculate, one which has
      * (most) recently handled a request for this xprt.
      */
 
+    /*
+     * UDP RPCs are quite simple: everything comes to the same socket, so several SVCXPRT
+     * can be defined, one per tbuf to handle the stuff
+     * TCP RPCs are more complex:
+     *   - a unique SVCXPRT exists that deals with initial tcp rendez vous. It does the accept
+     *     with the client, but recv no message from the client. But SVC_RECV on it creates
+     *     a new SVCXPRT dedicated to the client. This specific SVXPRT is bound on TCPSocket
+     *
+     * while receiving something on the Svc_fdset, I must know if this is a UDP request,
+     * an initial TCP request or a TCP socket from an already connected client.
+     * This is how to distinguish the cases:
+     * UDP connections are bound to socket NFS_UDPSocket
+     * TCP initial connections are bound to socket NFS_TCPSocket
+     * all the other cases are requests from already connected TCP Clients
+     */
+
+    int rpc_fd = xprt->xp_fd;
+
+    /* The following actions are now purely diagnostic, the only side effect is a message to
+     * the log. */
+#ifdef VERBOSE
+    if(udp_socket[P_NFS] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH, "A NFS UDP request");
+    else if(udp_socket[P_MNT] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH, "A MOUNT UDP request");
+#ifdef _USE_NLM
+    else if(udp_socket[P_NLM] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH, "A NLM UDP request");
+#endif                          /* _USE_NLM */
+#ifdef _USE_QUOTA
+    else if(udp_socket[P_RQUOTA] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH, "A RQUOTA UDP request");
+#endif                        /* _USE_QUOTA */
+    else if(tcp_socket[P_NFS] == rpc_fd) {
+        /*
+         * This is an initial tcp connection
+         * There is no RPC message, this is only a TCP connect.
+         * In this case, the SVC_RECV does only produces a new connected socket (it does
+         * just a call to accept)
+         * there is no need of worker thread processing to be done
+         */
+        LogFullDebug(COMPONENT_DISPATCH,
+                     "An initial NFS TCP request from a new client");
+    }
+    else if(tcp_socket[P_MNT] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH,
+                     "An initial MOUNT TCP request from a new client");
+#ifdef _USE_NLM
+    else if(tcp_socket[P_NLM] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH,
+                     "An initial NLM request from a new client");
+#endif                          /* _USE_NLM */
+#ifdef _USE_QUOTA
+    else if(tcp_socket[P_RQUOTA] == rpc_fd)
+        LogFullDebug(COMPONENT_DISPATCH,
+                     "An initial RQUOTA request from a new client");
+#endif                          /* _USE_QUOTA */
+    else
+        LogDebug(COMPONENT_DISPATCH,
+                 "A NFS TCP request from an already connected client");
+#endif /* VERBOSE */
     
     return (TRUE);
 }

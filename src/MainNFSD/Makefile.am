@@ -90,7 +90,7 @@ lib_LTLIBRARIES              = libganeshaNFS.la
 #   5. If any interfaces have been added since the last public release, then increment age.
 #   6. If any interfaces have been removed since the last public release, then set age to 0.
 
-libganeshaNFS_la_LDFLAGS = -version-info 1:0:1
+libganeshaNFS_la_LDFLAGS = -version-info 1:0:1 -all-static
 
 else
 
@@ -202,6 +202,7 @@ bin_PROGRAMS               = $(FS_NAME).ganesha.nfsd
 
 __FS_NAME__ganesha_nfsd_SOURCES    = nfs_main.c  \
                                      nfs_init.h
+
 __FS_NAME__ganesha_nfsd_LDADD      =  ./libMainServices.la \
                                       $(FSAL_LDFLAGS) $(EXT_LDADD)  \
                                       $(SEC_LIB_FLAGS) @EFENCE@ @EXTRA_LIB@
