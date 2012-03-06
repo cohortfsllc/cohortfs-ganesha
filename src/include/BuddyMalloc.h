@@ -156,6 +156,11 @@ int BuddyInit(buddy_parameter_t * p_buddy_init_info);
 BUDDY_ADDR_T BuddyMalloc(size_t Size);
 
 /**
+ * The signature of malloc, zero inits, cf. kzalloc
+*/
+BUDDY_ADDR_T BuddyMallocZ(size_t Size);
+
+/**
  * BuddyMallocExit : memory allocator based on buddy system.
  *
  * The  BuddyMallocExit() function returns a pointer to a block of at least

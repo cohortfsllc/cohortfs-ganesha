@@ -522,7 +522,18 @@ void nfs_Init_svc()
             nfs_param.core_param.core_options);
 
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
-  
+
+  /* Redirect TI-RPC allocators, log channel */
+  if (!tirpc_control(TIRPC_SET_WARNX, (warnx_t) rpc_warnx))
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC warnx");
+#ifndef _NO_BUDDY_SYSTEM
+  if (!tirpc_control(TIRPC_SET_MALLOC, (mem_alloc_t) BuddyMallocZ))
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC alloc");
+
+  if (!tirpc_control(TIRPC_SET_FREE, (mem_free_t) BuddyFree))
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC free");
+#endif
+
     /* New TI-RPC package init function */
     svc_params.flags = SVC_INIT_EPOLL; /* use EPOLL event mgmt */
     svc_params.flags |= SVC_INIT_NOREG_XPRTS; /* don't call xprt_register */
