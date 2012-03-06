@@ -162,7 +162,8 @@ void nfs_debug_buddy_info()
 
 /**
  *
- * nfs_rpc_dispatch_dummy: Function never called, but the symbol is necessary for Svc_register/
+ * nfs_rpc_dispatch_dummy: Function never called, but the symbol is needed
+ * for svc_register.
  *
  * @param ptr_req the RPC request to be managed
  * @param ptr_svc SVCXPRT pointer to be used for managing this request
@@ -943,7 +944,6 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s disappeared...",
                    pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
-
 #if 0
           if(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd] != NULL)
             SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd]);
@@ -983,7 +983,7 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       pnfsreq->rcontent.nfs.req.rq_vers = pmsg->rm_call.cb_vers;
       pnfsreq->rcontent.nfs.req.rq_proc = pmsg->rm_call.cb_proc;
 
-      /* Use primary xprt for now (in case xprt has GSS state)
+      /* XXX Use primary xprt for now (in case xprt has GSS state)
        * until we make a copy
        */
       pnfsreq->rcontent.nfs.xprt = xprt;
@@ -994,7 +994,8 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       if(pfuncdesc == INVALID_FUNCDESC)
         goto free_req;
 
-      if(AuthenticateRequest(&pnfsreq->rcontent.nfs, &no_dispatch) != AUTH_OK || no_dispatch)
+      if(AuthenticateRequest(&pnfsreq->rcontent.nfs,
+                             &no_dispatch) != AUTH_OK || no_dispatch)
         goto free_req;
 
       if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
@@ -1002,8 +1003,8 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
 
 #if 1 /* XXXX */
       /* Update a copy of SVCXPRT and pass it to the worker thread to use it.
-       * This is GOING AWAY.  We don't want to use SVCXPRT to hold request state.
-       * But let's get things working minimally first. 
+       * This is GOING AWAY.  We don't want to use SVCXPRT to hold request
+       * state. But let's get things working minimally first. 
        */
       pnfsreq->rcontent.nfs.xprt_copy = svc_shim_copy_xprt(
           pnfsreq->rcontent.nfs.xprt_copy, xprt);
@@ -1020,7 +1021,32 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       /* Regular management of the request (UDP request or TCP request on connected handler */
       DispatchWorkNFS(pnfsreq, worker_index);
 
-      return PROCESS_DISPATCHED;
+      LogInfo(COMPONENT_DISPATCH, "Waiting for completion of request");
+      pthread_cond_wait(&pnfsreq->req_done_condvar, &pnfsreq->req_done_mutex);
+      V(pnfsreq->req_done_mutex);
+      LogInfo(COMPONENT_DISPATCH, "Request processing has completed");
+
+      gettimeofday(&timer_end, NULL);
+      timer_diff = time_diff(timer_start, timer_end);
+
+      /* Update await time. */
+      stat_type = GANESHA_STAT_SUCCESS;
+      latency_stat.type = AWAIT_TIME;
+      latency_stat.latency = timer_diff.tv_sec * 1000000 + timer_diff.tv_usec; /* microseconds */
+      nfs_stat_update(stat_type,
+                      &(workers_data[worker_index].stats.stat_req),
+                      &(pnfsreq->rcontent.nfs.req),
+                      &latency_stat);
+
+      LogFullDebug(COMPONENT_DISPATCH,
+                   "Worker Thread #%u has committed the operation: end_time %llu.%.6llu await %llu.%.6llu",
+                   worker_index,
+                   (unsigned long long int)timer_end.tv_sec,
+                   (unsigned long long int)timer_end.tv_usec,
+                   (unsigned long long int)timer_diff.tv_sec,
+                   (unsigned long long int)timer_diff.tv_usec);
+      rc = PROCESS_DISPATCHED;
+      goto unblock;
     }
 
 free_req:
@@ -1029,7 +1055,13 @@ free_req:
   ReleaseToPool(pnfsreq, &workers_data[worker_index].request_pool);
   workers_data[worker_index].passcounter += 1;
   V(workers_data[worker_index].request_pool_mutex);
-  return rc;
+
+unblock:
+  /* XXX XPRT destroyed */
+  if (rc != PROCESS_LOST_CONN)
+      (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
+
+  return (rc);
 }
 
 void svc_xprt_dump_xprts(const char *tag);
@@ -1076,6 +1108,8 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 
     /* The following actions are now purely diagnostic, the only side effect is a message to
      * the log. */
+    int code = 0;
+
 #ifdef VERBOSE
     int rpc_rd = xprt->xp_fd;
 
@@ -1122,11 +1156,13 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
                  "A NFS TCP request from an already connected client");
 #endif /* VERBOSE */
 
-    /* XXXX change in progress--for now, do what we always did */
+    /* Block events in the interval from initial dispatch to the
+     * completion of SVC_RECV */
     (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
-    process_rpc_request(xprt);
-    (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
 
+    code = process_rpc_request(xprt);
+
+    /* XXXX debugging */
     svc_xprt_dump_xprts("process_rpc_request exit");
 
     return (TRUE);
