@@ -1131,23 +1131,25 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
     /* The following actions are now purely diagnostic, the only side effect is a message to
      * the log. */
     int code = 0;
-
-#ifdef VERBOSE
-    int rpc_rd = xprt->xp_fd;
+    int rpc_fd = xprt->xp_fd;
 
     svc_xprt_dump_xprts("process_rpc_request");
 
     if(udp_socket[P_NFS] == rpc_fd)
-        LogFullDebug(COMPONENT_DISPATCH, "A NFS UDP request");
+        LogFullDebug(COMPONENT_DISPATCH, "A NFS UDP request fd %d",
+                     rpc_fd);
     else if(udp_socket[P_MNT] == rpc_fd)
-        LogFullDebug(COMPONENT_DISPATCH, "A MOUNT UDP request");
+        LogFullDebug(COMPONENT_DISPATCH, "A MOUNT UDP request %d",
+                     rpc_fd);
 #ifdef _USE_NLM
     else if(udp_socket[P_NLM] == rpc_fd)
-        LogFullDebug(COMPONENT_DISPATCH, "A NLM UDP request");
+        LogFullDebug(COMPONENT_DISPATCH, "A NLM UDP request %d",
+                     rpc_fd);
 #endif                          /* _USE_NLM */
 #ifdef _USE_QUOTA
     else if(udp_socket[P_RQUOTA] == rpc_fd)
-        LogFullDebug(COMPONENT_DISPATCH, "A RQUOTA UDP request");
+        LogFullDebug(COMPONENT_DISPATCH, "A RQUOTA UDP request %d",
+                     rpc_fd);
 #endif                        /* _USE_QUOTA */
     else if(tcp_socket[P_NFS] == rpc_fd) {
         /*
@@ -1158,35 +1160,37 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
          * there is no need of worker thread processing to be done
          */
         LogFullDebug(COMPONENT_DISPATCH,
-                     "An initial NFS TCP request from a new client");
+                     "An initial NFS TCP request from a new client %d",
+                     rpc_fd);
     }
     else if(tcp_socket[P_MNT] == rpc_fd)
         LogFullDebug(COMPONENT_DISPATCH,
-                     "An initial MOUNT TCP request from a new client");
+                     "An initial MOUNT TCP request from a new client %d",
+                     rpc_fd);
 #ifdef _USE_NLM
     else if(tcp_socket[P_NLM] == rpc_fd)
         LogFullDebug(COMPONENT_DISPATCH,
-                     "An initial NLM request from a new client");
+                     "An initial NLM request from a new client %d",
+                     rpc_fd);
 #endif                          /* _USE_NLM */
 #ifdef _USE_QUOTA
     else if(tcp_socket[P_RQUOTA] == rpc_fd)
         LogFullDebug(COMPONENT_DISPATCH,
-                     "An initial RQUOTA request from a new client");
+                     "An initial RQUOTA request from a new client %d",
+                     rpc_fd);
 #endif                          /* _USE_QUOTA */
     else
         LogDebug(COMPONENT_DISPATCH,
-                 "A NFS TCP request from an already connected client");
-#endif /* VERBOSE */
+                 "A NFS TCP request from an already connected client %d",
+                 rpc_fd);
 
     /* Block events in the interval from initial dispatch to the
      * completion of SVC_RECV */
-#if 0 /* XXXX debugging */
     (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
-#endif
     code = process_rpc_request(xprt);
 
     /* XXXX debugging */
-    svc_xprt_dump_xprts("process_rpc_request exit");
+    svc_xprt_dump_xprts("end request");
 
     return (TRUE);
 }
