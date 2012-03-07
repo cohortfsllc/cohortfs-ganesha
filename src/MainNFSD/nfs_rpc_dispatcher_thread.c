@@ -523,6 +523,14 @@ void nfs_Init_svc()
 
     LogInfo(COMPONENT_DISPATCH, "NFS INIT: using TIRPC");
 
+    /* New TI-RPC package init function */
+    svc_params.flags = SVC_INIT_EPOLL; /* use EPOLL event mgmt */
+    svc_params.flags |= SVC_INIT_NOREG_XPRTS; /* don't call xprt_register */
+    svc_params.max_connections = nfs_param.core_param.nb_max_fd;
+    svc_params.max_events = 1024; /* length of epoll event queue */
+
+    svc_init(&svc_params);
+
   /* Redirect TI-RPC allocators, log channel */
   if (!tirpc_control(TIRPC_SET_WARNX, (warnx_t) rpc_warnx))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __warnx");
@@ -537,14 +545,6 @@ void nfs_Init_svc()
   if (!tirpc_control(TIRPC_SET_FREE, (std_free_t) BuddyFree))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __free");
 #endif
-
-    /* New TI-RPC package init function */
-    svc_params.flags = SVC_INIT_EPOLL; /* use EPOLL event mgmt */
-    svc_params.flags |= SVC_INIT_NOREG_XPRTS; /* don't call xprt_register */
-    svc_params.max_connections = nfs_param.core_param.nb_max_fd;
-    svc_params.max_events = 1024; /* length of epoll event queue */
-
-    svc_init(&svc_params);
 
     for (ix = 0; ix < N_EVENT_CHAN; ++ix) {
         rpc_evchan[ix].chan_id = 0;
@@ -1180,8 +1180,9 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
 
     /* Block events in the interval from initial dispatch to the
      * completion of SVC_RECV */
+#if 0 /* XXXX debugging */
     (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
-
+#endif
     code = process_rpc_request(xprt);
 
     /* XXXX debugging */
