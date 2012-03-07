@@ -1895,6 +1895,14 @@ void BuddyFree(BUDDY_ADDR_T ptr)
 }                               /* BuddyFree */
 
 /**
+ *  Free allocated memory (user call)
+ */
+void BuddyFreeSize(BUDDY_ADDR_T ptr, size_t __attribute__ ((unused)) size)
+{
+    BuddyFree(ptr);
+}                               /* BuddyFreeSize */
+
+/**
  * BuddyRealloc :
  * changes  the  size  of the memory block pointed to by ptr to
  * size bytes.

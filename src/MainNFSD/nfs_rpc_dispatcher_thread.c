@@ -525,13 +525,17 @@ void nfs_Init_svc()
 
   /* Redirect TI-RPC allocators, log channel */
   if (!tirpc_control(TIRPC_SET_WARNX, (warnx_t) rpc_warnx))
-      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC warnx");
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __warnx");
+
 #ifndef _NO_BUDDY_SYSTEM
   if (!tirpc_control(TIRPC_SET_MALLOC, (mem_alloc_t) BuddyMallocZ))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC alloc");
 
-  if (!tirpc_control(TIRPC_SET_FREE, (mem_free_t) BuddyFree))
-      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC free");
+  if (!tirpc_control(TIRPC_SET_MEM_FREE, (mem_free_t) BuddyFreeSize))
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC mem_free");
+
+  if (!tirpc_control(TIRPC_SET_FREE, (std_free_t) BuddyFree))
+      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __free");
 #endif
 
     /* New TI-RPC package init function */

@@ -191,6 +191,11 @@ char *BuddyStr_Dup_Exit(const char * Str);
  */
 void BuddyFree(BUDDY_ADDR_T ptr);
 
+/**
+ * As BuddyFree, but takes an (unused) size argument.
+ */
+void BuddyFreeSize(BUDDY_ADDR_T ptr, size_t  size);
+
 BUDDY_ADDR_T BuddyRealloc(BUDDY_ADDR_T ptr, size_t Size);
 
 BUDDY_ADDR_T BuddyCalloc(size_t NumberOfElements, size_t ElementSize);
