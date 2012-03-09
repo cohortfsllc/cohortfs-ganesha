@@ -48,6 +48,7 @@
 #include <fcntl.h>
 #include <sys/file.h>           /* for having FNDELAY */
 #include <sys/select.h>
+#include <poll.h>
 #include <assert.h>
 #include "HashData.h"
 #include "HashTable.h"
@@ -1079,7 +1080,6 @@ free_req:
   V(workers_data[worker_index].request_pool_mutex);
 
 unblock:
-  /* XXX XPRT destroyed */
   if (rc != PROCESS_LOST_CONN)
       (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
 
@@ -1479,7 +1479,6 @@ int print_pending_request(LRU_data_t data, char *str)
 {
   return snprintf(str, LRU_DISPLAY_STRLEN, "not implemented for now");
 }                               /* print_pending_request */
-
 
 /**
  * rpc_dispatcher_thread

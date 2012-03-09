@@ -1299,6 +1299,8 @@ rpc_warnx(/* const */ char *fmt, ...)
     int rc, level;
 
     level = LogComponents[comp].comp_log_level;
+    if (level < NIV_DEBUG)
+        goto out;
 
     va_start(ap, fmt);
     
@@ -1327,6 +1329,7 @@ rpc_warnx(/* const */ char *fmt, ...)
 
     va_end(ap);
 
+out:
     return;
 
 } /* rpc_warnx */
