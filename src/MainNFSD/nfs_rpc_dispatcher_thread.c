@@ -310,6 +310,13 @@ void Create_udp(protos prot)
 
 void Create_tcp(protos prot)
 {
+
+#if 0
+    /* non-block */
+    int maxrec = nfs_param.core_param.max_recv_buffer_size;
+    rpc_control(RPC_SVC_CONNMAXREC_SET, &maxrec);
+#endif
+
     tcp_xprt[prot] = svc_vc_create2(tcp_socket[prot],
                                     nfs_param.core_param.max_send_buffer_size,
                                     nfs_param.core_param.max_recv_buffer_size,
@@ -536,7 +543,8 @@ void nfs_Init_svc()
   if (!tirpc_control(TIRPC_SET_WARNX, (warnx_t) rpc_warnx))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __warnx");
 
-#ifndef _NO_BUDDY_SYSTEM
+#define TIRPC_SET_ALLOCATORS 1
+#if !defined(_NO_BUDDY_SYSTEM) && defined(TIRPC_SET_ALLOCATORS)
   if (!tirpc_control(TIRPC_SET_MALLOC, (mem_alloc_t) BuddyMallocZ))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC alloc");
 
@@ -890,6 +898,8 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
                worker_index, xprt->xp_fd,
                workers_data[worker_index].pending_request->nb_entry);
 
+again:
+
   /* Get a pnfsreq from the worker's pool */
   P(workers_data[worker_index].request_pool_mutex);
 
@@ -938,7 +948,7 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
 
   /* If status is ok, the request will be processed by the related
    * worker, otherwise, it should be released by being tagged as invalid*/
-  if(!recv_status)
+  if (!recv_status)
     {
       /* RPC over TCP specific: RPC/UDP's xprt know only one state: XPRT_IDLE, because UDP is mostly
        * a stateless protocol. With RPC/TCP, they can be XPRT_DIED especially when the client closes
@@ -960,12 +970,8 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s disappeared...",
                    pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
-#if 0
-          if(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd] != NULL)
-            SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->xp_fd]);
-#else
+          /* XXX someone must do this */
           SVC_DESTROY(pnfsreq->rcontent.nfs.xprt);
-#endif
           rc = PROCESS_LOST_CONN;
         }
       else if(stat == XPRT_MOREREQS)
@@ -1024,10 +1030,10 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
         goto free_req;
 
-#if 1 /* XXXX */
+#if 0 /* XXXX */
       /* Update a copy of SVCXPRT and pass it to the worker thread to use it.
        * This is GOING AWAY.  We don't want to use SVCXPRT to hold request
-       * state. But let's get things working minimally first. 
+       * state.
        */
       pnfsreq->rcontent.nfs.xprt_copy = svc_shim_copy_xprt(
           pnfsreq->rcontent.nfs.xprt_copy, xprt);
@@ -1041,7 +1047,9 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       pnfsreq->rcontent.nfs.xprt = pnfsreq->rcontent.nfs.xprt_copy;
       preq->rq_xprt = pnfsreq->rcontent.nfs.xprt_copy;
 
-      /* Regular management of the request (UDP request or TCP request on connected handler */
+      P(pnfsreq->req_done_mutex);
+      /* Regular management of the request (UDP request or TCP request on
+       * connected handler */
       DispatchWorkNFS(pnfsreq, worker_index);
 
       LogInfo(COMPONENT_DISPATCH, "Waiting for completion of request");
@@ -1055,14 +1063,16 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       /* Update await time. */
       stat_type = GANESHA_STAT_SUCCESS;
       latency_stat.type = AWAIT_TIME;
-      latency_stat.latency = timer_diff.tv_sec * 1000000 + timer_diff.tv_usec; /* microseconds */
+      latency_stat.latency = timer_diff.tv_sec * 1000000 +
+          timer_diff.tv_usec; /* microseconds */
       nfs_stat_update(stat_type,
                       &(workers_data[worker_index].stats.stat_req),
                       &(pnfsreq->rcontent.nfs.req),
                       &latency_stat);
 
       LogFullDebug(COMPONENT_DISPATCH,
-                   "Worker Thread #%u has committed the operation: end_time %llu.%.6llu await %llu.%.6llu",
+                   "Worker Thread #%u has committed the operation: end_time "
+                   "%llu.%.6llu await %llu.%.6llu",
                    worker_index,
                    (unsigned long long int)timer_end.tv_sec,
                    (unsigned long long int)timer_end.tv_usec,
@@ -1080,6 +1090,21 @@ free_req:
   V(workers_data[worker_index].request_pool_mutex);
 
 unblock:
+#define XPRT_RECV_AGAIN 1
+#ifdef XPRT_RECV_AGAIN
+  /* continue receiving if data is available--this isn't optional, because
+   * irrespective of TI-RPC "nonblock" mode, we will frequently have consumed
+   * additional RPC records (TCP).  Also, we expect to move the SVC_RECV
+   * into the worker thread, so this will asynchronous wrt to the shared
+   * event loop */
+  if (rc == PROCESS_DISPATCHED) {
+      if (SVC_STAT(xprt) == XPRT_MOREREQS) {
+          LogDebug(COMPONENT_DISPATCH, "hoot 2");
+          goto again;
+      }
+  }
+#endif /* XPRT_RECV_AGAIN */
+
   if (rc != PROCESS_LOST_CONN)
       (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
 

@@ -725,8 +725,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   /* initializing RPC structure */
   memset(&res_nfs, 0, sizeof(res_nfs));
 
-  /* If we reach this point, there was no dupreq cache hit or no dup req cache was necessary */
-  /* Get NFS function descriptor. */
+  /* If we reach this point, there was no dupreq cache hit or no dup req cache
+   * was necessary.  Get NFS function descriptor. */
   pworker_data->pfuncdesc = nfs_rpc_get_funcdesc(preqnfs);
   if(pworker_data->pfuncdesc == INVALID_FUNCDESC)
     return;
@@ -734,8 +734,10 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   if(copy_xprt_addr(&hostaddr, xprt) == 0)
     {
       LogFullDebug(COMPONENT_DISPATCH,
-                   "copy_xprt_addr failed for Program %d, Version %d, Function %d",
-                   (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
+                   "copy_xprt_addr failed for Program %d, Version %d, "
+                   "Function %d",
+                   (int)ptr_req->rq_prog, (int)ptr_req->rq_vers,
+                   (int)ptr_req->rq_proc);
       svcerr_systemerr(xprt);
       return;
     }
@@ -748,9 +750,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       char addrbuf[SOCK_NAME_MAX];
       sprint_sockaddr(&hostaddr, addrbuf, sizeof(addrbuf));
       LogDebug(COMPONENT_DISPATCH,
-               "Request from %s for Program %d, Version %d, Function %d has xid=%u",
+               "Request from %s for Program %d, Version %d, Function %d "
+               "has xid=%u",
                addrbuf,
-               (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc,
+               (int)ptr_req->rq_prog, (int)ptr_req->rq_vers,
+               (int)ptr_req->rq_proc,
                rpcxid);
     }
 
@@ -767,13 +771,15 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     case DUPREQ_SUCCESS:
       LogFullDebug(COMPONENT_DISPATCH, "Current request is not duplicate.");
       break;
-      /* Found the reuqest in the dupreq cache. It's an old request so resend old reply. */
+      /* Found the reuqest in the dupreq cache. It's an old request so resend
+       * old reply. */
     case DUPREQ_ALREADY_EXISTS:
       if(do_dupreq_cache)
         {
           /* Request was known, use the previous reply */
           LogFullDebug(COMPONENT_DISPATCH,
-                       "NFS DISPATCHER: DupReq Cache Hit: using previous reply, rpcxid=%u",
+                       "NFS DISPATCHER: DupReq Cache Hit: using previous "
+                       "reply, rpcxid=%u",
                        rpcxid);
 
           LogFullDebug(COMPONENT_DISPATCH,
@@ -783,10 +789,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           /* XXX P(mutex_cond_xprt[xprt->xp_fd]); */
           svc_dplx_lock_x(xprt, &mask);
           if(svc_sendreply
-             (xprt, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
+             (xprt, pworker_data->pfuncdesc->xdr_encode_func,
+              (caddr_t) & res_nfs) == FALSE)
             {
               LogDebug(COMPONENT_DISPATCH,
-                       "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
+                       "NFS DISPATCHER: FAILURE: Error while calling "
+                       "svc_sendreply");
               svcerr_systemerr(xprt);
             }
 
@@ -800,7 +808,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       else
         {
           LogCrit(COMPONENT_DISPATCH,
-                  "Error: Duplicate request rejected because it was found in the cache but is not allowed to be cached.");
+                  "Error: Duplicate request rejected because it was found "
+                  "in the cache but is not allowed to be cached.");
           svcerr_systemerr(xprt);
           return;
         }
@@ -809,11 +818,14 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       /* Another thread owns the request */
     case DUPREQ_BEING_PROCESSED:
       LogFullDebug(COMPONENT_DISPATCH,
-                   "Dupreq xid=%u was asked for process since another thread manage it, reject for avoiding threads starvation...",
+                   "Dupreq xid=%u was asked for process since another thread "
+                   "manage it, reject for avoiding threads starvation...",
                    rpcxid);
       /* Free the arguments */
-      if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
-        if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
+      if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 ||
+         preqnfs->req.rq_vers == 4)
+        if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func,
+                         (caddr_t) parg_nfs))
           {
             LogCrit(COMPONENT_DISPATCH,
                     "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
@@ -825,7 +837,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       /* something is very wrong with the duplicate request cache */
     case DUPREQ_NOT_FOUND:
       LogCrit(COMPONENT_DISPATCH,
-              "Did not find the request in the duplicate request cache and couldn't add the request.");
+              "Did not find the request in the duplicate request cache and "
+              "couldn't add the request.");
       svcerr_systemerr(xprt);
       return;
 
@@ -838,7 +851,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
     default:
       LogCrit(COMPONENT_DISPATCH,
-              "Unknown duplicate request cache status. This should never be reached!");
+              "Unknown duplicate request cache status. This should never be "
+              "reached!");
       svcerr_systemerr(xprt);
       return;
     }
@@ -846,11 +860,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   /* Get the export entry */
   if(ptr_req->rq_prog == nfs_param.core_param.program[P_NFS])
     {
-      /* The NFSv2 and NFSv3 functions'arguments always begin with the file handle (but not the NULL function)
-       * this hook is used to get the fhandle with the arguments and so
-       * determine the export entry to be used.
-       * In NFSv4, junction traversal is managed by the protocol itself so the whole
-       * export list is provided to NFSv4 request. */
+      /* The NFSv2 and NFSv3 functions'arguments always begin with the file
+       * handle (but not the NULL function).  This hook is used to get the
+       * fhandle with the arguments and so determine the export entry to be
+       * used.  In NFSv4, junction traversal is managed by the protocol itself
+       * so the whole export list is provided to NFSv4 request. */
 
       switch (ptr_req->rq_vers)
         {
@@ -864,7 +878,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                                  exportid)) == NULL ||
                  (pexport->options & EXPORT_OPTION_NFSV2) == 0)
                 {
-                  /* Reject the request for authentication reason (incompatible file handle) */
+                  /* Reject the request for authentication reason (incompatible
+                   * file handle) */
                   if(isInfo(COMPONENT_DISPATCH))
                     {
                       char dumpfh[1024];
@@ -885,12 +900,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                     }
                   /* Bad argument */
                   svcerr_auth(xprt, AUTH_FAILED);
-                  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                        &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                  if (nfs_dupreq_delete(
+                          rpcxid, ptr_req, preqnfs->xprt,
+                          &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
-                              "Attempt to delete duplicate request failed on line %d",
-                              __LINE__);
+                              "Attempt to delete duplicate request failed on "
+                              "line %d", __LINE__);
                     }
                   return;
                 }
@@ -914,7 +930,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                                  exportid)) == NULL ||
                  (pexport->options & EXPORT_OPTION_NFSV3) == 0)
                 {
-                  /* Reject the request for authentication reason (incompatible file handle) */
+                  /* Reject the request for authentication reason (incompatible
+                   * file handle) */
                   if(isInfo(COMPONENT_DISPATCH))
                     {
                       char dumpfh[1024];
@@ -939,8 +956,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
-                              "Attempt to delete duplicate request failed on line %d",
-                              __LINE__);
+                              "Attempt to delete duplicate request failed on "
+                              "line %d", __LINE__);
                     }
                   return;
                 }
@@ -1019,7 +1036,8 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                              exportid)) == NULL ||
              (pexport->options & EXPORT_OPTION_NFSV3) == 0)
             {
-              /* Reject the request for authentication reason (incompatible file handle) */
+              /* Reject the request for authentication reason (incompatible 
+               * file handle) */
               if(isInfo(COMPONENT_DISPATCH))
                 {
                   char dumpfh[1024];
@@ -1040,12 +1058,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 }
               /* Bad argument */
               svcerr_auth(xprt, AUTH_FAILED);
-              if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                    &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+              if (nfs_dupreq_delete(
+                      rpcxid, ptr_req, preqnfs->xprt,
+                      &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                 {
                   LogCrit(COMPONENT_DISPATCH,
-                          "Attempt to delete duplicate request failed on line %d",
-                          __LINE__);
+                          "Attempt to delete duplicate request failed on line "
+                          "%d", __LINE__);
                 }
               return;
             }
@@ -1076,12 +1095,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                         "Export %s does not support AUTH_NONE",
                         pexport->dirname);
                 svcerr_auth(xprt, AUTH_TOOWEAK);
-                if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                      &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(
+                        rpcxid, ptr_req, preqnfs->xprt,
+                        &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
-                            "Attempt to delete duplicate request failed on line %d",
-                            __LINE__);
+                            "Attempt to delete duplicate request failed on "
+                            "line %d", __LINE__);
                   }
                 return;
               }
@@ -1094,12 +1114,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                         "Export %s does not support AUTH_UNIX",
                         pexport->dirname);
                 svcerr_auth(xprt, AUTH_TOOWEAK);
-                if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                      &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(
+                        rpcxid, ptr_req, preqnfs->xprt,
+                        &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
-                            "Attempt to delete duplicate request failed on line %d",
-                            __LINE__);
+                            "Attempt to delete duplicate request failed on "
+                            "line %d", __LINE__);
                   }
                 return;
               }
@@ -1115,12 +1136,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support RPCSEC_GSS",
                         pexport->dirname);
-                if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                      &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(
+                        rpcxid, ptr_req, preqnfs->xprt,
+                        &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
-                            "Attempt to delete duplicate request failed on line %d",
-                            __LINE__);
+                            "Attempt to delete duplicate request failed on "
+                            "line %d", __LINE__);
                   }
                 return;
                 svcerr_auth(xprt, AUTH_TOOWEAK);
@@ -1136,54 +1158,63 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 switch(svc)
                   {
                     case RPCSEC_GSS_SVC_NONE:
-                      if((pexport->options & EXPORT_OPTION_RPCSEC_GSS_NONE) == 0)
+                      if((pexport->options &
+                          EXPORT_OPTION_RPCSEC_GSS_NONE) == 0)
                         {
                           LogInfo(COMPONENT_DISPATCH,
-                                  "Export %s does not support RPCSEC_GSS_SVC_NONE",
+                                  "Export %s does not support "
+                                  "RPCSEC_GSS_SVC_NONE",
                                   pexport->dirname);
                           svcerr_auth(xprt, AUTH_TOOWEAK);
-                          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(
+                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
-                                      "Attempt to delete duplicate request failed on line %d",
-                                      __LINE__);
+                                      "Attempt to delete duplicate request "
+                                      "failed on line %d", __LINE__);
                             }
                           return;
                         }
                       break;
 
                     case RPCSEC_GSS_SVC_INTEGRITY:
-                      if((pexport->options & EXPORT_OPTION_RPCSEC_GSS_INTG) == 0)
+                      if((pexport->options &
+                          EXPORT_OPTION_RPCSEC_GSS_INTG) == 0)
                         {
                           LogInfo(COMPONENT_DISPATCH,
-                                  "Export %s does not support RPCSEC_GSS_SVC_INTEGRITY",
+                                  "Export %s does not support "
+                                  "RPCSEC_GSS_SVC_INTEGRITY",
                                   pexport->dirname);
                           svcerr_auth(xprt, AUTH_TOOWEAK);
-                          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(
+                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
-                                      "Attempt to delete duplicate request failed on line %d",
-                                      __LINE__);
+                                      "Attempt to delete duplicate request "
+                                      "failed on line %d", __LINE__);
                             }
                           return;
                         }
                       break;
 
                     case RPCSEC_GSS_SVC_PRIVACY:
-                      if((pexport->options & EXPORT_OPTION_RPCSEC_GSS_PRIV) == 0)
+                      if((pexport->options &
+                          EXPORT_OPTION_RPCSEC_GSS_PRIV) == 0)
                         {
                           LogInfo(COMPONENT_DISPATCH,
-                                  "Export %s does not support RPCSEC_GSS_SVC_PRIVACY",
+                                  "Export %s does not support "
+                                  "RPCSEC_GSS_SVC_PRIVACY",
                                   pexport->dirname);
                           svcerr_auth(xprt, AUTH_TOOWEAK);
-                          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(
+                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
-                                      "Attempt to delete duplicate request failed on line %d",
-                                      __LINE__);
+                                      "Attempt to delete duplicate request "
+                                      "failed on line %d", __LINE__);
                             }
                           return;
                         }
@@ -1191,15 +1222,17 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
                     default:
                       LogInfo(COMPONENT_DISPATCH,
-                              "Export %s does not support unknown RPCSEC_GSS_SVC %d",
+                              "Export %s does not support unknown "
+                              "RPCSEC_GSS_SVC %d",
                               pexport->dirname, (int) svc);
                       svcerr_auth(xprt, AUTH_TOOWEAK);
-                      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                            &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                      if (nfs_dupreq_delete(
+                              rpcxid, ptr_req, preqnfs->xprt,
+                              &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                         {
                           LogCrit(COMPONENT_DISPATCH,
-                                  "Attempt to delete duplicate request failed on line %d",
-                                  __LINE__);
+                                  "Attempt to delete duplicate request failed "
+                                  "on line %d", __LINE__);
                         }
                       return;
                   }
@@ -1777,10 +1810,13 @@ enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
   enum auth_stat why;
 
   /* A few words of explanation are required here:
-   * In authentication is AUTH_NONE or AUTH_UNIX, then the value of no_dispatch remains FALSE and the request is proceeded normally
-   * If authentication is RPCSEC_GSS, no_dispatch may have value TRUE, this means that gc->gc_proc != RPCSEC_GSS_DATA and that the
-   * message is in fact an internal negociation message from RPCSEC_GSS using GSSAPI. It then should not be proceed by the worker and
-   * SVC_STAT should be returned to the dispatcher.
+   * In authentication is AUTH_NONE or AUTH_UNIX, then the value of no_dispatch
+   * remains FALSE and the request is proceeded normally.
+   * If authentication is RPCSEC_GSS, no_dispatch may have value TRUE, this
+   * means that gc->gc_proc != RPCSEC_GSS_DATA and that the message is in fact
+   * an internal negociation message from RPCSEC_GSS using GSSAPI. It then
+   * should not be proceed by the worker and SVC_STAT should be returned to
+   * the dispatcher.
    */
 
   *no_dispatch = FALSE;
@@ -1798,7 +1834,10 @@ enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
                "About to authenticate Prog = %d, vers = %d, proc = %d xprt=%p",
                (int)preq->rq_prog, (int)preq->rq_vers,
                (int)preq->rq_proc, preq->rq_xprt);
-  /* Restore previously save GssData */
+  /* XXX Restore previously saved GssData. 
+   * I'm not clear what we're restoring here.  Operating on xprt means that
+   * we do (did) not share buffers with xprt_copy.
+   */
 #ifdef _HAVE_GSSAPI
   if((why = Rpcsecgss__authenticate(preq, pmsg, no_dispatch)) != AUTH_OK)
 #else
@@ -1854,11 +1893,12 @@ static void _9p_execute( _9p_request_data_t * preq9p,
 /**
  * worker_thread: The main function for a worker thread
  *
- * This is the body of the worker thread. Its starting arguments are located in global array worker_data. The
- * argument is no pointer but the worker's index. It then uses this index to address its own worker data in
- * the array.
+ * This is the body of the worker thread. Its starting arguments are located in
+ * global array worker_data. The argument is no pointer but the worker's index.
+ * It then uses this index to address its own worker data in the array.
  *
- * @param IndexArg the index for the worker thread, in fact an integer cast as a void *
+ * @param IndexArg the index for the worker thread, in fact an integer cast as
+ * a void *
  *
  * @return Pointer to the result (but this function will mostly loop forever).
  *
@@ -2056,13 +2096,15 @@ void *worker_thread(void *IndexArg)
         }
 
       LogFullDebug(COMPONENT_DISPATCH,
-                   "Processing a new request, pause_state: %s, nb_entry=%u, nb_invalid=%u",
+                   "Processing a new request, pause_state: %s, nb_entry=%u, "
+                   "nb_invalid=%u",
                    pause_state_str[pmydata->wcb.tcb_state],
                    pmydata->pending_request->nb_entry,
                    pmydata->pending_request->nb_invalid);
 
       P(pmydata->request_pool_mutex);
-      if (LRU_pop_entry(pmydata->pending_request, &out_entry) == LRU_LIST_EMPTY_LIST) {
+      if (LRU_pop_entry(pmydata->pending_request,
+                        &out_entry) == LRU_LIST_EMPTY_LIST) {
           LogMajor(COMPONENT_DISPATCH,
                    "No pending request available");
           continue;             /* return to main loop */
@@ -2075,7 +2117,8 @@ void *worker_thread(void *IndexArg)
        {
           case NFS_REQUEST:
            LogFullDebug(COMPONENT_DISPATCH,
-                        "I have some work to do, pnfsreq=%p, length=%d, invalid=%d, xid=%lu",
+                        "I have some work to do, pnfsreq=%p, length=%d, "
+                        "invalid=%d, xid=%lu",
                         pnfsreq,
                         pmydata->pending_request->nb_entry,
                         pmydata->pending_request->nb_invalid,
@@ -2091,11 +2134,12 @@ void *worker_thread(void *IndexArg)
               /* Set pointers */
               preq = &(pnfsreq->rcontent.nfs.req);
 
-              /* Validate the rpc request as being a valid program, version, and proc. If not, report the error.
-               * Otherwise, execute the funtion.
-               */
+              /* Validate the rpc request as being a valid program, version,
+               * and proc. If not, report the error. Otherwise, execute the
+               * funtion. */
               LogFullDebug(COMPONENT_DISPATCH,
-                           "About to execute Prog = %d, vers = %d, proc = %d xprt=%p",
+                           "About to execute Prog = %d, vers = %d, proc = %d "
+                           "xprt=%p",
                            (int)preq->rq_prog, (int)preq->rq_vers,
                            (int)preq->rq_proc, preq->rq_xprt);
 
@@ -2108,7 +2152,8 @@ void *worker_thread(void *IndexArg)
 #ifdef _USE_9P
 	     _9p_execute( &pnfsreq->rcontent._9p, pmydata ) ;
 #else
-	     LogCrit(COMPONENT_DISPATCH, "Implementation error, 9P message when 9P support is disabled" ) ; 
+	     LogCrit(COMPONENT_DISPATCH, "Implementation error, 9P message "
+                     "when 9P support is disabled" ) ; 
 #endif
 	    break ;
          }
