@@ -951,9 +951,12 @@ again:
    * worker, otherwise, it should be released by being tagged as invalid*/
   if (!recv_status)
     {
-      /* RPC over TCP specific: RPC/UDP's xprt know only one state: XPRT_IDLE, because UDP is mostly
-       * a stateless protocol. With RPC/TCP, they can be XPRT_DIED especially when the client closes
-       * the peer's socket. We have to cope with this aspect in the next lines */
+      /* RPC over TCP specific: RPC/UDP's xprt know only one state: XPRT_IDLE,
+       * because UDP is mostly a stateless protocol.  With RPC/TCP, they can be
+       * XPRT_DIED especially when the client closes the peer's socket. We
+       * have to cope with this aspect in the next lines.  Finally, xdrrec 
+       * uses XPRT_MOREREQS to indicate that additional records are ready to
+       * be consumed immediately. */
 
       sockaddr_t addr;
       char addrbuf[SOCK_NAME_MAX];
@@ -1038,13 +1041,12 @@ again:
        */
       pnfsreq->rcontent.nfs.xprt_copy = svc_shim_copy_xprt(
           pnfsreq->rcontent.nfs.xprt_copy, xprt);
+      if(pnfsreq->rcontent.nfs.xprt_copy == NULL)
+          goto free_req;
 #else
       /* XXX Danger Will Robinson! */
       pnfsreq->rcontent.nfs.xprt_copy = xprt;
 #endif
-      if(pnfsreq->rcontent.nfs.xprt_copy == NULL)
-        goto free_req;
-
       pnfsreq->rcontent.nfs.xprt = pnfsreq->rcontent.nfs.xprt_copy;
       preq->rq_xprt = pnfsreq->rcontent.nfs.xprt_copy;
 
