@@ -1101,10 +1101,8 @@ unblock:
    * into the worker thread, so this will asynchronous wrt to the shared
    * event loop */
   if (rc == PROCESS_DISPATCHED) {
-      if (SVC_STAT(xprt) == XPRT_MOREREQS) {
-          LogDebug(COMPONENT_DISPATCH, "hoot 2");
+      if (SVC_STAT(xprt) == XPRT_MOREREQS)
           goto again;
-      }
   }
 #endif /* XPRT_RECV_AGAIN */
 
