@@ -312,7 +312,8 @@ void Create_tcp(protos prot)
 {
 
 #if 0
-    /* non-block */
+    /* XXXX By itself, non-block mode will currently stall, so, we probably
+     * will remove this. */
     int maxrec = nfs_param.core_param.max_recv_buffer_size;
     rpc_control(RPC_SVC_CONNMAXREC_SET, &maxrec);
 #endif
