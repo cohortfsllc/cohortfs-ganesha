@@ -862,17 +862,14 @@ unsigned int nfs_core_select_worker_queue()
 } /* nfs_core_select_worker_queue */
 
 /**
- * process_rpc_request: process an RPC request.
- *
+ * dispatch_rpc_request: dispatch an RPC request to some worker for
+ * processing.
  */
-process_status_t process_rpc_request(SVCXPRT *xprt)
+process_status_t dispatch_rpc_request(SVCXPRT *xprt)
 {
   char *cred_area;
   struct rpc_msg *pmsg;
   struct svc_req *preq;
-  enum xprt_stat stat;
-  const nfs_function_desc_t *pfuncdesc;
-  bool_t no_dispatch = TRUE, recv_status;
   request_data_t *pnfsreq = NULL;
   unsigned int worker_index;
   process_status_t rc = PROCESS_DONE;
@@ -895,11 +892,10 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
     }
 
   LogFullDebug(COMPONENT_DISPATCH,
-               "Use request from Worker Thread #%u's pool, xprt->xp_sock=%d, thread has %d pending requests",
+               "Use request from Worker Thread #%u's pool, xprt->xp_sock=%d, "
+               "thread has %d pending requests",
                worker_index, xprt->xp_fd,
                workers_data[worker_index].pending_request->nb_entry);
-
-again:
 
   /* Get a pnfsreq from the worker's pool */
   P(workers_data[worker_index].request_pool_mutex);
@@ -932,182 +928,8 @@ again:
   pnfsreq->rcontent.nfs.xprt = xprt;
   preq->rq_xprt = xprt;
 
-  /*
-   * Receive from socket.
-   * Will block until the client operates on the socket
-   */
-  LogFullDebug(COMPONENT_DISPATCH,
-               "Before calling SVC_RECV on socket %d",
-               pnfsreq->rcontent.nfs.xprt->xp_fd);
-
-  recv_status = SVC_RECV(pnfsreq->rcontent.nfs.xprt, pmsg);
-
-  LogFullDebug(COMPONENT_DISPATCH,
-               "Status for SVC_RECV on socket %d is %d, xid=%lu",
-               pnfsreq->rcontent.nfs.xprt->xp_fd, recv_status,
-               (unsigned long)pmsg->rm_xid);
-
-  /* If status is ok, the request will be processed by the related
-   * worker, otherwise, it should be released by being tagged as invalid*/
-  if (!recv_status)
-    {
-      /* RPC over TCP specific: RPC/UDP's xprt know only one state: XPRT_IDLE,
-       * because UDP is mostly a stateless protocol.  With RPC/TCP, they can be
-       * XPRT_DIED especially when the client closes the peer's socket. We
-       * have to cope with this aspect in the next lines.  Finally, xdrrec 
-       * uses XPRT_MOREREQS to indicate that additional records are ready to
-       * be consumed immediately. */
-
-      sockaddr_t addr;
-      char addrbuf[SOCK_NAME_MAX];
-
-      if(copy_xprt_addr(&addr, pnfsreq->rcontent.nfs.xprt) == 1)
-        sprint_sockaddr(&addr, addrbuf, sizeof(addrbuf));
-      else
-        sprintf(addrbuf, "<unresolved>");
-
-      stat = SVC_STAT(pnfsreq->rcontent.nfs.xprt);
-
-      if(stat == XPRT_DIED)
-        {
-
-          LogDebug(COMPONENT_DISPATCH,
-                   "Client on socket=%d, addr=%s disappeared...",
-                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
-          /* XXX someone must do this */
-          SVC_DESTROY(pnfsreq->rcontent.nfs.xprt);
-          rc = PROCESS_LOST_CONN;
-        }
-      else if(stat == XPRT_MOREREQS)
-        {
-          LogDebug(COMPONENT_DISPATCH,
-                   "Client on socket=%d, addr=%s has status XPRT_MOREREQS",
-                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
-        }
-      else if(stat == XPRT_IDLE)
-        {
-          LogDebug(COMPONENT_DISPATCH,
-                   "Client on socket=%d, addr=%s has status XPRT_IDLE",
-                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf);
-        }
-      else
-        {
-          LogDebug(COMPONENT_DISPATCH,
-                   "Client on socket=%d, addr=%s has status unknown (%d)",
-                   pnfsreq->rcontent.nfs.xprt->xp_fd, addrbuf, (int)stat);
-        }
-
-      goto free_req;
-    }
-  else
-    {
-      struct timeval timer_start;
-      struct timeval timer_end;
-      struct timeval timer_diff;
-
-      nfs_stat_type_t stat_type;
-      nfs_request_latency_stat_t latency_stat;
-
-      memset(&pnfsreq->rcontent.nfs.time_queued, 0, sizeof(struct timeval));
-      gettimeofday(&pnfsreq->rcontent.nfs.time_queued, NULL);
-
-      /* Call svc_getargs before making copy to prevent race conditions. */
-      pnfsreq->rcontent.nfs.req.rq_prog = pmsg->rm_call.cb_prog;
-      pnfsreq->rcontent.nfs.req.rq_vers = pmsg->rm_call.cb_vers;
-      pnfsreq->rcontent.nfs.req.rq_proc = pmsg->rm_call.cb_proc;
-
-      /* XXX Use primary xprt for now (in case xprt has GSS state)
-       * until we make a copy
-       */
-      pnfsreq->rcontent.nfs.xprt = xprt;
-      pnfsreq->rcontent.nfs.req.rq_xprt = xprt;
-
-      pfuncdesc = nfs_rpc_get_funcdesc(&pnfsreq->rcontent.nfs);
-
-      if(pfuncdesc == INVALID_FUNCDESC)
-        goto free_req;
-
-      if(AuthenticateRequest(&pnfsreq->rcontent.nfs,
-                             &no_dispatch) != AUTH_OK || no_dispatch)
-        goto free_req;
-
-      if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
-        goto free_req;
-
-#if 0 /* XXXX */
-      /* Update a copy of SVCXPRT and pass it to the worker thread to use it.
-       * This is GOING AWAY.  We don't want to use SVCXPRT to hold request
-       * state.
-       */
-      pnfsreq->rcontent.nfs.xprt_copy = svc_shim_copy_xprt(
-          pnfsreq->rcontent.nfs.xprt_copy, xprt);
-      if(pnfsreq->rcontent.nfs.xprt_copy == NULL)
-          goto free_req;
-#else
-      /* XXX Danger Will Robinson! */
-      pnfsreq->rcontent.nfs.xprt_copy = xprt;
-#endif
-      pnfsreq->rcontent.nfs.xprt = pnfsreq->rcontent.nfs.xprt_copy;
-      preq->rq_xprt = pnfsreq->rcontent.nfs.xprt_copy;
-
-      P(pnfsreq->req_done_mutex);
-      /* Regular management of the request (UDP request or TCP request on
-       * connected handler */
-      DispatchWorkNFS(pnfsreq, worker_index);
-
-      LogInfo(COMPONENT_DISPATCH, "Waiting for completion of request");
-      pthread_cond_wait(&pnfsreq->req_done_condvar, &pnfsreq->req_done_mutex);
-      V(pnfsreq->req_done_mutex);
-      LogInfo(COMPONENT_DISPATCH, "Request processing has completed");
-
-      gettimeofday(&timer_end, NULL);
-      timer_diff = time_diff(timer_start, timer_end);
-
-      /* Update await time. */
-      stat_type = GANESHA_STAT_SUCCESS;
-      latency_stat.type = AWAIT_TIME;
-      latency_stat.latency = timer_diff.tv_sec * 1000000 +
-          timer_diff.tv_usec; /* microseconds */
-      nfs_stat_update(stat_type,
-                      &(workers_data[worker_index].stats.stat_req),
-                      &(pnfsreq->rcontent.nfs.req),
-                      &latency_stat);
-
-      LogFullDebug(COMPONENT_DISPATCH,
-                   "Worker Thread #%u has committed the operation: end_time "
-                   "%llu.%.6llu await %llu.%.6llu",
-                   worker_index,
-                   (unsigned long long int)timer_end.tv_sec,
-                   (unsigned long long int)timer_end.tv_usec,
-                   (unsigned long long int)timer_diff.tv_sec,
-                   (unsigned long long int)timer_diff.tv_usec);
-      rc = PROCESS_DISPATCHED;
-      goto unblock;
-    }
-
-free_req:
-  /* Release the entry */
-  P(workers_data[worker_index].request_pool_mutex);
-  ReleaseToPool(pnfsreq, &workers_data[worker_index].request_pool);
-  workers_data[worker_index].passcounter += 1;
-  V(workers_data[worker_index].request_pool_mutex);
-
-unblock:
-#define XPRT_RECV_AGAIN 1
-#ifdef XPRT_RECV_AGAIN
-  /* continue receiving if data is available--this isn't optional, because
-   * irrespective of TI-RPC "nonblock" mode, we will frequently have consumed
-   * additional RPC records (TCP).  Also, we expect to move the SVC_RECV
-   * into the worker thread, so this will asynchronous wrt to the shared
-   * event loop */
-  if (rc == PROCESS_DISPATCHED) {
-      if (SVC_STAT(xprt) == XPRT_MOREREQS)
-          goto again;
-  }
-#endif /* XPRT_RECV_AGAIN */
-
-  if (rc != PROCESS_LOST_CONN)
-      (void) svc_rqst_unblock_events(xprt, SVC_RQST_FLAG_NONE);
+  /* Hand it off */
+  DispatchWorkNFS(pnfsreq, worker_index);
 
   return (rc);
 }
@@ -1213,7 +1035,8 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
     /* Block events in the interval from initial dispatch to the
      * completion of SVC_RECV */
     (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
-    code = process_rpc_request(xprt);
+
+    code = dispatch_rpc_request(xprt);
 
     /* XXXX debugging */
     svc_xprt_dump_xprts("end request");
