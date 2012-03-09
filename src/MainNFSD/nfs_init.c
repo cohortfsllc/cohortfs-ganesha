@@ -1375,13 +1375,19 @@ int nfs_check_param_consistency()
       return 1;
     }
 
+#if 0
+/* XXXX this seems somewhat the obvious of what I would have reasoned.  Where
+ * we had a thread for every connection (but sharing a single fdset for select),
+ * dispatching on a small, fixed worker pool, we now had an arbitrary, fixed
+ * work pool, with flexible event channels.
+ */
   if( 2*nfs_param.core_param.nb_worker  >  nfs_param.cache_layers_param.cache_param.hparam.index_size )
     {
       LogCrit(COMPONENT_INIT,
               "BAD PARAMETER: number of workers is too large compared to Cache_Inode's index size, it should be smaller than half of it");
       return 1;
     }
-
+#endif
 
   if(nfs_param.worker_param.nb_before_gc <
      nfs_param.worker_param.lru_param.nb_entry_prealloc / 2)
