@@ -177,8 +177,11 @@ bool_t Svcauth_gss_set_svc_name(gss_name_t name)
         }
       svcauth_gss_name = NULL;
     }
+
+#if 0 /* XXX why would we want to do this?  GSS_C_NO_NAME == NULL! */
   if(svcauth_gss_name == GSS_C_NO_NAME)
     return (TRUE);
+#endif
 
   maj_stat = gss_duplicate_name(&min_stat, name, &svcauth_gss_name);
 

@@ -17,12 +17,12 @@ test_rpctools_SOURCES = test_rpctools.c
 test_rpctools_LDADD = librpcal.la $(BUDDY_LIB_FLAGS) ../HashTable/libhashtable.la ../RW_Lock/librwlock.la
 
 if USE_TIRPC
-SUBDIRS = TIRPC
+SUBDIRS = TIRPC gssd
 librpcal_la_LIBADD = TIRPC/librpcalcore.la
 endif
 
 if USE_ONCRPC
-SUBDIRS = ONCRPC
+SUBDIRS = ONCRPC gssd
 librpcal_la_LIBADD = ONCRPC/librpcalcore.la
 endif
 

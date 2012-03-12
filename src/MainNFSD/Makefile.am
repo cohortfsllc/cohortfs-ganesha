@@ -18,8 +18,10 @@ else
 FSAL_UP_LIB_FLAGS =
 endif
 
+GSSD_LIB = ../RPCAL/gssd/libgssd.la
+
 if HAVE_GSSAPI
-SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl
+SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssglue -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl
 endif
 
 if USE_NFSIDMAP
@@ -48,10 +50,22 @@ else
 STAT_EXPORTER_FILE =
 endif
 
+if USE_DBUS
+DBUS_SERVER = ../Protocols/DBUS/dbus_server.c
+else
+DBUS_SERVER =
+endif
+
 if USE_UPCALL_SIMULATOR
 UPCALL_SIMULATOR_FILE = fsal_upcall_simulator_thread.c
 else
 UPCALL_SIMULATOR_FILE =
+endif
+
+if USE_CB_SIMULATOR
+CB_SIMULATOR_FILE = nfs_rpc_callback_simulator.c
+else
+CB_SIMULATOR_FILE =
 endif
 
 if USE_NLM
@@ -65,7 +79,6 @@ RQUOTA_LIB = ../Protocols/RQUOTA/librquota.la
 else
 RQUOTA_LIB = 
 endif
-
 
 if USE_9P
 DISPATCH_9P_FILES = 9p_dispatcher.c 
@@ -99,8 +112,11 @@ endif
 
 libMainServices_la_SOURCES = nfs_admin_thread.c                   \
                              nfs_stats_thread.c                   \
+			     nfs_rpc_callback.c 		  \
+			     $(DBUS_SERVER)                       \
                              $(STAT_EXPORTER_FILE)                \
                              $(UPCALL_SIMULATOR_FILE)             \
+                             $(CB_SIMULATOR_FILE)             	  \
                              nfs_worker_thread.c                  \
                              nfs_tcb.c                  \
                              nfs_file_content_gc_thread.c         \
@@ -171,6 +187,7 @@ libMainServices_la_LIBADD         =   ../Protocols/NFS/libnfsproto.la           
                                       ../Log/liblog.la                                  \
                                       ../ConfigParsing/libConfigParsing.la              \
                                       ../RPCAL/librpcal.la                              \
+                                      $(GSSD_LIB)                                       \
                                       $(_9P_LIB)                                        \
                                       ../Protocols/XDR/libnfs_mnt_xdr.la                \
                                       ../SemN/libSemN.la                                \
