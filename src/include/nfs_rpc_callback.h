@@ -81,6 +81,8 @@ typedef struct _rpc_call
     uint32_t states;
     struct wait_entry we;
     void *rpc;
+    void *arg1;
+    void *arg2
 } rpc_call_t;
 
 void nfs_rpc_cb_pkginit(void);
