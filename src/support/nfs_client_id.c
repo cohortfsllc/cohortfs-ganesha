@@ -248,7 +248,9 @@ int display_client_id_val(hash_buffer_t * pbuff, char *str)
   return sprintf(str, "#%s#=>%llu cb_prog=%u r_addr=%s r_netid=%s",
                  precord->client_name,
                  (unsigned long long)precord->clientid,
-                 precord->cb_program, precord->client_r_addr, precord->client_r_netid);
+                 precord->cb.program,
+                 precord->cb.client_r_addr,
+                 precord->cb.client_r_netid);
 }                               /* display_client_id_val */
 
 /**

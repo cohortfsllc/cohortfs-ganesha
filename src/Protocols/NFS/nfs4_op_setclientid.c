@@ -159,14 +159,14 @@ retry:
               res_SETCLIENTID4.status = NFS4ERR_CLID_INUSE;
 #ifdef _USE_NFS4_1
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.na_r_netid =
-                  nfs_clientid->client_r_netid;
+                  nfs_clientid->cb.client_r_netid;
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.na_r_addr =
-                  nfs_clientid->client_r_addr;
+                  nfs_clientid->cb.client_r_addr;
 #else
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.r_netid =
-                  nfs_clientid->client_r_netid;
+                  nfs_clientid->cb.client_r_netid;
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.r_addr =
-                  nfs_clientid->client_r_addr;
+                  nfs_clientid->cb.client_r_addr;
 #endif
               V(nfs_clientid->clientid_mutex);
               return res_SETCLIENTID4.status;
@@ -243,18 +243,22 @@ retry:
     {
       /* Client record did not exist, build the client record */
       nfs_clientid = &new_nfs_clientid;
+      memset(nfs_clientid, 0, sizeof(nfs_client_id_t));
       strncpy(nfs_clientid->client_name, arg_SETCLIENTID4.client.id.id_val,
               arg_SETCLIENTID4.client.id.id_len);
       nfs_clientid->client_name[arg_SETCLIENTID4.client.id.id_len] = '\0';
 #ifdef _USE_NFS4_1
-      strncpy(nfs_clientid->client_r_addr, arg_SETCLIENTID4.callback.cb_location.na_r_addr,
+      strncpy(nfs_clientid->cb.client_r_addr,
+              arg_SETCLIENTID4.callback.cb_location.na_r_addr,
               SOCK_NAME_MAX);
-      strncpy(nfs_clientid->client_r_netid,
+      strncpy(nfs_clientid->cb.client_r_netid,
               arg_SETCLIENTID4.callback.cb_location.na_r_netid, MAXNAMLEN);
 #else
-      strncpy(nfs_clientid->client_r_addr, arg_SETCLIENTID4.callback.cb_location.r_addr,
+      strncpy(nfs_clientid->cb.client_r_addr,
+              arg_SETCLIENTID4.callback.cb_location.r_addr,
               SOCK_NAME_MAX);
-      strncpy(nfs_clientid->client_r_netid, arg_SETCLIENTID4.callback.cb_location.r_netid,
+      strncpy(nfs_clientid->cb.client_r_netid,
+              arg_SETCLIENTID4.callback.cb_location.r_netid,
               MAXNAMLEN);
 #endif
       strncpy(nfs_clientid->incoming_verifier, arg_SETCLIENTID4.client.verifier,
@@ -263,7 +267,7 @@ retry:
                (unsigned int)ServerBootTime);
 
       nfs_clientid->confirmed = UNCONFIRMED_CLIENT_ID;
-      nfs_clientid->cb_program = arg_SETCLIENTID4.callback.cb_program;
+      nfs_clientid->cb.program = arg_SETCLIENTID4.callback.cb_program;
       nfs_clientid->clientid = clientid;
       nfs_clientid->last_renew = time(NULL);
       nfs_clientid->credential = data->credential;

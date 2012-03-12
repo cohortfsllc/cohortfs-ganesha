@@ -437,13 +437,27 @@ typedef struct request_data__
    } rcontent ;
 } request_data_t ;
 
+struct nfs_client_id__;
+typedef struct nfs_client_id__ nfs_client_id_t;
+
+struct rpc_call_channel
+{
+    uint32_t type;
+    uint32_t states;
+    union {
+        struct {
+            nfs_client_id_t *nfs_client;
+        } v40;
+    } nvu;
+    time_t last_called;
+    /* XXX call vector */
+    CLIENT *clnt;
+};
+
 typedef struct nfs_client_id__
 {
   char client_name[NFS4_MAX_DOMAIN_LEN];
   clientid4 clientid;
-  uint32_t cb_program;
-  char client_r_addr[SOCK_NAME_MAX];
-  char client_r_netid[MAXNAMLEN];
   verifier4 verifier;
   verifier4 incoming_verifier;
   time_t last_renew;
@@ -455,6 +469,17 @@ typedef struct nfs_client_id__
   struct glist_head clientid_lockowners;
   pthread_mutex_t clientid_mutex;
   struct prealloc_pool *clientid_pool;
+  struct {
+      char client_r_addr[SOCK_NAME_MAX];
+      char client_r_netid[MAXNAMLEN];
+      uint32_t program;
+      union {
+          struct {
+              uint32_t states;
+              struct rpc_call_channel chan;
+          } v40;
+      } cb_u;
+  } cb;
 #ifdef _USE_NFS4_1
   char server_owner[MAXNAMLEN];
   char server_scope[MAXNAMLEN];
@@ -463,7 +488,7 @@ typedef struct nfs_client_id__
   unsigned create_session_sequence;
 #endif
   state_owner_t *clientid_owner;
-} nfs_client_id_t;
+} /* nfs_client_id_t */;
 
 typedef enum idmap_type__
 { UIDMAP_TYPE = 1,

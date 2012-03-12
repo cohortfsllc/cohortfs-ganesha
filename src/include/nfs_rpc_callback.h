@@ -57,11 +57,37 @@
  *
  */
 
-#define LRU_FLAG_NONE          0x0000
+#define CB_FLAG_NONE          0x0000
 
+typedef struct wait_entry {
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
+} wait_entry_t;
 
-extern void nfs_rpc_cb_pkginit(void);
-extern void nfs_rpc_cb_pkgshutdown(void);
-extern void cb_wake_thread();
+/* thread wait queue */
+typedef struct wait_q_entry {
+    uint32_ lflags;
+    uint32_t rflags;
+    wait_entry_t lwe; /* initial waiter */
+    wait_entry_t rwe; /* reciprocal waiter */
+    struct wait_q_entry *tail;
+    struct wait_q_entry *next;
+} wait_queue_entry_t;
+
+void nfs_rpc_cb_pkginit(void);
+void nfs_rpc_cb_pkgshutdown(void);
+void cb_wake_thread();
+
+/* Create a channel for a new clientid (v4) or session (v41), optionally
+ * connecting it */
+rpc_call_channel_t *nfs_rpc_create_chan_v40(nfs_client_id *client,
+                                            uint32_t flags);
+
+/* Dispose a channel. */
+void nfs_rpc_destroy_chan(rpc_call_channel_t *chan);
+
+/* XXX Submit rpc to be called on chan, optionally waiting for completion,
+ * need wait machinery. */
+int nfs_rpc_call(rpc_call_channel_t chan, void *rpc /* XXX */, uint32_t flags);
 
 #endif /* _NFS_RPC_CALLBACK_H */
