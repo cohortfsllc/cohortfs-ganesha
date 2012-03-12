@@ -123,6 +123,48 @@ void nfs_rpc_cb_pkgshutdown(void)
      pthread_mutex_unlock(&cb_mtx);
 }
 
+/* Create a channel for a new clientid (v4) or session, optionally
+ * connecting it */
+int nfs_rpc_create_chan_v40(nfs_client_id *client,
+                            uint32_t flags)
+{
+    int code = 0;
+    rpc_call_channel *chan = &client->cb.cb_u.v4.chan;
+
+    assert(! chan->clnt);
+
+    chan->type = RPC_CHAN_V40;
+    chan->clnt = clnt_create(client->cb.client_r_addr,
+                             client->cb.program,
+                             1 /* Errata ID: 2291 */,
+                             client->cb.client_r_netid);
+
+    return (code);
+}
+
+/* Dispose a channel. */
+void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
+{
+    assert (chan);
+
+    /* XXX lock, wait for outstanding calls, etc */
+
+    switch (chan->type) {
+    case RPC_CHAN_V40:
+        /* channel has a dedicated RPC client */
+        if (chan->clnt)
+            clnt_destroy(chan->clnt);        
+        break;
+    case RPC_CHAN_V41:
+        /* XXX channel is shared */
+        break;
+    }
+
+    chan->clnt = NULL;
+    chan->last_called = 0;
+
+}
+
 /* Async thread to perform long-term reorganization, compaction,
  * other operations that cannot be performed in constant time. */
 static void *nfs_rpc_cb_thread(void *arg)

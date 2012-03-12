@@ -440,9 +440,14 @@ typedef struct request_data__
 struct nfs_client_id__;
 typedef struct nfs_client_id__ nfs_client_id_t;
 
-struct rpc_call_channel
+enum rpc_chan_type {
+    RPC_CHAN_V40,
+    RPC_CHAN_v41
+};
+
+typedef struct rpc_call_channel
 {
-    uint32_t type;
+    enum rpc_chan_type type;
     uint32_t states;
     union {
         struct {
@@ -452,7 +457,7 @@ struct rpc_call_channel
     time_t last_called;
     /* XXX call vector */
     CLIENT *clnt;
-};
+} rpc_call_channel_t;
 
 typedef struct nfs_client_id__
 {
