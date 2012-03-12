@@ -180,7 +180,7 @@ rpc_cb_null(rpc_call_channel_t *chan, rpc_call_t *call)
 {
     struct timeval CB_TIMEOUT = {15, 0};
 
-    return (clnt_call(clnt, CB_NULL, (xdrproc_t) xdr_void, NULL,
+    return (clnt_call(chan->clnt, CB_NULL, (xdrproc_t) xdr_void, NULL,
 		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
 }
 
