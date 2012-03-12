@@ -248,7 +248,9 @@ int display_client_id_val(hash_buffer_t * pbuff, char *str)
   return sprintf(str, "#%s#=>%llu cb_prog=%u r_addr=%s r_netid=%s",
                  precord->client_name,
                  (unsigned long long)precord->clientid,
-                 precord->cb_program, precord->client_r_addr, precord->client_r_netid);
+                 precord->cb.program,
+                 precord->cb.client_r_addr,
+                 netid_nc_table[precord->cb.addr.nc].netid);
 }                               /* display_client_id_val */
 
 /**
@@ -716,6 +718,7 @@ int nfs_client_id_remove(clientid4 clientid, struct prealloc_pool *clientid_pool
 {
   hash_buffer_t buffkey, old_key, old_key_reverse, old_value;
   nfs_client_id_t *pnfs_client_id = NULL;
+  rpc_call_channel_t *chan = NULL;
 
   buffkey.pdata = (caddr_t) &clientid;
   buffkey.len = 0;
@@ -729,6 +732,7 @@ int nfs_client_id_remove(clientid4 clientid, struct prealloc_pool *clientid_pool
 
   /* Remove reverse entry */
   pnfs_client_id = (nfs_client_id_t *) old_value.pdata;
+  chan = &pnfs_client_id->cb.cb_u.v40.chan;
 
   buffkey.pdata = pnfs_client_id->client_name;
   buffkey.len = MAXNAMLEN;
@@ -736,10 +740,23 @@ int nfs_client_id_remove(clientid4 clientid, struct prealloc_pool *clientid_pool
   if(HashTable_Del(ht_client_id_reverse, &buffkey, &old_key_reverse, &old_value) !=
      HASHTABLE_SUCCESS)
     {
+
+      /* destroy the callack channel, if present */
+      if (chan) {
+        nfs_rpc_destroy_chan(chan);
+        chan = NULL;
+      }
+
       ReleaseToPool(pnfs_client_id, clientid_pool);
       Mem_Free(old_key.pdata);
       return CLIENT_ID_NOT_FOUND;
     }
+
+  /* destroy the callack channel, if present */
+  if (chan) {
+    nfs_rpc_destroy_chan(chan);
+    chan = NULL;
+  }
 
   ReleaseToPool(pnfs_client_id, clientid_pool);
   Mem_Free(old_key_reverse.pdata);

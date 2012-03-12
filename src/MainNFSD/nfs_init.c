@@ -63,6 +63,13 @@
 #include "SemN.h"
 #include "external_tools.h"
 #include "nfs4_acls.h"
+#include "nfs_rpc_callback.h"
+#ifdef USE_DBUS
+#include "ganesha_dbus.h"
+#endif
+#ifdef _USE_CB_SIMULATOR
+#include "nfs_rpc_callback_simulator.h"
+#endif
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -103,6 +110,7 @@ pthread_t admin_thrid;
 pthread_t fcc_gc_thrid;
 pthread_t sigmgr_thrid;
 pthread_t reaper_thrid;
+pthread_t gsh_dbus_thrid;
 nfs_tcb_t gccb;
 
 #ifdef _USE_9P
@@ -370,8 +378,10 @@ void nfs_set_param_default()
 
 #ifdef _HAVE_GSSAPI
   /* krb5 parameter */
-  strncpy(nfs_param.krb5_param.principal, DEFAULT_NFS_PRINCIPAL, sizeof(nfs_param.krb5_param.principal));
-  strncpy(nfs_param.krb5_param.keytab, DEFAULT_NFS_KEYTAB, sizeof(nfs_param.krb5_param.keytab));
+  strlcpy(nfs_param.krb5_param.svc.principal, DEFAULT_NFS_PRINCIPAL,
+          sizeof(nfs_param.krb5_param.svc.principal));
+  strlcpy(nfs_param.krb5_param.keytab, DEFAULT_NFS_KEYTAB,
+          sizeof(nfs_param.krb5_param.keytab));
   nfs_param.krb5_param.active_krb5 = TRUE;
   nfs_param.krb5_param.hash_param.index_size = PRIME_ID_MAPPER;
   nfs_param.krb5_param.hash_param.alphabet_length = 10;      /* Not used for UID_MAPPER */
@@ -1591,6 +1601,18 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
 	}
       LogEvent(COMPONENT_THREAD, "9p dispatcher thread was started successfully");
 #endif
+
+#ifdef USE_DBUS
+      /* DBUS event thread */
+      if((rc = pthread_create(&gsh_dbus_thrid, &attr_thr, gsh_dbus_thread,
+                              NULL ) ) != 0 )     
+	{
+            LogFatal(COMPONENT_THREAD,
+                     "Could not create gsh_dbus_thread, error = %d (%s)",
+                     errno, strerror(errno));
+	}
+      LogEvent(COMPONENT_THREAD, "gsh_dbusthread was started successfully");
+#endif
     }
 
   /* Starting the admin thread */
@@ -1705,7 +1727,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
   unsigned int i = 0;
   int rc = 0;
 #ifdef _HAVE_GSSAPI
-  gss_name_t gss_service_name;
   gss_buffer_desc gss_service_buf;
   OM_uint32 maj_stat, min_stat;
   char GssError[MAXNAMLEN];
@@ -1753,6 +1774,11 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
       LogFatal(COMPONENT_INIT, "MFSL library could not be initialized");
     }
   LogInfo(COMPONENT_INIT, "MFSL library  successfully initialized");
+#endif
+
+#ifdef USE_DBUS
+  /* DBUS init */
+  gsh_dbus_pkginit();
 #endif
 
   /* Cache Inode Initialisation */
@@ -1819,31 +1845,31 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 #endif /* HAVE_KRB5 */
 
       /* Set up principal to be use for GSSAPPI within GSSRPC/KRB5 */
-      gss_service_buf.value = nfs_param.krb5_param.principal;
-      gss_service_buf.length = strlen(nfs_param.krb5_param.principal) + 1;      /* The '+1' is not to be forgotten, for the '\0' at the end */
+      gss_service_buf.value = nfs_param.krb5_param.svc.principal;
+      gss_service_buf.length = strlen(nfs_param.krb5_param.svc.principal) + 1;      /* The '+1' is not to be forgotten, for the '\0' at the end */
 
       maj_stat = gss_import_name(&min_stat,
                                  &gss_service_buf,
                                  (gss_OID) GSS_C_NT_HOSTBASED_SERVICE,
-                                 &gss_service_name);
+                                 &nfs_param.krb5_param.svc.gss_name);
       if(maj_stat != GSS_S_COMPLETE)
         {
           log_sperror_gss(GssError, maj_stat, min_stat);
           LogFatal(COMPONENT_INIT,
                    "Error importing gss principal %s is %s",
-                   nfs_param.krb5_param.principal, GssError);
+                   nfs_param.krb5_param.svc.principal, GssError);
         }
       LogInfo(COMPONENT_INIT,  "gss principal %s successfully set",
-              nfs_param.krb5_param.principal);
+              nfs_param.krb5_param.svc.principal);
 
       /* Set the principal to GSSRPC */
-      if(!Svcauth_gss_set_svc_name(gss_service_name))
+      if(!Svcauth_gss_set_svc_name(nfs_param.krb5_param.svc.gss_name))
         {
           LogFatal(COMPONENT_INIT, "Impossible to set gss principal to GSSRPC");
         }
 
-      /* set_svc_name creates a copy */
-      gss_release_name(&min_stat, &gss_service_name);
+      /* Don't release name until shutdown, it will be used by the
+       * backchannel. */
 
       /* Init the HashTable */
       if(Gss_ctx_Hash_Init(nfs_param.krb5_param) == -1)
@@ -2153,6 +2179,12 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
            nfs_param.pexportlist->FS_export_context.fe_static_fs_info->accesscheck_support);
     }
 #endif
+
+     /* callback dispatch */
+     nfs_rpc_cb_pkginit();
+#ifdef _USE_CB_SIMULATOR
+     nfs_rpc_cbsim_pkginit();
+#endif      /*  _USE_CB_SIMULATOR */
 
 }                               /* nfs_Init */
 

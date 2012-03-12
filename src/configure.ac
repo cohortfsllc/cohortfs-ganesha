@@ -241,6 +241,17 @@ if test "$enable_rquota" == "yes"; then
 fi
 AM_CONDITIONAL(USE_RQUOTA, test "$enable_rquota" = "yes")
 
+# DBUS
+GA_ENABLE_AM_CONDITION([dbus],[enable DBUS protocol support],[USE_DBUS])
+
+if test "$enable_dbus" == "yes"; then
+        AC_DEFINE(USE_DBUS,1,[enable DBUS protocol support])
+	AC_CHECK_LIB([dbus-1], [main], [AC_DEFINE( HAVE_DBUS,1,[enable DBUS support] ) ], [AC_MSG_ERROR( [libdbus-1.x could not be found...] ) ] )
+	CFLAGS="$CFLAGS `pkg-config dbus-1 --cflags`"
+	LDFLAGS="$LDFLAGS -ldbus-1"
+fi
+AM_CONDITIONAL(USE_DBUS, test "$enable_dbus" = "yes")
+
 # Invalidation simulator (to be removed when FSAL_UP will be completed)
 GA_ENABLE_AM_CONDITION([upcall-simulator],[enable FSAL upcalls simulator thread],[USE_UPCALL_SIMULATOR])
 
@@ -248,6 +259,14 @@ if test "$enable_upcall_simulator" == "yes"; then
         AC_DEFINE(_USE_UPCALL_SIMULATOR,1,[enable Upcall simulator thread])
 fi
 AM_CONDITIONAL(USE_UPCALL_SIMULATOR, test "$enable_upcall_simulator" = "yes")
+
+# Callback simulator                                                                                         
+GA_ENABLE_AM_CONDITION([cb-simulator],[enable callback simulator thread],[USE_CB_SIMULATOR])
+
+if test "$enable_cb_simulator" == "yes"; then
+        AC_DEFINE(_USE_CB_SIMULATOR,1,[enable callback simulator thread])
+fi
+AM_CONDITIONAL(USE_CB_SIMULATOR, test "$enable_cb_simulator" = "yes")
 
 # FSAL switch argument (default is PROXY)
 AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|FUSE|LUSTRE|XFS|GPFS|ZFS|VFS|CEPH|DYNFSAL|SHOOK (default=PROXY)],
@@ -921,6 +940,7 @@ AC_CONFIG_FILES([include/Makefile
                  File_Content_Policy/Makefile
 		 Protocols/Makefile
                  Protocols/9P/Makefile
+		 Protocols/DBUS/Makefile
 		 Protocols/NFS/Makefile
 		 Protocols/NLM/Makefile
 		 Protocols/RQUOTA/Makefile

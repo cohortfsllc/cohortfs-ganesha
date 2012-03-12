@@ -48,10 +48,22 @@ else
 STAT_EXPORTER_FILE =
 endif
 
+if USE_DBUS
+DBUS_SERVER = ../Protocols/DBUS/dbus_server.c
+else
+DBUS_SERVER =
+endif
+
 if USE_UPCALL_SIMULATOR
 UPCALL_SIMULATOR_FILE = fsal_upcall_simulator_thread.c
 else
 UPCALL_SIMULATOR_FILE =
+endif
+
+if USE_CB_SIMULATOR
+CB_SIMULATOR_FILE = nfs_rpc_callback_simulator.c
+else
+CB_SIMULATOR_FILE =
 endif
 
 if USE_NLM
@@ -99,8 +111,11 @@ endif
 
 libMainServices_la_SOURCES = nfs_admin_thread.c                   \
                              nfs_stats_thread.c                   \
+			     nfs_rpc_callback.c 		  \
+			     $(DBUS_SERVER)                       \
                              $(STAT_EXPORTER_FILE)                \
                              $(UPCALL_SIMULATOR_FILE)             \
+                             $(CB_SIMULATOR_FILE)             	  \
                              nfs_worker_thread.c                  \
                              nfs_tcb.c                  \
                              nfs_file_content_gc_thread.c         \
