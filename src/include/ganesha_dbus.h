@@ -41,19 +41,17 @@
 
 /**
  *
- * \file nfs_rpc_callback.h
+ * \file ganesha_dbus.h
  * \author Matt Benjamin and Lee Dobryden
- * \brief RPC callback dispatch package
+ * \brief Low-level DBUS message server and callout framework.
  *
  * \section DESCRIPTION
  *
- * This module implements APIs for submission, and dispatch of NFSv4.0
- * and (soon) NFSv4.1 format callbacks.
+ * This module implements a very simple service provider interface for a
+ * shared DBUS event loop.
  *
- * Planned strategy is to deal with all backchannels from a small number of
- * service threads, initially 1, using non-blocking socket operations.  This
- * may change, as NFSv4.1 bi-directional support is integrated.
- *
+ * To use the service, a client implements the gsh_dbus_method_t interface,
+ * then registers its callout routine(s) with gsh_dbus_register_method.
  */
 
 void gsh_dbus_pkginit(void);

@@ -106,7 +106,6 @@ dbus_callout_cmpf(const struct avltree_node *lhs,
     return (strcmp(lk->name, rk->name));
 }
 
-
 void gsh_dbus_pkginit(void)
 {
     LogDebug(COMPONENT_DBUS, "init");
@@ -220,13 +219,11 @@ void *gsh_dbus_thread(void *arg)
             LogDebug(COMPONENT_DBUS, "msg for unknown handler %s",
                      hk.name);
         }
-        dbus_message_unref(msg);
-        
-     }
+    } /* 1 */
 
-     LogCrit(COMPONENT_DBUS, "shutdown");
+    LogCrit(COMPONENT_DBUS, "shutdown");
 
-     return (NULL);
+    return (NULL);
 }
 
 void gsh_dbus_wake_thread(uint32_t flags)
