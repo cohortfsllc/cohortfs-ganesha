@@ -99,6 +99,7 @@ endif
 
 libMainServices_la_SOURCES = nfs_admin_thread.c                   \
                              nfs_stats_thread.c                   \
+			     nfs_rpc_callback.c 		  \
                              $(STAT_EXPORTER_FILE)                \
                              $(UPCALL_SIMULATOR_FILE)             \
                              nfs_worker_thread.c                  \

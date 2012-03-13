@@ -63,6 +63,7 @@
 #include "SemN.h"
 #include "external_tools.h"
 #include "nfs4_acls.h"
+#include "nfs_rpc_callback.h"
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -98,6 +99,7 @@ nfs_flush_thread_data_t flush_info[NB_MAX_FLUSHER_THREAD];
 
 pthread_t rpc_dispatcher_thrid;
 pthread_t stat_thrid;
+pthread_t nfs_rpc_cb_thrid;
 pthread_t stat_exporter_thrid;
 pthread_t admin_thrid;
 pthread_t fcc_gc_thrid;
@@ -1611,6 +1613,16 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
                errno, strerror(errno));
     }
   LogEvent(COMPONENT_THREAD, "statistics thread was started successfully");
+
+  /* Starting the backchannel thread */
+  if((rc =
+      pthread_create(&nfs_rpc_cb_thrid, &attr_thr, nfs_rpc_cb_thread, NULL) != 0))
+    {
+      LogFatal(COMPONENT_THREAD,
+               "Could not create nfs_rpc_cb_thread, error = %d (%s)",
+               errno, strerror(errno));
+    }
+  LogEvent(COMPONENT_THREAD, "nfs rpc callback thread was started successfully");
 
 #ifdef _USE_STAT_EXPORTER
 
