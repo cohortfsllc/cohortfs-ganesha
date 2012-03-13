@@ -54,6 +54,12 @@ else
 UPCALL_SIMULATOR_FILE =
 endif
 
+if USE_CB_SIMULATOR
+CB_SIMULATOR_FILE = nfs_rpc_callback_simulator.c
+else
+CB_SIMULATOR_FILE =
+endif
+
 if USE_NLM
 NLM_LIB = ../Protocols/NLM/libnlm.la
 else
@@ -102,6 +108,7 @@ libMainServices_la_SOURCES = nfs_admin_thread.c                   \
 			     nfs_rpc_callback.c 		  \
                              $(STAT_EXPORTER_FILE)                \
                              $(UPCALL_SIMULATOR_FILE)             \
+                             $(CB_SIMULATOR_FILE)             	  \
                              nfs_worker_thread.c                  \
                              nfs_tcb.c                  \
                              nfs_file_content_gc_thread.c         \

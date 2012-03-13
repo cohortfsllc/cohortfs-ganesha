@@ -64,6 +64,9 @@
 #include "external_tools.h"
 #include "nfs4_acls.h"
 #include "nfs_rpc_callback.h"
+#ifdef _USE_CB_SIMULATOR
+#include "nfs_rpc_callback_simulator.h"
+#endif
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -106,6 +109,10 @@ pthread_t fcc_gc_thrid;
 pthread_t sigmgr_thrid;
 pthread_t reaper_thrid;
 nfs_tcb_t gccb;
+
+#ifdef _USE_CB_SIMULATOR
+pthread_t nfs_rpc_cbsim_thrid;
+#endif
 
 #ifdef _USE_9P
 pthread_t _9p_dispatcher_thrid;
@@ -1623,6 +1630,19 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
                errno, strerror(errno));
     }
   LogEvent(COMPONENT_THREAD, "nfs rpc callback thread was started successfully");
+
+#ifdef _USE_CB_SIMULATOR
+  /* Starting the callback simulator thread */
+  if((rc =
+      pthread_create(&nfs_rpc_cbsim_thrid, &attr_thr, nfs_rpc_cbsim_thread, NULL) != 0))
+    {
+      LogFatal(COMPONENT_THREAD,
+               "Could not create nfs_rpc_cbsim_thread, error = %d (%s)",
+               errno, strerror(errno));
+    }
+  LogEvent(COMPONENT_THREAD, "nfs rpc callback simulator thread was started successfully");
+
+#endif      /*  _USE_CB_SIMULATOR */
 
 #ifdef _USE_STAT_EXPORTER
 

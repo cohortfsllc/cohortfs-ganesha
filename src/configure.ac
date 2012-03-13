@@ -249,6 +249,14 @@ if test "$enable_upcall_simulator" == "yes"; then
 fi
 AM_CONDITIONAL(USE_UPCALL_SIMULATOR, test "$enable_upcall_simulator" = "yes")
 
+# Callback simulator                                                                                         
+GA_ENABLE_AM_CONDITION([cb-simulator],[enable callback simulator thread],[USE_CB_SIMULATOR])
+
+if test "$enable_cb_simulator" == "yes"; then
+        AC_DEFINE(_USE_CB_SIMULATOR,1,[enable callback simulator thread])
+fi
+AM_CONDITIONAL(USE_CB_SIMULATOR, test "$enable_cb_simulator" = "yes")
+
 # FSAL switch argument (default is PROXY)
 AC_ARG_WITH( [fsal], AS_HELP_STRING([--with-fsal=HPSS|POSIX|PROXY|SNMP|FUSE|LUSTRE|XFS|GPFS|ZFS|VFS|CEPH|DYNFSAL|SHOOK (default=PROXY)],
              [specify the type of filesystem to be exported] ), FSAL="$withval", FSAL="PROXY")

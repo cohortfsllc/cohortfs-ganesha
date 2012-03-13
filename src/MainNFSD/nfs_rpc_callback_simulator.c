@@ -46,6 +46,7 @@
 #include "nfs_core.h"
 #include "log.h"
 #include "nfs_rpc_callback.h"
+#include "nfs_rpc_callback_simulator.h"
 
 /**
  *
@@ -65,18 +66,18 @@
  */
 
 /* XXX will need more sophisticated wait support, will fix */
-static pthread_mutex_t cb_mtx;
-static pthread_cond_t cb_cv;
+static pthread_mutex_t cbsim_mtx;
+static pthread_cond_t cbsim_cv;
 
 static const uint32_t CB_SLEEPING = 0x00000001;
 static const uint32_t CB_SHUTDOWN = 0x00000002;
 
-static struct cb_thread_state
+static struct cbsim_thread_state
 {
     pthread_t thread_id;
     uint32_t wait_ms;
     uint32_t flags;
-} cb_thread_state;
+} cbsim_thread_state;
 
 #define S_NSECS 1000000000UL    /* nsecs in 1s */
 #define MS_NSECS 1000000UL      /* nsecs in 1ms */
@@ -85,7 +86,7 @@ static struct cb_thread_state
  * wait_entry and other support code.
  */
 static void
-cb_thread_delay_ms(unsigned long ms)
+cbsim_thread_delay_ms(unsigned long ms)
 {
      time_t now;
      struct timespec then;
@@ -96,11 +97,11 @@ cb_thread_delay_ms(unsigned long ms)
      then.tv_sec = nsecs / S_NSECS;
      then.tv_nsec = nsecs % S_NSECS;
 
-     pthread_mutex_lock(&cb_mtx);
-     cb_thread_state.flags |= CB_SLEEPING;
-     pthread_cond_timedwait(&cb_cv, &cb_mtx, &then);
-     cb_thread_state.flags &= ~CB_SLEEPING;
-     pthread_mutex_unlock(&cb_mtx);
+     pthread_mutex_lock(&cbsim_mtx);
+     cbsim_thread_state.flags |= CB_SLEEPING;
+     pthread_cond_timedwait(&cbsim_cv, &cbsim_mtx, &then);
+     cbsim_thread_state.flags &= ~CB_SLEEPING;
+     pthread_mutex_unlock(&cbsim_mtx);
 }
 
 /*
@@ -117,15 +118,15 @@ void nfs_rpc_cbsim_pkginit(void)
 void nfs_rpc_cbsim_pkgshutdown(void)
 {
      /* Post and wait for shutdown of background thread */
-     pthread_mutex_lock(&cb_mtx);
-     cb_thread_state.flags |= CB_SHUTDOWN;
-     cb_wake_thread(CB_FLAG_NONE);
-     pthread_mutex_unlock(&cb_mtx);
+     pthread_mutex_lock(&cbsim_mtx);
+     cbsim_thread_state.flags |= CB_SHUTDOWN;
+     cbsim_wake_thread(CB_FLAG_NONE);
+     pthread_mutex_unlock(&cbsim_mtx);
 }
 
 /* Async thread to perform long-term reorganization, compaction,
  * other operations that cannot be performed in constant time. */
-static void *nfs_rpc_cbsim_thread(void *arg)
+void *nfs_rpc_cbsim_thread(void *arg)
 {
 
     SetNameFunction("nfs_rpc_cbsim_thread");
@@ -135,33 +136,33 @@ static void *nfs_rpc_cbsim_thread(void *arg)
 #ifndef _NO_BUDDY_SYSTEM
     if ((BuddyInit(&nfs_param.buddy_param_worker)) != BUDDY_SUCCESS) {
         /* Failed init */
-        LogFatal(COMPONENT_NFS_RPC_CB,
-                 "Memory manager could not be initialized");
+        LogFatal(COMPONENT_NFS_CB,
+                 "CB Simulator could not be initialized");
     }
-    LogFullDebug(COMPONENT_NFS_RPC_CB,
-                 "Memory manager successfully initialized");
+    LogFullDebug(COMPONENT_NFS_CB,
+                 "CB Simulator successfully initialized");
 #endif
 
     while (1) {
-        if (cb_thread_state.flags & CB_SHUTDOWN)
+        if (cbsim_thread_state.flags & CB_SHUTDOWN)
             break;
 
-        LogFullDebug(COMPONENT_NFS_RPC_CB,
-                     "top of poll loop");
+        LogFullDebug(COMPONENT_NFS_CB,
+                     "top of Simulator poll loop");
 
         /* do stuff */
 
-        cb_thread_delay_ms(cb_thread_state.wait_ms);
+        cbsim_thread_delay_ms(cbsim_thread_state.wait_ms);
     }
 
-    LogCrit(COMPONENT_NFS_RPC_CB,
+    LogCrit(COMPONENT_NFS_CB,
             "shutdown");
 
     return (NULL);
 }
 
-void cb_wake_thread(uint32_t flags)
+void cbsim_wake_thread(uint32_t flags)
 {
-    if (cb_thread_state.flags & CB_SLEEPING)
-        pthread_cond_signal(&cb_cv);
+    if (cbsim_thread_state.flags & CB_SLEEPING)
+        pthread_cond_signal(&cbsim_cv);
 }
