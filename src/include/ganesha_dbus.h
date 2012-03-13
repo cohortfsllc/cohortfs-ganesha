@@ -37,6 +37,7 @@
 #include "solaris_port.h"
 #endif                          /* _SOLARIS */
 
+#include <dbus/dbus.h>
 #include "log.h"
 
 /**

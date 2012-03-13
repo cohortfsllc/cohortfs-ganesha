@@ -64,6 +64,9 @@
 #include "external_tools.h"
 #include "nfs4_acls.h"
 #include "nfs_rpc_callback.h"
+#ifdef USE_DBUS
+#include "ganesha_dbus.h"
+#endif
 #ifdef _USE_CB_SIMULATOR
 #include "nfs_rpc_callback_simulator.h"
 #endif
@@ -108,6 +111,7 @@ pthread_t admin_thrid;
 pthread_t fcc_gc_thrid;
 pthread_t sigmgr_thrid;
 pthread_t reaper_thrid;
+pthread_t gsh_dbus_thrid;
 nfs_tcb_t gccb;
 
 #ifdef _USE_CB_SIMULATOR
@@ -1600,6 +1604,18 @@ static void nfs_Start_threads(bool_t flush_datacache_mode)
 	}
       LogEvent(COMPONENT_THREAD, "9p dispatcher thread was started successfully");
 #endif
+
+#ifdef USE_DBUS
+      /* DBUS event thread */
+      if((rc = pthread_create(&gsh_dbus_thrid, &attr_thr, gsh_dbus_thread,
+                              NULL ) ) != 0 )     
+	{
+            LogFatal(COMPONENT_THREAD,
+                     "Could not create gsh_dbus_thread, error = %d (%s)",
+                     errno, strerror(errno));
+	}
+      LogEvent(COMPONENT_THREAD, "gsh_dbusthread was started successfully");
+#endif
     }
 
   /* Starting the admin thread */
@@ -1785,6 +1801,11 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
       LogFatal(COMPONENT_INIT, "MFSL library could not be initialized");
     }
   LogInfo(COMPONENT_INIT, "MFSL library  successfully initialized");
+#endif
+
+#ifdef USE_DBUS
+  /* DBUS init */
+  gsh_dbus_pkginit();
 #endif
 
   /* Cache Inode Initialisation */
