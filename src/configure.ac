@@ -241,6 +241,17 @@ if test "$enable_rquota" == "yes"; then
 fi
 AM_CONDITIONAL(USE_RQUOTA, test "$enable_rquota" = "yes")
 
+# DBUS
+GA_ENABLE_AM_CONDITION([dbus],[enable DBUS protocol support],[USE_DBUS])
+
+if test "$enable_dbus" == "yes"; then
+        AC_DEFINE(_USE_DBUS,1,[enable DBUS protocol support])
+	AC_CHECK_LIB([dbus-1], [main], [AC_DEFINE( _HAVE_DBUS,1,[enable DBUS support] ) ], [AC_MSG_ERROR( [libdbus-1.x could not be found...] ) ] )
+	CFLAGS="$CFLAGS `pkg-config dbus-1 --cflags`"
+	LDFLAGS="$LDFLAGS -ldbus-1"
+fi
+AM_CONDITIONAL(USE_DBUS, test "$enable_dbus" = "yes")
+
 # Invalidation simulator (to be removed when FSAL_UP will be completed)
 GA_ENABLE_AM_CONDITION([upcall-simulator],[enable FSAL upcalls simulator thread],[USE_UPCALL_SIMULATOR])
 
@@ -939,6 +950,7 @@ AC_CONFIG_FILES([include/Makefile
                  File_Content_Policy/Makefile
 		 Protocols/Makefile
                  Protocols/9P/Makefile
+		 Protocols/DBUS/Makefile
 		 Protocols/NFS/Makefile
 		 Protocols/NLM/Makefile
 		 Protocols/RQUOTA/Makefile
