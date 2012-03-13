@@ -169,8 +169,36 @@ out:
 
 void gsh_dbus_pkgshutdown(void)
 {
+    struct avltree_node *node, *onode;
+    ganesha_dbus_handler_t *handler;
+    int code = 0;
+
     LogDebug(COMPONENT_DBUS, "shutdown");
 
+    /* remove and free handlers */
+    onode = NULL;
+    node = avltree_first(&thread_state.callouts);
+    do {
+        if (onode) {
+            handler = avltree_container_of(onode, ganesha_dbus_handler_t,
+                                           node_k);
+            code = dbus_bus_release_name(thread_state.dbus_conn, handler->name,
+                                         &thread_state.dbus_err);
+            Mem_Free(handler->name);
+            Mem_Free(handler);
+        }
+    } while ((onode = node) && (node = avltree_next(node)));
+    if (onode) {
+        handler = avltree_container_of(onode, ganesha_dbus_handler_t,
+                                       node_k);
+        code = dbus_bus_release_name(thread_state.dbus_conn, handler->name,
+                                     &thread_state.dbus_err);
+        Mem_Free(handler->name);
+        Mem_Free(handler);
+    }
+    avltree_init(&thread_state.callouts, dbus_callout_cmpf, 0);
+
+    /* shutdown bus */
     if (thread_state.dbus_conn)
         dbus_connection_close(thread_state.dbus_conn);
 }
