@@ -184,6 +184,11 @@ void gsh_dbus_pkgshutdown(void)
                                            node_k);
             code = dbus_bus_release_name(thread_state.dbus_conn, handler->name,
                                          &thread_state.dbus_err);
+            if (dbus_error_is_set(&thread_state.dbus_err)) { 
+                LogCrit(COMPONENT_DBUS, "err releasing name (%s, %s)",
+                        handler->name, thread_state.dbus_err.message);
+                dbus_error_free(&thread_state.dbus_err);
+            }
             Mem_Free(handler->name);
             Mem_Free(handler);
         }
@@ -193,6 +198,11 @@ void gsh_dbus_pkgshutdown(void)
                                        node_k);
         code = dbus_bus_release_name(thread_state.dbus_conn, handler->name,
                                      &thread_state.dbus_err);
+        if (dbus_error_is_set(&thread_state.dbus_err)) { 
+            LogCrit(COMPONENT_DBUS, "err releasing name (%s, %s)",
+                    handler->name, thread_state.dbus_err.message);
+            dbus_error_free(&thread_state.dbus_err);
+        }
         Mem_Free(handler->name);
         Mem_Free(handler);
     }
