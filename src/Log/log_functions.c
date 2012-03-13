@@ -1090,7 +1090,13 @@ log_component_info __attribute__ ((__unused__)) LogComponents[COMPONENT_COUNT] =
     SYSLOG,
     "SYSLOG"
   },
-  { LOG_MESSAGE_VERBOSITY,        "LOG_MESSAGE_VERBOSITY", "LOG MESSAGE VERBOSITY",
+  { COMPONENT_DBUS,                "COMPONENT_DBUS", "DBUS",
+    NIV_EVENT,
+    SYSLOG,
+    "SYSLOG"
+  },
+  { LOG_MESSAGE_VERBOSITY,        "LOG_MESSAGE_VERBOSITY",
+                                  "LOG MESSAGE VERBOSITY",
     NIV_NULL,
     SYSLOG,
     "SYSLOG"

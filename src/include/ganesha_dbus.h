@@ -38,7 +38,6 @@
 #endif                          /* _SOLARIS */
 
 #include "log.h"
-#include "cache_inode.h"
 
 /**
  *
@@ -59,6 +58,11 @@
 
 void gsh_dbus_pkginit(void);
 void gsh_dbus_pkgshutdown(void);
+void *gsh_dbus_thread(void *arg);
+
+/* callout method */
+typedef int32_t (*gsh_dbus_method_t)(DBusConnection*, DBusMessage*);
+int32_t gsh_dbus_register_method(const char *name, gsh_dbus_method_t method);
 
 /* more to come */
 

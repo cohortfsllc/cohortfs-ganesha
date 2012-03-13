@@ -245,8 +245,8 @@ AM_CONDITIONAL(USE_RQUOTA, test "$enable_rquota" = "yes")
 GA_ENABLE_AM_CONDITION([dbus],[enable DBUS protocol support],[USE_DBUS])
 
 if test "$enable_dbus" == "yes"; then
-        AC_DEFINE(_USE_DBUS,1,[enable DBUS protocol support])
-	AC_CHECK_LIB([dbus-1], [main], [AC_DEFINE( _HAVE_DBUS,1,[enable DBUS support] ) ], [AC_MSG_ERROR( [libdbus-1.x could not be found...] ) ] )
+        AC_DEFINE(USE_DBUS,1,[enable DBUS protocol support])
+	AC_CHECK_LIB([dbus-1], [main], [AC_DEFINE( HAVE_DBUS,1,[enable DBUS support] ) ], [AC_MSG_ERROR( [libdbus-1.x could not be found...] ) ] )
 	CFLAGS="$CFLAGS `pkg-config dbus-1 --cflags`"
 	LDFLAGS="$LDFLAGS -ldbus-1"
 fi
