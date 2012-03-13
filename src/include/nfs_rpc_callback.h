@@ -68,7 +68,7 @@ typedef struct wait_entry
 /* thread wait queue */
 typedef struct wait_q_entry
 {
-    uint32_ lflags;
+    uint32_t lflags;
     uint32_t rflags;
     wait_entry_t lwe; /* initial waiter */
     wait_entry_t rwe; /* reciprocal waiter */
@@ -82,16 +82,17 @@ typedef struct _rpc_call
     struct wait_entry we;
     void *rpc;
     void *arg1;
-    void *arg2
+    void *arg2;
 } rpc_call_t;
 
 void nfs_rpc_cb_pkginit(void);
 void nfs_rpc_cb_pkgshutdown(void);
+void *nfs_rpc_cb_thread(void *arg);
 void cb_wake_thread();
 
 /* Create a channel for a new clientid (v4) or session, optionally
  * connecting it */
-int nfs_rpc_create_chan_v40(nfs_client_id *client,
+int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
                             uint32_t flags);
 
 /* Create a channel for a new clientid (v4) or session, optionally

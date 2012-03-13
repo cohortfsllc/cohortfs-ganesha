@@ -442,7 +442,7 @@ typedef struct nfs_client_id__ nfs_client_id_t;
 
 enum rpc_chan_type {
     RPC_CHAN_V40,
-    RPC_CHAN_v41
+    RPC_CHAN_V41
 };
 
 typedef struct rpc_call_channel
@@ -459,7 +459,7 @@ typedef struct rpc_call_channel
     CLIENT *clnt;
 } rpc_call_channel_t;
 
-typedef struct nfs_client_id__
+struct nfs_client_id__
 {
   char client_name[NFS4_MAX_DOMAIN_LEN];
   clientid4 clientid;

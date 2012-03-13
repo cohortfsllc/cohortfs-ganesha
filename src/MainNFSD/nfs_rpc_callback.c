@@ -126,11 +126,11 @@ void nfs_rpc_cb_pkgshutdown(void)
 
 /* Create a channel for a new clientid (v4) or session, optionally
  * connecting it */
-int nfs_rpc_create_chan_v40(nfs_client_id *client,
+int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
                             uint32_t flags)
 {
     int code = 0;
-    rpc_call_channel *chan = &client->cb.cb_u.v4.chan;
+    rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
 
     assert(! chan->clnt);
 
@@ -168,9 +168,9 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
 struct rpc_call_sequence
 {
     uint32_t states;
-    glist_head calls;
+    struct glist_head calls;
     struct wait_entry we;
-}
+};
 
 /*
  * Call the NFSv4 client's CB_NULL procedure.
@@ -187,7 +187,7 @@ rpc_cb_null(rpc_call_channel_t *chan, rpc_call_t *call)
 
 /* Async thread to perform long-term reorganization, compaction,
  * other operations that cannot be performed in constant time. */
-static void *nfs_rpc_cb_thread(void *arg)
+void *nfs_rpc_cb_thread(void *arg)
 {
 
      SetNameFunction("nfs_rpc_cb_thread");
@@ -197,10 +197,10 @@ static void *nfs_rpc_cb_thread(void *arg)
 #ifndef _NO_BUDDY_SYSTEM
      if ((BuddyInit(&nfs_param.buddy_param_worker)) != BUDDY_SUCCESS) {
           /* Failed init */
-          LogFatal(COMPONENT_NFS_RPC_CB,
+          LogFatal(COMPONENT_NFS_CB,
                    "Memory manager could not be initialized");
      }
-     LogFullDebug(COMPONENT_NFS_RPC_CB,
+     LogFullDebug(COMPONENT_NFS_CB,
                   "Memory manager successfully initialized");
 #endif
 
@@ -208,15 +208,15 @@ static void *nfs_rpc_cb_thread(void *arg)
          if (cb_thread_state.flags & CB_SHUTDOWN)
                break;
 
-          LogFullDebug(COMPONENT_NFS_RPC_CB,
+          LogFullDebug(COMPONENT_NFS_CB,
                        "top of poll loop");
 
           /* do stuff */
 
-          lru_thread_delay_ms(cb_thread_state.wait_ms);
+          cb_thread_delay_ms(cb_thread_state.wait_ms);
      }
 
-     LogCrit(COMPONENT_NFS_RPC_CB,
+     LogCrit(COMPONENT_NFS_CB,
              "shutdown");
 
      return (NULL);
@@ -224,6 +224,6 @@ static void *nfs_rpc_cb_thread(void *arg)
 
 void cb_wake_thread(uint32_t flags)
 {
-     if (lru_thread_state.flags & CB_SLEEPING)
-          pthread_cond_signal(&cb_cv);
+    if (cb_thread_state.flags & CB_SLEEPING)
+        pthread_cond_signal(&cb_cv);
 }
