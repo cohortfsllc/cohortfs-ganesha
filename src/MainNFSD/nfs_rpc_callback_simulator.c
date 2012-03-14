@@ -82,7 +82,7 @@ void nfs_rpc_cbsim_pkginit(void)
  
     int32_t code;
 
-    code = gsh_dbus_register_method("CBSIM::method1", nfs_rpc_cbsim_method1);
+    code = gsh_dbus_register_method("CBSIM/method1", nfs_rpc_cbsim_method1);
 
     return;
 }

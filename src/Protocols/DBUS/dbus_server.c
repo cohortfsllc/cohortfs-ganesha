@@ -165,7 +165,7 @@ int32_t gsh_dbus_register_method(const char *name,
     int code = 0;
 
     /* XXX if this works, add ifc level */
-    snprintf(path, 512, "/org/ganesha/nfsd/IFC/%s", name);
+    snprintf(path, 512, "/org/ganesha/nfsd/%s", name);
 
     handler = (ganesha_dbus_handler_t *)
         Mem_Alloc(sizeof(ganesha_dbus_handler_t));
@@ -173,21 +173,24 @@ int32_t gsh_dbus_register_method(const char *name,
     handler->vtable.unregister_function = path_unregistered_func;
     handler->vtable.message_function =  method;
 
-    if (! dbus_connection_register_object_path (thread_state.dbus_conn,
-                                                path,
-                                                &handler->vtable,
-                                                (void*) 0xdeadbeef)) {
-        LogCrit(COMPONENT_DBUS, "dbus_connection_register_object_path failed "
-                "(%d)", code);
+    code = dbus_connection_register_object_path (thread_state.dbus_conn,
+                                                 handler->name,
+                                                 &handler->vtable,
+                                                 (void*) 0xdeadbeef);
+    if (! code) {
+        LogFatal(COMPONENT_DBUS, "dbus_connection_register_object_path "
+                 "failed");
         Mem_Free(handler);
         goto out;
     }
 
     node = avltree_insert(&handler->node_k, &thread_state.callouts);
     if (node) {
-        LogCrit(COMPONENT_DBUS, "failed inserting method %s", path);
+        LogFatal(COMPONENT_DBUS, "failed inserting method %s", path);
         code = EINVAL;
     }
+
+    LogDebug(COMPONENT_DBUS, "registered handler for %s", path);
 
 out:
     return (code);
