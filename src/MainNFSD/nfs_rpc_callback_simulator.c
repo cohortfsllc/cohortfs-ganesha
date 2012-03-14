@@ -47,6 +47,7 @@
 #include "log.h"
 #include "nfs_rpc_callback.h"
 #include "nfs_rpc_callback_simulator.h"
+#include "ganesha_dbus.h"
 
 /**
  *
@@ -69,7 +70,7 @@ static DBusHandlerResult
 nfs_rpc_cbsim_method1(DBusConnection *connection, DBusMessage *message,
                       void *user_data)
 {
-    LogCrit("called!");
+    LogCrit(COMPONENT_NFS_CB, "called!");
 }
 
 /*
@@ -77,7 +78,7 @@ nfs_rpc_cbsim_method1(DBusConnection *connection, DBusMessage *message,
  */
 void nfs_rpc_cbsim_pkginit(void)
 {
-    int32 code;
+    int32_t code;
 
     code = gsh_dbus_register_method("CBSIM::method1", nfs_rpc_cbsim_method1);
 
