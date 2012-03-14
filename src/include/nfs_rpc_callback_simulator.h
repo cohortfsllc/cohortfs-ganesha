@@ -59,7 +59,5 @@
 
 void nfs_rpc_cbsim_pkginit(void);
 void nfs_rpc_cbsim_pkgshutdown(void);
-void *nfs_rpc_cbsim_thread(void *arg);
-void cbsim_wake_thread();
 
 #endif /* _NFS_RPC_CALLBACK_SIMULATOR_H */

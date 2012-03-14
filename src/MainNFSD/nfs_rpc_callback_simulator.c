@@ -78,6 +78,8 @@ nfs_rpc_cbsim_method1(DBusConnection *connection, DBusMessage *message,
  */
 void nfs_rpc_cbsim_pkginit(void)
 {
+  LogEvent(COMPONENT_NFS_CB, "Callback Simulator Initialized");
+ 
     int32_t code;
 
     code = gsh_dbus_register_method("CBSIM::method1", nfs_rpc_cbsim_method1);

@@ -67,6 +67,9 @@
 #ifdef USE_DBUS
 #include "ganesha_dbus.h"
 #endif
+#ifdef _USE_CB_SIMULATOR
+#include "nfs_rpc_callback_simulator.h"
+#endif
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
@@ -2187,6 +2190,10 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
     }
 #endif
 
+#ifdef _USE_CB_SIMULATOR
+
+#endif      /*  _USE_CB_SIMULATOR */
+     nfs_rpc_cbsim_pkginit();
 }                               /* nfs_Init */
 
 /**
