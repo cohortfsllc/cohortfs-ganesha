@@ -76,7 +76,7 @@ struct ganesha_dbus_handler
 {
     char *name;
     struct avltree_node node_k;
-    gsh_dbus_method_t method;
+    DBusObjectPathVTable vtable;
 };
 typedef struct ganesha_dbus_handler ganesha_dbus_handler_t;
 
@@ -108,6 +108,9 @@ dbus_callout_cmpf(const struct avltree_node *lhs,
 
 void gsh_dbus_pkginit(void)
 {
+    char regbuf[128];
+    int code = 0;
+
     LogDebug(COMPONENT_DBUS, "init");
 
     avltree_init(&thread_state.callouts, dbus_callout_cmpf, 0 /* must be 0 */);
@@ -121,25 +124,12 @@ void gsh_dbus_pkginit(void)
         dbus_error_free(&thread_state.dbus_err);
     }
 
-    thread_state.initialized = TRUE;
-
-    return;
-}
-
-int32_t gsh_dbus_register_method(const char *name, gsh_dbus_method_t method)
-{
-    ganesha_dbus_handler_t *handler;
-    struct avltree_node *node;
-    char regbuf[512];
-    int code = 0;
-
-    snprintf(regbuf, 512, "ganesha.method.%s", name);
-
+    snprintf(regbuf, 128, "org.ganesha.nfsd");
     code = dbus_bus_request_name(thread_state.dbus_conn, regbuf,
                                  DBUS_NAME_FLAG_REPLACE_EXISTING ,
                                  &thread_state.dbus_err);
     if (dbus_error_is_set(&thread_state.dbus_err)) { 
-        LogCrit(COMPONENT_DBUS, "server reg failed (%s, %s)", regbuf,
+        LogCrit(COMPONENT_DBUS, "server bus reg failed (%s, %s)", regbuf,
                 thread_state.dbus_err.message); 
         dbus_error_free(&thread_state.dbus_err);
         if (! code)
@@ -147,19 +137,55 @@ int32_t gsh_dbus_register_method(const char *name, gsh_dbus_method_t method)
         goto out;
     }
     if (code != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
-        LogCrit(COMPONENT_DBUS, "server failed becoming primary owner (%s, %d)",
-                regbuf, code);
+        LogCrit(COMPONENT_DBUS, "server failed becoming primary bus owner "
+                "(%s, %d)", regbuf, code);
         goto out;
     }
 
+    thread_state.initialized = TRUE;
+
+out:
+    return;
+}
+
+static void
+path_unregistered_func (DBusConnection  *connection,
+                        void            *user_data)
+{
+  /* connection was finalized -- do nothing */
+}
+
+
+int32_t gsh_dbus_register_method(const char *name,
+                                 DBusObjectPathMessageFunction method)
+{
+    ganesha_dbus_handler_t *handler;
+    struct avltree_node *node;
+    char path[512];
+    int code = 0;
+
+    /* XXX if this works, add ifc level */
+    snprintf(path, 512, "/org/ganesha/nfsd/IFC/%s", name);
+
     handler = (ganesha_dbus_handler_t *)
         Mem_Alloc(sizeof(ganesha_dbus_handler_t));
-    handler->name = Str_Dup(regbuf);
-    handler->method = method;
+    handler->name = Str_Dup(path);
+    handler->vtable.unregister_function = path_unregistered_func;
+    handler->vtable.message_function =  method;
+
+    if (! dbus_connection_register_object_path (thread_state.dbus_conn,
+                                                path,
+                                                &handler->vtable,
+                                                (void*) 0xdeadbeef)) {
+        LogCrit(COMPONENT_DBUS, "dbus_connection_register_object_path failed "
+                "(%d)", code);
+        Mem_Free(handler);
+        goto out;
+    }
 
     node = avltree_insert(&handler->node_k, &thread_state.callouts);
     if (node) {
-        LogCrit(COMPONENT_DBUS, "failed inserting method %s", regbuf);
+        LogCrit(COMPONENT_DBUS, "failed inserting method %s", path);
         code = EINVAL;
     }
 
@@ -239,20 +265,23 @@ void *gsh_dbus_thread(void *arg)
         LogFullDebug(COMPONENT_DBUS, "top of poll loop");
 
         /* do stuff */
-        dbus_connection_read_write(thread_state.dbus_conn, 30);
+        dbus_connection_read_write(thread_state.dbus_conn, 30*1000);
         msg = dbus_connection_pop_message(thread_state.dbus_conn);
         if (! msg) {
             LogDebug(COMPONENT_DBUS, "dbus null msg");
             continue;
         }
 
-        hk.name = dbus_message_get_path(msg); /* XXXX msg */
+        hk.name = dbus_message_get_path(msg); /* XXX discards qualifiers */
         node = avltree_lookup(&hk.node_k, &thread_state.callouts);
         if (node) {
             handler = avltree_container_of(node, ganesha_dbus_handler_t,
                                            node_k);
             /* we are serialized by the bus */
-            handler->method(thread_state.dbus_conn, msg);
+#if 0
+            /* XXX libdbus call it in this configuration? */
+            handler->vtable.message_function(thread_state.dbus_conn, msg, 0);
+#endif
         } else {
             LogDebug(COMPONENT_DBUS, "msg for unknown handler %s",
                      hk.name);
