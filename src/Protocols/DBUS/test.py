@@ -18,4 +18,4 @@ cbsim = bus.get_object("org.ganesha.nfsd",
 
 # call method
 method1 = cbsim.get_dbus_method('method1')
-print method1()
+print method1('GETCLIENTIDS')
