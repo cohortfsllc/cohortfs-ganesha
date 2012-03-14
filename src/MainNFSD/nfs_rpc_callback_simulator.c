@@ -67,10 +67,35 @@
  */
 
 static DBusHandlerResult
-nfs_rpc_cbsim_method1(DBusConnection *connection, DBusMessage *message,
+nfs_rpc_cbsim_method1(DBusConnection *conn, DBusMessage *msg,
                       void *user_data)
 {
-    LogCrit(COMPONENT_NFS_CB, "called!");
+   DBusMessage* reply;
+   DBusMessageIter args;
+   char *param;
+   static uint32_t serial = 1;
+
+   LogDebug(COMPONENT_NFS_CB, "called!");
+
+   // read the arguments
+   if (!dbus_message_iter_init(msg, &args))
+       LogDebug(COMPONENT_DBUS, "message has no arguments"); 
+   else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args)) 
+       LogDebug(COMPONENT_DBUS, "arg not string"); 
+   else {
+       dbus_message_iter_get_basic(&args, &param);
+       LogDebug(COMPONENT_DBUS, "param: %s", param);
+   }
+
+   // create a reply from the message
+   reply = dbus_message_new_method_return(msg);
+   // send the reply && flush the connection
+   if (!dbus_connection_send(conn, reply, &serial)) {
+       LogCrit(COMPONENT_DBUS, "reply failed"); 
+   }
+   dbus_connection_flush(conn);
+   dbus_message_unref(reply);
+   serial++;
 }
 
 /*
@@ -82,7 +107,7 @@ void nfs_rpc_cbsim_pkginit(void)
  
     int32_t code;
 
-    code = gsh_dbus_register_method("CBSIM/method1", nfs_rpc_cbsim_method1);
+    code = gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_method1);
 
     return;
 }

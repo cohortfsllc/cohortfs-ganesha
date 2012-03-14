@@ -60,8 +60,8 @@ void gsh_dbus_pkgshutdown(void);
 void *gsh_dbus_thread(void *arg);
 
 /* callout method */
-int32_t gsh_dbus_register_method(const char *name,
-                                 DBusObjectPathMessageFunction method);
+int32_t gsh_dbus_register_path(const char *name,
+                               DBusObjectPathMessageFunction method);
 
 /* more to come */
 

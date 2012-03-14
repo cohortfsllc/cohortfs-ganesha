@@ -155,9 +155,8 @@ path_unregistered_func (DBusConnection  *connection,
   /* connection was finalized -- do nothing */
 }
 
-
-int32_t gsh_dbus_register_method(const char *name,
-                                 DBusObjectPathMessageFunction method)
+int32_t gsh_dbus_register_path(const char *name,
+                               DBusObjectPathMessageFunction method)
 {
     ganesha_dbus_handler_t *handler;
     struct avltree_node *node;
@@ -268,7 +267,7 @@ void *gsh_dbus_thread(void *arg)
         LogFullDebug(COMPONENT_DBUS, "top of poll loop");
 
         /* do stuff */
-        dbus_connection_read_write(thread_state.dbus_conn, 30*1000);
+        dbus_connection_read_write_dispatch(thread_state.dbus_conn, 30*1000);
         msg = dbus_connection_pop_message(thread_state.dbus_conn);
         if (! msg) {
             LogDebug(COMPONENT_DBUS, "dbus null msg");
@@ -276,15 +275,14 @@ void *gsh_dbus_thread(void *arg)
         }
 
         hk.name = dbus_message_get_path(msg); /* XXX discards qualifiers */
+        LogFullDebug(COMPONENT_DBUS, "recv msg: %s", hk.name);
         node = avltree_lookup(&hk.node_k, &thread_state.callouts);
         if (node) {
             handler = avltree_container_of(node, ganesha_dbus_handler_t,
                                            node_k);
             /* we are serialized by the bus */
-#if 0
             /* XXX libdbus call it in this configuration? */
             handler->vtable.message_function(thread_state.dbus_conn, msg, 0);
-#endif
         } else {
             LogDebug(COMPONENT_DBUS, "msg for unknown handler %s",
                      hk.name);
