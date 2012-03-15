@@ -134,7 +134,7 @@ rpc_cb_null(rpc_call_channel_t *chan)
 }
 
 int32_t
-nfs_rpc_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
+nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
 {
     int32_t thrd_ix, code = 0;
     nfs_worker_data_t *worker = NULL;
@@ -160,6 +160,37 @@ nfs_rpc_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
 
     DispatchWorkNFS(pnfsreq, thrd_ix);
 
+    pthread_mutex_unlock(&call->we.mtx);
+
+    return (code);
+}
+
+int32_t
+nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
+{
+    int code = 0;
+    struct timeval CB_TIMEOUT = {15, 0}; /* XXX */
+
+    /* send the call, set states, wake waiters, etc */
+    pthread_mutex_lock(&call->we.mtx);
+    call->states = NFS_RPC_CB_CALL_DISPATCH;
+    pthread_mutex_unlock(&call->we.mtx);
+
+    /* do it */
+    cb_compound_resinit(call->cbr);
+
+    call->stat = clnt_call(call->chan->clnt,
+                           CB_COMPOUND,
+                           (xdrproc_t) xdr_CB_COMPOUND4args, call->cba,
+                           (xdrproc_t) xdr_CB_COMPOUND4res, call->cbr,
+                           CB_TIMEOUT);
+
+    /* signal waiter(s) */
+    pthread_mutex_lock(&call->we.mtx);
+    call->states |= NFS_RPC_CB_CALL_FINISHED;
+
+    /* broadcast will generally be inexpensive */
+    pthread_cond_broadcast(&call->we.cv);
     pthread_mutex_unlock(&call->we.mtx);
 
     return (code);

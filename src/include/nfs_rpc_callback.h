@@ -61,8 +61,8 @@
 
 #define NFS_RPC_CB_CALL_NONE         0x0000
 #define NFS_RPC_CB_CALL_QUEUED       0x0001
-#define NFS_RPC_CB_CALL_DISPATCHED   0x0002
-#define NFS_RPC_CB_CALL_REPLIED      0x0003
+#define NFS_RPC_CB_CALL_DISPATCH     0x0002
+#define NFS_RPC_CB_CALL_FINISHED     0x0003
 
 static inline void init_wait_entry(wait_entry_t *we)
 {
@@ -98,7 +98,10 @@ int
 nfs_rpc_call_init(rpc_call_t call, uint32_t flags);
 
 /* Submit rpc to be called on chan, optionally waiting for completion. */
-int32_t nfs_rpc_call(rpc_call_channel_t *chan, rpc_call_t *call,
-                     uint32_t flags);
+int32_t nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call,
+                            uint32_t flags);
+
+/* Dispatch method to process a (queued) call */
+int32_t nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags);
 
 #endif /* _NFS_RPC_CALLBACK_H */

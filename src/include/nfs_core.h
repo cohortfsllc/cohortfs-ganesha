@@ -460,12 +460,14 @@ typedef struct rpc_call_channel
 
 typedef struct _rpc_call
 {
-    uint32_t states;
-    struct wait_entry we;
     rpc_call_channel_t *chan;
-    void *rpc;
-    void *arg1;
-    void *arg2;
+    struct wait_entry we;
+    enum clnt_stat stat;
+    uint32_t states;
+    uint32_t flags;
+    CB_COMPOUND4args cba[1];
+    CB_COMPOUND4res cbr[1];
+    void *u_data[2];
 } rpc_call_t;
 
 typedef enum request_type__
