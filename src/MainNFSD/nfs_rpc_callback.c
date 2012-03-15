@@ -148,6 +148,16 @@ rpc_cb_null(rpc_call_channel_t *chan)
 		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
 }
 
+static inline void free_argop(nfs_cb_argop4 *op)
+{
+    Mem_Free(op);
+}
+
+static inline void free_resop(nfs_cb_resop4 *op)
+{
+    Mem_Free(op);
+}
+
 rpc_call_t *alloc_rpc_call()
 {
     rpc_call_t *call;
@@ -157,14 +167,11 @@ rpc_call_t *alloc_rpc_call()
     return (call);
 }
 
-nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt)
+void free_rpc_call(rpc_call_t *call)
 {
-    return ((nfs_cb_argop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_argop4)));
-}
-
-nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt)
-{
-    return ((nfs_cb_resop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_resop4)));
+    free_argop(call->cbt.v_u.v4.args.argarray.argarray_val);
+    free_resop(call->cbt.v_u.v4.res.resarray.resarray_val);
+    ReleaseToPool(call, &rpc_call_pool);
 }
 
 int32_t

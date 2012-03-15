@@ -68,12 +68,8 @@ typedef struct nfs4_cb_tag
 /* CB compound tags */
 #define NFS4_CB_TAG_DEFAULT 0
 
-nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt);
-nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt);
-
-void cb_compound_init(nfs4_compound_t *cbt,
-                      nfs_cb_argop4 *cba_un, uint32_t un_len,
-                      char *tag, uint32_t tag_len);
+void cb_compound_init(nfs4_compound_t *cbt, uint32_t n_ops, char *tag,
+                      uint32_t tag_len);
 
 void cb_compound_add_op(nfs4_compound_t *cbt, nfs_cb_argop4 *src);
 
@@ -91,6 +87,17 @@ static inline void init_wait_entry(wait_entry_t *we)
 }
 
 rpc_call_t *alloc_rpc_call();
+void free_rpc_call(rpc_call_t *call);
+
+static inline nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt)
+{
+    return ((nfs_cb_argop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_argop4)));
+}
+
+static inline nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt)
+{
+    return ((nfs_cb_resop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_resop4)));
+}
 
 static inline void nfs_rpc_init_call(void *ptr)
 {
