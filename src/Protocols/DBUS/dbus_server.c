@@ -268,11 +268,11 @@ void *gsh_dbus_thread(void *arg)
 
         /* do stuff */
         dbus_connection_read_write_dispatch(thread_state.dbus_conn, 30*1000);
+
+        /* deal with message (ignore timeouts) */
         msg = dbus_connection_pop_message(thread_state.dbus_conn);
-        if (! msg) {
-            LogDebug(COMPONENT_DBUS, "dbus null msg");
+        if (! msg)
             continue;
-        }
 
         hk.name = dbus_message_get_path(msg); /* XXX discards qualifiers */
         LogFullDebug(COMPONENT_DBUS, "recv msg: %s", hk.name);
