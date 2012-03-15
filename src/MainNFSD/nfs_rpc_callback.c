@@ -64,46 +64,6 @@
  *
  */
 
-/* XXX will need more sophisticated wait support, will fix */
-static pthread_mutex_t cb_mtx;
-static pthread_cond_t cb_cv;
-
-static const uint32_t CB_SLEEPING = 0x00000001;
-static const uint32_t CB_SHUTDOWN = 0x00000002;
-
-static struct cb_thread_state
-{
-    pthread_t thread_id;
-    uint32_t wait_ms;
-    uint32_t flags;
-} cb_thread_state;
-
-
-#define S_NSECS 1000000000UL    /* nsecs in 1s */
-#define MS_NSECS 1000000UL      /* nsecs in 1ms */
-
-/* XXX Delay ms milliseconds.  Consolidate with LRU etc, along with
- * wait_entry and other support code.
- */
-static void
-cb_thread_delay_ms(unsigned long ms)
-{
-     time_t now;
-     struct timespec then;
-     unsigned long long nsecs;
-
-     now = time(0);
-     nsecs = (S_NSECS * now) + (MS_NSECS * ms);
-     then.tv_sec = nsecs / S_NSECS;
-     then.tv_nsec = nsecs % S_NSECS;
-
-     pthread_mutex_lock(&cb_mtx);
-     cb_thread_state.flags |= CB_SLEEPING;
-     pthread_cond_timedwait(&cb_cv, &cb_mtx, &then);
-     cb_thread_state.flags &= ~CB_SLEEPING;
-     pthread_mutex_unlock(&cb_mtx);
-}
-
 /*
  * Initialize subsystem
  */
@@ -117,11 +77,7 @@ void nfs_rpc_cb_pkginit(void)
  */
 void nfs_rpc_cb_pkgshutdown(void)
 {
-     /* Post and wait for shutdown of LRU background thread */
-     pthread_mutex_lock(&cb_mtx);
-     cb_thread_state.flags |= CB_SHUTDOWN;
-     cb_wake_thread(CB_FLAG_NONE);
-     pthread_mutex_unlock(&cb_mtx);
+    /* do nothing */
 }
 
 /* Create a channel for a new clientid (v4) or session, optionally
@@ -165,18 +121,11 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
     chan->last_called = 0;
 }
 
-struct rpc_call_sequence
-{
-    uint32_t states;
-    struct glist_head calls;
-    struct wait_entry we;
-};
-
 /*
  * Call the NFSv4 client's CB_NULL procedure.
  */
 enum clnt_stat
-rpc_cb_null(rpc_call_channel_t *chan, rpc_call_t *call)
+rpc_cb_null(rpc_call_channel_t *chan)
 {
     struct timeval CB_TIMEOUT = {15, 0};
 
@@ -184,46 +133,41 @@ rpc_cb_null(rpc_call_channel_t *chan, rpc_call_t *call)
 		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
 }
 
-
-/* Async thread to perform long-term reorganization, compaction,
- * other operations that cannot be performed in constant time. */
-void *nfs_rpc_cb_thread(void *arg)
+int32_t
+nfs_rpc_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
 {
+    int32_t thrd_ix, code = 0;
+    nfs_worker_data_t *worker = NULL;
+    request_data_t *pnfsreq = NULL;
 
-     SetNameFunction("nfs_rpc_cb_thread");
+    /* select a thread from the general thread pool */
+    thrd_ix = nfs_core_select_worker_queue();
+    worker = &workers_data[thrd_ix];
 
-     /* Initialize BuddyMalloc (otherwise we crash whenever we call
-        into the FSAL and it tries to update its calls stats) */
-#ifndef _NO_BUDDY_SYSTEM
-     if ((BuddyInit(&nfs_param.buddy_param_worker)) != BUDDY_SUCCESS) {
-          /* Failed init */
-          LogFatal(COMPONENT_NFS_CB,
-                   "Memory manager could not be initialized");
-     }
-     LogFullDebug(COMPONENT_NFS_CB,
-                  "Memory manager successfully initialized");
-#endif
+    LogFullDebug(COMPONENT_NFS_CB,
+                 "Use request from Worker Thread #%u's pool, thread has %d "
+                 "pending requests",
+                 thrd_ix,
+                 worker->pending_request->nb_entry);
 
-     while (1) {
-         if (cb_thread_state.flags & CB_SHUTDOWN)
-               break;
+    pnfsreq = nfs_rpc_get_nfsreq(worker, 0 /* XXX flags */);
 
-          LogFullDebug(COMPONENT_NFS_CB,
-                       "top of poll loop");
+    pthread_mutex_lock(&call->we.mtx);
+    call->states = NFS_RPC_CB_CALL_QUEUED;
 
-          /* do stuff */
+    pnfsreq->rtype = NFS_CALL;
+    pnfsreq->r_u.call = call;
 
-          cb_thread_delay_ms(cb_thread_state.wait_ms);
-     }
+    DispatchWorkNFS(pnfsreq, thrd_ix);
 
-     LogCrit(COMPONENT_NFS_CB,
-             "shutdown");
+    pthread_mutex_unlock(&call->we.mtx);
 
-     return (NULL);
+    return (code);
 }
 
-void cb_wake_thread(uint32_t flags)
+int32_t
+nfs_rpc_abort_call(rpc_call_t *call)
 {
-    if (cb_thread_state.flags & CB_SLEEPING)
-        pthread_cond_signal(&cb_cv);
+    return (0);
 }
+

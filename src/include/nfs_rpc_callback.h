@@ -59,31 +59,22 @@
 
 #define CB_FLAG_NONE          0x0000
 
-typedef struct wait_entry
-{
-    pthread_mutex_t mtx;
-    pthread_cond_t cv;
-} wait_entry_t;
+#define NFS_RPC_CB_CALL_NONE         0x0000
+#define NFS_RPC_CB_CALL_QUEUED       0x0001
+#define NFS_RPC_CB_CALL_DISPATCHED   0x0002
+#define NFS_RPC_CB_CALL_REPLIED      0x0003
 
-/* thread wait queue */
-typedef struct wait_q_entry
+static inline void init_wait_entry(wait_entry_t *we)
 {
-    uint32_t lflags;
-    uint32_t rflags;
-    wait_entry_t lwe; /* initial waiter */
-    wait_entry_t rwe; /* reciprocal waiter */
-    struct wait_q_entry *tail;
-    struct wait_q_entry *next;
-} wait_queue_entry_t;
+   pthread_mutex_init(&we->mtx, NULL);
+   pthread_cond_init(&we->cv, NULL);
+}
 
-typedef struct _rpc_call
+static inline void nfs_rpc_init_call(rpc_call_t *call)
 {
-    uint32_t states;
-    struct wait_entry we;
-    void *rpc;
-    void *arg1;
-    void *arg2;
-} rpc_call_t;
+    memset(call, 0, sizeof(rpc_call_t));
+    init_wait_entry(&call->we);
+}
 
 void nfs_rpc_cb_pkginit(void);
 void nfs_rpc_cb_pkgshutdown(void);
@@ -106,9 +97,8 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan);
 int
 nfs_rpc_call_init(rpc_call_t call, uint32_t flags);
 
-/* XXX Submit rpc to be called on chan, optionally waiting for completion,
- * need wait machinery. */
-int nfs_rpc_call(rpc_call_channel_t chan, void *rpc /* XXX */,
-                 rpc_call_t **call /* OUT */, uint32_t flags);
+/* Submit rpc to be called on chan, optionally waiting for completion. */
+int32_t nfs_rpc_call(rpc_call_channel_t *chan, rpc_call_t *call,
+                     uint32_t flags);
 
 #endif /* _NFS_RPC_CALLBACK_H */

@@ -753,6 +753,22 @@ unsigned int nfs_core_select_worker_queue()
 } /* nfs_core_select_worker_queue */
 
 /**
+ * nfs_rpc_get_nfsreq: get a request frame (call or svc request)
+ */
+request_data_t *
+nfs_rpc_get_nfsreq(nfs_worker_data_t *worker, uint32_t flags)
+{
+    request_data_t *pnfsreq = NULL;
+
+    P(worker->request_pool_mutex);
+    GetFromPool(pnfsreq, &worker->request_pool,
+                request_data_t);
+    V(worker->request_pool_mutex);
+
+    return (pnfsreq);
+}
+
+/**
  * process_rpc_request: process an RPC request.
  *
  */
@@ -809,16 +825,16 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
   pnfsreq->rtype = NFS_REQUEST ;
 
   /* Set up cred area */
-  cred_area = pnfsreq->rcontent.nfs.cred_area;
-  preq = &(pnfsreq->rcontent.nfs.req);
-  pmsg = &(pnfsreq->rcontent.nfs.msg);
+  cred_area = pnfsreq->r_u.nfs.cred_area;
+  preq = &(pnfsreq->r_u.nfs.req);
+  pmsg = &(pnfsreq->r_u.nfs.msg);
 
   pmsg->rm_call.cb_cred.oa_base = cred_area;
   pmsg->rm_call.cb_verf.oa_base = &(cred_area[MAX_AUTH_BYTES]);
   preq->rq_clntcred = &(cred_area[2 * MAX_AUTH_BYTES]);
 
   /* Set up xprt */
-  pnfsreq->rcontent.nfs.xprt = xprt;
+  pnfsreq->r_u.nfs.xprt = xprt;
   preq->rq_xprt = xprt;
 
   /*
@@ -827,13 +843,13 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
    */
   LogFullDebug(COMPONENT_DISPATCH,
                "Before calling SVC_RECV on socket %d",
-               pnfsreq->rcontent.nfs.xprt->XP_SOCK);
+               pnfsreq->r_u.nfs.xprt->XP_SOCK);
 
-  recv_status = SVC_RECV(pnfsreq->rcontent.nfs.xprt, pmsg);
+  recv_status = SVC_RECV(pnfsreq->r_u.nfs.xprt, pmsg);
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Status for SVC_RECV on socket %d is %d, xid=%lu",
-               pnfsreq->rcontent.nfs.xprt->XP_SOCK, recv_status,
+               pnfsreq->r_u.nfs.xprt->XP_SOCK, recv_status,
                (unsigned long)pmsg->rm_xid);
 
   /* If status is ok, the request will be processed by the related
@@ -847,22 +863,22 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
       sockaddr_t addr;
       char addrbuf[SOCK_NAME_MAX];
 
-      if(copy_xprt_addr(&addr, pnfsreq->rcontent.nfs.xprt) == 1)
+      if(copy_xprt_addr(&addr, pnfsreq->r_u.nfs.xprt) == 1)
         sprint_sockaddr(&addr, addrbuf, sizeof(addrbuf));
       else
         sprintf(addrbuf, "<unresolved>");
 
-      stat = SVC_STAT(pnfsreq->rcontent.nfs.xprt);
+      stat = SVC_STAT(pnfsreq->r_u.nfs.xprt);
 
       if(stat == XPRT_DIED)
         {
 
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s disappeared...",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->r_u.nfs.xprt->XP_SOCK, addrbuf);
 
-          if(Xports[pnfsreq->rcontent.nfs.xprt->XP_SOCK] != NULL)
-            SVC_DESTROY(Xports[pnfsreq->rcontent.nfs.xprt->XP_SOCK]);
+          if(Xports[pnfsreq->r_u.nfs.xprt->XP_SOCK] != NULL)
+            SVC_DESTROY(Xports[pnfsreq->r_u.nfs.xprt->XP_SOCK]);
 
           rc = PROCESS_LOST_CONN;
         }
@@ -870,57 +886,57 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_MOREREQS",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->r_u.nfs.xprt->XP_SOCK, addrbuf);
         }
       else if(stat == XPRT_IDLE)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_IDLE",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf);
+                   pnfsreq->r_u.nfs.xprt->XP_SOCK, addrbuf);
         }
       else
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status unknown (%d)",
-                   pnfsreq->rcontent.nfs.xprt->XP_SOCK, addrbuf, (int)stat);
+                   pnfsreq->r_u.nfs.xprt->XP_SOCK, addrbuf, (int)stat);
         }
 
       goto free_req;
     }
   else
     {
-      memset(&pnfsreq->rcontent.nfs.time_queued, 0, sizeof(struct timeval));
-      gettimeofday(&pnfsreq->rcontent.nfs.time_queued, NULL);
+      memset(&pnfsreq->r_u.nfs.time_queued, 0, sizeof(struct timeval));
+      gettimeofday(&pnfsreq->r_u.nfs.time_queued, NULL);
 
       /* Call svc_getargs before making copy to prevent race conditions. */
-      pnfsreq->rcontent.nfs.req.rq_prog = pmsg->rm_call.cb_prog;
-      pnfsreq->rcontent.nfs.req.rq_vers = pmsg->rm_call.cb_vers;
-      pnfsreq->rcontent.nfs.req.rq_proc = pmsg->rm_call.cb_proc;
+      pnfsreq->r_u.nfs.req.rq_prog = pmsg->rm_call.cb_prog;
+      pnfsreq->r_u.nfs.req.rq_vers = pmsg->rm_call.cb_vers;
+      pnfsreq->r_u.nfs.req.rq_proc = pmsg->rm_call.cb_proc;
 
       /* Use primary xprt for now (in case xprt has GSS state)
        * until we make a copy
        */
-      pnfsreq->rcontent.nfs.xprt = xprt;
-      pnfsreq->rcontent.nfs.req.rq_xprt = xprt;
+      pnfsreq->r_u.nfs.xprt = xprt;
+      pnfsreq->r_u.nfs.req.rq_xprt = xprt;
 
-      pfuncdesc = nfs_rpc_get_funcdesc(&pnfsreq->rcontent.nfs);
+      pfuncdesc = nfs_rpc_get_funcdesc(&pnfsreq->r_u.nfs);
 
       if(pfuncdesc == INVALID_FUNCDESC)
         goto free_req;
 
-      if(AuthenticateRequest(&pnfsreq->rcontent.nfs, &no_dispatch) != AUTH_OK || no_dispatch)
+      if(AuthenticateRequest(&pnfsreq->r_u.nfs, &no_dispatch) != AUTH_OK || no_dispatch)
         goto free_req;
 
-      if(!nfs_rpc_get_args(&pnfsreq->rcontent.nfs, pfuncdesc))
+      if(!nfs_rpc_get_args(&pnfsreq->r_u.nfs, pfuncdesc))
         goto free_req;
 
       /* Update a copy of SVCXPRT and pass it to the worker thread to use it. */
-      pnfsreq->rcontent.nfs.xprt_copy = Svcxprt_copy(pnfsreq->rcontent.nfs.xprt_copy, xprt);
-      if(pnfsreq->rcontent.nfs.xprt_copy == NULL)
+      pnfsreq->r_u.nfs.xprt_copy = Svcxprt_copy(pnfsreq->r_u.nfs.xprt_copy, xprt);
+      if(pnfsreq->r_u.nfs.xprt_copy == NULL)
         goto free_req;
 
-      pnfsreq->rcontent.nfs.xprt = pnfsreq->rcontent.nfs.xprt_copy;
-      preq->rq_xprt = pnfsreq->rcontent.nfs.xprt_copy;
+      pnfsreq->r_u.nfs.xprt = pnfsreq->r_u.nfs.xprt_copy;
+      preq->rq_xprt = pnfsreq->r_u.nfs.xprt_copy;
 
       /* Regular management of the request (UDP request or TCP request on connected handler */
       DispatchWorkNFS(pnfsreq, worker_index);
@@ -1290,5 +1306,5 @@ void constructor_request_data_t(void *ptr)
 {
   request_data_t * pdata = (request_data_t *) ptr;
 
-  constructor_nfs_request_data_t( &(pdata->rcontent.nfs) ) ;
+  constructor_nfs_request_data_t( &(pdata->r_u.nfs) ) ;
 }

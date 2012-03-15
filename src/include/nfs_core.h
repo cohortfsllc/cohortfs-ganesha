@@ -419,26 +419,25 @@ typedef struct nfs_request_data__
                                * to the worker thread queue. */
 } nfs_request_data_t;
 
-typedef enum request_type__
-{
-  NFS_REQUEST,
-  _9P_REQUEST
-} request_type_t ;
-
-typedef struct request_data__
-{
-  request_type_t rtype ;
-  union request_content__
-   {
-      nfs_request_data_t nfs ;
-#ifdef _USE_9P
-      _9p_request_data_t _9p ;
-#endif
-   } rcontent ;
-} request_data_t ;
-
 struct nfs_client_id__;
 typedef struct nfs_client_id__ nfs_client_id_t;
+
+typedef struct wait_entry
+{
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
+} wait_entry_t;
+
+/* thread wait queue */
+typedef struct wait_q_entry
+{
+    uint32_t lflags;
+    uint32_t rflags;
+    wait_entry_t lwe; /* initial waiter */
+    wait_entry_t rwe; /* reciprocal waiter */
+    struct wait_q_entry *tail;
+    struct wait_q_entry *next;
+} wait_queue_entry_t;
 
 enum rpc_chan_type {
     RPC_CHAN_V40,
@@ -458,6 +457,36 @@ typedef struct rpc_call_channel
     /* XXX call vector */
     CLIENT *clnt;
 } rpc_call_channel_t;
+
+typedef struct _rpc_call
+{
+    uint32_t states;
+    struct wait_entry we;
+    rpc_call_channel_t *chan;
+    void *rpc;
+    void *arg1;
+    void *arg2;
+} rpc_call_t;
+
+typedef enum request_type__
+{
+  NFS_CALL,
+  NFS_REQUEST,
+  _9P_REQUEST
+} request_type_t ;
+
+typedef struct request_data__
+{
+  request_type_t rtype ;
+  union request_content__
+   {
+      rpc_call_t *call ;
+      nfs_request_data_t nfs ;
+#ifdef _USE_9P
+      _9p_request_data_t _9p ;
+#endif
+   } r_u ;
+} request_data_t ;
 
 struct nfs_client_id__
 {
@@ -660,6 +689,7 @@ pause_rc wake_workers(awaken_reason_t reason);
 pause_rc wait_for_workers_to_awaken();
 void DispatchWorkNFS(request_data_t *pnfsreq, unsigned int worker_index);
 void *worker_thread(void *IndexArg);
+request_data_t *nfs_rpc_get_nfsreq(nfs_worker_data_t *worker, uint32_t flags);
 process_status_t process_rpc_request(SVCXPRT *xprt);
 int stats_snmp(nfs_worker_data_t * workers_data_local);
 /*
