@@ -51,10 +51,6 @@
  * This module implements APIs for submission, and dispatch of NFSv4.0
  * and (soon) NFSv4.1 format callbacks.
  *
- * Planned strategy is to deal with all backchannels from a small number of
- * service threads, initially 1, using non-blocking socket operations.  This
- * may change, as NFSv4.1 bi-directional support is integrated.
- *
  */
 
 /* XXX move? */
