@@ -78,8 +78,6 @@ static inline void nfs_rpc_init_call(rpc_call_t *call)
 
 void nfs_rpc_cb_pkginit(void);
 void nfs_rpc_cb_pkgshutdown(void);
-void *nfs_rpc_cb_thread(void *arg);
-void cb_wake_thread();
 
 /* Create a channel for a new clientid (v4) or session, optionally
  * connecting it */
