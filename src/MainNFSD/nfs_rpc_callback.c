@@ -1,7 +1,7 @@
 /*
  * vim:expandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright (C) 2010, The Linux Box Corporation
+ * Copyright (C) 2012, The Linux Box Corporation
  * Contributor : Matt Benjamin <matt@linuxbox.com>
  *
  * Some portions Copyright CEA/DAM/DIF  (2008)
@@ -64,11 +64,26 @@
  *
  */
 
+static struct prealloc_pool rpc_call_pool;
+
 /*
  * Initialize subsystem
  */
 void nfs_rpc_cb_pkginit(void)
 {
+    /* Create a pool of rpc_call_t */
+    MakePool(&rpc_call_pool,
+             nfs_param.worker_param.nb_pending_prealloc, /* XXX */
+             rpc_call_t, nfs_rpc_init_call, NULL);
+    NamePool(&rpc_call_pool, "RPC Call Pool");
+               
+    if(!IsPoolPreallocated(&rpc_call_pool)) {
+        LogCrit(COMPONENT_INIT,
+                "Error while allocating rpc call pool");
+        LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
+        Fatal();
+    }
+
     return;
 }
 
@@ -133,6 +148,25 @@ rpc_cb_null(rpc_call_channel_t *chan)
 		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
 }
 
+rpc_call_t *alloc_rpc_call()
+{
+    rpc_call_t *call;
+
+    GetFromPool(call, &rpc_call_pool, rpc_call_t);
+
+    return (call);
+}
+
+nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt)
+{
+    return ((nfs_cb_argop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_argop4)));
+}
+
+nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt)
+{
+    return ((nfs_cb_resop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_resop4)));
+}
+
 int32_t
 nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
 {
@@ -176,13 +210,12 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
     call->states = NFS_RPC_CB_CALL_DISPATCH;
     pthread_mutex_unlock(&call->we.mtx);
 
-    /* do it */
-    cb_compound_resinit(call->cbr);
-
     call->stat = clnt_call(call->chan->clnt,
                            CB_COMPOUND,
-                           (xdrproc_t) xdr_CB_COMPOUND4args, call->cba,
-                           (xdrproc_t) xdr_CB_COMPOUND4res, call->cbr,
+                           (xdrproc_t) xdr_CB_COMPOUND4args,
+                           &call->cbt.v_u.v4.args,
+                           (xdrproc_t) xdr_CB_COMPOUND4res,
+                           &call->cbt.v_u.v4.res,
                            CB_TIMEOUT);
 
     /* signal waiter(s) */

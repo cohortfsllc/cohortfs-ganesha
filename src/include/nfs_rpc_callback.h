@@ -57,6 +57,26 @@
  *
  */
 
+/* XXX move? */
+typedef struct nfs4_cb_tag
+{
+    int32_t ix;
+    char *val;
+    int32_t len;
+} nfs4_cb_tag_t;
+
+/* CB compound tags */
+#define NFS4_CB_TAG_DEFAULT 0
+
+nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt);
+nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt);
+
+void cb_compound_init(nfs4_compound_t *cbt,
+                      nfs_cb_argop4 *cba_un, uint32_t un_len,
+                      char *tag, uint32_t tag_len);
+
+void cb_compound_add_op(nfs4_compound_t *cbt, nfs_cb_argop4 *src);
+
 #define CB_FLAG_NONE          0x0000
 
 #define NFS_RPC_CB_CALL_NONE         0x0000
@@ -70,8 +90,11 @@ static inline void init_wait_entry(wait_entry_t *we)
    pthread_cond_init(&we->cv, NULL);
 }
 
-static inline void nfs_rpc_init_call(rpc_call_t *call)
+rpc_call_t *alloc_rpc_call();
+
+static inline void nfs_rpc_init_call(void *ptr)
 {
+    rpc_call_t *call = (rpc_call_t *) ptr;
     memset(call, 0, sizeof(rpc_call_t));
     init_wait_entry(&call->we);
 }

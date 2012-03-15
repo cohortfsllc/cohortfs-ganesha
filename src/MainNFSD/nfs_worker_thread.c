@@ -2096,6 +2096,11 @@ void *worker_thread(void *IndexArg)
             }
            break ;
 
+       case NFS_CALL:
+           /* NFSv4 rpc call (callback) */
+           (void) nfs_rpc_dispatch_call(pnfsreq->r_u.call, 0 /* XXX flags */);
+           break ;
+
 	  case _9P_REQUEST:
 #ifdef _USE_9P
 	     _9p_execute( &pnfsreq->r_u._9p, pmydata ) ;

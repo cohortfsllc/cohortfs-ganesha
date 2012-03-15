@@ -458,15 +458,24 @@ typedef struct rpc_call_channel
     CLIENT *clnt;
 } rpc_call_channel_t;
 
+typedef struct __nfs4_compound {
+    union {
+        int type;
+        struct {
+            CB_COMPOUND4args args;
+            CB_COMPOUND4res res;
+        } v4;
+    } v_u;
+} nfs4_compound_t;
+
 typedef struct _rpc_call
 {
     rpc_call_channel_t *chan;
     struct wait_entry we;
     enum clnt_stat stat;
+    nfs4_compound_t cbt;
     uint32_t states;
     uint32_t flags;
-    CB_COMPOUND4args cba[1];
-    CB_COMPOUND4res cbr[1];
     void *u_data[2];
 } rpc_call_t;
 
