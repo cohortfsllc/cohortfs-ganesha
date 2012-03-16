@@ -468,16 +468,29 @@ typedef struct __nfs4_compound {
     } v_u;
 } nfs4_compound_t;
 
+/* RPC callback processing */
+typedef enum rpc_call_hook
+{
+    RPC_CALL_COMPLETE,
+    RPC_CALL_ABORT,
+} rpc_call_hook;
+
+typedef struct _rpc_call rpc_call_t;
+
+typedef int32_t (*rpc_call_func)(rpc_call_t*, rpc_call_hook hook, void*,
+    uint32_t flags);
+
 typedef struct _rpc_call
 {
     rpc_call_channel_t *chan;
+    rpc_call_func call_hook;
+    nfs4_compound_t cbt;
     struct wait_entry we;
     enum clnt_stat stat;
-    nfs4_compound_t cbt;
     uint32_t states;
     uint32_t flags;
     void *u_data[2];
-} rpc_call_t;
+};
 
 typedef enum request_type__
 {

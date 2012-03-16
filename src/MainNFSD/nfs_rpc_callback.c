@@ -174,34 +174,44 @@ void free_rpc_call(rpc_call_t *call)
     ReleaseToPool(call, &rpc_call_pool);
 }
 
+static inline void RPC_CALL_HOOK(rpc_call_t *call, rpc_call_hook hook,
+                                 void* arg, uint32_t flags)
+{
+    if (call)
+        (void) call->call_hook(call, hook, arg, flags);
+}
+
 int32_t
 nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
 {
-    int32_t thrd_ix, code = 0;
-    nfs_worker_data_t *worker = NULL;
+    int32_t code = 0;
     request_data_t *pnfsreq = NULL;
 
-    /* select a thread from the general thread pool */
-    thrd_ix = nfs_core_select_worker_queue();
-    worker = &workers_data[thrd_ix];
+    if (call->flags & NFS_RPC_CALL_INLINE) {
+        code = nfs_rpc_dispatch_call(call, NFS_RPC_CALL_NONE);
+    }
+    else {
+        /* select a thread from the general thread pool */
+        int32_t thrd_ix;
+        nfs_worker_data_t *worker;
 
-    LogFullDebug(COMPONENT_NFS_CB,
-                 "Use request from Worker Thread #%u's pool, thread has %d "
-                 "pending requests",
-                 thrd_ix,
-                 worker->pending_request->nb_entry);
+        thrd_ix = nfs_core_select_worker_queue();
+        worker = &workers_data[thrd_ix];
 
-    pnfsreq = nfs_rpc_get_nfsreq(worker, 0 /* XXX flags */);
+        LogFullDebug(COMPONENT_NFS_CB,
+                     "Use request from Worker Thread #%u's pool, thread has %d "
+                     "pending requests",
+                     thrd_ix,
+                     worker->pending_request->nb_entry);
 
-    pthread_mutex_lock(&call->we.mtx);
-    call->states = NFS_RPC_CB_CALL_QUEUED;
-
-    pnfsreq->rtype = NFS_CALL;
-    pnfsreq->r_u.call = call;
-
-    DispatchWorkNFS(pnfsreq, thrd_ix);
-
-    pthread_mutex_unlock(&call->we.mtx);
+        pnfsreq = nfs_rpc_get_nfsreq(worker, 0 /* flags */);
+        pthread_mutex_lock(&call->we.mtx);
+        call->states = NFS_CB_CALL_QUEUED;
+        pnfsreq->rtype = NFS_CALL;
+        pnfsreq->r_u.call = call;
+        DispatchWorkNFS(pnfsreq, thrd_ix);
+        pthread_mutex_unlock(&call->we.mtx);
+    }
 
     return (code);
 }
@@ -214,7 +224,7 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
 
     /* send the call, set states, wake waiters, etc */
     pthread_mutex_lock(&call->we.mtx);
-    call->states = NFS_RPC_CB_CALL_DISPATCH;
+    call->states = NFS_CB_CALL_DISPATCH;
     pthread_mutex_unlock(&call->we.mtx);
 
     call->stat = clnt_call(call->chan->clnt,
@@ -227,11 +237,15 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
 
     /* signal waiter(s) */
     pthread_mutex_lock(&call->we.mtx);
-    call->states |= NFS_RPC_CB_CALL_FINISHED;
+    call->states |= NFS_CB_CALL_FINISHED;
 
     /* broadcast will generally be inexpensive */
-    pthread_cond_broadcast(&call->we.cv);
+    if (call->flags & NFS_RPC_CALL_BROADCAST)
+        pthread_cond_broadcast(&call->we.cv);
     pthread_mutex_unlock(&call->we.mtx);
+
+    /* call completion hook */
+    RPC_CALL_HOOK(call, RPC_CALL_COMPLETE, NULL, NFS_RPC_CALL_NONE);
 
     return (code);
 }

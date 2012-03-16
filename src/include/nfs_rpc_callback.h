@@ -71,10 +71,14 @@ void cb_compound_add_op(nfs4_compound_t *cbt, nfs_cb_argop4 *src);
 
 #define CB_FLAG_NONE          0x0000
 
-#define NFS_RPC_CB_CALL_NONE         0x0000
-#define NFS_RPC_CB_CALL_QUEUED       0x0001
-#define NFS_RPC_CB_CALL_DISPATCH     0x0002
-#define NFS_RPC_CB_CALL_FINISHED     0x0003
+enum nfs_cb_call_states{
+    NFS_CB_CALL_NONE,
+    NFS_CB_CALL_QUEUED,
+    NFS_CB_CALL_DISPATCH,
+    NFS_CB_CALL_FINISHED,
+    NFS_CB_CALL_ABORTED,
+    NFS_CB_CALL_TIMEDOUT
+};
 
 static inline void init_wait_entry(wait_entry_t *we)
 {
@@ -120,6 +124,10 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan);
 
 int
 nfs_rpc_call_init(rpc_call_t call, uint32_t flags);
+
+#define NFS_RPC_CALL_NONE          0x0000
+#define NFS_RPC_CALL_INLINE        0x0001 /* execute in current thread ctxt */
+#define NFS_RPC_CALL_BROADCAST     0x0002
 
 /* Submit rpc to be called on chan, optionally waiting for completion. */
 int32_t nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call,
