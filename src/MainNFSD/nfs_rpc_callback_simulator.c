@@ -110,12 +110,15 @@ cbsim_test_bchan(clientid4 clientid)
     enum clnt_stat stat;
 
     code  = nfs_client_id_Get_Pointer(clientid, &clid);
-    if (! clid) {
+    if (code != CLIENT_ID_SUCCESS) {
         LogCrit(COMPONENT_NFS_CB,
-                "No clid record for %"PRIx64, clientid);
+                "No clid record for %"PRIx64" (%d) code %d", clientid,
+                (int32_t) clientid, code);
         code = EINVAL;
         goto out;
     }
+
+    assert(clid);
 
     /* create (fix?) channel */
     chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
@@ -153,7 +156,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    DBusMessageIter args;
    char *param;
    static uint32_t serial = 1;
-   uint64_t clientid = 2463; /* XXX ew! */
+   clientid4 clientid = 2463; /* XXX ew! */
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 
