@@ -96,6 +96,91 @@ nfs_rpc_cbsim_method1(DBusConnection *conn, DBusMessage *msg,
    dbus_connection_flush(conn);
    dbus_message_unref(reply);
    serial++;
+
+   return (0 /* XXX return a real DBUS handler result */);
+}
+
+static int32_t
+cbsim_test_bchan(clientid4 clientid)
+{
+    int32_t code = 0;
+    nfs_client_id_t *clid = NULL;
+    struct timeval CB_TIMEOUT = {15, 0};
+    rpc_call_channel_t *chan;
+    enum clnt_stat stat;
+
+    code  = nfs_client_id_Get_Pointer(clientid, &clid);
+    if (! clid) {
+        LogCrit(COMPONENT_NFS_CB,
+                "No clid record for %"PRIx64, clientid);
+        code = EINVAL;
+        goto out;
+    }
+
+    /* create (fix?) channel */
+    chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
+    if (! chan) {
+        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed");
+        goto out;
+    }
+
+    /* try the CB_NULL proc -- inline here, should be ok-ish */
+    stat = rpc_cb_null(chan, CB_TIMEOUT);
+    LogDebug(COMPONENT_NFS_CB,
+             "rpc_cb_null on client %"PRIx64" returns %d",
+             clientid, stat);
+
+out:
+    return (code);
+}
+
+static int32_t
+cbsim_fake_cbrecall(clientid4 clientid)
+{
+    int32_t code = 0;
+
+    LogDebug(COMPONENT_NFS_CB,
+             "called client %"PRIx64);
+
+    return (code);
+}
+
+static DBusHandlerResult
+nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
+                      void *user_data)
+{
+   DBusMessage* reply;
+   DBusMessageIter args;
+   char *param;
+   static uint32_t serial = 1;
+   uint64_t clientid = 2463; /* XXX ew! */
+
+   LogDebug(COMPONENT_NFS_CB, "called!");
+
+   // read the arguments
+   if (!dbus_message_iter_init(msg, &args))
+       LogDebug(COMPONENT_DBUS, "message has no arguments"); 
+   else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args)) 
+       LogDebug(COMPONENT_DBUS, "arg not string"); 
+   else {
+       dbus_message_iter_get_basic(&args, &param);
+       LogDebug(COMPONENT_DBUS, "param: %s", param);
+   }
+
+   (void) cbsim_test_bchan(clientid);
+   (void) cbsim_fake_cbrecall(clientid);
+
+   // create a reply from the message
+   reply = dbus_message_new_method_return(msg);
+   // send the reply && flush the connection
+   if (!dbus_connection_send(conn, reply, &serial)) {
+       LogCrit(COMPONENT_DBUS, "reply failed"); 
+   }
+   dbus_connection_flush(conn);
+   dbus_message_unref(reply);
+   serial++;
+
+   return (0 /* XXX return a real DBUS handler result */);
 }
 
 /*
@@ -108,6 +193,7 @@ void nfs_rpc_cbsim_pkginit(void)
     int32_t code;
 
     code = gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_method1);
+    code = gsh_dbus_register_path("MATT1", nfs_rpc_cbsim_method2);
 
     return;
 }

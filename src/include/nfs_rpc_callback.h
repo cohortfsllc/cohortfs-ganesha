@@ -69,7 +69,8 @@ void cb_compound_init(nfs4_compound_t *cbt, uint32_t n_ops, char *tag,
 
 void cb_compound_add_op(nfs4_compound_t *cbt, nfs_cb_argop4 *src);
 
-#define CB_FLAG_NONE          0x0000
+#define NFS_CB_FLAG_NONE          0x0000
+#define NFS_RPC_FLAG_NONE         0x0000
 
 enum nfs_cb_call_states{
     NFS_CB_CALL_NONE,
@@ -98,6 +99,12 @@ static inline nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt)
 {
     return ((nfs_cb_resop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_resop4)));
 }
+
+rpc_call_channel_t *nfs_rpc_get_chan(nfs_client_id_t *client,
+                                     uint32_t flags);
+
+enum clnt_stat rpc_cb_null(rpc_call_channel_t *chan,
+                           struct timeval timeout);
 
 static inline void nfs_rpc_init_call(void *ptr)
 {

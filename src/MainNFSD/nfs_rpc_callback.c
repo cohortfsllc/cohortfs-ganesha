@@ -114,6 +114,19 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
     return (code);
 }
 
+rpc_call_channel_t *
+nfs_rpc_get_chan(nfs_client_id_t *client, uint32_t flags)
+{
+    /* XXX v41 */
+    rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
+
+    if (! chan->clnt) {
+        nfs_rpc_create_chan_v40(client, flags);
+    }
+
+    return (chan);
+}
+
 /* Dispose a channel. */
 void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
 {
@@ -140,12 +153,11 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
  * Call the NFSv4 client's CB_NULL procedure.
  */
 enum clnt_stat
-rpc_cb_null(rpc_call_channel_t *chan)
+rpc_cb_null(rpc_call_channel_t *chan, struct timeval timeout)
 {
-    struct timeval CB_TIMEOUT = {15, 0};
-
     return (clnt_call(chan->clnt, CB_NULL, (xdrproc_t) xdr_void, NULL,
-		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
+		      (xdrproc_t) xdr_void, NULL,
+                      timeout));
 }
 
 static inline void free_argop(nfs_cb_argop4 *op)

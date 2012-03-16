@@ -480,7 +480,7 @@ typedef struct _rpc_call rpc_call_t;
 typedef int32_t (*rpc_call_func)(rpc_call_t*, rpc_call_hook hook, void*,
     uint32_t flags);
 
-typedef struct _rpc_call
+struct _rpc_call
 {
     rpc_call_channel_t *chan;
     rpc_call_func call_hook;
