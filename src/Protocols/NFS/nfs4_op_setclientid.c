@@ -218,7 +218,29 @@ retry:
                        "SETCLIENTID '%s' will set the client UNCONFIRMED and returns NFS4_OK",
                        nfs_clientid->client_name);
 
-              /* TODO: update callback program here. */
+              /* update callback info */
+#ifdef _USE_NFS4_1
+              strncpy(nfs_clientid->cb.client_r_addr,
+                      arg_SETCLIENTID4.callback.cb_location.na_r_addr,
+                      SOCK_NAME_MAX);
+              strncpy(nfs_clientid->cb.client_r_netid,
+                      arg_SETCLIENTID4.callback.cb_location.na_r_netid,
+                      MAXNAMLEN);
+#else
+              strncpy(nfs_clientid->cb.client_r_addr,
+                      arg_SETCLIENTID4.callback.cb_location.r_addr,
+                      SOCK_NAME_MAX);
+              strncpy(nfs_clientid->cb.client_r_netid,
+                      arg_SETCLIENTID4.callback.cb_location.r_netid,
+                      MAXNAMLEN);
+#endif
+              /* program number */
+              nfs_clientid->cb.program = arg_SETCLIENTID4.callback.cb_program;
+              if (data->minorversion == 0) {
+                  /* present in v41, but MUST be ignored */
+                  nfs_clientid->cb.cb_u.v40.callback_ident =
+                      arg_SETCLIENTID4.callback_ident;
+              }
 
               /* Set the client UNCONFIRMED */
               nfs_clientid->confirmed = UNCONFIRMED_CLIENT_ID;
@@ -268,6 +290,11 @@ retry:
 
       nfs_clientid->confirmed = UNCONFIRMED_CLIENT_ID;
       nfs_clientid->cb.program = arg_SETCLIENTID4.callback.cb_program;
+      if (data->minorversion == 0) {
+          /* present in v41, but MUST be ignored */
+          nfs_clientid->cb.cb_u.v40.callback_ident =
+              arg_SETCLIENTID4.callback_ident;
+      }
       nfs_clientid->clientid = clientid;
       nfs_clientid->last_renew = time(NULL);
       nfs_clientid->credential = data->credential;

@@ -522,6 +522,7 @@ struct nfs_client_id__
           struct {
               uint32_t states;
               struct rpc_call_channel chan;
+              uint32_t callback_ident;
           } v40;
       } cb_u;
   } cb;
