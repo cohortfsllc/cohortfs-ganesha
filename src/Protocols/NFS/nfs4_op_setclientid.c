@@ -90,10 +90,9 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
 
   pworker = (nfs_worker_data_t *) data->pclient->pworker;
 
-  strncpy(str_verifier, arg_SETCLIENTID4.client.verifier, MAXNAMLEN);
-  strncpy(str_client, arg_SETCLIENTID4.client.id.id_val,
+  strlcpy(str_verifier, arg_SETCLIENTID4.client.verifier, MAXNAMLEN);
+  strlcpy(str_client, arg_SETCLIENTID4.client.id.id_val,
           arg_SETCLIENTID4.client.id.id_len);
-  str_client[arg_SETCLIENTID4.client.id.id_len] = '\0';
 
   LogDebug(COMPONENT_NFS_V4,
            "SETCLIENTID Client id len = %u",
@@ -103,7 +102,8 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
   /*LogDebug(COMPONENT_NFS_V4,
              "SETCLIENTID Verifier = #%s#", str_verifier ) ; */
   LogDebug(COMPONENT_NFS_V4,
-           "SETCLIENTID Callback: cb_program = %u|0x%x, cb_location = { r_addr = %s   r_netid = %s }",
+           "SETCLIENTID Callback: cb_program = %u|0x%x, cb_location = "
+           "{ r_addr = %s   r_netid = %s }",
            arg_SETCLIENTID4.callback.cb_program,
            arg_SETCLIENTID4.callback.cb_program,
 #ifdef _USE_NFS4_1
@@ -115,8 +115,7 @@ int nfs4_op_setclientid(struct nfs_argop4 *op,
 #endif
 
   LogDebug(COMPONENT_NFS_V4,
-           "SETCLIENTID callback_ident : %u",
-           arg_SETCLIENTID4.callback_ident);
+           "SETCLIENTID callback_ident : %u", arg_SETCLIENTID4.callback_ident);
 
   /* First build the clientid4 nickname */
 
@@ -220,23 +219,19 @@ retry:
 
               /* update callback info */
 #ifdef _USE_NFS4_1
-              strncpy(nfs_clientid->cb.client_r_addr,
+              strlcpy(nfs_clientid->cb.client_r_addr,
                       arg_SETCLIENTID4.callback.cb_location.na_r_addr,
-                      strnlen(arg_SETCLIENTID4.callback.cb_location.na_r_addr,
-                              SOCK_NAME_MAX));
-              strncpy(nfs_clientid->cb.client_r_netid,
+                      SOCK_NAME_MAX);
+              strlcpy(nfs_clientid->cb.client_r_netid,
                       arg_SETCLIENTID4.callback.cb_location.na_r_netid,
-                      strnlen(arg_SETCLIENTID4.callback.cb_location.na_r_netid,
-                              MAXNAMLEN));
+                      MAXNAMLEN);
 #else
-              strncpy(nfs_clientid->cb.client_r_addr,
+              strlcpy(nfs_clientid->cb.client_r_addr,
                       arg_SETCLIENTID4.callback.cb_location.r_addr,
-                      strnlen(arg_SETCLIENTID4.callback.cb_location.r_addr,
-                              SOCK_NAME_MAX));
-              strncpy(nfs_clientid->cb.client_r_netid,
+                      SOCK_NAME_MAX);
+              strlcpy(nfs_clientid->cb.client_r_netid,
                       arg_SETCLIENTID4.callback.cb_location.r_netid,
-                      strnlen(arg_SETCLIENTID4.callback.cb_location.r_netid,
-                              MAXNAMLEN));
+                      MAXNAMLEN);
 #endif
               /* program number */
               nfs_clientid->cb.program = arg_SETCLIENTID4.callback.cb_program;
@@ -270,30 +265,25 @@ retry:
       /* Client record did not exist, build the client record */
       nfs_clientid = &new_nfs_clientid;
       memset(nfs_clientid, 0, sizeof(nfs_client_id_t));
-      strncpy(nfs_clientid->client_name, arg_SETCLIENTID4.client.id.id_val,
+      strlcpy(nfs_clientid->client_name, arg_SETCLIENTID4.client.id.id_val,
               arg_SETCLIENTID4.client.id.id_len);
-      nfs_clientid->client_name[arg_SETCLIENTID4.client.id.id_len] = '\0';
 
 #ifdef _USE_NFS4_1
-      strncpy(nfs_clientid->cb.client_r_addr,
+      strlcpy(nfs_clientid->cb.client_r_addr,
               arg_SETCLIENTID4.callback.cb_location.na_r_addr,
-              strnlen(arg_SETCLIENTID4.callback.cb_location.na_r_addr,
-                      SOCK_NAME_MAX));
-      strncpy(nfs_clientid->cb.client_r_netid,
+              SOCK_NAME_MAX);
+      strlcpy(nfs_clientid->cb.client_r_netid,
               arg_SETCLIENTID4.callback.cb_location.na_r_netid,
-              strnlen(arg_SETCLIENTID4.callback.cb_location.na_r_netid,
-                      MAXNAMLEN));
+              MAXNAMLEN);
 #else
-      strncpy(nfs_clientid->cb.client_r_addr,
+      strlcpy(nfs_clientid->cb.client_r_addr,
               arg_SETCLIENTID4.callback.cb_location.r_addr,
-              strnlen(arg_SETCLIENTID4.callback.cb_location.r_addr,
-                      SOCK_NAME_MAX));
-      strncpy(nfs_clientid->cb.client_r_netid,
+              SOCK_NAME_MAX);
+      strlcpy(nfs_clientid->cb.client_r_netid,
               arg_SETCLIENTID4.callback.cb_location.r_netid,
-              strnlen(arg_SETCLIENTID4.callback.cb_location.r_netid,
-                      MAXNAMLEN));
+              MAXNAMLEN);
 #endif
-      strncpy(nfs_clientid->incoming_verifier, arg_SETCLIENTID4.client.verifier,
+      strlcpy(nfs_clientid->incoming_verifier, arg_SETCLIENTID4.client.verifier,
               NFS4_VERIFIER_SIZE);
       snprintf(nfs_clientid->verifier, NFS4_VERIFIER_SIZE, "%u",
                (unsigned int)ServerBootTime);
