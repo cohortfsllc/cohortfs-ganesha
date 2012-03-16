@@ -274,8 +274,6 @@ retry:
               arg_SETCLIENTID4.client.id.id_len);
       nfs_clientid->client_name[arg_SETCLIENTID4.client.id.id_len] = '\0';
 
-
-
 #ifdef _USE_NFS4_1
       strncpy(nfs_clientid->cb.client_r_addr,
               arg_SETCLIENTID4.callback.cb_location.na_r_addr,
