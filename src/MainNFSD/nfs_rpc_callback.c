@@ -46,6 +46,7 @@
 #include "nfs_core.h"
 #include "log.h"
 #include "nfs_rpc_callback.h"
+#include "nfs4.h"
 
 /**
  *
@@ -95,6 +96,68 @@ void nfs_rpc_cb_pkgshutdown(void)
     /* do nothing */
 }
 
+/* XXXX this is automatically redundant, but in fact upstream TI-RPC is
+ * not up-to-date with RFC 5665, will fix (Matt)
+ *
+ * (c) 2012, Linux Box Corp
+ */
+
+nc_type nfs_netid_to_nc(const char *netid)
+{
+    if (! strncmp(netid, netid_nc_table[_NC_TCP].netid,
+                  netid_nc_table[_NC_TCP].netid_len))
+        return(_NC_TCP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_TCP6].netid,
+                  netid_nc_table[_NC_TCP6].netid_len))
+        return(_NC_TCP6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_UDP].netid,
+                  netid_nc_table[_NC_UDP].netid_len))
+        return (_NC_UDP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_UDP6].netid,
+                  netid_nc_table[_NC_UDP6].netid_len))
+        return (_NC_UDP6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_RDMA].netid,
+                  netid_nc_table[_NC_RDMA].netid_len))
+        return (_NC_RDMA);
+
+    if (! strncmp(netid, netid_nc_table[_NC_RDMA6].netid,
+                 netid_nc_table[_NC_RDMA6].netid_len))
+        return (_NC_RDMA6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_SCTP].netid,
+                  netid_nc_table[_NC_SCTP].netid_len))
+        return (_NC_SCTP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_SCTP6].netid,
+                  netid_nc_table[_NC_SCTP6].netid_len))
+        return (_NC_SCTP6);
+
+    return (_NC_ERR);
+}
+
+#ifdef _USE_NFS4_1
+void nfs_set_client_addr(nfs_client_id_t *clid, const netaddr4 *addr4)
+{
+    clid->cb.addr.nc = nfs_netid_to_nc(addr4->na_r_netid);
+    memcpy(&clid->cb.addr.ss, addr4->na_r_addr,
+           sizeof(struct sockaddr_storage));
+}
+#else
+void nfs_set_client_addr(nfs_client_id_t *clid, const clientaddr4 *addr4)
+{
+
+    clid->cb.addr.nc = nfs_netid_to_nc(addr4->r_netid);
+    memcpy(&clid->cb.addr.ss, addr4->r_addr,
+           sizeof(struct sockaddr_storage));
+}
+#endif
+
+/* end TI-RPC */
+
 /* Create a channel for a new clientid (v4) or session, optionally
  * connecting it */
 int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
@@ -106,10 +169,10 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
     assert(! chan->clnt);
 
     chan->type = RPC_CHAN_V40;
-    chan->clnt = clnt_create(client->cb.client_r_addr,
+    chan->clnt = clnt_create((struct sockaddr *) &client->cb.addr.ss,
                              client->cb.program,
                              1 /* Errata ID: 2291 */,
-                             client->cb.client_r_netid);
+                             netid_nc_table[client->cb.addr.nc].netid);
 
     return (code);
 }

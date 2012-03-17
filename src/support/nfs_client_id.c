@@ -245,12 +245,13 @@ int display_client_id_val(hash_buffer_t * pbuff, char *str)
 
   precord = (nfs_client_id_t *) (pbuff->pdata);
 
+  /* XXX we could now use standard sockets conventions to decode addresses */
   return sprintf(str, "#%s#=>%llu cb_prog=%u r_addr=%s r_netid=%s",
                  precord->client_name,
                  (unsigned long long)precord->clientid,
                  precord->cb.program,
-                 precord->cb.client_r_addr,
-                 precord->cb.client_r_netid);
+                 (char *) &precord->cb.addr.ss,
+                 netid_nc_table[precord->cb.addr.nc].netid);
 }                               /* display_client_id_val */
 
 /**

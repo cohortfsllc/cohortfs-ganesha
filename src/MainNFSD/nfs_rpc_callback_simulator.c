@@ -143,7 +143,7 @@ cbsim_fake_cbrecall(clientid4 clientid)
     int32_t code = 0;
 
     LogDebug(COMPONENT_NFS_CB,
-             "called client %"PRIx64);
+             "called client %"PRIx64, clientid);
 
     return (code);
 }
