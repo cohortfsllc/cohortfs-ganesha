@@ -535,27 +535,27 @@ static const struct __netid_nc_table
 {
     const char *netid;
     int netid_len;
-    const nc_type nc; 
+    const nc_type nc;
+    int af;
 } 
     netid_nc_table[]  = 
 {
-    { "-",     2,   _NC_ERR    },
-    { "tcp",    3,  _NC_TCP    },
-    { "tcp6",   4,  _NC_TCP6   },
-    { "rdma",   4,  _NC_RDMA   },
-    { "rdma6",  5,  _NC_RDMA6  },
-    { "sctp",   4,  _NC_SCTP   },
-    { "sctp6",  5,  _NC_SCTP6  },
-    { "udp",    3,  _NC_UDP    },
-    { "udp6",   4,  _NC_UDP6   },
-    { NULL, 0                  }
+    { "-",      1,  _NC_ERR,    0         },
+    { "tcp",    3,  _NC_TCP,    AF_INET   },
+    { "tcp6",   4,  _NC_TCP6,   AF_INET6  },
+    { "rdma",   4,  _NC_RDMA,   AF_INET   },
+    { "rdma6",  5,  _NC_RDMA6,  AF_INET6  },
+    { "sctp",   4,  _NC_SCTP,   AF_INET   },
+    { "sctp6",  5,  _NC_SCTP6,  AF_INET6  },
+    { "udp",    3,  _NC_UDP,    AF_INET   },
+    { "udp6",   4,  _NC_UDP6,   AF_INET6  },
 };
 
 nc_type nfs_netid_to_nc(const char *netid);
 #ifdef _USE_NFS4_1
-void nfs_set_client_addr(nfs_client_id_t *clid, const netaddr4 *addr4);
+void nfs_set_client_location(nfs_client_id_t *clid, const netaddr4 *addr4);
 #else
-void nfs_set_client_addr(nfs_client_id_t *clid, const clientaddr4 *addr4);
+void nfs_set_client_location(nfs_client_id_t *clid, const clientaddr4 *addr4);
 #endif
 
 /* end TI-RPC */
@@ -583,11 +583,8 @@ struct nfs_client_id__
   pthread_mutex_t clientid_mutex;
   struct prealloc_pool *clientid_pool;
   struct {
-#if 0
-      char client_r_addr[SOCK_NAME_MAX];
-      char client_r_netid[MAXNAMLEN];
-#endif
-      gsh_addr_t addr;
+      char client_r_addr[SOCK_NAME_MAX]; /* supplied univ. address */
+      gsh_addr_t addr; 
       uint32_t program;
       union {
           struct {

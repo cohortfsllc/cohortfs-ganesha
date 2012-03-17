@@ -109,6 +109,9 @@ cbsim_test_bchan(clientid4 clientid)
     rpc_call_channel_t *chan;
     enum clnt_stat stat;
 
+    /* XXX */
+    HashTable_Print( ht_client_id );
+
     code  = nfs_client_id_Get_Pointer(clientid, &clid);
     if (code != CLIENT_ID_SUCCESS) {
         LogCrit(COMPONENT_NFS_CB,
@@ -124,6 +127,11 @@ cbsim_test_bchan(clientid4 clientid)
     chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
     if (! chan) {
         LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed");
+        goto out;
+    }
+
+    if (! chan->clnt) {
+        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed (no clnt)");
         goto out;
     }
 
@@ -156,7 +164,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    DBusMessageIter args;
    char *param;
    static uint32_t serial = 1;
-   clientid4 clientid = 2463; /* XXX ew! */
+   clientid4 clientid = 9286; /* XXX ew! */
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 

@@ -159,13 +159,11 @@ retry:
 #ifdef _USE_NFS4_1
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.na_r_netid =
                   (char *) netid_nc_table[nfs_clientid->cb.addr.nc].netid;
-
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.na_r_addr =
-                  (char *) &nfs_clientid->cb.addr.ss;
+                  nfs_clientid->cb.client_r_addr;
 #else
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.r_netid =
                   (char *) netid_nc_table[nfs_clientid->cb.addr.nc].netid;
-
               res_SETCLIENTID4.SETCLIENTID4res_u.client_using.r_addr =
                   nfs_clientid->cb.client_r_addr;
 #endif
@@ -220,8 +218,8 @@ retry:
                        nfs_clientid->client_name);
 
               /* update callback info */
-              nfs_set_client_addr(nfs_clientid, 
-                                  &arg_SETCLIENTID4.callback.cb_location);
+              nfs_set_client_location(nfs_clientid,
+                                      &arg_SETCLIENTID4.callback.cb_location);
 
               /* program number */
               nfs_clientid->cb.program = arg_SETCLIENTID4.callback.cb_program;
@@ -257,8 +255,10 @@ retry:
       memset(nfs_clientid, 0, sizeof(nfs_client_id_t));
       strlcpy(nfs_clientid->client_name, arg_SETCLIENTID4.client.id.id_val,
               arg_SETCLIENTID4.client.id.id_len);
-      nfs_set_client_addr(nfs_clientid, 
-                          &arg_SETCLIENTID4.callback.cb_location);
+
+      nfs_set_client_location(nfs_clientid,
+                              &arg_SETCLIENTID4.callback.cb_location);
+
       strlcpy(nfs_clientid->incoming_verifier, arg_SETCLIENTID4.client.verifier,
               NFS4_VERIFIER_SIZE);
       snprintf(nfs_clientid->verifier, NFS4_VERIFIER_SIZE, "%u",
