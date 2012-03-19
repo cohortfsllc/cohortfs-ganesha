@@ -2179,10 +2179,12 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
     }
 #endif
 
+     /* callback dispatch */
+     nfs_rpc_cb_pkginit();
 #ifdef _USE_CB_SIMULATOR
-
-#endif      /*  _USE_CB_SIMULATOR */
      nfs_rpc_cbsim_pkginit();
+#endif      /*  _USE_CB_SIMULATOR */
+
 }                               /* nfs_Init */
 
 /**

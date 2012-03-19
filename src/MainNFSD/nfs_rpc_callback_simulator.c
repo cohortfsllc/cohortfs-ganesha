@@ -145,13 +145,25 @@ out:
     return (code);
 }
 
+/*
+ * Demonstration callback invocation.
+ */
 static int32_t
 cbsim_fake_cbrecall(clientid4 clientid)
 {
     int32_t code = 0;
+    rpc_call_t *call;
 
     LogDebug(COMPONENT_NFS_CB,
-             "called client %"PRIx64, clientid);
+             "called with clientid %"PRIx64, clientid);
+
+    call = alloc_rpc_call();
+
+    /* setup a compound */
+    cb_compound_init(&call->cbt, 6, "brrring!!!", 10);
+    /* TODO:  add ops */
+    /* TODO:  set completion (free) hook */
+    /* TODO:  call it */
 
     return (code);
 }
