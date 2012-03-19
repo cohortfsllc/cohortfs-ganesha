@@ -363,8 +363,10 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
     switch (chan->type) {
     case RPC_CHAN_V40:
         /* channel has a dedicated RPC client */
-        if (chan->clnt)
-            clnt_destroy(chan->clnt);        
+        if (chan->clnt) {
+            clnt_destroy(chan->clnt);
+            chan->clnt = NULL;
+        }
         break;
     case RPC_CHAN_V41:
         /* XXX channel is shared */
