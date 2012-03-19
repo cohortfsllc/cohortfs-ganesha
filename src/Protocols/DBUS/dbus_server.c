@@ -275,6 +275,10 @@ void *gsh_dbus_thread(void *arg)
             continue;
 
         hk.name = (char *) dbus_message_get_path(msg);
+        if (! hk.name) {
+            LogDebug(COMPONENT_DBUS, "dbus_msg_get_path returned NULL");
+            continue;
+        }
         LogFullDebug(COMPONENT_DBUS, "recv msg: %s", hk.name);
         node = avltree_lookup(&hk.node_k, &thread_state.callouts);
         if (node) {

@@ -64,10 +64,12 @@ typedef struct nfs4_cb_tag
 /* CB compound tags */
 #define NFS4_CB_TAG_DEFAULT 0
 
-void cb_compound_init(nfs4_compound_t *cbt, uint32_t n_ops, char *tag,
-                      uint32_t tag_len);
+void cb_compound_init_v4(nfs4_compound_t *cbt, uint32_t n_ops, uint32_t ident,
+                         char *tag, uint32_t tag_len);
 
 void cb_compound_add_op(nfs4_compound_t *cbt, nfs_cb_argop4 *src);
+
+void cb_compound_free(nfs4_compound_t *cbt);
 
 #define NFS_CB_FLAG_NONE          0x0000
 #define NFS_RPC_FLAG_NONE         0x0000
@@ -98,6 +100,16 @@ static inline nfs_cb_argop4 * alloc_cb_argop(uint32_t cnt)
 static inline nfs_cb_resop4 * alloc_cb_resop(uint32_t cnt)
 {
     return ((nfs_cb_resop4 *) Mem_Alloc(cnt*sizeof(nfs_cb_resop4)));
+}
+
+static inline void free_cb_argop(nfs_cb_argop4 *ptr)
+{
+    Mem_Free(ptr);
+}
+
+static inline void free_cb_resop(nfs_cb_resop4 *ptr)
+{
+    Mem_Free(ptr);
 }
 
 rpc_call_channel_t *nfs_rpc_get_chan(nfs_client_id_t *client,
@@ -137,8 +149,7 @@ nfs_rpc_call_init(rpc_call_t call, uint32_t flags);
 #define NFS_RPC_CALL_BROADCAST     0x0002
 
 /* Submit rpc to be called on chan, optionally waiting for completion. */
-int32_t nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call,
-                            uint32_t flags);
+int32_t nfs_rpc_submit_call(rpc_call_t *call, uint32_t flags);
 
 /* Dispatch method to process a (queued) call */
 int32_t nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags);

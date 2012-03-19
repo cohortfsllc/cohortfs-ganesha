@@ -148,23 +148,113 @@ out:
 /*
  * Demonstration callback invocation.
  */
+static void cbsim_free_compound(nfs4_compound_t *cbt)
+{
+    int ix;
+    nfs_cb_argop4 *argop = NULL;
+
+    for (ix = 0; ix < cbt->v_u.v4.args.argarray.argarray_len; ++ix) {
+        argop = cbt->v_u.v4.args.argarray.argarray_val + ix;
+        if (argop) {
+            switch (argop->argop) {
+            case  NFS4_OP_CB_RECALL:
+                Mem_Free(argop->nfs_cb_argop4_u.opcbrecall.fh.nfs_fh4_val);
+                break;
+            default:
+                /* TODO:  ahem */
+                break;                
+            }
+        }
+    }
+
+    /* XXX general free (move ?) */
+    cb_compound_free(cbt);
+}
+
+static int32_t cbsim_completion_func(rpc_call_t* call, rpc_call_hook hook,
+                                     void* arg, uint32_t flags)
+{
+    LogDebug(COMPONENT_NFS_CB, "%p %s", call,
+             (hook == RPC_CALL_ABORT) ?
+             "RPC_CALL_ABORT" :
+             "RPC_CALL_COMPLETE");
+    switch (hook) {
+    case RPC_CALL_COMPLETE:
+        /* potentially, do something more interesting here */
+        LogDebug(COMPONENT_NFS_CB, "call result: %d", call->stat);
+        free_rpc_call(call);
+        break;
+    default:
+        LogDebug(COMPONENT_NFS_CB, "%p unknown hook %d", call, hook);
+        break;
+    }
+
+    return (0);
+}
+
 static int32_t
 cbsim_fake_cbrecall(clientid4 clientid)
 {
     int32_t code = 0;
+    nfs_client_id_t *clid = NULL;
+    rpc_call_channel_t *chan = NULL;
+    nfs_cb_argop4 argop[1];
     rpc_call_t *call;
 
     LogDebug(COMPONENT_NFS_CB,
              "called with clientid %"PRIx64, clientid);
 
+    code  = nfs_client_id_Get_Pointer(clientid, &clid);
+    if (code != CLIENT_ID_SUCCESS) {
+        LogCrit(COMPONENT_NFS_CB,
+                "No clid record for %"PRIx64" (%d) code %d", clientid,
+                (int32_t) clientid, code);
+        code = EINVAL;
+        goto out;
+    }
+
+    assert(clid);
+
+    chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
+    if (! chan) {
+        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed");
+        goto out;
+    }
+
+    if (! chan->clnt) {
+        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed (no clnt)");
+        goto out;
+    }
+
+    /* allocate a new call--freed in completion hook */
     call = alloc_rpc_call();
+    call->chan = chan;
 
     /* setup a compound */
-    cb_compound_init(&call->cbt, 6, "brrring!!!", 10);
-    /* TODO:  add ops */
-    /* TODO:  set completion (free) hook */
-    /* TODO:  call it */
+    cb_compound_init_v4(&call->cbt, 6, clid->cb.cb_u.v40.callback_ident,
+                        "brrring!!!", 10);
 
+    /* TODO: api-ify */
+    memset(argop, 0, sizeof(nfs_cb_argop4));
+    argop->argop = NFS4_OP_CB_RECALL;
+    argop->nfs_cb_argop4_u.opcbrecall.stateid.seqid = 0xdeadbeef;
+    strlcpy(argop->nfs_cb_argop4_u.opcbrecall.stateid.other,
+            "0xdeadbeef", 12);
+    argop->nfs_cb_argop4_u.opcbrecall.truncate = TRUE;
+    argop->nfs_cb_argop4_u.opcbrecall.fh.nfs_fh4_len = 11;
+    /* leaks, sorry */
+    argop->nfs_cb_argop4_u.opcbrecall.fh.nfs_fh4_val = Str_Dup("0xabadcafe");
+
+    /* add ops, till finished (dont exceed count) */
+    cb_compound_add_op(&call->cbt, argop);
+
+    /* set completion hook */
+    call->call_hook = cbsim_completion_func;
+
+    /* call it (here, in current thread context) */
+    code = nfs_rpc_submit_call(call, NFS_RPC_CALL_INLINE);
+
+out:
     return (code);
 }
 

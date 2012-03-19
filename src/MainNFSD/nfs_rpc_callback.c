@@ -420,12 +420,15 @@ static inline void RPC_CALL_HOOK(rpc_call_t *call, rpc_call_hook hook,
 }
 
 int32_t
-nfs_rpc_submit_call(rpc_call_channel_t *chan, rpc_call_t *call, uint32_t flags)
+nfs_rpc_submit_call(rpc_call_t *call, uint32_t flags)
 {
     int32_t code = 0;
     request_data_t *pnfsreq = NULL;
+    rpc_call_channel_t *chan = call->chan;
 
-    if (call->flags & NFS_RPC_CALL_INLINE) {
+    assert(chan);
+
+    if (flags & NFS_RPC_CALL_INLINE) {
         code = nfs_rpc_dispatch_call(call, NFS_RPC_CALL_NONE);
     }
     else {
