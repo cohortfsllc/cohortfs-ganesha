@@ -67,35 +67,65 @@
  */
 
 static DBusHandlerResult
-nfs_rpc_cbsim_method1(DBusConnection *conn, DBusMessage *msg,
+nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
                       void *user_data)
 {
-   DBusMessage* reply;
-   DBusMessageIter args;
-   char *param;
-   static uint32_t serial = 1;
+  DBusMessage* reply;
+  DBusMessageIter args;
+  char *param;
+  static uint32_t serial = 1;
+  int i;
 
-   LogDebug(COMPONENT_NFS_CB, "called!");
+  hash_table_t *ht = ht_client_id;
+  struct rbt_head *head_rbt;
+  hash_data_t *pdata = NULL;
+  struct rbt_node *pn;
+  nfs_client_id_t *clientp;
 
-   // read the arguments
-   if (!dbus_message_iter_init(msg, &args))
-       LogDebug(COMPONENT_DBUS, "message has no arguments"); 
-   else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args)) 
-       LogDebug(COMPONENT_DBUS, "arg not string"); 
-   else {
-       dbus_message_iter_get_basic(&args, &param);
-       LogDebug(COMPONENT_DBUS, "param: %s", param);
-   }
+  // read the arguments                                                                                                                                       
+  if (!dbus_message_iter_init(msg, &args))
+    LogDebug(COMPONENT_DBUS, "message has no arguments");
+  else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args))
+    LogDebug(COMPONENT_DBUS, "arg not string");
+  else {
+    dbus_message_iter_get_basic(&args, &param);
+    LogDebug(COMPONENT_DBUS, "param: %s", param);
+  }
 
-   // create a reply from the message
-   reply = dbus_message_new_method_return(msg);
-   // send the reply && flush the connection
-   if (!dbus_connection_send(conn, reply, &serial)) {
-       LogCrit(COMPONENT_DBUS, "reply failed"); 
-   }
-   dbus_connection_flush(conn);
-   dbus_message_unref(reply);
-   serial++;
+  // create a reply from the message                                                                                                                          
+  reply = dbus_message_new_method_return(msg);
+
+  /* For each bucket of the hashtable */
+  for(i = 0; i < ht->parameter.index_size; i++) {
+    head_rbt = &(ht->array_rbt[i]);
+
+    /* acquire mutex */
+    P_w(&(ht->array_lock[i]));
+    
+    /* go through all entries in the red-black-tree*/
+    RBT_LOOP(head_rbt, pn) {
+      pdata = RBT_OPAQ(pn);
+      
+      clientp =
+	(nfs_client_id_t *)pdata->buffval.pdata;
+      char *clientid = clientp->clientid;
+
+      dbus_message_append_args (reply,
+				DBUS_TYPE_INT64, &clientid,
+				DBUS_TYPE_INVALID);
+      
+      RBT_INCREMENT(pn);
+    }
+    V_w(&(ht->array_lock[i]));
+  }
+
+  // send the reply && flush the connection                                                                                                                   
+  if (!dbus_connection_send(conn, reply, &serial)) {
+    LogCrit(COMPONENT_DBUS, "reply failed");
+  }
+  dbus_connection_flush(conn);
+  dbus_message_unref(reply);
+  serial++;
 }
 
 /*
@@ -107,7 +137,7 @@ void nfs_rpc_cbsim_pkginit(void)
  
     int32_t code;
 
-    code = gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_method1);
+    code = gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_get_client_ids);
 
     return;
 }
@@ -119,4 +149,3 @@ void nfs_rpc_cbsim_pkgshutdown(void)
 {
 
 }
-
