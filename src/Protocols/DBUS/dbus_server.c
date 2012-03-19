@@ -274,7 +274,7 @@ void *gsh_dbus_thread(void *arg)
         if (! msg)
             continue;
 
-        hk.name = dbus_message_get_path(msg); /* XXX discards qualifiers */
+        hk.name = (char *) dbus_message_get_path(msg);
         LogFullDebug(COMPONENT_DBUS, "recv msg: %s", hk.name);
         node = avltree_lookup(&hk.node_k, &thread_state.callouts);
         if (node) {

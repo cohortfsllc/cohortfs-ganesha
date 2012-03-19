@@ -147,6 +147,8 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
     uint32_t bytes[10];
     int code;
 
+    memset(&clid->cb.addr.ss, 0, sizeof(struct sockaddr_storage));
+
     switch (clid->cb.addr.nc) {
     case _NC_TCP:
     case _NC_RDMA:
@@ -158,8 +160,6 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
                    &bytes[5], &bytes[6]) == 6) {
             struct sockaddr_in *sin =
                 (struct sockaddr_in *) &clid->cb.addr.ss;
-            sin->sin_family = AF_INET;
-            sin->sin_port = htons((bytes[5]<<8) | bytes[6]);
             snprintf(addr_buf, SOCK_NAME_MAX, "%u.%u.%u.%u",
                      bytes[1], bytes[2],
                      bytes[3], bytes[4]);
@@ -167,6 +167,9 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
             if (code != 1)
                 LogDebug(COMPONENT_NFS_CB, "inet_pton failed (%d %s)",
                          code, addr_buf);
+            sin->sin_family = AF_INET;
+            sin->sin_port = htons((bytes[5]<<8) | bytes[6]);
+
         }
         break;
     case _NC_TCP6:
@@ -184,9 +187,9 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
                      "%2x:%2x:%2x:%2x:%2x:%2x:%2x:%2x",
                      bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
                      bytes[6], bytes[7], bytes[8]);
+            code = inet_pton(AF_INET6, addr_buf, &sin6->sin6_addr);
             sin6->sin6_port = htons((bytes[9]<<8) | bytes[10]);
             sin6->sin6_family = AF_INET6;
-            code = inet_pton(AF_INET6, addr_buf, &sin6->sin6_addr);
             if (code != 1)
                 LogDebug(COMPONENT_NFS_CB, "inet_pton failed (%d %s)",
                          code, addr_buf);
@@ -222,7 +225,7 @@ nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
     struct sockaddr_in *sin;
     struct sockaddr_in6 *sin6;
     char hostbuf[SOCK_NAME_MAX], *host;
-    int nfd, nproto, code = 0;
+    int nfd, code = 0;
 
     *fd = 0;
     *proto = -1;
@@ -230,6 +233,7 @@ nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
     switch (clid->cb.addr.ss.ss_family) {
     case AF_INET:
         sin = (struct sockaddr_in *) &clid->cb.addr.ss;
+        sin->sin_family = AF_INET;
         host = (char*) inet_ntop(AF_INET, &sin->sin_addr, hostbuf,
                                  SOCK_NAME_MAX);
         LogDebug(COMPONENT_NFS_CB, "inet_ntop host %s %d %d", host,
@@ -249,7 +253,8 @@ nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
             goto out;
             break;
         }
-        code = connect(nfd, (struct sockaddr *) &sin->sin_addr,
+
+        code = connect(nfd, (struct sockaddr *) sin,
                        sizeof(struct sockaddr_in));
         if (code == -1) {
             LogDebug(COMPONENT_NFS_CB, "connect fail errno %d", errno);
@@ -259,6 +264,7 @@ nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
         break;
     case AF_INET6:
         sin6 = (struct sockaddr_in6 *) &clid->cb.addr.ss;
+        sin6->sin6_family = AF_INET6;
         host = (char *) inet_ntop(AF_INET6, &sin6->sin6_addr, hostbuf,
                                   SOCK_NAME_MAX);
         LogDebug(COMPONENT_NFS_CB, "inet_ntop host %s %d %d", host,
@@ -277,7 +283,7 @@ nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
             goto out;
             break;
         }
-        code = connect(nfd, (struct sockaddr *) &sin6->sin6_addr,
+        code = connect(nfd, (struct sockaddr *) sin6,
                        sizeof(struct sockaddr_in6));
         if (code == -1) {
             LogDebug(COMPONENT_NFS_CB, "connect fail errno %d", errno);
