@@ -480,7 +480,7 @@ typedef struct _rpc_call rpc_call_t;
 typedef int32_t (*rpc_call_func)(rpc_call_t*, rpc_call_hook hook, void*,
     uint32_t flags);
 
-typedef struct _rpc_call
+struct _rpc_call
 {
     rpc_call_channel_t *chan;
     rpc_call_func call_hook;
@@ -512,6 +512,61 @@ typedef struct request_data__
    } r_u ;
 } request_data_t ;
 
+/* XXXX this is automatically redundant, but in fact upstream TI-RPC is
+ * not up-to-date with RFC 5665, will fix (Matt)
+ *
+ * (c) 2012, Linux Box Corp
+*/
+enum rfc_5665_nc_type
+{
+    _NC_ERR,
+    _NC_TCP,
+    _NC_TCP6,
+    _NC_RDMA,
+    _NC_RDMA6,
+    _NC_SCTP,
+    _NC_SCTP6,
+    _NC_UDP,
+    _NC_UDP6,
+};
+typedef enum rfc_5665_nc_type nc_type;
+
+static const struct __netid_nc_table
+{
+    const char *netid;
+    int netid_len;
+    const nc_type nc;
+    int af;
+} 
+    netid_nc_table[]  = 
+{
+    { "-",      1,  _NC_ERR,    0         },
+    { "tcp",    3,  _NC_TCP,    AF_INET   },
+    { "tcp6",   4,  _NC_TCP6,   AF_INET6  },
+    { "rdma",   4,  _NC_RDMA,   AF_INET   },
+    { "rdma6",  5,  _NC_RDMA6,  AF_INET6  },
+    { "sctp",   4,  _NC_SCTP,   AF_INET   },
+    { "sctp6",  5,  _NC_SCTP6,  AF_INET6  },
+    { "udp",    3,  _NC_UDP,    AF_INET   },
+    { "udp6",   4,  _NC_UDP6,   AF_INET6  },
+};
+
+nc_type nfs_netid_to_nc(const char *netid);
+#ifdef _USE_NFS4_1
+void nfs_set_client_location(nfs_client_id_t *clid, const netaddr4 *addr4);
+#else
+void nfs_set_client_location(nfs_client_id_t *clid, const clientaddr4 *addr4);
+#endif
+
+/* end TI-RPC */
+
+typedef struct gsh_addr
+{
+    nc_type nc;
+    struct sockaddr_storage ss;
+    uint32_t port;
+} gsh_addr_t;
+
 struct nfs_client_id__
 {
   char client_name[NFS4_MAX_DOMAIN_LEN];
@@ -528,8 +583,8 @@ struct nfs_client_id__
   pthread_mutex_t clientid_mutex;
   struct prealloc_pool *clientid_pool;
   struct {
-      char client_r_addr[SOCK_NAME_MAX];
-      char client_r_netid[MAXNAMLEN];
+      char client_r_addr[SOCK_NAME_MAX]; /* supplied univ. address */
+      gsh_addr_t addr; 
       uint32_t program;
       union {
           struct {

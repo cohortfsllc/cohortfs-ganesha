@@ -40,12 +40,14 @@
 #include <time.h>
 #include <pthread.h>
 #include <assert.h>
+#include <arpa/inet.h>
 #include "stuff_alloc.h"
 #include "nlm_list.h"
 #include "fsal.h"
 #include "nfs_core.h"
 #include "log.h"
 #include "nfs_rpc_callback.h"
+#include "nfs4.h"
 
 /**
  *
@@ -95,23 +97,267 @@ void nfs_rpc_cb_pkgshutdown(void)
     /* do nothing */
 }
 
+/* XXXX this is automatically redundant, but in fact upstream TI-RPC is
+ * not up-to-date with RFC 5665, will fix (Matt)
+ *
+ * (c) 2012, Linux Box Corp
+ */
+
+nc_type nfs_netid_to_nc(const char *netid)
+{
+    if (! strncmp(netid, netid_nc_table[_NC_TCP].netid,
+                  netid_nc_table[_NC_TCP].netid_len))
+        return(_NC_TCP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_TCP6].netid,
+                  netid_nc_table[_NC_TCP6].netid_len))
+        return(_NC_TCP6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_UDP].netid,
+                  netid_nc_table[_NC_UDP].netid_len))
+        return (_NC_UDP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_UDP6].netid,
+                  netid_nc_table[_NC_UDP6].netid_len))
+        return (_NC_UDP6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_RDMA].netid,
+                  netid_nc_table[_NC_RDMA].netid_len))
+        return (_NC_RDMA);
+
+    if (! strncmp(netid, netid_nc_table[_NC_RDMA6].netid,
+                 netid_nc_table[_NC_RDMA6].netid_len))
+        return (_NC_RDMA6);
+
+    if (! strncmp(netid, netid_nc_table[_NC_SCTP].netid,
+                  netid_nc_table[_NC_SCTP].netid_len))
+        return (_NC_SCTP);
+
+    if (! strncmp(netid, netid_nc_table[_NC_SCTP6].netid,
+                  netid_nc_table[_NC_SCTP6].netid_len))
+        return (_NC_SCTP6);
+
+    return (_NC_ERR);
+}
+
+static inline void
+setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
+{
+    char addr_buf[SOCK_NAME_MAX];
+    uint32_t bytes[10];
+    int code;
+
+    memset(&clid->cb.addr.ss, 0, sizeof(struct sockaddr_storage));
+
+    switch (clid->cb.addr.nc) {
+    case _NC_TCP:
+    case _NC_RDMA:
+    case _NC_SCTP:
+    case _NC_UDP:
+        /* IPv4 (ws inspired) */
+        if (sscanf(uaddr, "%u.%u.%u.%u.%u.%u",
+                   &bytes[1], &bytes[2], &bytes[3], &bytes[4],
+                   &bytes[5], &bytes[6]) == 6) {
+            struct sockaddr_in *sin =
+                (struct sockaddr_in *) &clid->cb.addr.ss;
+            snprintf(addr_buf, SOCK_NAME_MAX, "%u.%u.%u.%u",
+                     bytes[1], bytes[2],
+                     bytes[3], bytes[4]);
+            code = inet_pton(AF_INET, addr_buf, &sin->sin_addr);
+            if (code != 1)
+                LogDebug(COMPONENT_NFS_CB, "inet_pton failed (%d %s)",
+                         code, addr_buf);
+            sin->sin_family = AF_INET;
+            sin->sin_port = htons((bytes[5]<<8) | bytes[6]);
+
+        }
+        break;
+    case _NC_TCP6:
+    case _NC_RDMA6:
+    case _NC_SCTP6:
+    case _NC_UDP6:
+        /* IPv6 (ws inspired) */
+        if (sscanf(uaddr, "%2x:%2x:%2x:%2x:%2x:%2x:%2x:%2x.%u.%u",
+                   &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5],
+                   &bytes[6], &bytes[7], &bytes[8],
+                   &bytes[9], &bytes[10]) == 10) {
+            struct sockaddr_in6 *sin6 =
+                (struct sockaddr_in6 *) &clid->cb.addr.ss;
+            snprintf(addr_buf, SOCK_NAME_MAX,
+                     "%2x:%2x:%2x:%2x:%2x:%2x:%2x:%2x",
+                     bytes[1], bytes[2], bytes[3], bytes[4], bytes[5],
+                     bytes[6], bytes[7], bytes[8]);
+            code = inet_pton(AF_INET6, addr_buf, &sin6->sin6_addr);
+            sin6->sin6_port = htons((bytes[9]<<8) | bytes[10]);
+            sin6->sin6_family = AF_INET6;
+            if (code != 1)
+                LogDebug(COMPONENT_NFS_CB, "inet_pton failed (%d %s)",
+                         code, addr_buf);
+        }
+        break;
+    default:
+        /* unknown netid */
+        break;
+    };
+}
+
+#ifdef _USE_NFS4_1
+void nfs_set_client_location(nfs_client_id_t *clid, const netaddr4 *addr4)
+{
+    clid->cb.addr.nc = nfs_netid_to_nc(addr4->na_r_netid);
+    strlcpy(clid->cb.client_r_addr, addr4->na_r_addr,
+            SOCK_NAME_MAX);
+    setup_client_saddr(clid, clid->cb.client_r_addr);
+}
+#else
+void nfs_set_client_location(nfs_client_id_t *clid, const clientaddr4 *addr4)
+{
+    clid->cb.addr.nc = nfs_netid_to_nc(addr4->r_netid);
+    strlcpy(nfs_clientid->cb.client_r_addr, addr4->r_addr,
+            SOCK_NAME_MAX);
+    setup_client_saddr(clid, clid->cb.client_r_addr);
+}
+#endif
+
+static inline int32_t
+nfs_clid_connected_socket(nfs_client_id_t *clid, int *fd, int *proto)
+{
+    struct sockaddr_in *sin;
+    struct sockaddr_in6 *sin6;
+    char hostbuf[SOCK_NAME_MAX], *host;
+    int nfd, code = 0;
+
+    *fd = 0;
+    *proto = -1;
+
+    switch (clid->cb.addr.ss.ss_family) {
+    case AF_INET:
+        sin = (struct sockaddr_in *) &clid->cb.addr.ss;
+        sin->sin_family = AF_INET;
+        host = (char*) inet_ntop(AF_INET, &sin->sin_addr, hostbuf,
+                                 SOCK_NAME_MAX);
+        LogDebug(COMPONENT_NFS_CB, "inet_ntop host %s %d %d", host,
+                 sin->sin_port, ntohs(sin->sin_port));
+
+        switch (clid->cb.addr.nc) {
+        case _NC_TCP:
+            nfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+            *proto = IPPROTO_TCP;
+            break;
+        case _NC_UDP:
+            nfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+            *proto = IPPROTO_UDP;
+            break;
+        default:
+            code = EINVAL;
+            goto out;
+            break;
+        }
+
+        code = connect(nfd, (struct sockaddr *) sin,
+                       sizeof(struct sockaddr_in));
+        if (code == -1) {
+            LogDebug(COMPONENT_NFS_CB, "connect fail errno %d", errno);
+            goto out;
+        }
+        *fd = nfd;
+        break;
+    case AF_INET6:
+        sin6 = (struct sockaddr_in6 *) &clid->cb.addr.ss;
+        sin6->sin6_family = AF_INET6;
+        host = (char *) inet_ntop(AF_INET6, &sin6->sin6_addr, hostbuf,
+                                  SOCK_NAME_MAX);
+        LogDebug(COMPONENT_NFS_CB, "inet_ntop host %s %d %d", host,
+                 sin6->sin6_port, ntohs(sin6->sin6_port));
+        switch (clid->cb.addr.nc) {
+        case _NC_TCP6:
+            nfd = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
+            *proto = IPPROTO_TCP;
+            break;
+        case _NC_UDP6:
+            nfd = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+            *proto = IPPROTO_UDP;
+            break;
+        default:
+            code = EINVAL;
+            goto out;
+            break;
+        }
+        code = connect(nfd, (struct sockaddr *) sin6,
+                       sizeof(struct sockaddr_in6));
+        if (code == -1) {
+            LogDebug(COMPONENT_NFS_CB, "connect fail errno %d", errno);
+            goto out;
+        }
+        *fd = nfd;
+        break;
+    default:
+        code = EINVAL;
+        break;
+    }
+
+out:
+    return (code);
+}
+
+/* end TI-RPC */
+
 /* Create a channel for a new clientid (v4) or session, optionally
  * connecting it */
 int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
                             uint32_t flags)
 {
-    int code = 0;
+    struct netbuf raddr;
+    int fd, proto, code = 0;
     rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
 
     assert(! chan->clnt);
-
     chan->type = RPC_CHAN_V40;
-    chan->clnt = clnt_create(client->cb.client_r_addr,
-                             client->cb.program,
-                             1 /* Errata ID: 2291 */,
-                             client->cb.client_r_netid);
+    code = nfs_clid_connected_socket(client, &fd, &proto);
+    if (code) {
+        LogDebug(COMPONENT_NFS_CB,
+                 "Failed creating socket");
+        goto out;
+    }
 
+    raddr.buf = &client->cb.addr.ss;
+
+    switch (proto) {
+    case IPPROTO_TCP:
+        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in);
+        chan->clnt = clnt_vc_create(fd,
+                                    &raddr,
+                                    client->cb.program,
+                                    1 /* Errata ID: 2291 */,
+                                    0, 0);
+        break;
+    case IPPROTO_UDP:
+        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in6);
+        chan->clnt = clnt_dg_create(fd,
+                                    &raddr,
+                                    client->cb.program,
+                                    1 /* Errata ID: 2291 */,
+                                    0, 0);
+        break;
+    default:
+        break;
+    }
+
+out:
     return (code);
+}
+
+rpc_call_channel_t *
+nfs_rpc_get_chan(nfs_client_id_t *client, uint32_t flags)
+{
+    /* XXX v41 */
+    rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
+
+    if (! chan->clnt) {
+        nfs_rpc_create_chan_v40(client, flags);
+    }
+
+    return (chan);
 }
 
 /* Dispose a channel. */
@@ -140,12 +386,11 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
  * Call the NFSv4 client's CB_NULL procedure.
  */
 enum clnt_stat
-rpc_cb_null(rpc_call_channel_t *chan)
+rpc_cb_null(rpc_call_channel_t *chan, struct timeval timeout)
 {
-    struct timeval CB_TIMEOUT = {15, 0};
-
     return (clnt_call(chan->clnt, CB_NULL, (xdrproc_t) xdr_void, NULL,
-		      (xdrproc_t) xdr_void, NULL, CB_TIMEOUT));
+		      (xdrproc_t) xdr_void, NULL,
+                      timeout));
 }
 
 static inline void free_argop(nfs_cb_argop4 *op)

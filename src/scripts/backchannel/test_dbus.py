@@ -12,10 +12,10 @@ bus = dbus.SessionBus()
 
 # Create an object that will proxy for a particular remote object.
 cbsim = bus.get_object("org.ganesha.nfsd",
-                       "/org/ganesha/nfsd/CBSIM")
+                       "/org/ganesha/nfsd/MATT1")
 
 #print cbsim.Introspect()
 
 # call method
-method1 = cbsim.get_dbus_method('method1')
-print method1('GETCLIENTIDS')
+method2 = cbsim.get_dbus_method('method2')
+print method2('MaGiC')

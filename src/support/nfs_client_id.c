@@ -250,7 +250,7 @@ int display_client_id_val(hash_buffer_t * pbuff, char *str)
                  (unsigned long long)precord->clientid,
                  precord->cb.program,
                  precord->cb.client_r_addr,
-                 precord->cb.client_r_netid);
+                 netid_nc_table[precord->cb.addr.nc].netid);
 }                               /* display_client_id_val */
 
 /**
