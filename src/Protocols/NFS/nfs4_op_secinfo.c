@@ -93,10 +93,23 @@ int nfs4_op_secinfo(struct nfs_argop4 *op,
       return res_SECINFO4.status;
     }
 
-  /* For the moment, we just have AUTH_NONE and AUTH_UNIX, and this needs no secinfo */
-  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_val[0].flavor = AUTH_UNIX;
-  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_val[1].flavor = AUTH_NONE;
-  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_len = 2;
+  /* XXX we have the opportunity to associate a preferred security triple
+   * with a specific fs/export.  For now, list all implemented. */
+  {
+      secinfo4 *secinfo =
+          &res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_val[0];
+      /* previously we omitted RPCSEC_GSS, I think the explicit equivalent
+       * is the following: */
+      secinfo->flavor = RPCSEC_GSS;
+      memcpy(secinfo->secinfo4_u.flavor_info.oid.sec_oid4_val,
+             (char *) &krb5oid, sizeof(krb5oid));
+      secinfo->secinfo4_u.flavor_info.oid.sec_oid4_len = sizeof(krb5oid);
+      secinfo->secinfo4_u.flavor_info.qop = GSS_C_QOP_DEFAULT;
+      secinfo->secinfo4_u.flavor_info.service = RPCSEC_GSS_SVC_NONE;
+  }
+  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_val[1].flavor = AUTH_UNIX;
+  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_val[2].flavor = AUTH_NONE;
+  res_SECINFO4.SECINFO4res_u.resok4.SECINFO4resok_len = 3;
 
   return res_SECINFO4.status;
 }                               /* nfs4_op_secinfo */

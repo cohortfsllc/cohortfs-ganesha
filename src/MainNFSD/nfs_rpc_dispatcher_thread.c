@@ -636,27 +636,27 @@ void nfs_Init_svc()
   /* Acquire RPCSEC_GSS basis if needed */
   if(nfs_param.krb5_param.active_krb5 == TRUE)
     {
-      if(Svcauth_gss_import_name(nfs_param.krb5_param.principal) != TRUE)
+      if(Svcauth_gss_import_name(nfs_param.krb5_param.svc.principal) != TRUE)
         {
           LogFatal(COMPONENT_DISPATCH,
                    "Could not import principal name %s into GSSAPI",
-                   nfs_param.krb5_param.principal);
+                   nfs_param.krb5_param.svc.principal);
         }
       else
         {
           LogInfo(COMPONENT_DISPATCH,
                   "Successfully imported principal %s into GSSAPI",
-                  nfs_param.krb5_param.principal);
+                  nfs_param.krb5_param.svc.principal);
 
           /* Trying to acquire a credentials for checking name's validity */
           if(!Svcauth_gss_acquire_cred())
             LogFatal(COMPONENT_DISPATCH,
                      "Cannot acquire credentials for principal %s",
-                     nfs_param.krb5_param.principal);
+                     nfs_param.krb5_param.svc.principal);
           else
             LogInfo(COMPONENT_DISPATCH,
                     "Principal %s is suitable for acquiring credentials",
-                    nfs_param.krb5_param.principal);
+                    nfs_param.krb5_param.svc.principal);
         }
     }
 #endif                          /* _HAVE_GSSAPI */

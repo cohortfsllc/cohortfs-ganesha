@@ -293,46 +293,84 @@ out:
     return (code);
 }
 
-/* end TI-RPC */
+/* end refactorable RPC code */
 
-/* Create a channel for a new clientid (v4) or session, optionally
- * connecting it */
-int nfs_rpc_create_chan_v40(nfs_client_id_t *client,
-                            uint32_t flags)
+static inline bool_t
+supported_auth_flavor(int flavor)
 {
-    struct netbuf raddr;
-    int fd, proto, code = 0;
-    rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
+    bool_t code = FALSE;
 
-    assert(! chan->clnt);
-    chan->type = RPC_CHAN_V40;
-    code = nfs_clid_connected_socket(client, &fd, &proto);
-    if (code) {
-        LogDebug(COMPONENT_NFS_CB,
-                 "Failed creating socket");
-        goto out;
-    }
-
-    raddr.buf = &client->cb.addr.ss;
-
-    switch (proto) {
-    case IPPROTO_TCP:
-        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in);
-        chan->clnt = clnt_vc_create(fd,
-                                    &raddr,
-                                    client->cb.program,
-                                    1 /* Errata ID: 2291 */,
-                                    0, 0);
+    switch (flavor) {
+    case RPCSEC_GSS:
+    case AUTH_SYS:
+    case AUTH_NONE:
+        code = TRUE;
         break;
-    case IPPROTO_UDP:
-        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in6);
-        chan->clnt = clnt_dg_create(fd,
-                                    &raddr,
-                                    client->cb.program,
-                                    1 /* Errata ID: 2291 */,
-                                    0, 0);
+    default:        
+        break;
+    };
+
+    return (code);
+}
+
+/* from kerberos source, gssapi_krb5.c (Umich) */
+gss_OID_desc krb5oid =
+   {9, "\052\206\110\206\367\022\001\002\002"};
+
+static inline void
+nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
+                           nfs_client_cred_t *cred)
+{
+    assert(cred->flavor == RPCSEC_GSS);
+
+    /* MUST RFC 3530bis, section 3.3.3 */
+    chan->gss_sec.svc = cred->auth_union.auth_gss.svc;
+    chan->gss_sec.qop = cred->auth_union.auth_gss.qop;
+
+    chan->gss_sec.cred = GSS_C_NO_CREDENTIAL;
+    chan->gss_sec.req_flags = 0;
+
+    if (chan->gss_sec.svc != RPCSEC_GSS_SVC_NONE) {
+        /* no more lipkey, spkm3 */
+        chan->gss_sec.mech = (gss_OID) &krb5oid;
+        chan->gss_sec.svc = RPCSEC_GSS_SVC_INTEGRITY;
+        chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
+
+        chan->clnt->cl_auth = 
+            authgss_create_default(chan->clnt,
+                                   nfs_param.krb5_param.svc.gss_name,
+                                   &chan->gss_sec);
+    }
+}
+
+static inline bool_t
+nfs_rpc_callback_seccreate(rpc_call_channel_t *chan)
+{
+    nfs_client_cred_t *credential;
+    bool_t code = TRUE;
+
+    switch (chan->type) {
+    case RPC_CHAN_V40:
+        assert(&chan->nvu.v40.nfs_client);
+        credential = &chan->nvu.v40.nfs_client->credential;
+        break;
+    case RPC_CHAN_V41:
+        /* XXX implement */
+        goto out;
+        break;
+    }
+    
+    switch (credential->flavor) {
+    case RPCSEC_GSS:
+        nfs_rpc_callback_setup_gss(chan, credential);
+        break;
+    case AUTH_SYS:
+        /* XXX implement */
+        break;
+    case AUTH_NONE:
         break;
     default:
+        /* XXX prevented by forward check */
         break;
     }
 
@@ -340,14 +378,79 @@ out:
     return (code);
 }
 
-rpc_call_channel_t *
-nfs_rpc_get_chan(nfs_client_id_t *client, uint32_t flags)
+/* Create a channel for a new clientid (v4) or session, optionally
+ * connecting it */
+int nfs_rpc_create_chan_v40(nfs_client_id_t *clid,
+                            uint32_t flags)
 {
-    /* XXX v41 */
-    rpc_call_channel_t *chan = &client->cb.cb_u.v40.chan;
+    struct netbuf raddr;
+    int fd, proto, code = 0;
+    rpc_call_channel_t *chan = &clid->cb.cb_u.v40.chan;
+
+    assert(! chan->clnt);
+
+    /* XXX we MUST error RFC 3530bis, sec. 3.3.3 */
+    if (! supported_auth_flavor(clid->credential.flavor)) {
+        code = EINVAL;
+        goto out;
+    }
+
+    chan->type = RPC_CHAN_V40;
+    chan->nvu.v40.nfs_client = clid;
+
+    code = nfs_clid_connected_socket(clid, &fd, &proto);
+    if (code) {
+        LogDebug(COMPONENT_NFS_CB,
+                 "Failed creating socket");
+        goto out;
+    }
+
+    raddr.buf = &clid->cb.addr.ss;
+
+    switch (proto) {
+    case IPPROTO_TCP:
+        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in);
+        chan->clnt = clnt_vc_create(fd,
+                                    &raddr,
+                                    clid->cb.program,
+                                    1 /* Errata ID: 2291 */,
+                                    0, 0);
+        break;
+    case IPPROTO_UDP:
+        raddr.maxlen = raddr.len = sizeof(struct sockaddr_in6);
+        chan->clnt = clnt_dg_create(fd,
+                                    &raddr,
+                                    clid->cb.program,
+                                    1 /* Errata ID: 2291 */,
+                                    0, 0);
+        break;
+    default:
+        break;
+    }
 
     if (! chan->clnt) {
-        nfs_rpc_create_chan_v40(client, flags);
+        code = EINVAL;
+        goto out;
+    }
+
+    /* channel protection */
+    if (! nfs_rpc_callback_seccreate(chan)) {
+        /* XXX */
+        code = EINVAL;
+    }
+
+out:
+    return (code);
+}
+
+rpc_call_channel_t *
+nfs_rpc_get_chan(nfs_client_id_t *clid, uint32_t flags)
+{
+    /* XXX v41 */
+    rpc_call_channel_t *chan = &clid->cb.cb_u.v40.chan;
+
+    if (! chan->clnt) {
+        nfs_rpc_create_chan_v40(clid, flags);
     }
 
     return (chan);
