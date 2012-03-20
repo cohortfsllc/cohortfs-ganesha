@@ -171,7 +171,7 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
                          code, addr_buf);
             else
                 LogDebug(COMPONENT_NFS_CB, "client callback addr:port %s:%d",
-                         addr_buf, sin->sin_port);
+                         addr_buf, ntohs(sin->sin_port));
         }
         break;
     case _NC_TCP6:
@@ -197,7 +197,7 @@ setup_client_saddr(nfs_client_id_t *clid, const char *uaddr)
                          code, addr_buf);
             else
                 LogDebug(COMPONENT_NFS_CB, "client callback addr:port %s:%d",
-                         addr_buf, sin6->sin6_port);
+                         addr_buf, ntohs(sin6->sin6_port));
         }
         break;
     default:
@@ -570,6 +570,14 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
 
     /* send the call, set states, wake waiters, etc */
     pthread_mutex_lock(&call->we.mtx);
+
+    switch (call->states) {
+    case NFS_CB_CALL_DISPATCH:
+    case NFS_CB_CALL_FINISHED:
+        /* XXX invalid entry states for nfs_rpc_dispatch_call */
+        abort();
+    }
+
     call->states = NFS_CB_CALL_DISPATCH;
     pthread_mutex_unlock(&call->we.mtx);
 
