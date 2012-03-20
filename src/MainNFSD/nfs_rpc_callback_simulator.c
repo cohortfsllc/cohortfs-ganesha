@@ -280,7 +280,8 @@ cbsim_fake_cbrecall(clientid4 clientid)
     call->call_hook = cbsim_completion_func;
 
     /* call it (here, in current thread context) */
-    code = nfs_rpc_submit_call(call, NFS_RPC_CALL_INLINE);
+    code = nfs_rpc_submit_call(call,
+                               NFS_RPC_FLAG_NONE /* NFS_RPC_CALL_INLINE */);
 
 out:
     return (code);
@@ -294,7 +295,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    DBusMessageIter args;
    char *param;
    static uint32_t serial = 1;
-   clientid4 clientid = 9286; /* XXX ew! */
+   clientid4 clientid = 9286 /* 9315 */; /* XXX ew! */
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 
