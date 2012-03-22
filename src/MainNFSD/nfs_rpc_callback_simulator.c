@@ -75,12 +75,15 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
   char *param;
   static uint32_t serial = 1;
   int i;
+  int client_count;
 
   hash_table_t *ht = ht_client_id;
   struct rbt_head *head_rbt;
   hash_data_t *pdata = NULL;
   struct rbt_node *pn;
   nfs_client_id_t *clientp;
+
+  DBusMessageIter iter, sub_iter;
 
   // read the arguments                                                                                                                                       
   if (!dbus_message_iter_init(msg, &args))
@@ -94,6 +97,8 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 
   // create a reply from the message                                                                                                                          
   reply = dbus_message_new_method_return(msg);
+  dbus_message_iter_init_append(reply, &iter);
+  dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, DBUS_TYPE_UINT64_AS_STRING, &sub_iter);
 
   /* For each bucket of the hashtable */
   for(i = 0; i < ht->parameter.index_size; i++) {
@@ -101,6 +106,8 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 
     /* acquire mutex */
     P_w(&(ht->array_lock[i]));
+
+    client_count = RBT_COUNT(head_rbt);
     
     /* go through all entries in the red-black-tree*/
     RBT_LOOP(head_rbt, pn) {
@@ -110,14 +117,14 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 	(nfs_client_id_t *)pdata->buffval.pdata;
       char *clientid = clientp->clientid;
 
-      dbus_message_append_args (reply,
-				DBUS_TYPE_INT64, &clientid,
-				DBUS_TYPE_INVALID);
+      dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_UINT64, &clientid);
       
       RBT_INCREMENT(pn);
     }
     V_w(&(ht->array_lock[i]));
   }
+
+  dbus_message_iter_close_container(&iter, &sub_iter);
 
   // send the reply && flush the connection                                                                                                                   
   if (!dbus_connection_send(conn, reply, &serial)) {
