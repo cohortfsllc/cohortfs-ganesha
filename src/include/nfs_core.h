@@ -454,8 +454,8 @@ typedef struct rpc_call_channel
         } v40;
     } nvu;
     time_t last_called;
-    /* XXX call vector */
     CLIENT *clnt;
+    struct rpc_gss_sec gss_sec;
 } rpc_call_channel_t;
 
 typedef struct __nfs4_compound {
@@ -479,6 +479,8 @@ typedef struct _rpc_call rpc_call_t;
 
 typedef int32_t (*rpc_call_func)(rpc_call_t* call, rpc_call_hook hook,
                                  void* arg, uint32_t flags);
+
+extern gss_OID_desc krb5oid;
 
 struct _rpc_call
 {

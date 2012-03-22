@@ -123,8 +123,15 @@ struct svc_rpc_gss_data
 
 typedef struct nfs_krb5_param__
 {
-  char principal[MAXPATHLEN];
   char keytab[MAXPATHLEN];
+    /* XXX representation of GSSAPI service, independent of
+     * GSSRPC or TI-RPC global variables.  Initially, use it just
+     * for callbacks (but eventually, the RPC layer should be as
+     * flexible for services as for clients (Matt). */
+  struct {
+      char principal[MAXPATHLEN];
+      gss_name_t gss_name;
+  } svc;
   bool_t active_krb5;
   hash_parameter_t hash_param;
 } nfs_krb5_parameter_t;
