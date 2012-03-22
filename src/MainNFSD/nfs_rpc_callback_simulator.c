@@ -106,8 +106,6 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 
     /* acquire mutex */
     P_w(&(ht->array_lock[i]));
-
-    client_count = RBT_COUNT(head_rbt);
     
     /* go through all entries in the red-black-tree*/
     RBT_LOOP(head_rbt, pn) {
