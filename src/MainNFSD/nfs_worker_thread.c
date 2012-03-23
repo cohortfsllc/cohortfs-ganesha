@@ -1720,12 +1720,20 @@ void DispatchWorkNFS(request_data_t *pnfsreq, unsigned int worker_index)
 {
   LRU_entry_t *pentry = NULL;
   LRU_status_t status;
-  struct svc_req *ptr_req = &pnfsreq->r_u.nfs.req;
-  unsigned int rpcxid = get_rpc_xid(ptr_req);
+  struct svc_req *ptr_req = NULL;
+  unsigned int rpcxid = 0;
+
+  switch (pnfsreq->rtype) {
+  case NFS_CALL:
+      break;
+  default:
+      ptr_req = &pnfsreq->r_u.nfs.req;
+      rpcxid = get_rpc_xid(ptr_req);
+  }
 
   LogDebug(COMPONENT_DISPATCH,
-           "Awaking Worker Thread #%u for request %p, xid=%u",
-           worker_index, pnfsreq, rpcxid);
+           "Awaking Worker Thread #%u for request %p, rtype=%d xid=%u",
+           worker_index, pnfsreq, pnfsreq->rtype, rpcxid);
 
   P(workers_data[worker_index].wcb.tcb_mutex);
   P(workers_data[worker_index].request_pool_mutex);
