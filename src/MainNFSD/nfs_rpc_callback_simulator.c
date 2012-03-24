@@ -300,7 +300,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    DBusMessageIter args;
    char *param;
    static uint32_t serial = 1;
-   clientid4 clientid = 9286 /* 9315 */; /* XXX ew! */
+   clientid4 clientid = 11791 /* 9315 */; /* XXX ew! */
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 
