@@ -66,23 +66,39 @@
  *
  */
 
+/* XML data to answer org.freedesktop.DBus.Introspectable.Introspect requests */
+static const char* psz_introspection_xml =
+"<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
+"\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
+"<node>\n"
+"  <interface name=\"org.freedesktop.DBus.Introspectable\">\n"
+"    <method name=\"Introspect\">\n"
+"      <arg name=\"data\" direction=\"out\" type=\"s\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"  <interface name=\"org.ganesha.nfsd.cbsim\">\n"
+"    <method name=\"get_client_ids\">\n"
+"      <arg name=\"clientids\" direction=\"out\" type=\"at\"/>\n"
+"    </method>\n"
+"  </interface>\n"
+"</node>\n"
+;
+
+
 static DBusHandlerResult
 nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
                       void *user_data)
 {
   DBusMessage* reply;
-  DBusMessageIter args;
   char *param;
-  static uint32_t serial = 1;
-  int i;
-
+  static uint32_t i, serial = 1;
   hash_table_t *ht = ht_client_id;
   struct rbt_head *head_rbt;
   hash_data_t *pdata = NULL;
   struct rbt_node *pn;
   nfs_client_id_t *clientp;
-
-  DBusMessageIter iter, sub_iter;
+  uint64_t *clientid;
+  DBusMessageIter args, iter, sub_iter;
 
   /* read the arguments */
   if (!dbus_message_iter_init(msg, &args))
@@ -97,42 +113,36 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
   /* create a reply from the message */
   reply = dbus_message_new_method_return(msg);
   dbus_message_iter_init_append(reply, &iter);
-  dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, DBUS_TYPE_UINT64_AS_STRING, &sub_iter);
 
+  dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY,
+                                   DBUS_TYPE_UINT64_AS_STRING, &sub_iter);
   /* For each bucket of the hashtable */
   for(i = 0; i < ht->parameter.index_size; i++) {
     head_rbt = &(ht->array_rbt[i]);
-
+    
     /* acquire mutex */
     P_w(&(ht->array_lock[i]));
     
     /* go through all entries in the red-black-tree*/
     RBT_LOOP(head_rbt, pn) {
       pdata = RBT_OPAQ(pn);
-      
       clientp =
 	(nfs_client_id_t *)pdata->buffval.pdata;
-      /* XXXX cast warning */
-      char *clientid = clientp->clientid;
-
+      clientid = clientp->clientid;
       dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_UINT64, &clientid);
-      
-      RBT_INCREMENT(pn);
+      RBT_INCREMENT(pn);      
     }
     V_w(&(ht->array_lock[i]));
   }
-
   dbus_message_iter_close_container(&iter, &sub_iter);
-
   /* send the reply && flush the connection */
   if (!dbus_connection_send(conn, reply, &serial)) {
-    LogCrit(COMPONENT_DBUS, "reply failed");
+      LogCrit(COMPONENT_DBUS, "reply failed");
   }
   dbus_connection_flush(conn);
   dbus_message_unref(reply);
   serial++;
-
-  return (0); /* XXX */
+  return (DBUS_HANDLER_RESULT_HANDLED);
 }
 
 static int32_t
@@ -336,7 +346,52 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    dbus_message_unref(reply);
    serial++;
 
-   return (0 /* XXX return a real DBUS handler result */);
+   return (DBUS_HANDLER_RESULT_HANDLED);
+}
+
+static DBusHandlerResult
+nfs_rpc_cbsim_introspection(DBusConnection *conn, DBusMessage *msg,
+			 void *user_data)
+{
+  static uint32_t serial = 1;
+  DBusMessage* reply;
+  DBusMessageIter iter;
+  
+  // create a reply from the message                                                                                                                          
+  reply = dbus_message_new_method_return(msg);
+  dbus_message_iter_init_append(reply, &iter);
+  dbus_message_iter_append_basic( &iter, DBUS_TYPE_STRING, &psz_introspection_xml );
+  // send the reply && flush the connection                                                                                                                   
+  if (!dbus_connection_send(conn, reply, &serial)) {
+    LogCrit(COMPONENT_DBUS, "reply failed");
+  }
+  dbus_connection_flush(conn);
+  dbus_message_unref(reply);
+  serial++;
+  return DBUS_HANDLER_RESULT_HANDLED;
+}
+
+static DBusHandlerResult
+nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
+			     void *user_data)
+{
+  const char *psz_target_interface;
+  const char *psz_interface = dbus_message_get_interface(msg);
+  const char *psz_method    = dbus_message_get_member(msg);
+
+  if( psz_interface && strcmp( psz_interface, DBUS_INTERFACE_PROPERTIES ) )
+    psz_target_interface = psz_interface;
+
+  if( !strcmp(psz_target_interface, DBUS_INTERFACE_INTROSPECTABLE) || !strcmp(psz_method, "Introspect")){
+    return nfs_rpc_cbsim_introspection(conn, msg, user_data);
+  }
+
+  else if (!strcmp(psz_method, "get_client_ids")){
+    return nfs_rpc_cbsim_get_client_ids(conn, msg, user_data);
+  }
+
+  else
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
 /*
@@ -344,14 +399,8 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
  */
 void nfs_rpc_cbsim_pkginit(void)
 {
+  gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_entrypoint);
   LogEvent(COMPONENT_NFS_CB, "Callback Simulator Initialized");
- 
-    int32_t code;
-
-    code = gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_get_client_ids);
-    code = gsh_dbus_register_path("MATT1", nfs_rpc_cbsim_method2);
-
-    return;
 }
 
 /*
