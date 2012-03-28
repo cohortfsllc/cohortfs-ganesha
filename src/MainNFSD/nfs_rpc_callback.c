@@ -321,6 +321,8 @@ static inline void
 nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
                            nfs_client_cred_t *cred)
 {
+    AUTH *auth;
+
     assert(cred->flavor == RPCSEC_GSS);
 
     /* MUST RFC 3530bis, section 3.3.3 */
@@ -334,17 +336,14 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
         /* no more lipkey, spkm3 */
         chan->gss_sec.mech = (gss_OID) &krb5oid;
         chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
-
-        chan->clnt->cl_auth = 
-#if 0
-            authgss_create(chan->clnt,
-                           nfs_param.krb5_param.svc.gss_name,
-                           &chan->gss_sec);
-#else
-        authgss_create_default(chan->clnt,
-                               nfs_param.krb5_param.svc.principal,
-                               &chan->gss_sec);
-#endif
+        auth = 
+            authgss_create_default(chan->clnt,
+                                   nfs_param.krb5_param.svc.principal,
+                                   &chan->gss_sec);
+        /* authgss_create and authgss_create_default return NULL on
+         * failure, don't assign NULL to clnt->cl_auth */
+        if (auth)
+            chan->clnt->cl_auth = auth;
     }
 }
 
