@@ -1859,7 +1859,11 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                    "Error importing gss principal %s is %s",
                    nfs_param.krb5_param.svc.principal, GssError);
         }
-      LogInfo(COMPONENT_INIT,  "gss principal %s successfully set",
+
+      if (nfs_param.krb5_param.svc.gss_name == GSS_C_NO_NAME)
+          LogInfo(COMPONENT_INIT, "Regression:  svc.gss_name == GSS_C_NO_NAME");
+
+      LogInfo(COMPONENT_INIT,  "gss principal \"%s\" successfully set",
               nfs_param.krb5_param.svc.principal);
 
       /* Set the principal to GSSRPC */
