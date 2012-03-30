@@ -33,6 +33,8 @@ libsupport_la_SOURCES =  nfs_export_list.c                  \
                          fridgethr.c                        \
                          lookup3.c                          \
                          murmur3.c                          \
+                         strlcat.c                          \
+                         strlcpy.c                          \
                          ../include/nfs_file_handle.h       \
                          ../include/nfs_core.h              \
                          ../include/nfs_tools.h             \

@@ -48,6 +48,9 @@
 #include "log.h"
 #include "nfs_rpc_callback.h"
 #include "nfs4.h"
+#include "gssd.h"
+#include "gss_util.h"
+#include "krb5_util.h"
 
 /**
  *
@@ -68,11 +71,42 @@
 
 static struct prealloc_pool rpc_call_pool;
 
+/* tried to re-use host_name in nfs_main.c, but linker became confused.
+ * this is a quick fix */
+static char host_name[MAXHOSTNAMELEN];
+
+
+static inline void
+nfs_rpc_cb_init_ccache(const char *ccache)
+{
+    int code = 0;
+
+    mkdir(ccache, 700); /* XXX */
+    ccachesearch[0] = nfs_param.krb5_param.ccache_dir;
+
+    code = gssd_refresh_krb5_machine_credential(
+        host_name, NULL, nfs_param.krb5_param.svc.principal);
+    if (code) {
+        LogDebug(COMPONENT_INIT, "gssd_refresh_krb5_machine_credential "
+                 "failed (%d:%d)", code, errno);
+        goto out;
+    }
+
+#if 0 /* XXX doesn't work */
+    gssd_setup_krb5_machine_gss_ccache(ccachesearch[0]);
+#endif
+
+out:
+    return;
+}
+
 /*
  * Initialize subsystem
  */
 void nfs_rpc_cb_pkginit(void)
 {
+    char localmachine[MAXHOSTNAMELEN];
+
     /* Create a pool of rpc_call_t */
     MakePool(&rpc_call_pool,
              nfs_param.worker_param.nb_pending_prealloc, /* XXX */
@@ -85,6 +119,20 @@ void nfs_rpc_cb_pkginit(void)
         LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
         Fatal();
     }
+
+    /* get host name */
+    if(gethostname(localmachine, sizeof(localmachine)) != 0) {
+        LogCrit(COMPONENT_INIT, "Failed to get local host name");
+    }
+    else
+        strlcpy(host_name, localmachine, MAXHOSTNAMELEN);
+
+    /* XXX ccache */
+    nfs_rpc_cb_init_ccache(nfs_param.krb5_param.ccache_dir);
+
+    /* sanity check GSSAPI */
+    if (gssd_check_mechs() != 0)
+        LogCrit(COMPONENT_INIT,  "sanity check: gssd_check_mechs() failed");
 
     return;
 }
@@ -321,11 +369,26 @@ static inline void
 nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
                            nfs_client_cred_t *cred)
 {
+    AUTH *auth;
+    int32_t code = 0;
+
+    static char *svc = "nfs@10.1.1.65";
+
     assert(cred->flavor == RPCSEC_GSS);
 
     /* MUST RFC 3530bis, section 3.3.3 */
     chan->gss_sec.svc = cred->auth_union.auth_gss.svc;
     chan->gss_sec.qop = cred->auth_union.auth_gss.qop;
+
+    /* the GSSAPI k5 mech needs to find an unexpired credential
+     * for nfs/hostname in an accessible k5ccache */
+    code = gssd_refresh_krb5_machine_credential(
+        host_name, NULL, nfs_param.krb5_param.svc.principal);
+    if (code) {
+        LogDebug(COMPONENT_NFS_CB, "gssd_refresh_krb5_machine_credential "
+                 "failed (%d:%d)", code, errno);
+        goto out;
+    }
 
     chan->gss_sec.cred = GSS_C_NO_CREDENTIAL;
     chan->gss_sec.req_flags = 0;
@@ -333,19 +396,19 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
     if (chan->gss_sec.svc != RPCSEC_GSS_SVC_NONE) {
         /* no more lipkey, spkm3 */
         chan->gss_sec.mech = (gss_OID) &krb5oid;
-        chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
-
-        chan->clnt->cl_auth = 
-#if 0
-            authgss_create(chan->clnt,
-                           nfs_param.krb5_param.svc.gss_name,
-                           &chan->gss_sec);
-#else
-        authgss_create_default(chan->clnt,
-                               nfs_param.krb5_param.svc.principal,
-                               &chan->gss_sec);
-#endif
+        //chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
+        auth = 
+            authgss_create_default(chan->clnt,
+                                   svc,
+                                   &chan->gss_sec);
+        /* authgss_create and authgss_create_default return NULL on
+         * failure, don't assign NULL to clnt->cl_auth */
+        if (auth)
+            chan->clnt->cl_auth = auth;
     }
+
+out:
+    return;
 }
 
 static inline bool_t
@@ -464,7 +527,7 @@ nfs_rpc_get_chan(nfs_client_id_t *clid, uint32_t flags)
 /* Dispose a channel. */
 void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
 {
-    assert (chan);
+    assert(chan);
 
     /* XXX lock, wait for outstanding calls, etc */
 

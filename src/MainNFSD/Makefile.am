@@ -18,8 +18,10 @@ else
 FSAL_UP_LIB_FLAGS =
 endif
 
+GSSD_LIB = ../RPCAL/gssd/libgssd.la
+
 if HAVE_GSSAPI
-SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl
+SEC_LIB_FLAGS = $(SEC_LFLAGS) -lgssglue -lgssapi_krb5 -lkrb5 -lk5crypto -lcom_err -ldl
 endif
 
 if USE_NFSIDMAP
@@ -77,7 +79,6 @@ RQUOTA_LIB = ../Protocols/RQUOTA/librquota.la
 else
 RQUOTA_LIB = 
 endif
-
 
 if USE_9P
 DISPATCH_9P_FILES = 9p_dispatcher.c 
@@ -186,6 +187,7 @@ libMainServices_la_LIBADD         =   ../Protocols/NFS/libnfsproto.la           
                                       ../Log/liblog.la                                  \
                                       ../ConfigParsing/libConfigParsing.la              \
                                       ../RPCAL/librpcal.la                              \
+                                      $(GSSD_LIB)                                       \
                                       $(_9P_LIB)                                        \
                                       ../Protocols/XDR/libnfs_mnt_xdr.la                \
                                       ../SemN/libSemN.la                                \

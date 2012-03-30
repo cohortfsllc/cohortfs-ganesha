@@ -6,6 +6,8 @@ AC_INIT( [nfs-ganesha], [1.4.0], [philippe.deniel@cea.fr,thomas.leibovici@cea.fr
 
 AC_SUBST(RELEASE, [1])
 
+AC_DEFINE( [NFS_GANESHA], 1, [Ganesha])
+
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_HEADER([include/config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -326,6 +328,19 @@ if test "$enable_nfsidmap" == "yes"; then
 	AC_DEFINE(_USE_NFSIDMAP, 1, [enable Id Mapping through libnfsidmap])
 fi
 AM_CONDITIONAL(USE_NFSIDMAP, test "$enable_nfsidmap" == "yes" )
+
+dnl check for the keyutils libraries and headers
+AC_KEYUTILS
+
+dnl Check for Kerberos V5
+AC_KERBEROS_V5
+
+dnl Invoked after AC_KERBEROS_V5; AC_LIBRPCSECGSS needs to have KRBLIBS set
+AC_LIBRPCSECGSS
+
+dnl Need krb5_util.h and friends.  This will be out-of-tree Very Soon,
+dnl so don't put pieces into src/include
+CFLAGS="$CFLAGS -I\$(top_builddir)/RPCAL/gssd"
 
 # Exports stats via SNMP
 
@@ -970,6 +985,7 @@ AC_CONFIG_FILES([include/Makefile
                  RPCAL/Makefile
                  RPCAL/ONCRPC/Makefile
                  RPCAL/TIRPC/Makefile
+                 RPCAL/gssd/Makefile
                  MainNFSD/Makefile
                  test/Makefile
                  cmdline_tools/Makefile
