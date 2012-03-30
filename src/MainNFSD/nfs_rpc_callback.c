@@ -432,7 +432,7 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
     }
 
     if (! format_host_principal(chan, hprinc, MAXPATHLEN)) {
-        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_callback_get_host_principal failed");
+        LogCrit(COMPONENT_NFS_CB, "format_host_principal failed");
         goto out;
     }
 
