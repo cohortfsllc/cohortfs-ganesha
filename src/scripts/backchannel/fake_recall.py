@@ -1,21 +1,41 @@
-# You must initialize the gobject/dbus support for threading
-# before doing anything.
-import gobject
-gobject.threads_init()
+#!/usr/bin/python
 
+import getopt, sys
+import gobject
+
+gobject.threads_init()
 from dbus import glib
 glib.init_threads()
 
-# Create a session bus.
 import dbus
-bus = dbus.SessionBus()
 
-# Create an object that will proxy for a particular remote object.
-cbsim = bus.get_object("org.ganesha.nfsd",
-                       "/org/ganesha/nfsd/MATT1")
+def usage():
+    print "fake_recall <clientid>"
 
-#print cbsim.Introspect()
+def main():
 
-# call method
-method2 = cbsim.get_dbus_method('method2')
-print method2('MaGiC')
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "c", [])
+        if len(args) < 1:
+            usage()
+            sys.exit(2)
+        clientid = args[0]
+        print clientid
+
+        bus = dbus.SessionBus()
+        cbsim = bus.get_object("org.ganesha.nfsd",
+                               "/org/ganesha/nfsd/CBSIM")
+        print cbsim.Introspect()
+
+        # call method
+        fake_recall = cbsim.get_dbus_method('fake_recall')
+        print fake_recall(dbus.UInt64(clientid))
+
+
+    except getopt.GetoptError, err:
+        print str(err) # will print something like "option -a not recognized"
+        usage()
+        sys.exit(2)
+
+if __name__ == "__main__":
+    main()

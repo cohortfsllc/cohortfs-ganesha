@@ -80,25 +80,26 @@ static const char* introspection_xml =
 "    <method name=\"get_client_ids\">\n"
 "      <arg name=\"clientids\" direction=\"out\" type=\"at\"/>\n"
 "    </method>\n"
+"    <method name=\"fake_recall\">\n"
+"      <arg name=\"clientid\" direction=\"in\" type=\"t\"/>\n"
+"    </method>\n"
 "  </interface>\n"
 "</node>\n"
 ;
-
 
 static DBusHandlerResult
 nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
                       void *user_data)
 {
   DBusMessage* reply;
-  char *param;
   static uint32_t i, serial = 1;
   hash_table_t *ht = ht_client_id;
   struct rbt_head *head_rbt;
   hash_data_t *pdata = NULL;
   struct rbt_node *pn;
   nfs_client_id_t *clientp;
-  uint64_t *clientid;
-  DBusMessageIter args, iter, sub_iter;
+  uint64_t clientid;
+  DBusMessageIter iter, sub_iter;
 
   /* create a reply from the message */
   reply = dbus_message_new_method_return(msg);
@@ -143,9 +144,6 @@ cbsim_test_bchan(clientid4 clientid)
     struct timeval CB_TIMEOUT = {15, 0};
     rpc_call_channel_t *chan;
     enum clnt_stat stat;
-
-    /* XXX */
-    HashTable_Print( ht_client_id );
 
     code  = nfs_client_id_Get_Pointer(clientid, &clid);
     if (code != CLIENT_ID_SUCCESS) {
@@ -304,26 +302,25 @@ out:
 }
 
 static DBusHandlerResult
-nfs_rpc_cbsim_fakerecall_entrypoint(DBusConnection *conn, DBusMessage *msg,
-                                    void *user_data)
+nfs_rpc_cbsim_fake_recall(DBusConnection *conn, DBusMessage *msg,
+                         void *user_data)
 {
    DBusMessage* reply;
    DBusMessageIter args;
-   char *param;
    static uint32_t serial = 1;
-   clientid4 clientid = 11791 /* 9315 */; /* XXX ew! */
+   clientid4 clientid = 9315; /* XXX ew! */
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 
    /* read the arguments */
    if (!dbus_message_iter_init(msg, &args))
        LogDebug(COMPONENT_DBUS, "message has no arguments"); 
-   else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args)) 
-       LogDebug(COMPONENT_DBUS, "arg not string"); 
+   else if (DBUS_TYPE_UINT64 != 
+            dbus_message_iter_get_arg_type(&args)) 
+       LogDebug(COMPONENT_DBUS, "arg not uint64"); 
    else {
-       dbus_message_iter_get_basic(&args, &param);
-       LogDebug(COMPONENT_DBUS, "param: %s", param);
-       clientid = atoll(param);
+       dbus_message_iter_get_basic(&args, &clientid);
+       LogDebug(COMPONENT_DBUS, "param: %"PRIx64, clientid);
    }
 
    (void) cbsim_test_bchan(clientid);
@@ -376,7 +373,7 @@ nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
     char *target_interface;
 
     if (interface && strcmp(interface, DBUS_INTERFACE_PROPERTIES))
-        target_interface = interface;
+        target_interface = (char*) interface; /* const */
 
     if (! strcmp(target_interface, DBUS_INTERFACE_INTROSPECTABLE) ||
         ! strcmp(method, "Introspect")) {
@@ -385,6 +382,10 @@ nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
 
     if (! strcmp(method, "get_client_ids")) {
         return nfs_rpc_cbsim_get_client_ids(conn, msg, user_data);
+    }
+
+    if (! strcmp(method, "fake_recall")) {
+        return nfs_rpc_cbsim_fake_recall(conn, msg, user_data);
     }
 
     return (DBUS_HANDLER_RESULT_NOT_YET_HANDLED);
@@ -396,8 +397,6 @@ nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
 void nfs_rpc_cbsim_pkginit(void)
 {
     (void) gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_entrypoint);
-    (void) gsh_dbus_register_path("MATT1", nfs_rpc_cbsim_fakerecall_entrypoint);
-
     LogEvent(COMPONENT_NFS_CB, "Callback Simulator Initialized");
 }
 
