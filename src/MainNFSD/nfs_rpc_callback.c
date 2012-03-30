@@ -501,6 +501,8 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clid,
     int fd, proto, code = 0;
     rpc_call_channel_t *chan = &clid->cb.cb_u.v40.chan;
 
+
+
     assert(! chan->clnt);
 
     /* XXX we MUST error RFC 3530bis, sec. 3.3.3 */
@@ -600,9 +602,25 @@ void nfs_rpc_destroy_chan(rpc_call_channel_t *chan)
 enum clnt_stat
 rpc_cb_null(rpc_call_channel_t *chan, struct timeval timeout)
 {
-    return (clnt_call(chan->clnt, CB_NULL, (xdrproc_t) xdr_void, NULL,
-		      (xdrproc_t) xdr_void, NULL,
-                      timeout));
+    enum clnt_stat stat = RPC_SUCCESS;
+
+    /* XXX TI-RPC does the signal masking */
+    pthread_mutex_lock(&chan->mtx);
+
+    stat = clnt_call(chan->clnt, CB_NULL,
+                     (xdrproc_t) xdr_void, NULL,
+                     (xdrproc_t) xdr_void, NULL, timeout);
+
+    /* If a call fails, we have to assume path down, or equally fatal
+     * error.  We may need back-off. */
+    if (stat != RPC_SUCCESS) {
+        clnt_destroy(chan->clnt);
+        chan->clnt = NULL;
+    }
+
+    pthread_mutex_unlock(&chan->mtx);
+    
+    return (stat);
 }
 
 static inline void free_argop(nfs_cb_argop4 *op)
@@ -695,6 +713,9 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
     call->states = NFS_CB_CALL_DISPATCH;
     pthread_mutex_unlock(&call->we.mtx);
 
+    /* XXX TI-RPC does the signal masking */
+    pthread_mutex_lock(&call->chan->mtx);
+
     call->stat = clnt_call(call->chan->clnt,
                            CB_COMPOUND,
                            (xdrproc_t) xdr_CB_COMPOUND4args,
@@ -702,6 +723,15 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
                            (xdrproc_t) xdr_CB_COMPOUND4res,
                            &call->cbt.v_u.v4.res,
                            CB_TIMEOUT);
+
+    /* If a call fails, we have to assume path down, or equally fatal
+     * error.  We may need back-off. */
+    if (call->stat != RPC_SUCCESS) {
+        clnt_destroy(call->chan->clnt);
+        call->chan->clnt = NULL;
+    }
+
+    pthread_mutex_unlock(&call->chan->mtx);
 
     /* signal waiter(s) */
     pthread_mutex_lock(&call->we.mtx);

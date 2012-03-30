@@ -464,6 +464,7 @@ enum rpc_chan_type {
 typedef struct rpc_call_channel
 {
     enum rpc_chan_type type;
+    pthread_mutex_t mtx;
     uint32_t states;
     union {
         struct {

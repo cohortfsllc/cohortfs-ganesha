@@ -85,7 +85,7 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 
   DBusMessageIter iter, sub_iter;
 
-  // read the arguments                                                                                                                                       
+  /* read the arguments */
   if (!dbus_message_iter_init(msg, &args))
     LogDebug(COMPONENT_DBUS, "message has no arguments");
   else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args))
@@ -95,7 +95,7 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
     LogDebug(COMPONENT_DBUS, "param: %s", param);
   }
 
-  // create a reply from the message                                                                                                                          
+  /* create a reply from the message */
   reply = dbus_message_new_method_return(msg);
   dbus_message_iter_init_append(reply, &iter);
   dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, DBUS_TYPE_UINT64_AS_STRING, &sub_iter);
@@ -124,7 +124,7 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
 
   dbus_message_iter_close_container(&iter, &sub_iter);
 
-  // send the reply && flush the connection                                                                                                                   
+  /* send the reply && flush the connection */
   if (!dbus_connection_send(conn, reply, &serial)) {
     LogCrit(COMPONENT_DBUS, "reply failed");
   }
@@ -315,11 +315,9 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    }
 
    (void) cbsim_test_bchan(clientid);
-   (void) cbsim_fake_cbrecall(clientid);
+   /* (void) cbsim_fake_cbrecall(clientid); */
 
-   // create a reply from the message
    reply = dbus_message_new_method_return(msg);
-   // send the reply && flush the connection
    if (!dbus_connection_send(conn, reply, &serial)) {
        LogCrit(COMPONENT_DBUS, "reply failed"); 
    }

@@ -305,10 +305,13 @@ int nfs_client_id_add(clientid4 clientid,
   buffkey.len = sizeof(clientid);
 
   *pnfs_client_id = client_record;
-  // need to init the list_head
+  /*  need to init the list_head */
   init_glist(&pnfs_client_id->clientid_openowners);
   init_glist(&pnfs_client_id->clientid_lockowners);
   pnfs_client_id->clientid_pool = clientid_pool;
+
+  /* init call channel mtx */
+  pthread_mutex_init(&pnfs_client_id->cb.cb_u.v40.chan.mtx, NULL);
 
   buffdata.pdata = (caddr_t) pnfs_client_id;
   buffdata.len = sizeof(nfs_client_id_t);
