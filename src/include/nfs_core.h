@@ -123,6 +123,7 @@
 
 #define DEFAULT_NFS_PRINCIPAL     "nfs" /* GSSAPI will expand this to nfs/host@DOMAIN */
 #define DEFAULT_NFS_KEYTAB        ""    /* let GSSAPI use keytab specified in /etc/krb5.conf */
+#define DEFAULT_NFS_CCACHE_DIR    "/var/run/ganesha"
 
 /* Config labels */
 #define CONF_LABEL_NFS_CORE         "NFS_Core_Param"

@@ -382,6 +382,8 @@ void nfs_set_param_default()
           sizeof(nfs_param.krb5_param.svc.principal));
   strlcpy(nfs_param.krb5_param.keytab, DEFAULT_NFS_KEYTAB,
           sizeof(nfs_param.krb5_param.keytab));
+  strlcpy(nfs_param.krb5_param.ccache_dir, DEFAULT_NFS_CCACHE_DIR,
+          sizeof(nfs_param.krb5_param.ccache_dir));
   nfs_param.krb5_param.active_krb5 = TRUE;
   nfs_param.krb5_param.hash_param.index_size = PRIME_ID_MAPPER;
   nfs_param.krb5_param.hash_param.alphabet_length = 10;      /* Not used for UID_MAPPER */
