@@ -607,6 +607,11 @@ rpc_cb_null(rpc_call_channel_t *chan, struct timeval timeout)
     /* XXX TI-RPC does the signal masking */
     pthread_mutex_lock(&chan->mtx);
 
+    if (! chan->clnt) {
+        stat = RPC_INTR;
+        goto unlock;
+    }
+
     stat = clnt_call(chan->clnt, CB_NULL,
                      (xdrproc_t) xdr_void, NULL,
                      (xdrproc_t) xdr_void, NULL, timeout);
@@ -614,10 +619,13 @@ rpc_cb_null(rpc_call_channel_t *chan, struct timeval timeout)
     /* If a call fails, we have to assume path down, or equally fatal
      * error.  We may need back-off. */
     if (stat != RPC_SUCCESS) {
-        clnt_destroy(chan->clnt);
-        chan->clnt = NULL;
+        if (chan->clnt) {
+            clnt_destroy(chan->clnt);
+            chan->clnt = NULL;
+        }
     }
 
+unlock:
     pthread_mutex_unlock(&chan->mtx);
     
     return (stat);
@@ -716,6 +724,11 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
     /* XXX TI-RPC does the signal masking */
     pthread_mutex_lock(&call->chan->mtx);
 
+    if (! call->chan->clnt) {
+        call->stat = RPC_INTR;
+        goto unlock;
+    }
+
     call->stat = clnt_call(call->chan->clnt,
                            CB_COMPOUND,
                            (xdrproc_t) xdr_CB_COMPOUND4args,
@@ -727,10 +740,13 @@ nfs_rpc_dispatch_call(rpc_call_t *call, uint32_t flags)
     /* If a call fails, we have to assume path down, or equally fatal
      * error.  We may need back-off. */
     if (call->stat != RPC_SUCCESS) {
-        clnt_destroy(call->chan->clnt);
-        call->chan->clnt = NULL;
+        if (call->chan->clnt) {
+            clnt_destroy(call->chan->clnt);
+            call->chan->clnt = NULL;
+        }
     }
 
+unlock:
     pthread_mutex_unlock(&call->chan->mtx);
 
     /* signal waiter(s) */

@@ -75,7 +75,6 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
   char *param;
   static uint32_t serial = 1;
   int i;
-  int client_count;
 
   hash_table_t *ht = ht_client_id;
   struct rbt_head *head_rbt;
@@ -113,6 +112,7 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
       
       clientp =
 	(nfs_client_id_t *)pdata->buffval.pdata;
+      /* XXXX cast warning */
       char *clientid = clientp->clientid;
 
       dbus_message_iter_append_basic(&sub_iter, DBUS_TYPE_UINT64, &clientid);
@@ -131,12 +131,14 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
   dbus_connection_flush(conn);
   dbus_message_unref(reply);
   serial++;
+
+  return (0); /* XXX */
 }
 
 static int32_t
 cbsim_test_bchan(clientid4 clientid)
 {
-    int32_t code = 0;
+    int32_t tries, code = 0;
     nfs_client_id_t *clid = NULL;
     struct timeval CB_TIMEOUT = {15, 0};
     rpc_call_channel_t *chan;
@@ -157,22 +159,31 @@ cbsim_test_bchan(clientid4 clientid)
     assert(clid);
 
     /* create (fix?) channel */
-    chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
-    if (! chan) {
-        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed");
-        goto out;
-    }
+    for (tries = 0; tries < 2; ++tries) {
 
-    if (! chan->clnt) {
-        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed (no clnt)");
-        goto out;
-    }
+        chan = nfs_rpc_get_chan(clid, NFS_RPC_FLAG_NONE);
+        if (! chan) {
+            LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed");
+            goto out;
+        }
 
-    /* try the CB_NULL proc -- inline here, should be ok-ish */
-    stat = rpc_cb_null(chan, CB_TIMEOUT);
-    LogDebug(COMPONENT_NFS_CB,
-             "rpc_cb_null on client %"PRIx64" returns %d",
-             clientid, stat);
+        if (! chan->clnt) {
+            LogCrit(COMPONENT_NFS_CB, "nfs_rpc_get_chan failed (no clnt)");
+            goto out;
+        }
+
+        /* try the CB_NULL proc -- inline here, should be ok-ish */
+        stat = rpc_cb_null(chan, CB_TIMEOUT);
+        LogDebug(COMPONENT_NFS_CB,
+                 "rpc_cb_null on client %"PRIx64" returns %d",
+                 clientid, stat);
+
+
+        /* RPC_INTR indicates that we should refresh the channel
+         * and retry */
+        if (stat != RPC_INTR)
+            break;
+    }
 
 out:
     return (code);
@@ -315,7 +326,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    }
 
    (void) cbsim_test_bchan(clientid);
-   /* (void) cbsim_fake_cbrecall(clientid); */
+   (void) cbsim_fake_cbrecall(clientid);
 
    reply = dbus_message_new_method_return(msg);
    if (!dbus_connection_send(conn, reply, &serial)) {
