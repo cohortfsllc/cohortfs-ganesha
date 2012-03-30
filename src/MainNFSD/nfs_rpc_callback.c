@@ -92,10 +92,6 @@ nfs_rpc_cb_init_ccache(const char *ccache)
         goto out;
     }
 
-#if 0 /* XXX doesn't work */
-    gssd_setup_krb5_machine_gss_ccache(ccachesearch[0]);
-#endif
-
 out:
     return;
 }
@@ -396,7 +392,7 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
     if (chan->gss_sec.svc != RPCSEC_GSS_SVC_NONE) {
         /* no more lipkey, spkm3 */
         chan->gss_sec.mech = (gss_OID) &krb5oid;
-        //chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
+        chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
         auth = 
             authgss_create_default(chan->clnt,
                                    svc,
