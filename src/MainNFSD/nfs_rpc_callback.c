@@ -361,14 +361,59 @@ supported_auth_flavor(int flavor)
 gss_OID_desc krb5oid =
    {9, "\052\206\110\206\367\022\001\002\002"};
 
+static inline char *
+format_host_principal(rpc_call_channel_t *chan, char *buf, size_t len)
+{
+    char addr_buf[SOCK_NAME_MAX];
+    const char *host = NULL;
+    char *princ = NULL;
+
+    switch (chan->type) {
+    case RPC_CHAN_V40:
+    {
+        nfs_client_id_t *clid = chan->nvu.v40.nfs_client;
+        switch (chan->nvu.v40.nfs_client->cb.addr.ss.ss_family) {
+        case AF_INET:
+        {
+            struct sockaddr_in *sin = (struct sockaddr_in *) &clid->cb.addr.ss;
+            host = inet_ntop(AF_INET, &sin->sin_addr, addr_buf,
+                             INET_ADDRSTRLEN);
+            break;
+        }
+        case AF_INET6:
+        {
+            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *) &clid->cb.addr.ss;
+            host = inet_ntop(AF_INET6, &sin6->sin6_addr, addr_buf,
+                             INET6_ADDRSTRLEN);
+            break;
+        }
+        default:
+            break;
+        }
+        break;
+    }
+    case RPC_CHAN_V41:
+        /* XXX implement */
+        goto out;
+        break;
+    }
+
+    if (host) {
+        snprintf(buf, len, "nfs@%s", host);
+        princ = buf; 
+    }
+
+out:
+    return (princ);
+}
+
 static inline void
 nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
                            nfs_client_cred_t *cred)
 {
     AUTH *auth;
+    char hprinc[MAXPATHLEN];
     int32_t code = 0;
-
-    static char *svc = "nfs@10.1.1.65";
 
     assert(cred->flavor == RPCSEC_GSS);
 
@@ -386,6 +431,11 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
         goto out;
     }
 
+    if (! format_host_principal(chan, hprinc, MAXPATHLEN)) {
+        LogCrit(COMPONENT_NFS_CB, "nfs_rpc_callback_get_host_principal failed");
+        goto out;
+    }
+
     chan->gss_sec.cred = GSS_C_NO_CREDENTIAL;
     chan->gss_sec.req_flags = 0;
 
@@ -395,7 +445,7 @@ nfs_rpc_callback_setup_gss(rpc_call_channel_t *chan,
         chan->gss_sec.req_flags = GSS_C_MUTUAL_FLAG; /* XXX */
         auth = 
             authgss_create_default(chan->clnt,
-                                   svc,
+                                   hprinc,
                                    &chan->gss_sec);
         /* authgss_create and authgss_create_default return NULL on
          * failure, don't assign NULL to clnt->cl_auth */
