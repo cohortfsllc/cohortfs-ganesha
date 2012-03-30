@@ -100,16 +100,6 @@ nfs_rpc_cbsim_get_client_ids(DBusConnection *conn, DBusMessage *msg,
   uint64_t *clientid;
   DBusMessageIter args, iter, sub_iter;
 
-  /* read the arguments */
-  if (!dbus_message_iter_init(msg, &args))
-    LogDebug(COMPONENT_DBUS, "message has no arguments");
-  else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args))
-    LogDebug(COMPONENT_DBUS, "arg not string");
-  else {
-    dbus_message_iter_get_basic(&args, &param);
-    LogDebug(COMPONENT_DBUS, "param: %s", param);
-  }
-
   /* create a reply from the message */
   reply = dbus_message_new_method_return(msg);
   dbus_message_iter_init_append(reply, &iter);
@@ -314,8 +304,8 @@ out:
 }
 
 static DBusHandlerResult
-nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
-                      void *user_data)
+nfs_rpc_cbsim_fakerecall_entrypoint(DBusConnection *conn, DBusMessage *msg,
+                                    void *user_data)
 {
    DBusMessage* reply;
    DBusMessageIter args;
@@ -333,6 +323,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    else {
        dbus_message_iter_get_basic(&args, &param);
        LogDebug(COMPONENT_DBUS, "param: %s", param);
+       clientid = atoll(param);
    }
 
    (void) cbsim_test_bchan(clientid);
@@ -404,8 +395,10 @@ nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
  */
 void nfs_rpc_cbsim_pkginit(void)
 {
-  gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_entrypoint);
-  LogEvent(COMPONENT_NFS_CB, "Callback Simulator Initialized");
+    (void) gsh_dbus_register_path("CBSIM", nfs_rpc_cbsim_entrypoint);
+    (void) gsh_dbus_register_path("MATT1", nfs_rpc_cbsim_fakerecall_entrypoint);
+
+    LogEvent(COMPONENT_NFS_CB, "Callback Simulator Initialized");
 }
 
 /*
