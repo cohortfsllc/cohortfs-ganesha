@@ -67,7 +67,7 @@
  */
 
 /* XML data to answer org.freedesktop.DBus.Introspectable.Introspect requests */
-static const char* psz_introspection_xml =
+static const char* introspection_xml =
 "<!DOCTYPE node PUBLIC \"-//freedesktop//DTD D-BUS Object Introspection 1.0//EN\"\n"
 "\"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd\">\n"
 "<node>\n"
@@ -325,7 +325,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
 
    LogDebug(COMPONENT_NFS_CB, "called!");
 
-   // read the arguments
+   /* read the arguments */
    if (!dbus_message_iter_init(msg, &args))
        LogDebug(COMPONENT_DBUS, "message has no arguments"); 
    else if (DBUS_TYPE_STRING != dbus_message_iter_get_arg_type(&args)) 
@@ -342,6 +342,7 @@ nfs_rpc_cbsim_method2(DBusConnection *conn, DBusMessage *msg,
    if (!dbus_connection_send(conn, reply, &serial)) {
        LogCrit(COMPONENT_DBUS, "reply failed"); 
    }
+
    dbus_connection_flush(conn);
    dbus_message_unref(reply);
    serial++;
@@ -357,41 +358,45 @@ nfs_rpc_cbsim_introspection(DBusConnection *conn, DBusMessage *msg,
   DBusMessage* reply;
   DBusMessageIter iter;
   
-  // create a reply from the message                                                                                                                          
+  /* create a reply from the message */ 
   reply = dbus_message_new_method_return(msg);
   dbus_message_iter_init_append(reply, &iter);
-  dbus_message_iter_append_basic( &iter, DBUS_TYPE_STRING, &psz_introspection_xml );
-  // send the reply && flush the connection                                                                                                                   
-  if (!dbus_connection_send(conn, reply, &serial)) {
-    LogCrit(COMPONENT_DBUS, "reply failed");
+  dbus_message_iter_append_basic( &iter, DBUS_TYPE_STRING,
+                                  &introspection_xml );
+
+  /* send the reply && flush the connection */
+  if (! dbus_connection_send(conn, reply, &serial)) {
+      LogCrit(COMPONENT_DBUS, "reply failed");
   }
+
   dbus_connection_flush(conn);
   dbus_message_unref(reply);
   serial++;
-  return DBUS_HANDLER_RESULT_HANDLED;
+
+  return (DBUS_HANDLER_RESULT_HANDLED);
 }
 
 static DBusHandlerResult
 nfs_rpc_cbsim_entrypoint(DBusConnection *conn, DBusMessage *msg,
 			     void *user_data)
 {
-  const char *psz_target_interface;
-  const char *psz_interface = dbus_message_get_interface(msg);
-  const char *psz_method    = dbus_message_get_member(msg);
+    const char *interface = dbus_message_get_interface(msg);
+    const char *method = dbus_message_get_member(msg);
+    char *target_interface;
 
-  if( psz_interface && strcmp( psz_interface, DBUS_INTERFACE_PROPERTIES ) )
-    psz_target_interface = psz_interface;
+    if (interface && strcmp(interface, DBUS_INTERFACE_PROPERTIES))
+        target_interface = interface;
 
-  if( !strcmp(psz_target_interface, DBUS_INTERFACE_INTROSPECTABLE) || !strcmp(psz_method, "Introspect")){
-    return nfs_rpc_cbsim_introspection(conn, msg, user_data);
-  }
+    if (! strcmp(target_interface, DBUS_INTERFACE_INTROSPECTABLE) ||
+        ! strcmp(method, "Introspect")) {
+        return nfs_rpc_cbsim_introspection(conn, msg, user_data);
+    }
 
-  else if (!strcmp(psz_method, "get_client_ids")){
-    return nfs_rpc_cbsim_get_client_ids(conn, msg, user_data);
-  }
+    if (! strcmp(method, "get_client_ids")) {
+        return nfs_rpc_cbsim_get_client_ids(conn, msg, user_data);
+    }
 
-  else
-    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    return (DBUS_HANDLER_RESULT_NOT_YET_HANDLED);
 }
 
 /*
