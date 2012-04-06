@@ -975,6 +975,13 @@ process_status_t process_rpc_request(SVCXPRT *xprt)
     }
   else
     {
+      struct timeval timer_start;
+      struct timeval timer_end;
+      struct timeval timer_diff;
+
+      nfs_stat_type_t stat_type;
+      nfs_request_latency_stat_t latency_stat;
+
       memset(&pnfsreq->rcontent.nfs.time_queued, 0, sizeof(struct timeval));
       gettimeofday(&pnfsreq->rcontent.nfs.time_queued, NULL);
 
