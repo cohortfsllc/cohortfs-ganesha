@@ -53,6 +53,49 @@ void cache_inode_avl_init(cache_entry_t *entry)
     avltree_init(&entry->object.dir.avl, avl_dirent_hk_cmpf, 0 /* flags */);
 }
 
+static inline int
+cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
+                            cache_inode_dir_entry_t *v,
+                            int j, int j2)
+{
+    int code = -1;
+    struct avltree_node *node;
+
+    node = avltree_insert(&v->node_hk, t);
+    if (node) {
+        cache_inode_dir_entry_t *v_exist =
+            avltree_container_of(node, cache_inode_dir_entry_t,
+                                 node_hk);
+        if (v_exist->flags & DIR_ENTRY_FLAG_DELETED) {
+            /* reuse the slot */
+            FSAL_namecpy(&v_exist->name, &v->name);
+            v_exist->flags &= ~DIR_ENTRY_FLAG_DELETED;
+            v = v_exist;
+            code = 1; /* tell client to dispose v */
+        }
+    } else
+        code = 0;
+
+    switch (code) {
+    case 0:
+    case 1:
+        /* success, note iterations */
+        v->hk.p = j + j2;
+        if (entry->object.dir.collisions < v->hk.p)
+            entry->object.dir.collisions = v->hk.p;
+
+        LogDebug(COMPONENT_CACHE_INODE,
+                 "inserted new dirent on entry=%p cookie=%"PRIu64
+                 " collisions %d",
+                 entry, v->hk.k, entry->object.dir.collisions);
+        break;
+    default:
+        /* keep trying at current j, j2 */
+        break;
+    }
+    return (code);
+}
+
 /*
  * Insert with quadatic, linear probing.  A unique k is assured for
  * any k whenever size(t) < max(uint64_t).
@@ -68,9 +111,9 @@ int cache_inode_avl_qp_insert(
     cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     struct avltree *t = &entry->object.dir.avl;
-    struct avltree_node *node;
     uint32_t hk[4];
     int j, j2, tries;
+    int code = -1;
 
     assert(avltree_size(t) < UINT64_MAX);
 
@@ -78,28 +121,17 @@ int cache_inode_avl_qp_insert(
     for (tries = 0; tries < 5; ++tries) {
         MurmurHash3_x64_128(v->name.name,  FSAL_MAX_NAME_LEN, 67, hk);
         memcpy(&v->hk.k, hk, 8);
-        if (v->hk.k < 3)
-            continue;
+        if (v->hk.k > 2)
+            break;
     }
 
     assert(v->hk.k > 2);
 
     for (j = 0; j < UINT64_MAX; j++) {
         v->hk.k = (v->hk.k + (j * 2));
-        node = avltree_insert(&v->node_hk, t);
-        if (! node) {
-            /* success, note iterations and return */
-            v->hk.p = j;
-            if (entry->object.dir.collisions < j)
-                entry->object.dir.collisions = j;
-
-            LogDebug(COMPONENT_CACHE_INODE,
-                     "inserted new dirent on entry=%p cookie=%"PRIu64
-                     " collisions %d",
-                     entry, v->hk.k, entry->object.dir.collisions);
-
-            return (0);
-        }
+        code = cache_inode_avl_insert_impl(entry, t, v, j, 0);
+        if (code >= 0)
+            return (code);
     }
     
     LogCrit(COMPONENT_CACHE_INODE,
@@ -109,14 +141,9 @@ int cache_inode_avl_qp_insert(
     memcpy(&v->hk.k, hk, 8);
     for (j2 = 1 /* tried j=0 */; j2 < UINT64_MAX; j2++) {
         v->hk.k = v->hk.k + j2;
-        node = avltree_insert(&v->node_hk, t);
-        if (! node) {
-            /* success, note iterations and return */
-            v->hk.p = j + j2;
-            if (entry->object.dir.collisions < v->hk.p)
-                entry->object.dir.collisions = v->hk.p;
-            return (0);
-        }
+        code = cache_inode_avl_insert_impl(entry, t, v, j, j2);
+        if (code >= 0)
+            return (code);
         j2++;
     }
 
