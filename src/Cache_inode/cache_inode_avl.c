@@ -69,7 +69,7 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
         if (v_exist->flags & DIR_ENTRY_FLAG_DELETED) {
             /* reuse the slot */
             FSAL_namecpy(&v_exist->name, &v->name);
-            v_exist->flags &= ~DIR_ENTRY_FLAG_DELETED;
+            avl_dirent_clear_deleted(entry, v_exist);
             v = v_exist;
             code = 1; /* tell client to dispose v */
         }
@@ -81,13 +81,13 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
     case 1:
         /* success, note iterations */
         v->hk.p = j + j2;
-        if (entry->object.dir.collisions < v->hk.p)
-            entry->object.dir.collisions = v->hk.p;
+        if (entry->object.dir.avl.collisions < v->hk.p)
+            entry->object.dir.avl.collisions = v->hk.p;
 
         LogDebug(COMPONENT_CACHE_INODE,
                  "inserted new dirent on entry=%p cookie=%"PRIu64
                  " collisions %d",
-                 entry, v->hk.k, entry->object.dir.collisions);
+                 entry, v->hk.k, entry->object.dir.avl.collisions);
         break;
     default:
         /* keep trying at current j, j2 */

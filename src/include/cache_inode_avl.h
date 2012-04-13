@@ -73,6 +73,20 @@ avl_dirent_hk_cmpf(const struct avltree_node *lhs,
     return (1);
 }
 
+static inline void
+avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    v->flags |= DIR_ENTRY_FLAG_DELETED;
+    (entry->object.dir.avl.deleted)++;
+}
+
+static inline void
+avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    v->flags &= ~DIR_ENTRY_FLAG_DELETED;
+    (entry->object.dir.avl.deleted)--;
+}
+
 extern void cache_inode_avl_init(cache_entry_t *entry);
 extern int cache_inode_avl_qp_insert(cache_entry_t *entry,
                                      cache_inode_dir_entry_t *v);
@@ -83,6 +97,7 @@ extern cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(
     cache_entry_t *entry,
     cache_inode_dir_entry_t *v,
     int maxj);
+
 static inline void
 cache_inode_avl_remove(cache_entry_t *entry,
                        cache_inode_dir_entry_t *v)

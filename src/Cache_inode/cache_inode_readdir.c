@@ -375,7 +375,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
         {
         case CACHE_INODE_DIRENT_OP_REMOVE:
             /* XXX mark deleted */
-            dirent->flags |= DIR_ENTRY_FLAG_DELETED;
+            avl_dirent_set_deleted(pentry_parent, dirent);
 	    pentry_parent->object.dir.nbactive--;
 	    *pstatus = CACHE_INODE_SUCCESS;
           break;
@@ -390,12 +390,13 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 
 	  } else {
 	      /* try to rename in-place */
-              dirent->flags |= DIR_ENTRY_FLAG_DELETED;
+              avl_dirent_set_deleted(pentry_parent, dirent);
 	      FSAL_namecpy(&dirent->name, newname);
               code = cache_inode_avl_qp_insert(pentry_parent, dirent);
               switch (code) {
               case 0:
                   /* CACHE_INODE_SUCCESS */
+                  avl_dirent_clear_deleted(pentry_parent, dirent);
                   break;
               case 1:
                   /* we reused an existing dirent, dirent has been deep
@@ -407,7 +408,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 		  /* collision, tree state unchanged--unlikely */
 		  *pstatus = CACHE_INODE_ENTRY_EXISTS;
 		  /* still, revert the change in place */
-                  dirent->flags &= ~DIR_ENTRY_FLAG_DELETED;
+                  avl_dirent_clear_deleted(pentry_parent, dirent);
 		  FSAL_namecpy(&dirent->name, pname);
 	      default:
                   LogCrit(COMPONENT_NFS_READDIR,
@@ -1302,7 +1303,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
       }
   } else {
       /* initial readdir */
-      dirent_node = avltree_first(&dir_pentry->object.dir.avl);
+      dirent_node = avltree_first(&dir_pentry->object.dir.avl.t);
   }
 
   LogDebug(COMPONENT_NFS_READDIR,
@@ -1310,7 +1311,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
            "cookie=%"PRIu64" collisions %d",
            dir_pentry,
            cookie,
-           dir_pentry->object.dir.collisions
+           dir_pentry->object.dir.avl.collisions
       );
 
   /* Now satisfy the request from the cached readdir--stop when either

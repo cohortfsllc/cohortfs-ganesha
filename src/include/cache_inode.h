@@ -328,8 +328,11 @@ struct cache_entry_t
       unsigned int nbactive;                    /**< Number of known active children                         */
       cache_inode_flag_t has_been_readdir;      /**< True if a full readdir was performed on the directory   */
       char *referral;                           /**< NULL is not a referral, is not this a 'referral string' */
-      struct avltree avl;                       /**< Children */
-      unsigned int collisions;                  /**< For future heuristics. Expect 0. */
+      struct {
+          struct avltree t;                     /**< Children */
+          uint32_t collisions;                  /**< Heuristic. Expect 0. */
+          uint32_t deleted;                     /* n deleted */
+      } avl;
     } dir;                                      /**< DIR related field                */
 
     /* Note that special data is in the rawdev field of FSAL attributes */
