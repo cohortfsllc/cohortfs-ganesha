@@ -429,18 +429,6 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
         }                       /* switch */
     }
 
-  if (*pstatus == CACHE_INODE_SUCCESS) {
-      /* As noted, if a mutating operation was performed, we must
-       * invalidate cached cookies. */
-      cache_inode_release_dirents(
-          pentry_parent, pclient, CACHE_INODE_AVL_COOKIES);
-
-      /* Someone has to repopulate the avl cookie cache.  Populating it
-       * lazily is ok, but the logic to do it makes supporting simultaneous
-       * readers more involved.  Another approach would be to do it in the
-       * background, scheduled from here. */
-  }
-
   return pentry;
 }                               /* cache_inode_operate_cached_dirent */
 
