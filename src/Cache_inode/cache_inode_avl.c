@@ -118,17 +118,16 @@ int cache_inode_avl_qp_insert(
     assert(avltree_size(t) < UINT64_MAX);
 
     /* don't permit illegal cookies */
-    for (tries = 0; tries < 5; ++tries) {
-        MurmurHash3_x64_128(v->name.name,  FSAL_MAX_NAME_LEN, 67, hk);
-        memcpy(&v->hk.k, hk, 8);
-        if (v->hk.k > 2)
-            break;
-    }
-
-    assert(v->hk.k > 2);
+    MurmurHash3_x64_128(v->name.name,  FSAL_MAX_NAME_LEN, 67, hk);
+    memcpy(&v->hk.k, hk, 8);
 
     for (j = 0; j < UINT64_MAX; j++) {
         v->hk.k = (v->hk.k + (j * 2));
+
+        /* reject values 0, 1 and 2 */
+        if (v->hk.k < 3)
+            continue;
+
         code = cache_inode_avl_insert_impl(entry, t, v, j, 0);
         if (code >= 0)
             return (code);
