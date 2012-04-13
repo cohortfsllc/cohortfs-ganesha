@@ -50,7 +50,8 @@
 
 void cache_inode_avl_init(cache_entry_t *entry)
 {
-    avltree_init(&entry->object.dir.avl, avl_dirent_hk_cmpf, 0 /* flags */);
+    avltree_init(&entry->object.dir.avl.t, avl_dirent_hk_cmpf, 0 /* flags */);
+    init_glist(&entry->object.dir.avl.d_list);
 }
 
 static inline int
@@ -110,10 +111,9 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
 int cache_inode_avl_qp_insert(
     cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
-    struct avltree *t = &entry->object.dir.avl;
+    struct avltree *t = &entry->object.dir.avl.t;
     uint32_t hk[4];
-    int j, j2, tries;
-    int code = -1;
+    int j, j2, code = -1;
 
     assert(avltree_size(t) < UINT64_MAX);
 
@@ -177,7 +177,7 @@ cache_inode_dir_entry_t *
 cache_inode_avl_lookup_k(
     cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
-    struct avltree *t = &entry->object.dir.avl;
+    struct avltree *t = &entry->object.dir.avl.t;
     struct avltree_node *node;
 
     node = avltree_inline_lookup(&v->node_hk, t);
@@ -191,7 +191,7 @@ cache_inode_dir_entry_t *
 cache_inode_avl_qp_lookup_s(
     cache_entry_t *entry, cache_inode_dir_entry_t *v, int maxj)
 {
-    struct avltree *t = &entry->object.dir.avl;
+    struct avltree *t = &entry->object.dir.avl.t;
     struct avltree_node *node;
     cache_inode_dir_entry_t *v2;
     uint32_t hk[4];

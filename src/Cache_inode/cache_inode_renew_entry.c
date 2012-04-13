@@ -307,7 +307,7 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  cache_inode_dir_entry_t *d_dirent;
 	  int i = 0;
 	  
-	  d_node = avltree_first(&pentry->object.dir.avl);
+	  d_node = avltree_first(&pentry->object.dir.avl.t);
       	  do {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
 					      node_hk);
@@ -419,7 +419,7 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  cache_inode_dir_entry_t *d_dirent;
 	  int i = 0;
 	  
-	  d_node = avltree_first(&pentry->object.dir.avl);
+	  d_node = avltree_first(&pentry->object.dir.avl.t);
       	  do {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
 					      node_hk);

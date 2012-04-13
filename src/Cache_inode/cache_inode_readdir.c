@@ -741,12 +741,12 @@ static void debug_print_dirents(cache_entry_t *dir_pentry)
     cache_inode_dir_entry_t *dirent;
     int size, ix;
 
-    size = avltree_size(&dir_pentry->object.dir.avl);
+    size = avltree_size(&dir_pentry->object.dir.avl.t);
 
     LogDebug(COMPONENT_CACHE_INODE, "cookie avl size: %d", size);
 
     ix = 0;
-    dirent_node = avltree_first(&dir_pentry->object.dir.avl);
+    dirent_node = avltree_first(&dir_pentry->object.dir.avl.t);
     while (dirent_node) {
         dirent = avltree_container_of(dirent_node,
                                       cache_inode_dir_entry_t, 

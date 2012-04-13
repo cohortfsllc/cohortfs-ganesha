@@ -77,6 +77,7 @@ static inline void
 avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     v->flags |= DIR_ENTRY_FLAG_DELETED;
+    glist_add_tail(&entry->object.dir.avl.d_list, &v->node_del);
     (entry->object.dir.avl.deleted)++;
 }
 
@@ -84,6 +85,7 @@ static inline void
 avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     v->flags &= ~DIR_ENTRY_FLAG_DELETED;
+    glist_del(&v->node_del);
     (entry->object.dir.avl.deleted)--;
 }
 
@@ -102,7 +104,7 @@ static inline void
 cache_inode_avl_remove(cache_entry_t *entry,
                        cache_inode_dir_entry_t *v)
 {
-    avltree_remove(&v->node_hk, &entry->object.dir.avl);
+    avltree_remove(&v->node_hk, &entry->object.dir.avl.t);
 }
 
 #endif /* _CACHE_INODE_AVL_H */
