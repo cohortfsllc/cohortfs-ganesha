@@ -70,6 +70,7 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
         if (v_exist->flags & DIR_ENTRY_FLAG_DELETED) {
             /* reuse the slot */
             FSAL_namecpy(&v_exist->name, &v->name);
+            v_exist->pentry = v->pentry;
             avl_dirent_clear_deleted(entry, v_exist);
             v = v_exist;
             code = 1; /* tell client to dispose v */

@@ -349,7 +349,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 
   FSAL_namecpy(&dirent_key->name, pname);
   dirent = cache_inode_avl_qp_lookup_s(pentry_parent, dirent_key, 1);
-  if (! dirent) {
+  if ((! dirent) || (dirent->flags & DIR_ENTRY_FLAG_DELETED)) {
       *pstatus = CACHE_INODE_BAD_COOKIE; /* Right error code (see above)? */
       return NULL;
   }
@@ -554,6 +554,9 @@ cache_inode_status_t cache_inode_add_cached_dirent(
     return *pstatus;
   }
 
+  /* XXX new_dir_entry->pentry must be valid before try-insert in AVL */
+  new_dir_entry->pentry = pentry_added;
+
   /* XXX for now, still need the parent list */
   GetFromPool(next_parent_entry, &pclient->pool_parent,
               cache_inode_parent_entry_t);
@@ -592,8 +595,7 @@ cache_inode_status_t cache_inode_add_cached_dirent(
   *pnew_dir_entry = new_dir_entry;
 
   /* we're going to succeed */  
-  pentry_parent->object.dir.nbactive++;  
-  new_dir_entry->pentry = pentry_added;
+  pentry_parent->object.dir.nbactive++;
 
   /* link with the parent entry (insert as first entry) */
   next_parent_entry->parent = pentry_parent;
