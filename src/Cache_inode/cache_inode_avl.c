@@ -85,6 +85,14 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
 
     /* first check for a previously-deleted entry */
     node = avltree_inline_lookup(&v->node_hk, c);
+
+    /* XXX we must not allow persist-cookies to overrun resource
+     * management processes (ie, more coming in CIR/LRU) */
+    if ((! node) && (avltree_size(c) > 65535)) {
+        /* ie, recycle the smallest deleted entry */
+        node = avltree_first(c);
+    }
+
     if (node) {
         /* reuse the slot */
         cache_inode_dir_entry_t *v_exist =
