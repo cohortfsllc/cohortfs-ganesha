@@ -269,8 +269,7 @@ struct avltree_node *avltree_lookup(const struct avltree_node *key,
 }
 
 struct avltree_node *avltree_inf(const struct avltree_node *key,
-                                 const struct avltree *tree,
-                                 struct avltree_node **glb)
+                                 const struct avltree *tree)
 {
     struct avltree_node *parent __attribute__((unused));
     struct avltree_node *lb;
@@ -288,8 +287,10 @@ struct avltree_node *avltree_inf(const struct avltree_node *key,
         if (get_balance(node) != 0)
             unbalanced = node;
         res = tree->cmp_fn(node, key);
-        if (res == 0)
+        if (res == 0) {
+            /* node is the infimum */
             return node;
+        }
         else if (res < 1) /* lb is less than key */
             lb = node;
         parent = node;
@@ -299,11 +300,7 @@ struct avltree_node *avltree_inf(const struct avltree_node *key,
             node = node->right;
     } /* while */
 
-    /* pass up the glb */
-    if (lb)
-	*glb = lb;
-
-    return NULL;
+    return (lb);
 }
 
 struct avltree_node *avltree_sup(const struct avltree_node *key,

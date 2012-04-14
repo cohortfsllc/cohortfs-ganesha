@@ -437,6 +437,36 @@ void checks_supremum(void)
             v2 = avltree_container_of(node, avl_unit_val_t, node_k);
             CU_ASSERT((unsigned long) v2->val == (ix+1));
         }
+
+        /* ok, now find the -infimum- */
+        v->key = ix + 2; /* a value just above ix */
+
+	/* lookup mapping */
+	node = avltree_inf(&v->node_k, &avl_tree_2);
+        CU_ASSERT(node != NULL);
+        if (node) {
+            v2 = avltree_container_of(node, avl_unit_val_t, node_k);
+            CU_ASSERT((unsigned long) v2->val == (ix+1));
+        }        
+
+    }
+
+    /* now check the boundary case for supremum */
+    v->key = 500;
+
+    node = avltree_sup(&v->node_k, &avl_tree_2);
+    CU_ASSERT(node != NULL);
+    if (node) {
+        v2 = avltree_container_of(node, avl_unit_val_t, node_k);
+        CU_ASSERT((unsigned long) v2->val == (v->key+1));
+    }
+
+    /* and infimum */
+    node = avltree_inf(&v->node_k, &avl_tree_2);
+    CU_ASSERT(node != NULL);
+    if (node) {
+        v2 = avltree_container_of(node, avl_unit_val_t, node_k);
+        CU_ASSERT((unsigned long) v2->val == (v->key+1));
     }
 
     /* free v */
@@ -872,7 +902,7 @@ int main()
 
     CU_TestInfo avl_tree_unit_supremum[] = {
       { "Inserts supremum.", inserts_supremum },
-      { "Checks supremum.", checks_supremum },
+      { "Checks supremum (and infimum).", checks_supremum },
       { "Deletes supremum.", deletes_supremum },
       CU_TEST_INFO_NULL,
     };
