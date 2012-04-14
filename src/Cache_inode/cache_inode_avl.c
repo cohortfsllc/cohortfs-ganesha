@@ -243,6 +243,38 @@ cache_inode_avl_qp_lookup_s(
     return (NULL);
 }
 
+struct avltree_node *
+cache_inode_avl_skip_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    struct avltree *t = &entry->object.dir.avl.t;
+    cache_inode_dir_entry_t dirent_key[1];
+    struct avltree_node *node;
+
+    dirent_key->hk.k = v->hk.synth_next;
+    node = avltree_inline_lookup(&dirent_key->node_hk, t);
+
+    return (node);
+}
+
+void
+avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    struct avltree_node *node;
+    cache_inode_dir_entry_t *v2 = NULL;
+
+    v->flags |= DIR_ENTRY_FLAG_DELETED;
+
+    /* node after us */
+    node = avltree_next(&v->node_hk);
+    if (node) {
+        v2 = avltree_container_of(node, cache_inode_dir_entry_t, node_hk);
+        v->hk.synth_next = v2->hk.k;
+    }
+
+    glist_add_tail(&entry->object.dir.avl.d_list, &v->node_del);
+    (entry->object.dir.avl.deleted)++;
+}
+
 int32_t avl_dirent_update_chase_ptrs(cache_entry_t *entry,
                                      cache_inode_dir_entry_t *v)
 {
@@ -264,8 +296,10 @@ int32_t avl_dirent_update_chase_ptrs(cache_entry_t *entry,
     if (! glist_empty(&entry->object.dir.avl.d_list))
         glist_for_each(glist, &entry->object.dir.avl.d_list) {
             v2 = glist_entry(glist, cache_inode_dir_entry_t, node_del);
-            if (v2->hk.k == orig_k)
-                v2->hk.k = next_k;
+            if (v == v2)
+                continue;
+            if (v2->hk.synth_next == orig_k)
+                v2->hk.synth_next = next_k;
         }
 
     return (0);

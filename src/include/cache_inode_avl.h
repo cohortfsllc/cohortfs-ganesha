@@ -77,22 +77,17 @@ avl_dirent_hk_cmpf(const struct avltree_node *lhs,
 
 #define CACHE_INODE_AVL_PERSIST_COOKIES 1
 #if CACHE_INODE_AVL_PERSIST_COOKIES
-static inline void
-avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
-{
-    v->flags |= DIR_ENTRY_FLAG_DELETED;
-    glist_add_tail(&entry->object.dir.avl.d_list, &v->node_del);
-    (entry->object.dir.avl.deleted)++;
-}
 
 static inline void
 avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     v->flags &= ~DIR_ENTRY_FLAG_DELETED;
+    v->hk.synth_next = 0;
     glist_del(&v->node_del);
     (entry->object.dir.avl.deleted)--;
 }
 
+void avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v);
 int32_t avl_dirent_update_chase_ptrs(cache_entry_t *entry,
                                      cache_inode_dir_entry_t *v);
 #else
@@ -112,6 +107,8 @@ cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(
     cache_entry_t *entry,
     cache_inode_dir_entry_t *v,
     int maxj);
+struct avltree_node * cache_inode_avl_skip_deleted(cache_entry_t *entry,
+                                                   cache_inode_dir_entry_t *v);
 
 static inline void
 cache_inode_avl_remove(cache_entry_t *entry,

@@ -1118,7 +1118,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                                          fsal_op_context_t *pcontext,
                                          cache_inode_status_t *pstatus)
 {
-  cache_inode_dir_entry_t *dirent;
+  cache_inode_dir_entry_t *dirent, *last_dirent;
   struct avltree_node *dirent_node;
   fsal_accessflags_t access_mask = 0;
   int i = 0;
@@ -1131,6 +1131,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
+  last_dirent = NULL;
   dirent = NULL;
 
   /* Set initial value of unlock */
@@ -1320,12 +1321,15 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                        dirent->name.name,
                        dirent->hk.k,
                        dirent->hk.p);
+#if 0
           dirent_node = avltree_next(dirent_node);
+#endif
+          dirent_node = cache_inode_avl_skip_deleted(dir_pentry, dirent);
           i--;
           continue;
       }
 
-      dirent_array[i] = dirent;
+      dirent_array[i] = last_dirent = dirent;
       (*pnbfound)++;
 
       dirent_node = avltree_next(dirent_node);
@@ -1333,7 +1337,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 
   if (*pnbfound > 0)
   {
-      if (!dirent)
+      if (! last_dirent)
       {
          LogCrit(COMPONENT_CACHE_INODE, "cache_inode_readdir: "
                  "UNEXPECTED CASE: dirent is NULL whereas nbfound>0");
@@ -1341,7 +1345,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
          *pstatus = CACHE_INODE_INCONSISTENT_ENTRY;
          return CACHE_INODE_INCONSISTENT_ENTRY;
       }
-      *pend_cookie = dirent->hk.k;
+      *pend_cookie = last_dirent->hk.k;
   }
 
   if (! dirent_node)
