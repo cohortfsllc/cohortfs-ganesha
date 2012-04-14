@@ -376,6 +376,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
         case CACHE_INODE_DIRENT_OP_REMOVE:
             /* XXX mark deleted */
             avl_dirent_set_deleted(pentry_parent, dirent);
+            avl_dirent_update_chase_ptrs(pentry_parent, dirent);
 	    pentry_parent->object.dir.nbactive--;
 	    *pstatus = CACHE_INODE_SUCCESS;
           break;
@@ -397,6 +398,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
               case 0:
                   /* CACHE_INODE_SUCCESS */
                   avl_dirent_clear_deleted(pentry_parent, dirent);
+                  avl_dirent_update_chase_ptrs(pentry_parent, dirent);
                   break;
               case 1:
                   /* we reused an existing dirent, dirent has been deep
@@ -1116,7 +1118,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                                          fsal_op_context_t *pcontext,
                                          cache_inode_status_t *pstatus)
 {
-  cache_inode_dir_entry_t dirent_key[1], *dirent;
+  cache_inode_dir_entry_t *dirent;
   struct avltree_node *dirent_node;
   fsal_accessflags_t access_mask = 0;
   int i = 0;
@@ -1263,28 +1265,12 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 	  return *pstatus;
       }
 
-      /* we assert this can now succeed */
-      dirent_key->hk.k = cookie;
-      dirent = cache_inode_avl_lookup_k(dir_pentry, dirent_key);
-      if (! dirent) {
+      /* lookup active or deleted entry */
+      dirent_node = cache_inode_avl_lookup_k(dir_pentry, cookie,
+                                             CACHE_INODE_AVL_CLIENT_CHASE);
+      if (! dirent_node) {
 	  LogFullDebug(COMPONENT_NFS_READDIR,
                        "%s: seek to cookie=%"PRIu64" fail",
-                       __func__,
-                       cookie);
-	  *pstatus = CACHE_INODE_BAD_COOKIE;
-	  V_r(&dir_pentry->lock);
-	  return *pstatus;
-      }
-
-      dirent_node = &dirent->node_hk;
-
-      /* client wants the cookie -after- the last we sent, and
-       * the Linux 3.0 and 3.1.0-rc7 clients misbehave if we
-       * resend the last one */
-      dirent_node = avltree_next(dirent_node);
-      if (! dirent) {
-	  LogFullDebug(COMPONENT_NFS_READDIR,
-                       "%s: seek to cookie=%"PRIu64" fail (no next entry)",
                        __func__,
                        cookie);
 	  *pstatus = CACHE_INODE_BAD_COOKIE;

@@ -73,6 +73,10 @@ avl_dirent_hk_cmpf(const struct avltree_node *lhs,
     return (1);
 }
 
+#define CACHE_INODE_AVL_CLIENT_CHASE 0x0001
+
+#define CACHE_INODE_AVL_PERSIST_COOKIES 1
+#if CACHE_INODE_AVL_PERSIST_COOKIES
 static inline void
 avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
@@ -89,13 +93,22 @@ avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
     (entry->object.dir.avl.deleted)--;
 }
 
-extern void cache_inode_avl_init(cache_entry_t *entry);
-extern int cache_inode_avl_qp_insert(cache_entry_t *entry,
+int32_t avl_dirent_update_chase_ptrs(cache_entry_t *entry,
                                      cache_inode_dir_entry_t *v);
-extern cache_inode_dir_entry_t *cache_inode_avl_lookup_k(
+#else
+#define avl_dirent_set_deleted(e,v) ()
+#define avl_dirent_clear_deleted(e,v) ()
+#define avl_dirent_update_chase_ptrs(e, v) ()
+#endif
+
+void cache_inode_avl_init(cache_entry_t *entry);
+int cache_inode_avl_qp_insert(cache_entry_t *entry,
+                              cache_inode_dir_entry_t *v);
+struct avltree_node *cache_inode_avl_lookup_k(
     cache_entry_t *entry,
-    cache_inode_dir_entry_t *v);
-extern cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(
+    uint64_t k,
+    uint32_t flags);
+cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(
     cache_entry_t *entry,
     cache_inode_dir_entry_t *v,
     int maxj);

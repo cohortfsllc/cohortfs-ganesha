@@ -294,6 +294,7 @@ typedef struct cache_inode_dir_entry__
     struct avltree_node node_hk; /* avl keyed on hk.k */
     struct {
         uint64_t k; /* readdir cookie */
+        uint64_t synth_next;
         uint32_t p; /* nprobes , eff. metric */
     } hk;
     struct glist_head node_del; /* persist cookie freelist */

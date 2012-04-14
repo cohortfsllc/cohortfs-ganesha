@@ -174,18 +174,32 @@ avltree_inline_lookup(
     return NULL;
 }
 
-cache_inode_dir_entry_t *
+struct avltree_node *
 cache_inode_avl_lookup_k(
-    cache_entry_t *entry, cache_inode_dir_entry_t *v)
+    cache_entry_t *entry, uint64_t k, uint32_t flags)
 {
     struct avltree *t = &entry->object.dir.avl.t;
-    struct avltree_node *node;
+    cache_inode_dir_entry_t dirent_key[1], *v = NULL;
+    struct avltree_node *node = NULL;
 
-    node = avltree_inline_lookup(&v->node_hk, t);
-    if (node)
-        return (avltree_container_of(node, cache_inode_dir_entry_t, node_hk));
-    else
-        return (NULL);
+    dirent_key->hk.k = k;
+    node = avltree_inline_lookup(&dirent_key->node_hk, t);
+    if (node) {
+        v = avltree_container_of(node, cache_inode_dir_entry_t, node_hk);
+        if (v->flags & DIR_ENTRY_FLAG_DELETED) {
+            /* try again, using saved hint */
+            dirent_key->hk.k = v->hk.synth_next;
+            node = avltree_inline_lookup(&dirent_key->node_hk, t);
+        } else
+            if (flags & CACHE_INODE_AVL_CLIENT_CHASE) {
+                /* client wants the cookie -after- the last we sent, and
+                 * the Linux 3.0 and 3.1.0-rc7 clients misbehave if we
+                 * resend the last one */
+                node = avltree_next(node);
+            }
+    }
+
+    return (node);
 }
 
 cache_inode_dir_entry_t *
@@ -227,4 +241,32 @@ cache_inode_avl_qp_lookup_s(
     }
 
     return (NULL);
+}
+
+int32_t avl_dirent_update_chase_ptrs(cache_entry_t *entry,
+                                     cache_inode_dir_entry_t *v)
+{
+    cache_inode_dir_entry_t *v2 = NULL;
+    struct glist_head  *glist;
+    struct avltree_node *node;
+    uint64_t orig_k = v->hk.k;
+    uint64_t next_k = 0;
+
+    /* node after us */
+    node = avltree_next(&v->node_hk);
+    if (node) {
+        v2 = avltree_container_of(node, cache_inode_dir_entry_t, node_hk);
+        next_k = v2->hk.k;
+    }
+
+    /* XXX scan deleted queue, updating the logical next entry of
+     * any entry which points to this one */
+    if (! glist_empty(&entry->object.dir.avl.d_list))
+        glist_for_each(glist, &entry->object.dir.avl.d_list) {
+            v2 = glist_entry(glist, cache_inode_dir_entry_t, node_del);
+            if (v2->hk.k == orig_k)
+                v2->hk.k = next_k;
+        }
+
+    return (0);
 }
