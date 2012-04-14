@@ -322,7 +322,7 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
                                                  cache_inode_status_t * pstatus)
 {
   cache_entry_t *pentry = NULL;
-  cache_inode_dir_entry_t dirent_key[1], *dirent, *dirent2;
+  cache_inode_dir_entry_t dirent_key[1], *dirent, *dirent2, *dirent3;
   LRU_List_state_t vstate;
   int code = 0;
 
@@ -388,10 +388,13 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 	    *pstatus = CACHE_INODE_ENTRY_EXISTS;
 
 	  } else {
-	      /* try to rename in-place */
+	      /* try to rename--no longer in-place */
               avl_dirent_set_deleted(pentry_parent, dirent);
-	      FSAL_namecpy(&dirent->name, newname);
-              code = cache_inode_avl_qp_insert(pentry_parent, dirent);
+              GetFromPool(dirent3, &pclient->pool_dir_entry,
+                          cache_inode_dir_entry_t);
+	      FSAL_namecpy(&dirent3->name, newname);
+              dirent3->pentry = dirent->pentry;
+              code = cache_inode_avl_qp_insert(pentry_parent, dirent3);
               switch (code) {
               case 0:
                   /* CACHE_INODE_SUCCESS */
@@ -399,25 +402,16 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
               case 1:
                   /* we reused an existing dirent, dirent has been deep
                    * copied, dispose it */
-                  ReleaseToPool(dirent, &pclient->pool_dir_entry);
+                  ReleaseToPool(dirent3, &pclient->pool_dir_entry);
                   /* CACHE_INODE_SUCCESS */
                   break;
               case -1:
 		  /* collision, tree state unchanged--unlikely */
 		  *pstatus = CACHE_INODE_ENTRY_EXISTS;
-		  /* still, revert the change in place */
-		  FSAL_namecpy(&dirent->name, pname);
-                  code = cache_inode_avl_qp_insert(pentry_parent, dirent);
-                  switch (code) {
-                  case 0:
-                      /* reverted */
-                      break;
-                  case 1:
-                  case -1:
-                      /* clean up */
-                      ReleaseToPool(dirent, &pclient->pool_dir_entry);
-                      break;
-                  }
+		  /* dirent is on persist tree, undelete it */
+                  avl_dirent_clear_deleted(pentry_parent, dirent);
+                  /* dirent3 was never inserted */
+                  ReleaseToPool(dirent3, &pclient->pool_dir_entry);
 	      default:
                   LogCrit(COMPONENT_NFS_READDIR,
                           "DIRECTORY: insert error renaming dirent (%s, %s)",

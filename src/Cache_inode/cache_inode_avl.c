@@ -48,12 +48,15 @@
 #include <pthread.h>
 #include <assert.h>
 
+#define avltree_inline_lookup(x,y)  avltree_lookup((x), (y))
+
 void cache_inode_avl_init(cache_entry_t *entry)
 {
     avltree_init(&entry->object.dir.avl.t, avl_dirent_hk_cmpf, 0 /* flags */);
     avltree_init(&entry->object.dir.avl.c, avl_dirent_hk_cmpf, 0 /* flags */);
 }
 
+#if 0
 static inline struct avltree_node *
 avltree_inline_lookup(
     const struct avltree_node *key,
@@ -73,6 +76,7 @@ avltree_inline_lookup(
     }
     return NULL;
 }
+#endif
 
 void
 avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
@@ -118,7 +122,8 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
                             int j, int j2)
 {
     int code = -1;
-    struct avltree_node *node;
+    struct avltree_node *node, *node2;
+    cache_inode_dir_entry_t *v_exist = NULL;
     struct avltree *t = &entry->object.dir.avl.t;
     struct avltree *c = &entry->object.dir.avl.c;
 
@@ -134,9 +139,8 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
 
     if (node) {
         /* reuse the slot */
-        cache_inode_dir_entry_t *v_exist =
-            avltree_container_of(node, cache_inode_dir_entry_t,
-                                 node_hk);
+        v_exist = avltree_container_of(node, cache_inode_dir_entry_t,
+                                       node_hk);
         FSAL_namecpy(&v_exist->name, &v->name);
         v_exist->pentry = v->pentry;
         avl_dirent_clear_deleted(entry, v_exist);
@@ -147,6 +151,12 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
         node = avltree_insert(&v->node_hk, t);
         if (! node)
             code = 0;
+        else {
+            v_exist =
+                avltree_container_of(node, cache_inode_dir_entry_t,
+                                     node_hk);
+            int stop_here = 1;
+        }
     }
 
     switch (code) {
