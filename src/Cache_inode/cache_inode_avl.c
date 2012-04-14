@@ -95,10 +95,8 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
         avl_dirent_clear_deleted(entry, v_exist);
         v = v_exist;
         code = 1; /* tell client to dispose v */    
-    }
-
-    /* if not previously deleted, try to insert active */
-    if (! code) {
+    } else {
+        /* try to insert active */
         node = avltree_insert(&v->node_hk, t);
         if (! node)
             code = 0;
