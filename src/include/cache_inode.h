@@ -296,7 +296,6 @@ typedef struct cache_inode_dir_entry__
         uint64_t k; /* readdir cookie */
         uint32_t p; /* nprobes , eff. metric */
     } hk;
-    struct glist_head node_del; /* persist cookie freelist */
     cache_entry_t *pentry;
     fsal_name_t name;
     uint64_t fsal_cookie;
@@ -331,9 +330,8 @@ struct cache_entry_t
       char *referral;                           /**< NULL is not a referral, is not this a 'referral string' */
       struct {
           struct avltree t;                     /**< Children */
+          struct avltree c;                     /**< Persist cookies */
           uint32_t collisions;                  /**< Heuristic. Expect 0. */
-          struct glist_head d_list;             /**< Deleted queue */
-          uint32_t deleted;                     /* n deleted */
       } avl;
     } dir;                                      /**< DIR related field                */
 

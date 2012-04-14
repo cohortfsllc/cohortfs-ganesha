@@ -239,7 +239,6 @@ static cache_inode_status_t cache_inode_readdir_nonamecache( cache_entry_t * pen
     *peod_met = TO_BE_CONTINUED ;
 
   /* Do not forget to set returned end cookie */
-  //memcpy( pend_cookie, &(end_cookie.data), sizeof( uint64_t ) ) ; 
   FSAL_SET_POFFSET_BY_COOKIE( end_cookie, pend_cookie ) ;
 
   LogDebug(COMPONENT_CACHE_INODE,
@@ -724,7 +723,7 @@ cache_inode_status_t cache_inode_remove_cached_dirent(
 }                               /* cache_inode_remove_cached_dirent */
 
 
-#if 0 // unused code
+#if 0 /* unused code */
 static void debug_print_dirents(cache_entry_t *dir_pentry)
 {
     struct avltree_node *dirent_node;
@@ -1116,7 +1115,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
                                          fsal_op_context_t *pcontext,
                                          cache_inode_status_t *pstatus)
 {
-  cache_inode_dir_entry_t dirent_key[1], *dirent;
+  cache_inode_dir_entry_t *dirent, *last_dirent;
   struct avltree_node *dirent_node;
   fsal_accessflags_t access_mask = 0;
   int i = 0;
@@ -1129,7 +1128,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 
   /* Set the return default to CACHE_INODE_SUCCESS */
   *pstatus = CACHE_INODE_SUCCESS;
-  dirent = NULL;
+  last_dirent = dirent = NULL;
 
   /* Set initial value of unlock */
   *unlock = FALSE;
@@ -1264,8 +1263,8 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
       }
 
       /* we assert this can now succeed */
-      dirent_key->hk.k = cookie;
-      dirent = cache_inode_avl_lookup_k(dir_pentry, dirent_key);
+      dirent = cache_inode_avl_lookup_k(dir_pentry, cookie,
+                                        CACHE_INODE_FLAG_NEXT_ACTIVE);
       if (! dirent) {
 	  LogFullDebug(COMPONENT_NFS_READDIR,
                        "%s: seek to cookie=%"PRIu64" fail",
@@ -1276,21 +1275,10 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 	  return *pstatus;
       }
 
+      /* THIS is the NEXT entry to return, since we sent 
+       * CACHE_INODE_FLAG_NEXT_ACTIVE */
       dirent_node = &dirent->node_hk;
 
-      /* client wants the cookie -after- the last we sent, and
-       * the Linux 3.0 and 3.1.0-rc7 clients misbehave if we
-       * resend the last one */
-      dirent_node = avltree_next(dirent_node);
-      if (! dirent) {
-	  LogFullDebug(COMPONENT_NFS_READDIR,
-                       "%s: seek to cookie=%"PRIu64" fail (no next entry)",
-                       __func__,
-                       cookie);
-	  *pstatus = CACHE_INODE_BAD_COOKIE;
-	  V_r(&dir_pentry->lock);
-	  return *pstatus;
-      }
   } else {
       /* initial readdir */
       dirent_node = avltree_first(&dir_pentry->object.dir.avl.t);
@@ -1326,6 +1314,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
               dirent->hk.k,
               dirent->hk.p);
 
+      /* XXX the following skip no longer happens */
       if (dirent->flags & DIR_ENTRY_FLAG_DELETED) {
           LogFullDebug(COMPONENT_NFS_READDIR,
                        "cache_inode_readdir: skip deleted=%p name=%s "
@@ -1339,7 +1328,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
           continue;
       }
 
-      dirent_array[i] = dirent;
+      dirent_array[i] = last_dirent = dirent;
       (*pnbfound)++;
 
       dirent_node = avltree_next(dirent_node);
@@ -1347,7 +1336,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
 
   if (*pnbfound > 0)
   {
-      if (!dirent)
+      if (! last_dirent)
       {
          LogCrit(COMPONENT_CACHE_INODE, "cache_inode_readdir: "
                  "UNEXPECTED CASE: dirent is NULL whereas nbfound>0");
@@ -1355,7 +1344,7 @@ cache_inode_status_t cache_inode_readdir(cache_entry_t * dir_pentry,
          *pstatus = CACHE_INODE_INCONSISTENT_ENTRY;
          return CACHE_INODE_INCONSISTENT_ENTRY;
       }
-      *pend_cookie = dirent->hk.k;
+      *pend_cookie = last_dirent->hk.k;
   }
 
   if (! dirent_node)

@@ -77,24 +77,28 @@ static inline void
 avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     v->flags |= DIR_ENTRY_FLAG_DELETED;
-    glist_add_tail(&entry->object.dir.avl.d_list, &v->node_del);
-    (entry->object.dir.avl.deleted)++;
+    avltree_remove(&v->node_hk, &entry->object.dir.avl.t);
+    (void) avltree_insert(&v->node_hk, &entry->object.dir.avl.c);
 }
 
 static inline void
 avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
     v->flags &= ~DIR_ENTRY_FLAG_DELETED;
-    glist_del(&v->node_del);
-    (entry->object.dir.avl.deleted)--;
+    avltree_remove(&v->node_hk, &entry->object.dir.avl.c);
+    (void) avltree_insert(&v->node_hk, &entry->object.dir.avl.t);
 }
 
 extern void cache_inode_avl_init(cache_entry_t *entry);
 extern int cache_inode_avl_qp_insert(cache_entry_t *entry,
                                      cache_inode_dir_entry_t *v);
+
+#define CACHE_INODE_FLAG_NEXT_ACTIVE     0x0001
+
 extern cache_inode_dir_entry_t *cache_inode_avl_lookup_k(
     cache_entry_t *entry,
-    cache_inode_dir_entry_t *v);
+    uint64_t k,
+    uint32_t flags);
 extern cache_inode_dir_entry_t *cache_inode_avl_qp_lookup_s(
     cache_entry_t *entry,
     cache_inode_dir_entry_t *v,

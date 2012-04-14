@@ -51,32 +51,58 @@
 void cache_inode_avl_init(cache_entry_t *entry)
 {
     avltree_init(&entry->object.dir.avl.t, avl_dirent_hk_cmpf, 0 /* flags */);
-    init_glist(&entry->object.dir.avl.d_list);
+    avltree_init(&entry->object.dir.avl.c, avl_dirent_hk_cmpf, 0 /* flags */);
+}
+
+static inline struct avltree_node *
+avltree_inline_lookup(
+    const struct avltree_node *key,
+    const struct avltree *tree)
+{
+    struct avltree_node *node = tree->root;
+    int is_left = 0, res = 0;
+
+    while (node) {
+        res = avl_dirent_hk_cmpf(node, key);
+        if (res == 0)
+            return node;
+        if ((is_left = res > 0))
+            node = node->left;
+        else
+            node = node->right;
+    }
+    return NULL;
 }
 
 static inline int
-cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
-                            cache_inode_dir_entry_t *v,
+cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
                             int j, int j2)
 {
     int code = -1;
     struct avltree_node *node;
+    struct avltree *t = &entry->object.dir.avl.t;
+    struct avltree *c = &entry->object.dir.avl.c;
 
-    node = avltree_insert(&v->node_hk, t);
+    /* first check for a previously-deleted entry */
+    node = avltree_inline_lookup(&v->node_hk, c);
     if (node) {
+        /* reuse the slot */
         cache_inode_dir_entry_t *v_exist =
             avltree_container_of(node, cache_inode_dir_entry_t,
                                  node_hk);
-        if (v_exist->flags & DIR_ENTRY_FLAG_DELETED) {
-            /* reuse the slot */
-            FSAL_namecpy(&v_exist->name, &v->name);
-            v_exist->pentry = v->pentry;
-            avl_dirent_clear_deleted(entry, v_exist);
-            v = v_exist;
-            code = 1; /* tell client to dispose v */
-        }
-    } else
-        code = 0;
+        FSAL_namecpy(&v_exist->name, &v->name);
+        v_exist->pentry = v->pentry;
+        avl_dirent_clear_deleted(entry, v_exist);
+        v = v_exist;
+        code = 1; /* tell client to dispose v */    
+    }
+
+    /* if not previously deleted, try to insert active */
+    if (! code) {
+        node = avltree_insert(&v->node_hk, t);
+        if (! node)
+            code = 0;
+    }
 
     switch (code) {
     case 0:
@@ -112,15 +138,15 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, struct avltree *t,
 int cache_inode_avl_qp_insert(
     cache_entry_t *entry, cache_inode_dir_entry_t *v)
 {
-    struct avltree *t = &entry->object.dir.avl.t;
     uint32_t hk[4];
     int j, j2, code = -1;
-
-    assert(avltree_size(t) < UINT64_MAX);
 
     /* don't permit illegal cookies */
     MurmurHash3_x64_128(v->name.name,  FSAL_MAX_NAME_LEN, 67, hk);
     memcpy(&v->hk.k, hk, 8);
+
+    /* XXX would we really wait for UINT64_MAX?  if not, how many
+     * probes should we attempt? */
 
     for (j = 0; j < UINT64_MAX; j++) {
         v->hk.k = (v->hk.k + (j * 2));
@@ -129,7 +155,7 @@ int cache_inode_avl_qp_insert(
         if (v->hk.k < 3)
             continue;
 
-        code = cache_inode_avl_insert_impl(entry, t, v, j, 0);
+        code = cache_inode_avl_insert_impl(entry, v, j, 0);
         if (code >= 0)
             return (code);
     }
@@ -141,7 +167,7 @@ int cache_inode_avl_qp_insert(
     memcpy(&v->hk.k, hk, 8);
     for (j2 = 1 /* tried j=0 */; j2 < UINT64_MAX; j2++) {
         v->hk.k = v->hk.k + j2;
-        code = cache_inode_avl_insert_impl(entry, t, v, j, j2);
+        code = cache_inode_avl_insert_impl(entry, v, j, j2);
         if (code >= 0)
             return (code);
         j2++;
@@ -154,38 +180,45 @@ int cache_inode_avl_qp_insert(
     return (-1);
 }
 
-static inline struct avltree_node *
-avltree_inline_lookup(
-    const struct avltree_node *key,
-    const struct avltree *tree)
-{
-    struct avltree_node *node = tree->root;
-    int is_left = 0, res = 0;
-
-    while (node) {
-        res = avl_dirent_hk_cmpf(node, key);
-        if (res == 0)
-            return node;
-        if ((is_left = res > 0))
-            node = node->left;
-        else
-            node = node->right;
-    }
-    return NULL;
-}
-
 cache_inode_dir_entry_t *
 cache_inode_avl_lookup_k(
-    cache_entry_t *entry, cache_inode_dir_entry_t *v)
+    cache_entry_t *entry, uint64_t k, uint32_t flags)
 {
     struct avltree *t = &entry->object.dir.avl.t;
-    struct avltree_node *node;
+    struct avltree *c = &entry->object.dir.avl.c;
+    cache_inode_dir_entry_t dirent_key[1], *dirent = NULL;
+    struct avltree_node *node, *node2;
 
-    node = avltree_inline_lookup(&v->node_hk, t);
+    dirent_key->hk.k = k;
+
+    node = avltree_inline_lookup(&dirent_key->node_hk, t);
+    if (node) {
+        if (flags & CACHE_INODE_FLAG_NEXT_ACTIVE)
+            /* client wants the cookie -after- the last we sent, and
+             * the Linux 3.0 and 3.1.0-rc7 clients misbehave if we
+             * resend the last one */
+            node = avltree_next(node);
+            if (! node) {
+                LogFullDebug(COMPONENT_NFS_READDIR,
+                             "seek to cookie=%"PRIu64" fail (no next entry)",
+                             k);
+                goto out;
+            }
+    }
+
+    /* Try the deleted AVL.  If a node with hk.k == v->hk.k is found,
+     * return its least upper bound in -t-, if any. */
+    if (! node) {
+        node2 = avltree_inline_lookup(&dirent_key->node_hk, c);
+        if (node2)
+            node = avltree_sup(&dirent_key->node_hk, t);
+    }
+
     if (node)
-        return (avltree_container_of(node, cache_inode_dir_entry_t, node_hk));
-    else
-        return (NULL);
+        dirent = avltree_container_of(node, cache_inode_dir_entry_t, node_hk);
+
+out:
+    return (dirent);
 }
 
 cache_inode_dir_entry_t *

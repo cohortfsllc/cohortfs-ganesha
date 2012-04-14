@@ -306,6 +306,43 @@ struct avltree_node *avltree_inf(const struct avltree_node *key,
     return NULL;
 }
 
+struct avltree_node *avltree_sup(const struct avltree_node *key,
+                                 const struct avltree *tree)
+{
+    struct avltree_node *parent __attribute__((unused));
+    struct avltree_node *ub = NULL;
+    struct avltree_node *unbalanced __attribute__((unused));
+    struct avltree_node *node = tree->root;
+    int is_left = 0;
+    int res = 0;
+
+    unbalanced = node;
+    parent = NULL;
+    is_left = 0;
+    ub = node;
+    while (node) {
+        if (get_balance(node) != 0)
+            unbalanced = node;
+        res = tree->cmp_fn(node, key);
+        if (res == 0) {
+            /* node is the supremum */
+            return (node);
+        }
+        parent = node;
+        if ((is_left = res > 0))
+            node = node->left;
+        else
+            node = node->right;
+        if (node) {
+            res = tree->cmp_fn(node, key);
+            if(res > 0) /* XXX do we need reciprocal test on ub? */
+                ub = node;
+        }
+    } /* while */
+
+    return (ub);
+}
+
 static void set_child(struct avltree_node *child,
 		      struct avltree_node *node, int left)
 {
