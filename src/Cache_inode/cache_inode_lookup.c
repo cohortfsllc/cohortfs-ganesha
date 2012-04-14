@@ -201,7 +201,7 @@ cache_entry_t *cache_inode_lookup_sw(cache_entry_t        * pentry_parent,
 
       FSAL_namecpy(&dirent_key->name, pname);
       dirent = cache_inode_avl_qp_lookup_s(pentry_parent, dirent_key, 1);
-      if (dirent && (! (dirent->flags & DIR_ENTRY_FLAG_DELETED)))
+      if (dirent)
           pentry = dirent->pentry;
 
       if(pentry == NULL)

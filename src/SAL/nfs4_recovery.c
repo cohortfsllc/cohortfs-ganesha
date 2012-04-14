@@ -58,7 +58,7 @@ typedef struct grace
 
 static grace_t grace;
 
-int grace_period = 45;
+int grace_period = 2; /* XXXXXX 45 */
 
 typedef struct clid_entry
 {

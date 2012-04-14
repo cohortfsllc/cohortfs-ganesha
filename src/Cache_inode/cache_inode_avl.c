@@ -74,6 +74,45 @@ avltree_inline_lookup(
     return NULL;
 }
 
+void
+avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    struct avltree *t = &entry->object.dir.avl.t;
+    struct avltree *c = &entry->object.dir.avl.c;
+    struct avltree_node *node;
+
+    assert(! (v->flags & DIR_ENTRY_FLAG_DELETED));
+
+    node = avltree_inline_lookup(&v->node_hk, t);
+    assert(node);
+    avltree_remove(&v->node_hk, &entry->object.dir.avl.t);
+
+    node = avltree_inline_lookup(&v->node_hk, c);
+    assert(! node);
+
+    v->flags |= DIR_ENTRY_FLAG_DELETED;
+
+    (void) avltree_insert(&v->node_hk, &entry->object.dir.avl.c);
+}
+
+void
+avl_dirent_clear_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
+{
+    struct avltree *t = &entry->object.dir.avl.t;
+    struct avltree *c = &entry->object.dir.avl.c;
+    struct avltree_node *node;
+
+    node = avltree_inline_lookup(&v->node_hk, c);
+    assert(node);
+    avltree_remove(&v->node_hk, c);
+    memset(&v->node_hk, 0, sizeof(struct avltree_node));
+
+    node = avltree_insert(&v->node_hk, t);
+    assert(! node);
+
+    v->flags &= ~DIR_ENTRY_FLAG_DELETED;
+}
+
 static inline int
 cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
                             int j, int j2)
@@ -112,7 +151,6 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
 
     switch (code) {
     case 0:
-    case 1:
         /* success, note iterations */
         v->hk.p = j + j2;
         if (entry->object.dir.avl.collisions < v->hk.p)
@@ -124,7 +162,7 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
                  entry, v->hk.k, entry->object.dir.avl.collisions);
         break;
     default:
-        /* keep trying at current j, j2 */
+        /* already inserted, or, keep trying at current j, j2 */
         break;
     }
     return (code);
@@ -218,6 +256,9 @@ cache_inode_avl_lookup_k(
         node2 = avltree_inline_lookup(&dirent_key->node_hk, c);
         if (node2)
             node = avltree_sup(&dirent_key->node_hk, t);
+        LogDebug(COMPONENT_NFS_READDIR,
+                 "node %p found deleted supremum %p",
+                 node2, node);
     }
 
     if (node)
@@ -234,6 +275,7 @@ cache_inode_avl_qp_lookup_s(
     struct avltree *t = &entry->object.dir.avl.t;
     struct avltree_node *node;
     cache_inode_dir_entry_t *v2;
+    unsigned long ix, s;
     uint32_t hk[4];
     int j;
 
@@ -255,15 +297,6 @@ cache_inode_avl_qp_lookup_s(
     LogFullDebug(COMPONENT_CACHE_INODE,
                  "cache_inode_avl_qp_lookup_s: entry not found at j=%d (%s)\n",
                  j, v->name.name);
-
-    node = avltree_first(t);
-    while (node) {
-        v2 = avltree_container_of(node, cache_inode_dir_entry_t, node_hk);
-        if (! FSAL_namecmp(&v->name, &v2->name))
-            return (v2);
-        else
-            node = avltree_next(node);
-    }
 
     return (NULL);
 }

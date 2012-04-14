@@ -395,7 +395,6 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
               switch (code) {
               case 0:
                   /* CACHE_INODE_SUCCESS */
-                  avl_dirent_clear_deleted(pentry_parent, dirent);
                   break;
               case 1:
                   /* we reused an existing dirent, dirent has been deep
@@ -407,8 +406,18 @@ cache_entry_t *cache_inode_operate_cached_dirent(cache_entry_t * pentry_parent,
 		  /* collision, tree state unchanged--unlikely */
 		  *pstatus = CACHE_INODE_ENTRY_EXISTS;
 		  /* still, revert the change in place */
-                  avl_dirent_clear_deleted(pentry_parent, dirent);
 		  FSAL_namecpy(&dirent->name, pname);
+                  code = cache_inode_avl_qp_insert(pentry_parent, dirent);
+                  switch (code) {
+                  case 0:
+                      /* reverted */
+                      break;
+                  case 1:
+                  case -1:
+                      /* clean up */
+                      ReleaseToPool(dirent, &pclient->pool_dir_entry);
+                      break;
+                  }
 	      default:
                   LogCrit(COMPONENT_NFS_READDIR,
                           "DIRECTORY: insert error renaming dirent (%s, %s)",
