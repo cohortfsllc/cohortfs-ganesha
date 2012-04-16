@@ -151,7 +151,7 @@ cache_inode_avl_insert_impl(cache_entry_t *entry, cache_inode_dir_entry_t *v,
             v_exist =
                 avltree_container_of(node, cache_inode_dir_entry_t,
                                      node_hk);
-            int stop_here = 1;
+            assert(! v_exist);
         }
     }
 
