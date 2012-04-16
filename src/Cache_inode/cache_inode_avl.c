@@ -48,15 +48,12 @@
 #include <pthread.h>
 #include <assert.h>
 
-#define avltree_inline_lookup(x,y)  avltree_lookup((x), (y))
-
 void cache_inode_avl_init(cache_entry_t *entry)
 {
     avltree_init(&entry->object.dir.avl.t, avl_dirent_hk_cmpf, 0 /* flags */);
     avltree_init(&entry->object.dir.avl.c, avl_dirent_hk_cmpf, 0 /* flags */);
 }
 
-#if 0
 static inline struct avltree_node *
 avltree_inline_lookup(
     const struct avltree_node *key,
@@ -76,7 +73,6 @@ avltree_inline_lookup(
     }
     return NULL;
 }
-#endif
 
 void
 avl_dirent_set_deleted(cache_entry_t *entry, cache_inode_dir_entry_t *v)
