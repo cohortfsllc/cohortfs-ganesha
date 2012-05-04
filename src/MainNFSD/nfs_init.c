@@ -1707,6 +1707,20 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
       if(!IsPoolPreallocated(&workers_data[i].request_pool))
         {
           LogCrit(COMPONENT_INIT,
+                  "Error while allocating request pool #%d", i);
+          LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
+          Fatal();
+        }
+
+      MakePool(&workers_data[i].request_data_pool,
+               nfs_param.worker_param.nb_pending_prealloc,
+               nfs_request_data_t,
+               constructor_nfs_request_data_t, NULL);
+      NamePool(&workers_data[i].request_pool, "Request Data Pool %d", i);
+
+      if(!IsPoolPreallocated(&workers_data[i].request_data_pool))
+        {
+          LogCrit(COMPONENT_INIT,
                   "Error while allocating request data pool #%d", i);
           LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
           Fatal();

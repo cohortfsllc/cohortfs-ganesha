@@ -50,6 +50,7 @@
 #include <fcntl.h>
 #include <sys/file.h>           /* for having FNDELAY */
 #include <sys/signal.h>
+#include <poll.h>
 #include "HashData.h"
 #include "HashTable.h"
 #include "log.h"
@@ -82,137 +83,191 @@ unsigned int nb_current_gc_workers;
 pthread_mutex_t lock_nb_current_gc_workers;
 
 const nfs_function_desc_t invalid_funcdesc =
-  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "invalid_function",
-   NOTHING_SPECIAL};
+  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+   "invalid_function", NOTHING_SPECIAL};
 
   const nfs_function_desc_t *INVALID_FUNCDESC = &invalid_funcdesc;
 
 /* Static array : all the function pointer per nfs v2 functions */
 const nfs_function_desc_t nfs2_func_desc[] = {
-  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "nfs_Null",
+  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "nfs_Null",
    NOTHING_SPECIAL},
-  {nfs_Getattr, nfs_Getattr_Free, (xdrproc_t) xdr_fhandle2, (xdrproc_t) xdr_ATTR2res,
-   "nfs_Getattr", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Setattr, nfs_Setattr_Free, (xdrproc_t) xdr_SETATTR2args, (xdrproc_t) xdr_ATTR2res,
-   "nfs_Setattr", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs2_Root, nfs2_Root_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "nfs2_Root",
+  {nfs_Getattr, nfs_Getattr_Free, (xdrproc_t) xdr_fhandle2,
+   (xdrproc_t) xdr_ATTR2res, "nfs_Getattr",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Setattr, nfs_Setattr_Free, (xdrproc_t) xdr_SETATTR2args,
+   (xdrproc_t) xdr_ATTR2res, "nfs_Setattr",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs2_Root, nfs2_Root_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "nfs2_Root",
    NOTHING_SPECIAL},
-  {nfs_Lookup, nfs2_Lookup_Free, (xdrproc_t) xdr_diropargs2, (xdrproc_t) xdr_DIROP2res,
-   "nfs_Lookup", NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Lookup, nfs2_Lookup_Free, (xdrproc_t) xdr_diropargs2,
+   (xdrproc_t) xdr_DIROP2res, "nfs_Lookup",
+   NEEDS_CRED | SUPPORTS_GSS},
   {nfs_Readlink, nfs2_Readlink_Free, (xdrproc_t) xdr_fhandle2,
-   (xdrproc_t) xdr_READLINK2res, "nfs_Readlink", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Read, nfs2_Read_Free, (xdrproc_t) xdr_READ2args, (xdrproc_t) xdr_READ2res,
-   "nfs_Read", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs2_Writecache, nfs2_Writecache_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-   "nfs_Writecache", NOTHING_SPECIAL},
-  {nfs_Write, nfs_Write_Free, (xdrproc_t) xdr_WRITE2args, (xdrproc_t) xdr_ATTR2res,
-   "nfs_Write", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Create, nfs_Create_Free, (xdrproc_t) xdr_CREATE2args, (xdrproc_t) xdr_DIROP2res,
-   "nfs_Create", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Remove, nfs_Remove_Free, (xdrproc_t) xdr_diropargs2, (xdrproc_t) xdr_nfsstat2,
-   "nfs_Remove", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Rename, nfs_Rename_Free, (xdrproc_t) xdr_RENAME2args, (xdrproc_t) xdr_nfsstat2,
-   "nfs_Rename", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Link, nfs_Link_Free, (xdrproc_t) xdr_LINK2args, (xdrproc_t) xdr_nfsstat2,
-   "nfs_Link", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Symlink, nfs_Symlink_Free, (xdrproc_t) xdr_SYMLINK2args, (xdrproc_t) xdr_nfsstat2,
-   "nfs_Symlink", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Mkdir, nfs_Mkdir_Free, (xdrproc_t) xdr_CREATE2args, (xdrproc_t) xdr_DIROP2res,
-   "nfs_Mkdir", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Rmdir, nfs_Rmdir_Free, (xdrproc_t) xdr_diropargs2, (xdrproc_t) xdr_nfsstat2,
-   "nfs_Rmdir", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+   (xdrproc_t) xdr_READLINK2res, "nfs_Readlink",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Read, nfs2_Read_Free, (xdrproc_t) xdr_READ2args,
+   (xdrproc_t) xdr_READ2res, "nfs_Read",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs2_Writecache, nfs2_Writecache_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "nfs_Writecache",
+   NOTHING_SPECIAL},
+  {nfs_Write, nfs_Write_Free, (xdrproc_t) xdr_WRITE2args,
+   (xdrproc_t) xdr_ATTR2res, "nfs_Write",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Create, nfs_Create_Free, (xdrproc_t) xdr_CREATE2args,
+   (xdrproc_t) xdr_DIROP2res, "nfs_Create",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Remove, nfs_Remove_Free, (xdrproc_t) xdr_diropargs2,
+   (xdrproc_t) xdr_nfsstat2, "nfs_Remove",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Rename, nfs_Rename_Free, (xdrproc_t) xdr_RENAME2args,
+   (xdrproc_t) xdr_nfsstat2, "nfs_Rename",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Link, nfs_Link_Free, (xdrproc_t) xdr_LINK2args,
+   (xdrproc_t) xdr_nfsstat2, "nfs_Link",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Symlink, nfs_Symlink_Free, (xdrproc_t) xdr_SYMLINK2args,
+   (xdrproc_t) xdr_nfsstat2, "nfs_Symlink",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Mkdir, nfs_Mkdir_Free, (xdrproc_t) xdr_CREATE2args,
+   (xdrproc_t) xdr_DIROP2res, "nfs_Mkdir",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Rmdir, nfs_Rmdir_Free, (xdrproc_t) xdr_diropargs2,
+   (xdrproc_t) xdr_nfsstat2, "nfs_Rmdir",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
   {nfs_Readdir, nfs2_Readdir_Free, (xdrproc_t) xdr_READDIR2args,
-   (xdrproc_t) xdr_READDIR2res, "nfs_Readdir", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Fsstat, nfs_Fsstat_Free, (xdrproc_t) xdr_fhandle2, (xdrproc_t) xdr_STATFS2res,
-   "nfs_Fsstat", NEEDS_CRED | SUPPORTS_GSS}
+   (xdrproc_t) xdr_READDIR2res, "nfs_Readdir",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Fsstat, nfs_Fsstat_Free, (xdrproc_t) xdr_fhandle2,
+   (xdrproc_t) xdr_STATFS2res, "nfs_Fsstat",
+   NEEDS_CRED | SUPPORTS_GSS}
 };
 
 const nfs_function_desc_t nfs3_func_desc[] = {
-  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "nfs_Null",
+  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void,
+   "nfs_Null",
    NOTHING_SPECIAL},
   {nfs_Getattr, nfs_Getattr_Free, (xdrproc_t) xdr_GETATTR3args,
    (xdrproc_t) xdr_GETATTR3res, "nfs_Getattr", NEEDS_CRED | SUPPORTS_GSS},
   {nfs_Setattr, nfs_Setattr_Free, (xdrproc_t) xdr_SETATTR3args,
    (xdrproc_t) xdr_SETATTR3res, "nfs_Setattr",
    MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Lookup, nfs3_Lookup_Free, (xdrproc_t) xdr_LOOKUP3args, (xdrproc_t) xdr_LOOKUP3res,
-   "nfs_Lookup", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs3_Access, nfs3_Access_Free, (xdrproc_t) xdr_ACCESS3args, (xdrproc_t) xdr_ACCESS3res,
-   "nfs3_Access", NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Lookup, nfs3_Lookup_Free, (xdrproc_t) xdr_LOOKUP3args,
+   (xdrproc_t) xdr_LOOKUP3res, "nfs_Lookup",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs3_Access, nfs3_Access_Free, (xdrproc_t) xdr_ACCESS3args,
+   (xdrproc_t) xdr_ACCESS3res, "nfs3_Access",
+   NEEDS_CRED | SUPPORTS_GSS},
   {nfs_Readlink, nfs3_Readlink_Free, (xdrproc_t) xdr_READLINK3args,
-   (xdrproc_t) xdr_READLINK3res, "nfs_Readlink", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Read, nfs3_Read_Free, (xdrproc_t) xdr_READ3args, (xdrproc_t) xdr_READ3res,
-   "nfs_Read", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Write, nfs_Write_Free, (xdrproc_t) xdr_WRITE3args, (xdrproc_t) xdr_WRITE3res,
-   "nfs_Write", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Create, nfs_Create_Free, (xdrproc_t) xdr_CREATE3args, (xdrproc_t) xdr_CREATE3res,
-   "nfs_Create", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Mkdir, nfs_Mkdir_Free, (xdrproc_t) xdr_MKDIR3args, (xdrproc_t) xdr_MKDIR3res,
-   "nfs_Mkdir", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+   (xdrproc_t) xdr_READLINK3res, "nfs_Readlink",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Read, nfs3_Read_Free, (xdrproc_t) xdr_READ3args,
+   (xdrproc_t) xdr_READ3res, "nfs_Read",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Write, nfs_Write_Free, (xdrproc_t) xdr_WRITE3args,
+   (xdrproc_t) xdr_WRITE3res, "nfs_Write",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Create, nfs_Create_Free, (xdrproc_t) xdr_CREATE3args,
+   (xdrproc_t) xdr_CREATE3res, "nfs_Create",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Mkdir, nfs_Mkdir_Free, (xdrproc_t) xdr_MKDIR3args,
+   (xdrproc_t) xdr_MKDIR3res, "nfs_Mkdir",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
   {nfs_Symlink, nfs_Symlink_Free, (xdrproc_t) xdr_SYMLINK3args,
    (xdrproc_t) xdr_SYMLINK3res, "nfs_Symlink",
    MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs3_Mknod, nfs3_Mknod_Free, (xdrproc_t) xdr_MKNOD3args, (xdrproc_t) xdr_MKNOD3res,
-   "nfs3_Mknod", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Remove, nfs_Remove_Free, (xdrproc_t) xdr_REMOVE3args, (xdrproc_t) xdr_REMOVE3res,
-   "nfs_Remove", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Rmdir, nfs_Rmdir_Free, (xdrproc_t) xdr_RMDIR3args, (xdrproc_t) xdr_RMDIR3res,
-   "nfs_Rmdir", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Rename, nfs_Rename_Free, (xdrproc_t) xdr_RENAME3args, (xdrproc_t) xdr_RENAME3res,
-   "nfs_Rename", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
-  {nfs_Link, nfs_Link_Free, (xdrproc_t) xdr_LINK3args, (xdrproc_t) xdr_LINK3res,
-   "nfs_Link", MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs3_Mknod, nfs3_Mknod_Free, (xdrproc_t) xdr_MKNOD3args,
+   (xdrproc_t) xdr_MKNOD3res, "nfs3_Mknod",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Remove, nfs_Remove_Free, (xdrproc_t) xdr_REMOVE3args,
+   (xdrproc_t) xdr_REMOVE3res, "nfs_Remove",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Rmdir, nfs_Rmdir_Free, (xdrproc_t) xdr_RMDIR3args,
+   (xdrproc_t) xdr_RMDIR3res, "nfs_Rmdir",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Rename, nfs_Rename_Free, (xdrproc_t) xdr_RENAME3args,
+   (xdrproc_t) xdr_RENAME3res, "nfs_Rename",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
+  {nfs_Link, nfs_Link_Free, (xdrproc_t) xdr_LINK3args,
+   (xdrproc_t) xdr_LINK3res, "nfs_Link",
+   MAKES_WRITE | NEEDS_CRED | CAN_BE_DUP | SUPPORTS_GSS},
   {nfs_Readdir, nfs3_Readdir_Free, (xdrproc_t) xdr_READDIR3args,
-   (xdrproc_t) xdr_READDIR3res, "nfs_Readdir", NEEDS_CRED | SUPPORTS_GSS},
+   (xdrproc_t) xdr_READDIR3res, "nfs_Readdir",
+   NEEDS_CRED | SUPPORTS_GSS},
   {nfs3_Readdirplus, nfs3_Readdirplus_Free, (xdrproc_t) xdr_READDIRPLUS3args,
-   (xdrproc_t) xdr_READDIRPLUS3res, "nfs3_Readdirplus", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs_Fsstat, nfs_Fsstat_Free, (xdrproc_t) xdr_FSSTAT3args, (xdrproc_t) xdr_FSSTAT3res,
-   "nfs_Fsstat", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs3_Fsinfo, nfs3_Fsinfo_Free, (xdrproc_t) xdr_FSINFO3args, (xdrproc_t) xdr_FSINFO3res,
-   "nfs3_Fsinfo", NEEDS_CRED},
+   (xdrproc_t) xdr_READDIRPLUS3res, "nfs3_Readdirplus",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs_Fsstat, nfs_Fsstat_Free, (xdrproc_t) xdr_FSSTAT3args,
+   (xdrproc_t) xdr_FSSTAT3res, "nfs_Fsstat",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs3_Fsinfo, nfs3_Fsinfo_Free, (xdrproc_t) xdr_FSINFO3args,
+   (xdrproc_t) xdr_FSINFO3res, "nfs3_Fsinfo",
+   NEEDS_CRED},
   {nfs3_Pathconf, nfs3_Pathconf_Free, (xdrproc_t) xdr_PATHCONF3args,
-   (xdrproc_t) xdr_PATHCONF3res, "nfs3_Pathconf", NEEDS_CRED | SUPPORTS_GSS},
-  {nfs3_Commit, nfs3_Commit_Free, (xdrproc_t) xdr_COMMIT3args, (xdrproc_t) xdr_COMMIT3res,
-   "nfs3_Commit", MAKES_WRITE | NEEDS_CRED | SUPPORTS_GSS}
+   (xdrproc_t) xdr_PATHCONF3res, "nfs3_Pathconf",
+   NEEDS_CRED | SUPPORTS_GSS},
+  {nfs3_Commit, nfs3_Commit_Free, (xdrproc_t) xdr_COMMIT3args,
+   (xdrproc_t) xdr_COMMIT3res, "nfs3_Commit",
+   MAKES_WRITE | NEEDS_CRED | SUPPORTS_GSS}
 };
 
-/* Remeber that NFSv4 manages authentication though junction crossing, and so does it for RO FS management (for each operation) */
+/* Remeber that NFSv4 manages authentication though junction crossing, and
+ * so does it for RO FS management (for each operation) */
 const nfs_function_desc_t nfs4_func_desc[] = {
-  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "nfs_Null",
+  {nfs_Null, nfs_Null_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "nfs_Null",
    NOTHING_SPECIAL},
   {nfs4_Compound, nfs4_Compound_Free, (xdrproc_t) xdr_COMPOUND4args,
-   (xdrproc_t) xdr_COMPOUND4res, "nfs4_Compound", NEEDS_CRED }
-   /* SUPPORTS_GSS is missing from this list because while NFS v4 does indeed support GSS, we won't check it yet */
+   (xdrproc_t) xdr_COMPOUND4res, "nfs4_Compound",
+   NEEDS_CRED }
+   /* SUPPORTS_GSS is missing from this list because while NFS v4 does indeed
+    * support GSS, we won't check it yet */
 };
 
 const nfs_function_desc_t mnt1_func_desc[] = {
-  {mnt_Null, mnt_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "mnt_Null",
+  {mnt_Null, mnt_Null_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "mnt_Null",
    NOTHING_SPECIAL},
-  {mnt_Mnt, mnt1_Mnt_Free, (xdrproc_t) xdr_dirpath, (xdrproc_t) xdr_fhstatus2, "mnt_Mnt",
+  {mnt_Mnt, mnt1_Mnt_Free, (xdrproc_t) xdr_dirpath,
+   (xdrproc_t) xdr_fhstatus2, "mnt_Mnt",
    NEEDS_CRED},
-  {mnt_Dump, mnt_Dump_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_mountlist, "mnt_Dump",
+  {mnt_Dump, mnt_Dump_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_mountlist, "mnt_Dump",
    NOTHING_SPECIAL},
-  {mnt_Umnt, mnt_Umnt_Free, (xdrproc_t) xdr_dirpath, (xdrproc_t) xdr_void, "mnt_Umnt",
+  {mnt_Umnt, mnt_Umnt_Free, (xdrproc_t) xdr_dirpath,
+   (xdrproc_t) xdr_void, "mnt_Umnt",
    NOTHING_SPECIAL},
-  {mnt_UmntAll, mnt_UmntAll_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-   "mnt_UmntAll", NOTHING_SPECIAL},
-  {mnt_Export, mnt_Export_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_exports,
-   "mnt_Export", NOTHING_SPECIAL}
+  {mnt_UmntAll, mnt_UmntAll_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "mnt_UmntAll",
+   NOTHING_SPECIAL},
+  {mnt_Export, mnt_Export_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_exports, "mnt_Export",
+   NOTHING_SPECIAL}
 };
 
 const nfs_function_desc_t mnt3_func_desc[] = {
-  {mnt_Null, mnt_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void, "mnt_Null",
+  {mnt_Null, mnt_Null_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "mnt_Null",
    NOTHING_SPECIAL},
-  {mnt_Mnt, mnt3_Mnt_Free, (xdrproc_t) xdr_dirpath, (xdrproc_t) xdr_mountres3, "mnt_Mnt",
+  {mnt_Mnt, mnt3_Mnt_Free, (xdrproc_t) xdr_dirpath,
+   (xdrproc_t) xdr_mountres3, "mnt_Mnt",
    NEEDS_CRED},
-  {mnt_Dump, mnt_Dump_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_mountlist, "mnt_Dump",
+  {mnt_Dump, mnt_Dump_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_mountlist, "mnt_Dump",
    NOTHING_SPECIAL},
-  {mnt_Umnt, mnt_Umnt_Free, (xdrproc_t) xdr_dirpath, (xdrproc_t) xdr_void, "mnt_Umnt",
+  {mnt_Umnt, mnt_Umnt_Free, (xdrproc_t) xdr_dirpath,
+   (xdrproc_t) xdr_void, "mnt_Umnt",
    NOTHING_SPECIAL},
-  {mnt_UmntAll, mnt_UmntAll_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-   "mnt_UmntAll", NOTHING_SPECIAL},
-  {mnt_Export, mnt_Export_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_exports,
-   "mnt_Export", NOTHING_SPECIAL}
+  {mnt_UmntAll, mnt_UmntAll_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_void, "mnt_UmntAll",
+   NOTHING_SPECIAL},
+  {mnt_Export, mnt_Export_Free, (xdrproc_t) xdr_void,
+   (xdrproc_t) xdr_exports, "mnt_Export",
+   NOTHING_SPECIAL}
 };
 
 #define nlm4_Unsupported nlm_Null
@@ -221,145 +276,174 @@ const nfs_function_desc_t mnt3_func_desc[] = {
 #ifdef _USE_NLM
 const nfs_function_desc_t nlm4_func_desc[] = {
   [NLMPROC4_NULL] = {
-                     nlm_Null, nlm_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-                     "nlm_Null", NOTHING_SPECIAL},
+      nlm_Null, nlm_Null_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm_Null",
+      NOTHING_SPECIAL},
   [NLMPROC4_TEST] = {
-                     nlm4_Test, nlm4_Test_Free, (xdrproc_t) xdr_nlm4_testargs,
-                     (xdrproc_t) xdr_nlm4_testres, "nlm4_Test", NEEDS_CRED},
+      nlm4_Test, nlm4_Test_Free, (xdrproc_t) xdr_nlm4_testargs,
+      (xdrproc_t) xdr_nlm4_testres, "nlm4_Test",
+      NEEDS_CRED},
   [NLMPROC4_LOCK] = {
-                     nlm4_Lock, nlm4_Lock_Free, (xdrproc_t) xdr_nlm4_lockargs,
-                     (xdrproc_t) xdr_nlm4_res, "nlm4_Lock", NEEDS_CRED},
+      nlm4_Lock, nlm4_Lock_Free, (xdrproc_t) xdr_nlm4_lockargs,
+      (xdrproc_t) xdr_nlm4_res, "nlm4_Lock",
+      NEEDS_CRED},
   [NLMPROC4_CANCEL] = {
-                       nlm4_Cancel, nlm4_Cancel_Free, (xdrproc_t) xdr_nlm4_cancargs,
-                       (xdrproc_t) xdr_nlm4_res, "nlm4_Cancel", NEEDS_CRED},
+      nlm4_Cancel, nlm4_Cancel_Free, (xdrproc_t) xdr_nlm4_cancargs,
+      (xdrproc_t) xdr_nlm4_res, "nlm4_Cancel",
+      NEEDS_CRED},
   [NLMPROC4_UNLOCK] = {
-                       nlm4_Unlock, nlm4_Unlock_Free, (xdrproc_t) xdr_nlm4_unlockargs,
-                       (xdrproc_t) xdr_nlm4_res, "nlm4_Unlock", NEEDS_CRED},
+      nlm4_Unlock, nlm4_Unlock_Free, (xdrproc_t) xdr_nlm4_unlockargs,
+      (xdrproc_t) xdr_nlm4_res, "nlm4_Unlock",
+      NEEDS_CRED},
   [NLMPROC4_GRANTED] = {
-                        nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                        (xdrproc_t) xdr_void, "nlm4_Granted", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Granted",
+      NOTHING_SPECIAL},
   [NLMPROC4_TEST_MSG] = {
-                         nlm4_Test_Message, nlm4_Test_Free,
-                         (xdrproc_t) xdr_nlm4_testargs,
-                         (xdrproc_t) xdr_void, "nlm4_Test_msg", NEEDS_CRED},
+      nlm4_Test_Message, nlm4_Test_Free,
+      (xdrproc_t) xdr_nlm4_testargs,
+      (xdrproc_t) xdr_void, "nlm4_Test_msg",
+      NEEDS_CRED},
   [NLMPROC4_LOCK_MSG] = {
-                         nlm4_Lock_Message, nlm4_Lock_Free,
-                         (xdrproc_t) xdr_nlm4_lockargs,
-                         (xdrproc_t) xdr_void, "nlm4_Lock_msg", NEEDS_CRED},
+      nlm4_Lock_Message, nlm4_Lock_Free,
+      (xdrproc_t) xdr_nlm4_lockargs,
+      (xdrproc_t) xdr_void, "nlm4_Lock_msg",
+      NEEDS_CRED},
   [NLMPROC4_CANCEL_MSG] = {
-                           nlm4_Cancel_Message, nlm4_Cancel_Free,
-                           (xdrproc_t) xdr_nlm4_cancargs,
-                           (xdrproc_t) xdr_void, "nlm4_Cancel_msg", NEEDS_CRED},
+      nlm4_Cancel_Message, nlm4_Cancel_Free,
+      (xdrproc_t) xdr_nlm4_cancargs,
+      (xdrproc_t) xdr_void, "nlm4_Cancel_msg",
+      NEEDS_CRED},
   [NLMPROC4_UNLOCK_MSG] = {
-                           nlm4_Unlock_Message, nlm4_Unlock_Free,
-                           (xdrproc_t) xdr_nlm4_unlockargs,
-                           (xdrproc_t) xdr_void, "nlm4_Unlock_msg", NEEDS_CRED},
+      nlm4_Unlock_Message, nlm4_Unlock_Free,
+      (xdrproc_t) xdr_nlm4_unlockargs,
+      (xdrproc_t) xdr_void, "nlm4_Unlock_msg",
+      NEEDS_CRED},
   [NLMPROC4_GRANTED_MSG] = {
-                            nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                            (xdrproc_t) xdr_void, "nlm4_Granted_msg", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Granted_msg",
+      NOTHING_SPECIAL},
   [NLMPROC4_TEST_RES] = {
-                         nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                         (xdrproc_t) xdr_void, "nlm4_Test_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Test_res",
+      NOTHING_SPECIAL},
   [NLMPROC4_LOCK_RES] = {
-                         nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                         (xdrproc_t) xdr_void, "nlm4_Lock_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Lock_res",
+      NOTHING_SPECIAL},
   [NLMPROC4_CANCEL_RES] = {
-                           nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                           (xdrproc_t) xdr_void, "nlm4_Cancel_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Cancel_res",
+      NOTHING_SPECIAL},
   [NLMPROC4_UNLOCK_RES] = {
-                           nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
-                           (xdrproc_t) xdr_void, "nlm4_Unlock_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free, (xdrproc_t) xdr_void,
+      (xdrproc_t) xdr_void, "nlm4_Unlock_res",
+      NOTHING_SPECIAL},
   [NLMPROC4_GRANTED_RES] = {
-                            nlm4_Granted_Res, nlm4_Granted_Res_Free, (xdrproc_t) xdr_nlm4_res,
-                            (xdrproc_t) xdr_void, "nlm4_Granted_res", NEEDS_CRED},
+      nlm4_Granted_Res, nlm4_Granted_Res_Free, (xdrproc_t) xdr_nlm4_res,
+      (xdrproc_t) xdr_void, "nlm4_Granted_res",
+      NEEDS_CRED},
   [NLMPROC4_SM_NOTIFY] = {
-                          nlm4_Sm_Notify, nlm4_Sm_Notify_Free,
-                          (xdrproc_t) xdr_nlm4_sm_notifyargs, (xdrproc_t) xdr_void,
-                          "nlm4_sm_notify", NOTHING_SPECIAL},
+      nlm4_Sm_Notify, nlm4_Sm_Notify_Free,
+      (xdrproc_t) xdr_nlm4_sm_notifyargs, (xdrproc_t) xdr_void,
+      "nlm4_sm_notify",
+      NOTHING_SPECIAL},
   [17] = {
-          nlm4_Unsupported, nlm4_Unsupported_Free,
-          (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-          "nlm4_Granted_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Granted_res",
+      NOTHING_SPECIAL},
   [18] = {
-          nlm4_Unsupported, nlm4_Unsupported_Free,
-          (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-          "nlm4_Granted_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Granted_res",
+      NOTHING_SPECIAL},
   [19] = {
-          nlm4_Unsupported, nlm4_Unsupported_Free,
-          (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-          "nlm4_Granted_res", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Granted_res",
+      NOTHING_SPECIAL},
   [NLMPROC4_SHARE] {
-                    nlm4_Unsupported, nlm4_Unsupported_Free,
-                    (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-                    "nlm4_Share", NEEDS_CRED},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Share",
+      NEEDS_CRED},
   [NLMPROC4_UNSHARE] = {
-                        nlm4_Unsupported, nlm4_Unsupported_Free,
-                        (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-                        "nlm4_Unshare", NEEDS_CRED},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Unshare",
+      NEEDS_CRED},
   [NLMPROC4_NM_LOCK] = {
-                        nlm4_Unsupported, nlm4_Unsupported_Free,
-                        (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-                        "nlm4_Nm_lock", NEEDS_CRED},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Nm_lock",
+      NEEDS_CRED},
   [NLMPROC4_FREE_ALL] = {
-                         nlm4_Unsupported, nlm4_Unsupported_Free,
-                         (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-                         "nlm4_Free_all", NOTHING_SPECIAL},
+      nlm4_Unsupported, nlm4_Unsupported_Free,
+      (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
+      "nlm4_Free_all",
+      NOTHING_SPECIAL},
 };
 #endif                          /* _USE_NLM */
 
 #ifdef _USE_RQUOTA
 const nfs_function_desc_t rquota1_func_desc[] = {
   [0] = {
-         rquota_Null, rquota_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-         "rquota_Null", NOTHING_SPECIAL},
+         rquota_Null, rquota_Null_Free, (xdrproc_t) xdr_void,
+         (xdrproc_t) xdr_void, "rquota_Null",
+         NOTHING_SPECIAL},
   [RQUOTAPROC_GETQUOTA] = {
-                           rquota_getquota, rquota_getquota_Free,
-                           (xdrproc_t) xdr_getquota_args,
-                           (xdrproc_t) xdr_getquota_rslt, "rquota_Getquota", NEEDS_CRED},
+      rquota_getquota, rquota_getquota_Free,
+      (xdrproc_t) xdr_getquota_args,
+      (xdrproc_t) xdr_getquota_rslt, "rquota_Getquota",
+      NEEDS_CRED},
   [RQUOTAPROC_GETACTIVEQUOTA] = {
-                                 rquota_getactivequota, rquota_getactivequota_Free,
-                                 (xdrproc_t) xdr_getquota_args,
-                                 (xdrproc_t) xdr_getquota_rslt, "rquota_Getactivequota",
-                                 NEEDS_CRED},
+      rquota_getactivequota, rquota_getactivequota_Free,
+      (xdrproc_t) xdr_getquota_args,
+      (xdrproc_t) xdr_getquota_rslt, "rquota_Getactivequota",
+      NEEDS_CRED},
   [RQUOTAPROC_SETQUOTA] = {
-                           rquota_setquota, rquota_setquota_Free,
-                           (xdrproc_t) xdr_setquota_args,
-                           (xdrproc_t) xdr_setquota_rslt, "rquota_Setactivequota",
-                           NEEDS_CRED},
+      rquota_setquota, rquota_setquota_Free,
+      (xdrproc_t) xdr_setquota_args,
+      (xdrproc_t) xdr_setquota_rslt, "rquota_Setactivequota",
+      NEEDS_CRED},
   [RQUOTAPROC_SETACTIVEQUOTA] = {
-                                 rquota_setactivequota, rquota_setactivequota_Free,
-                                 (xdrproc_t) xdr_setquota_args,
-                                 (xdrproc_t) xdr_setquota_rslt, "rquota_Getactivequota",
-                                 NEEDS_CRED}
+      rquota_setactivequota, rquota_setactivequota_Free,
+      (xdrproc_t) xdr_setquota_args,
+      (xdrproc_t) xdr_setquota_rslt, "rquota_Getactivequota",
+      NEEDS_CRED}
 };
 
 const nfs_function_desc_t rquota2_func_desc[] = {
-  [0] = {
-         rquota_Null, rquota_Null_Free, (xdrproc_t) xdr_void, (xdrproc_t) xdr_void,
-         "rquota_Null", NOTHING_SPECIAL},
-  [RQUOTAPROC_GETQUOTA] = {
-                           rquota_getquota, rquota_getquota_Free,
-                           (xdrproc_t) xdr_ext_getquota_args,
-                           (xdrproc_t) xdr_getquota_rslt, "rquota_Ext_Getquota",
-                           NEEDS_CRED},
+    [0] = {
+        rquota_Null, rquota_Null_Free, (xdrproc_t) xdr_void,
+        (xdrproc_t) xdr_void, "rquota_Null",
+        NOTHING_SPECIAL},
+    [RQUOTAPROC_GETQUOTA] = {
+        rquota_getquota, rquota_getquota_Free,
+        (xdrproc_t) xdr_ext_getquota_args,
+        (xdrproc_t) xdr_getquota_rslt, "rquota_Ext_Getquota",
+        NEEDS_CRED},
   [RQUOTAPROC_GETACTIVEQUOTA] = {
-                                 rquota_getactivequota, rquota_getactivequota_Free,
-                                 (xdrproc_t) xdr_ext_getquota_args,
-                                 (xdrproc_t) xdr_getquota_rslt,
-                                 "rquota_Ext_Getactivequota", NEEDS_CRED},
-  [RQUOTAPROC_SETQUOTA] = {
-                           rquota_setquota, rquota_setquota_Free,
-                           (xdrproc_t) xdr_ext_setquota_args,
-                           (xdrproc_t) xdr_setquota_rslt, "rquota_Ext_Setactivequota",
-                           NEEDS_CRED},
-  [RQUOTAPROC_SETACTIVEQUOTA] = {
-                                 rquota_setactivequota, rquota_setactivequota_Free,
-                                 (xdrproc_t) xdr_ext_setquota_args,
-                                 (xdrproc_t) xdr_setquota_rslt,
-                                 "rquota_Ext_Getactivequota", NEEDS_CRED}
+      rquota_getactivequota, rquota_getactivequota_Free,
+      (xdrproc_t) xdr_ext_getquota_args,
+      (xdrproc_t) xdr_getquota_rslt,
+      "rquota_Ext_Getactivequota",
+      NEEDS_CRED},
+    [RQUOTAPROC_SETQUOTA] = {
+        rquota_setquota, rquota_setquota_Free,
+        (xdrproc_t) xdr_ext_setquota_args,
+        (xdrproc_t) xdr_setquota_rslt, "rquota_Ext_Setactivequota",
+        NEEDS_CRED},
+    [RQUOTAPROC_SETACTIVEQUOTA] = {
+        rquota_setactivequota, rquota_setactivequota_Free,
+        (xdrproc_t) xdr_ext_setquota_args,
+        (xdrproc_t) xdr_setquota_rslt,
+        "rquota_Ext_Getactivequota",
+        NEEDS_CRED}
 };
 
-#endif
+#endif                          /* _USE_RQUOTA */
 
 extern const char *pause_state_str[];
 
@@ -441,7 +525,7 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
                 }
               if((nfs_param.core_param.core_options & CORE_OPTION_NFSV4) != 0)
                 hi_vers = NFS_V4;
-              svcerr_progvers(xprt, lo_vers, hi_vers);  /* Bad NFS version */
+              svcerr_progvers2(xprt, preq, lo_vers, hi_vers);  /* Bad NFS version */
             }
           return FALSE;
         }
@@ -450,7 +534,7 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
               ((preq->rq_vers == NFS_V4) && (preq->rq_proc > NFSPROC4_COMPOUND)))
         {
           if(xprt != NULL)
-            svcerr_noproc(xprt);
+            svcerr_noproc2(xprt, preq);
           return FALSE;
         }
       return TRUE;
@@ -468,24 +552,26 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
        * otherwise only allow request if the appropriate mount version is enabled.
        * also need to allow dump and export, so just disallow mount if version not supported
        */
-      if((preq->rq_vers == MOUNT_V1) && (((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) != 0) ||
-         (preq->rq_proc != MOUNTPROC2_MNT)))
+      if((preq->rq_vers == MOUNT_V1) &&
+         (((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) != 0) ||
+          (preq->rq_proc != MOUNTPROC2_MNT)))
         {
           if(preq->rq_proc > MOUNTPROC2_EXPORT)
             {
               if(xprt != NULL)
-                svcerr_noproc(xprt);
+                svcerr_noproc2(xprt, preq);
               return FALSE;
             }
           return TRUE;
         }
-      else if((preq->rq_vers == MOUNT_V3) && (((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0) ||
-              (preq->rq_proc != MOUNTPROC2_MNT)))
+      else if((preq->rq_vers == MOUNT_V3) &&
+              (((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0) ||
+               (preq->rq_proc != MOUNTPROC2_MNT)))
         {
           if(preq->rq_proc > MOUNTPROC3_EXPORT)
             {
               if(xprt != NULL)
-                svcerr_noproc(xprt);
+                  svcerr_noproc2(xprt, preq);
               return FALSE;
             }
           return TRUE;
@@ -502,7 +588,7 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
           LogFullDebug(COMPONENT_DISPATCH,
                        "Invalid Mount Version #%d",
                        (int)preq->rq_vers);
-          svcerr_progvers(xprt, lo_vers, hi_vers);
+          svcerr_progvers2(xprt, preq, lo_vers, hi_vers);
         }
       return FALSE;
     }
@@ -519,13 +605,13 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
                        "Invalid NLM Version #%d",
                        (int)preq->rq_vers);
           if(xprt != NULL)
-            svcerr_progvers(xprt, NLM4_VERS, NLM4_VERS);
+            svcerr_progvers2(xprt, preq, NLM4_VERS, NLM4_VERS);
           return FALSE;
         }
       if(preq->rq_proc > NLMPROC4_FREE_ALL)
         {
           if(xprt != NULL)
-            svcerr_noproc(xprt);
+             svcerr_noproc2(xprt, preq);
           return FALSE;
         }
       return TRUE;
@@ -545,15 +631,17 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
                LogFullDebug(COMPONENT_DISPATCH,
                             "Invalid RQUOTA Version #%d",
                             (int)preq->rq_vers);
-               svcerr_progvers(xprt, RQUOTAVERS, EXT_RQUOTAVERS);
+               svcerr_progvers2(xprt, preq, RQUOTAVERS, EXT_RQUOTAVERS);
              }
            return FALSE;
          }
-       if (((preq->rq_vers == RQUOTAVERS) && (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)) ||
-	   ((preq->rq_vers == EXT_RQUOTAVERS) && (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)))
+       if (((preq->rq_vers == RQUOTAVERS) &&
+            (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)) ||
+	   ((preq->rq_vers == EXT_RQUOTAVERS) &&
+            (preq->rq_proc > RQUOTAPROC_SETACTIVEQUOTA)))
         {
           if(xprt != NULL)
-            svcerr_noproc(xprt);
+            svcerr_noproc2(xprt, preq);
           return FALSE;
         }
       return TRUE;
@@ -566,7 +654,7 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
       LogFullDebug(COMPONENT_DISPATCH,
                    "Invalid Program number #%d",
                    (int)preq->rq_prog);
-      svcerr_noprog(xprt);        /* This is no NFS, MOUNT program, exit... */
+      svcerr_noprog2(xprt, preq);        /* This is no NFS, MOUNT program, exit... */
     }
   return FALSE;
 }
@@ -576,64 +664,65 @@ int is_rpc_call_valid(SVCXPRT *xprt, struct svc_req *preq)
  */
 const nfs_function_desc_t *nfs_rpc_get_funcdesc(nfs_request_data_t *preqnfs)
 {
-  struct svc_req *ptr_req = &preqnfs->req;
+  struct svc_req *req = &preqnfs->req;
 
   /* Validate rpc call, but don't report any errors here */
-  if(is_rpc_call_valid(preqnfs->xprt, ptr_req) == FALSE)
+  if(is_rpc_call_valid(preqnfs->xprt, req) == FALSE)
     {
       LogFullDebug(COMPONENT_DISPATCH,
-                   "INVALID_FUNCDESC for Program %d, Version %d, Function %d after is_rpc_call_valid",
-                   (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
+                   "INVALID_FUNCDESC for Program %d, Version %d, "
+                   "Function %d after is_rpc_call_valid",
+                   (int)req->rq_prog, (int)req->rq_vers, (int)req->rq_proc);
       return INVALID_FUNCDESC;
     }
 
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_NFS])
+  if(req->rq_prog == nfs_param.core_param.program[P_NFS])
     {
-      if(ptr_req->rq_vers == NFS_V2)
-        return &nfs2_func_desc[ptr_req->rq_proc];
-      else if(ptr_req->rq_vers == NFS_V3)
-        return &nfs3_func_desc[ptr_req->rq_proc];
+      if(req->rq_vers == NFS_V2)
+        return &nfs2_func_desc[req->rq_proc];
+      else if(req->rq_vers == NFS_V3)
+        return &nfs3_func_desc[req->rq_proc];
       else
-        return &nfs4_func_desc[ptr_req->rq_proc];
+        return &nfs4_func_desc[req->rq_proc];
     }
 
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_MNT])
+  if(req->rq_prog == nfs_param.core_param.program[P_MNT])
     {
-      if(ptr_req->rq_vers == MOUNT_V1)
-        return &mnt1_func_desc[ptr_req->rq_proc];
+      if(req->rq_vers == MOUNT_V1)
+        return &mnt1_func_desc[req->rq_proc];
       else
-        return &mnt3_func_desc[ptr_req->rq_proc];
+        return &mnt3_func_desc[req->rq_proc];
     }
 
 #ifdef _USE_NLM
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_NLM])
+  if(req->rq_prog == nfs_param.core_param.program[P_NLM])
     {
-      return &nlm4_func_desc[ptr_req->rq_proc];
+      return &nlm4_func_desc[req->rq_proc];
     }
 #endif                          /* _USE_NLM */
 
 #ifdef _USE_RQUOTA
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_RQUOTA])
+  if(req->rq_prog == nfs_param.core_param.program[P_RQUOTA])
     {
-      if(ptr_req->rq_vers == RQUOTAVERS)
-        return &rquota1_func_desc[ptr_req->rq_proc];
+      if(req->rq_vers == RQUOTAVERS)
+        return &rquota1_func_desc[req->rq_proc];
       else
-        return &rquota2_func_desc[ptr_req->rq_proc];
+        return &rquota2_func_desc[req->rq_proc];
     }
 #endif                          /* _USE_RQUOTA */
 
   /* Oops, should never get here! */
-  svcerr_noprog(preqnfs->xprt);
+  svcerr_noprog2(preqnfs->xprt, req);
   LogFullDebug(COMPONENT_DISPATCH,
                "INVALID_FUNCDESC for Program %d, Version %d, Function %d",
-               (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
+               (int)req->rq_prog, (int)req->rq_vers, (int)req->rq_proc);
   return INVALID_FUNCDESC;
 }
 
 /*
  * Extract RPC argument.
  */
-int nfs_rpc_get_args(nfs_request_data_t * preqnfs, const nfs_function_desc_t *pfuncdesc)
+int nfs_rpc_get_args(nfs_request_data_t *preqnfs, const nfs_function_desc_t *pfuncdesc)
 {
   SVCXPRT *xprt = preqnfs->xprt;
   nfs_arg_t *parg_nfs = &preqnfs->arg_nfs;
@@ -646,11 +735,12 @@ int nfs_rpc_get_args(nfs_request_data_t * preqnfs, const nfs_function_desc_t *pf
 
   if(svc_getargs(xprt, pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs) == FALSE)
     {
-      struct svc_req *ptr_req = &preqnfs->req;
+      struct svc_req *req = &preqnfs->req;
       LogMajor(COMPONENT_DISPATCH,
-                   "svc_getargs failed for Program %d, Version %d, Function %d",
-                   (int)ptr_req->rq_prog, (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
-      svcerr_decode(xprt);
+                   "svc_getargs failed for Program %d, Version %d, Function %d xid=%ud",
+               (int)req->rq_prog, (int)req->rq_vers, (int)req->rq_proc,
+               req->rq_xid);
+      svcerr_decode2(xprt, req);
       return FALSE;
     }
 
@@ -662,23 +752,21 @@ int nfs_rpc_get_args(nfs_request_data_t * preqnfs, const nfs_function_desc_t *pf
  *
  * This is the regular RPC dispatcher that every RPC server should include.
  *
- * @param pnfsreq [INOUT] pointer to nfs request
+ * @param pnfsreq [INOUT] pointer to request_data_t (of type nfs)
  *
  * @return nothing (void function)
  *
  */
-static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
-                            nfs_worker_data_t * pworker_data)
+static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_data)
 {
-  unsigned int rpcxid = 0;
   unsigned int export_check_result;
-
   exportlist_t *pexport = NULL;
+  nfs_request_data_t *preqnfs = preq->r_u.nfs;
   nfs_arg_t *parg_nfs = &preqnfs->arg_nfs;
   nfs_res_t res_nfs;
   short exportid;
   LRU_list_t *lru_dupreq = NULL;
-  struct svc_req *ptr_req = &preqnfs->req;
+  struct svc_req *req = &preqnfs->req;
   SVCXPRT *xprt = preqnfs->xprt;
   nfs_stat_type_t stat_type;
   sockaddr_t hostaddr;
@@ -718,14 +806,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       LogFullDebug(COMPONENT_DISPATCH,
                    "copy_xprt_addr failed for Program %d, Version %d, "
                    "Function %d",
-                   (int)ptr_req->rq_prog, (int)ptr_req->rq_vers,
-                   (int)ptr_req->rq_proc);
-      svcerr_systemerr(xprt);
+                   (int)req->rq_prog, (int)req->rq_vers,
+                   (int)req->rq_proc);
+      svcerr_systemerr2(xprt, req);
       return;
     }
 
   port = get_port(&hostaddr);
-  rpcxid = get_rpc_xid(ptr_req);
 
   if(isDebug(COMPONENT_DISPATCH))
     {
@@ -735,16 +822,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                "Request from %s for Program %d, Version %d, Function %d "
                "has xid=%u",
                addrbuf,
-               (int)ptr_req->rq_prog, (int)ptr_req->rq_vers,
-               (int)ptr_req->rq_proc,
-               rpcxid);
+               (int)req->rq_prog, (int)req->rq_vers, (int)req->rq_proc,
+               req->rq_xid);
     }
 
   do_dupreq_cache = pworker_data->pfuncdesc->dispatch_behaviour & CAN_BE_DUP;
   LogFullDebug(COMPONENT_DISPATCH, "do_dupreq_cache = %d", do_dupreq_cache);
-  status = nfs_dupreq_add_not_finished(rpcxid,
-                                       ptr_req,
-                                       preqnfs->xprt,
+  status = nfs_dupreq_add_not_finished(req,
                                        &pworker_data->dupreq_pool,
                                        &res_nfs);
   switch(status)
@@ -762,22 +846,23 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           LogFullDebug(COMPONENT_DISPATCH,
                        "NFS DISPATCHER: DupReq Cache Hit: using previous "
                        "reply, rpcxid=%u",
-                       rpcxid);
+                       req->rq_xid);
 
           LogFullDebug(COMPONENT_DISPATCH,
                        "Before svc_sendreply on socket %d (dup req)",
                        xprt->xp_fd);
 
-          /* XXX P(mutex_cond_xprt[xprt->xp_fd]); */
           svc_dplx_lock_x(xprt, &pworker_data->sigmask);
-          if(svc_sendreply
-             (xprt, pworker_data->pfuncdesc->xdr_encode_func,
-              (caddr_t) & res_nfs) == FALSE)
+
+          
+          if(svc_sendreply2
+             (xprt, req, pworker_data->pfuncdesc->xdr_encode_func,
+              (caddr_t) &res_nfs) == FALSE)
             {
               LogDebug(COMPONENT_DISPATCH,
                        "NFS DISPATCHER: FAILURE: Error while calling "
                        "svc_sendreply");
-              svcerr_systemerr(xprt);
+              svcerr_systemerr2(xprt, req);
             }
 
           svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
@@ -792,7 +877,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           LogCrit(COMPONENT_DISPATCH,
                   "Error: Duplicate request rejected because it was found "
                   "in the cache but is not allowed to be cached.");
-          svcerr_systemerr(xprt);
+          svcerr_systemerr2(xprt, req);
           return;
         }
       break;
@@ -802,10 +887,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       LogFullDebug(COMPONENT_DISPATCH,
                    "Dupreq xid=%u was asked for process since another thread "
                    "manage it, reject for avoiding threads starvation...",
-                   rpcxid);
+                   req->rq_xid);
       /* Free the arguments */
-      if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 ||
-         preqnfs->req.rq_vers == 4)
+      svc_dplx_lock_x(xprt, &mask);
+      if((preqnfs->req.rq_vers == 2) ||
+         (preqnfs->req.rq_vers == 3) ||
+         (preqnfs->req.rq_vers == 4)) 
         if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func,
                          (caddr_t) parg_nfs))
           {
@@ -813,6 +900,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                     "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
                     pworker_data->pfuncdesc->funcname);
           }
+      svc_dplx_unlock_x(xprt, &mask);
       /* Ignore the request, send no error */
       return;
 
@@ -821,26 +909,26 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       LogCrit(COMPONENT_DISPATCH,
               "Did not find the request in the duplicate request cache and "
               "couldn't add the request.");
-      svcerr_systemerr(xprt);
+      svcerr_systemerr2(xprt, req);
       return;
 
       /* oom */
     case DUPREQ_INSERT_MALLOC_ERROR:
       LogCrit(COMPONENT_DISPATCH,
               "Cannot process request, not enough memory available!");
-      svcerr_systemerr(xprt);
+      svcerr_systemerr2(xprt, req);
       return;
 
     default:
       LogCrit(COMPONENT_DISPATCH,
               "Unknown duplicate request cache status. This should never be "
               "reached!");
-      svcerr_systemerr(xprt);
+      svcerr_systemerr2(xprt, req);
       return;
     }
 
   /* Get the export entry */
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_NFS])
+  if(req->rq_prog == nfs_param.core_param.program[P_NFS])
     {
       /* The NFSv2 and NFSv3 functions'arguments always begin with the file
        * handle (but not the NULL function).  This hook is used to get the
@@ -848,10 +936,10 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
        * used.  In NFSv4, junction traversal is managed by the protocol itself
        * so the whole export list is provided to NFSv4 request. */
 
-      switch (ptr_req->rq_vers)
+      switch (req->rq_vers)
         {
         case NFS_V2:
-          if(ptr_req->rq_proc != NFSPROC_NULL)
+          if(req->rq_proc != NFSPROC_NULL)
             {
               exportid = nfs2_FhandleToExportId((fhandle2 *) parg_nfs);
 
@@ -878,12 +966,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                       LogMajor(COMPONENT_DISPATCH,
                                "NFS2 Request from host %s %s, proc=%d, FH=%s",
                                addrbuf, reason,
-                               (int)ptr_req->rq_proc, dumpfh);
+                               (int)req->rq_proc, dumpfh);
                     }
                   /* Bad argument */
-                  svcerr_auth(xprt, AUTH_FAILED);
+                  svcerr_auth2(xprt, req, AUTH_FAILED);
                   if (nfs_dupreq_delete(
-                          rpcxid, ptr_req, preqnfs->xprt,
+                          req,
                           &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
@@ -903,7 +991,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           break;
 
         case NFS_V3:
-          if(ptr_req->rq_proc != NFSPROC_NULL)
+          if(req->rq_proc != NFSPROC_NULL)
             {
               exportid = nfs3_FhandleToExportId((nfs_fh3 *) parg_nfs);
 
@@ -930,12 +1018,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                       LogMajor(COMPONENT_DISPATCH,
                                "NFS3 Request from host %s %s, proc=%d, FH=%s",
                                addrbuf, reason,
-                               (int)ptr_req->rq_proc, dumpfh);
+                               (int)req->rq_proc, dumpfh);
                     }
                   /* Bad argument */
-                  svcerr_auth(xprt, AUTH_FAILED);
-                  if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                        &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                  svcerr_auth2(xprt, req, AUTH_FAILED);
+                  if (nfs_dupreq_delete(
+                          req,
+                          &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
                               "Attempt to delete duplicate request failed on "
@@ -965,11 +1054,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         }                       /* switch( ptr_req->rq_vers ) */
     }
 #ifdef _USE_NLM
-  else if(ptr_req->rq_prog == nfs_param.core_param.program[P_NLM])
+  else if(req->rq_prog == nfs_param.core_param.program[P_NLM])
     {
       netobj *pfh3 = NULL;
 
-      switch(ptr_req->rq_proc)
+      switch(req->rq_proc)
         {
           case NLMPROC4_NULL:
           case NLMPROC4_TEST_RES:
@@ -1036,12 +1125,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                   LogMajor(COMPONENT_DISPATCH,
                            "NLM4 Request from host %s %s, proc=%d, FH=%s",
                            addrbuf, reason,
-                           (int)ptr_req->rq_proc, dumpfh);
+                           (int)req->rq_proc, dumpfh);
                 }
               /* Bad argument */
-              svcerr_auth(xprt, AUTH_FAILED);
+              svcerr_auth2(xprt, req, AUTH_FAILED);
               if (nfs_dupreq_delete(
-                      rpcxid, ptr_req, preqnfs->xprt,
+                      req,
                       &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                 {
                   LogCrit(COMPONENT_DISPATCH,
@@ -1068,7 +1157,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   if(pworker_data->pfuncdesc->dispatch_behaviour & SUPPORTS_GSS)
     {
       /* Test if export allows the authentication provided */
-      switch (ptr_req->rq_cred.oa_flavor)
+      switch (req->rq_cred.oa_flavor)
         {
           case AUTH_NONE:
             if((pexport->options & EXPORT_OPTION_AUTH_NONE) == 0)
@@ -1076,9 +1165,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support AUTH_NONE",
                         pexport->dirname);
-                svcerr_auth(xprt, AUTH_TOOWEAK);
+                svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                 if (nfs_dupreq_delete(
-                        rpcxid, ptr_req, preqnfs->xprt,
+                        req,
                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
@@ -1095,9 +1184,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support AUTH_UNIX",
                         pexport->dirname);
-                svcerr_auth(xprt, AUTH_TOOWEAK);
+                svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                 if (nfs_dupreq_delete(
-                        rpcxid, ptr_req, preqnfs->xprt,
+                        req,
                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
@@ -1119,7 +1208,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                         "Export %s does not support RPCSEC_GSS",
                         pexport->dirname);
                 if (nfs_dupreq_delete(
-                        rpcxid, ptr_req, preqnfs->xprt,
+                        req,
                         &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
@@ -1127,13 +1216,13 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                             "line %d", __LINE__);
                   }
                 return;
-                svcerr_auth(xprt, AUTH_TOOWEAK);
+                svcerr_auth2(xprt, req, AUTH_TOOWEAK);
               }
             else
               {
                 struct svc_rpc_gss_data *gd;
                 rpc_gss_svc_t svc;
-                gd = SVCAUTH_PRIVATE(ptr_req->rq_xprt->xp_auth);
+                gd = SVCAUTH_PRIVATE(req->rq_xprt->xp_auth);
                 svc = gd->sec.svc;
                 LogFullDebug(COMPONENT_DISPATCH,
                              "Testing svc %d", (int) svc);
@@ -1147,9 +1236,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                   "Export %s does not support "
                                   "RPCSEC_GSS_SVC_NONE",
                                   pexport->dirname);
-                          svcerr_auth(xprt, AUTH_TOOWEAK);
+                          svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(
-                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  req,
                                   &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
@@ -1168,9 +1257,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                   "Export %s does not support "
                                   "RPCSEC_GSS_SVC_INTEGRITY",
                                   pexport->dirname);
-                          svcerr_auth(xprt, AUTH_TOOWEAK);
+                          svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(
-                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  req,
                                   &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
@@ -1189,9 +1278,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                                   "Export %s does not support "
                                   "RPCSEC_GSS_SVC_PRIVACY",
                                   pexport->dirname);
-                          svcerr_auth(xprt, AUTH_TOOWEAK);
+                          svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           if (nfs_dupreq_delete(
-                                  rpcxid, ptr_req, preqnfs->xprt,
+                                  req,
                                   &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
@@ -1207,9 +1296,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                               "Export %s does not support unknown "
                               "RPCSEC_GSS_SVC %d",
                               pexport->dirname, (int) svc);
-                      svcerr_auth(xprt, AUTH_TOOWEAK);
+                      svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                       if (nfs_dupreq_delete(
-                              rpcxid, ptr_req, preqnfs->xprt,
+                              req,
                               &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                         {
                           LogCrit(COMPONENT_DISPATCH,
@@ -1224,10 +1313,11 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
           default:
             LogInfo(COMPONENT_DISPATCH,
                     "Export %s does not support unknown oa_flavor %d",
-                    pexport->dirname, (int) ptr_req->rq_cred.oa_flavor);
-            svcerr_auth(xprt, AUTH_TOOWEAK);
-            if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+                    pexport->dirname, (int) req->rq_cred.oa_flavor);
+            svcerr_auth2(xprt, req, AUTH_TOOWEAK);
+            if (nfs_dupreq_delete(
+                    req,
+                    &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
               {
                 LogCrit(COMPONENT_DISPATCH,
                         "Attempt to delete duplicate request failed on line %d",
@@ -1252,19 +1342,22 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   pworker_data->hostaddr = hostaddr;
 
   /* Check if client is using a privileged port, but only for NFS protocol */
-  if(ptr_req->rq_prog == nfs_param.core_param.program[P_NFS] && ptr_req->rq_proc != 0)
+  if ((req->rq_prog == nfs_param.core_param.program[P_NFS]) &&
+      (req->rq_proc != 0))
     {
-      if((pexport->options & EXPORT_OPTION_PRIVILEGED_PORT) &&
+      if ((pexport->options & EXPORT_OPTION_PRIVILEGED_PORT) &&
          (port >= IPPORT_RESERVED))
         {
           LogInfo(COMPONENT_DISPATCH,
                   "Port %d is too high for this export entry, rejecting client",
                   port);
-          svcerr_auth(xprt, AUTH_TOOWEAK);
+          svcerr_auth2(xprt, req, AUTH_TOOWEAK);
+          /* XXX */
           pworker_data->current_xid = 0;    /* No more xid managed */
 
-          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(
+                  req,
+                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
@@ -1274,17 +1367,19 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         }
     }
 
-  if(pworker_data->pfuncdesc->dispatch_behaviour & NEEDS_CRED)
+  if (pworker_data->pfuncdesc->dispatch_behaviour & NEEDS_CRED)
     {
-      if(get_req_uid_gid(ptr_req, pexport, &user_credentials) == FALSE)
+      if (get_req_uid_gid(req, pexport, &user_credentials) == FALSE)
         {
           LogInfo(COMPONENT_DISPATCH,
                   "could not get uid and gid, rejecting client");
-          svcerr_auth(xprt, AUTH_TOOWEAK);
+          svcerr_auth2(xprt, req, AUTH_TOOWEAK);
+          /* XXX */
           pworker_data->current_xid = 0;    /* No more xid managed */
 
-          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(
+                  req,
+                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
@@ -1296,12 +1391,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
   /* Be careful (Issue #66) : it makes no sense to check access for 
    * a MOUNT request */
-  if(ptr_req->rq_prog != nfs_param.core_param.program[P_MNT])
+  if(req->rq_prog != nfs_param.core_param.program[P_MNT])
    {
      LogFullDebug(COMPONENT_DISPATCH,
                   "nfs_rpc_execute about to call nfs_export_check_access");
      export_check_result = nfs_export_check_access(&pworker_data->hostaddr,
-                                                   ptr_req,
+                                                   req,
                                                    pexport,
                                                    nfs_param.core_param.program[P_NFS],
                                                    nfs_param.core_param.program[P_MNT],
@@ -1325,12 +1420,14 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       LogInfo(COMPONENT_DISPATCH,
               "Host %s is not allowed to access this export entry, vers=%d, proc=%d",
               addrbuf,
-              (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
-      svcerr_auth(xprt, AUTH_TOOWEAK);
+              (int)req->rq_vers, (int)req->rq_proc);
+      svcerr_auth2(xprt, req, AUTH_TOOWEAK);
+      /* XXX */
       pworker_data->current_xid = 0;        /* No more xid managed */
 
-      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                            &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+      if (nfs_dupreq_delete(
+              req,
+              &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
         {
           LogCrit(COMPONENT_DISPATCH,
                   "Attempt to delete duplicate request failed on line %d",
@@ -1343,9 +1440,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     {
       LogDebug(COMPONENT_DISPATCH,
                "Dropping request because nfs_export_check_access() reported this is a RO filesystem.");
-      if(ptr_req->rq_prog == nfs_param.core_param.program[P_NFS])
+      if(req->rq_prog == nfs_param.core_param.program[P_NFS])
         {
-          if(ptr_req->rq_vers == NFS_V2)
+          if(req->rq_vers == NFS_V2)
             {
               /* All the nfs_res structure in V2 have the status at the same place (because it is an union) */
               res_nfs.res_attr2.status = NFSERR_ROFS;
@@ -1380,18 +1477,20 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         {
 	  /* Swap the anonymous uid/gid if the user should be anonymous */
           if(nfs_check_anon(&related_client, pexport, &user_credentials) == FALSE
-	     || nfs_build_fsal_context(ptr_req,
+	     || nfs_build_fsal_context(req,
                                        pexport,
 				       &pworker_data->thread_fsal_context,
                                        &user_credentials) == FALSE)
             {
               LogInfo(COMPONENT_DISPATCH,
                       "authentication failed, rejecting client");
-              svcerr_auth(xprt, AUTH_TOOWEAK);
+              svcerr_auth2(xprt, req, AUTH_TOOWEAK);
+              /* XXX */
               pworker_data->current_xid = 0;    /* No more xid managed */
 
-              if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                    &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+              if (nfs_dupreq_delete(
+                      req,
+                      &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
                 {
                   LogCrit(COMPONENT_DISPATCH,
                          "Attempt to delete duplicate request failed on line %d",
@@ -1430,7 +1529,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 						     pexport, 
 						     pfsal_op_ctx,
                                                      &(pworker_data->cache_inode_client), 
-                                                     ptr_req, 
+                                                     req, 
                                                      &res_nfs); 
 
     }
@@ -1446,10 +1545,12 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   latency_stat.type = SVC_TIME;
   latency_stat.latency = timer_diff.tv_sec * 1000000
     + timer_diff.tv_usec; /* microseconds */
-  nfs_stat_update(stat_type, &(pworker_data->stats.stat_req), ptr_req, &latency_stat);
+  nfs_stat_update(stat_type, &(pworker_data->stats.stat_req), req,
+                  &latency_stat);
 
-  if ((ptr_req->rq_prog == nfs_param.core_param.program[P_MNT]) ||
-      ((ptr_req->rq_prog == nfs_param.core_param.program[P_NFS]) && (ptr_req->rq_proc == 0/*NULL RPC*/))) {
+  if ((req->rq_prog == nfs_param.core_param.program[P_MNT]) ||
+      ((req->rq_prog == nfs_param.core_param.program[P_NFS]) &&
+       (req->rq_proc == 0 /*NULL RPC*/ ))) {
       update_per_share_stats = FALSE;
   } else {
       update_per_share_stats = TRUE;
@@ -1458,7 +1559,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   if (update_per_share_stats) {
       nfs_stat_update(stat_type,
 		      &(pexport->worker_stats[pworker_data->worker_index].stat_req),
-		      ptr_req, &latency_stat);
+		      req, &latency_stat);
   }
 
   /* process time + queue time */
@@ -1466,14 +1567,14 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   latency_stat.type = AWAIT_TIME;
   latency_stat.latency = queue_timer_diff.tv_sec * 1000000
     + queue_timer_diff.tv_usec; /* microseconds */
-  nfs_stat_update(GANESHA_STAT_SUCCESS, &(pworker_data->stats.stat_req), ptr_req,
+  nfs_stat_update(GANESHA_STAT_SUCCESS, &(pworker_data->stats.stat_req), req,
                   &latency_stat);
 
   /* Update per-share process time + queue time */
   if (update_per_share_stats) {
       nfs_stat_update(GANESHA_STAT_SUCCESS,
 		      &(pexport->worker_stats[pworker_data->worker_index].stat_req),
-		      ptr_req, &latency_stat);
+		      req, &latency_stat);
 
       /* Update per-share total counters */
       pexport->worker_stats[pworker_data->worker_index].nb_total_req += 1;
@@ -1485,29 +1586,31 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
   if(timer_diff.tv_sec >= nfs_param.core_param.long_processing_threshold)
     LogEvent(COMPONENT_DISPATCH,
              "Function %s xid=%u exited with status %d taking %llu.%.6llu seconds to process",
-             pworker_data->pfuncdesc->funcname, rpcxid, rc,
+             pworker_data->pfuncdesc->funcname, req->rq_xid, rc,
              (unsigned long long)timer_diff.tv_sec,
              (unsigned long long)timer_diff.tv_usec);
   else
     LogDebug(COMPONENT_DISPATCH,
              "Function %s xid=%u exited with status %d taking %llu.%.6llu seconds to process",
-                 pworker_data->pfuncdesc->funcname, rpcxid, rc,
+             pworker_data->pfuncdesc->funcname, req->rq_xid, rc,
              (unsigned long long)timer_diff.tv_sec,
              (unsigned long long)timer_diff.tv_usec);
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Function %s xid=%u: process %llu.%.6llu await %llu.%.6llu",
-               pworker_data->pfuncdesc->funcname, rpcxid,
+               pworker_data->pfuncdesc->funcname, req->rq_xid,
                (unsigned long long int)timer_diff.tv_sec,
                (unsigned long long int)timer_diff.tv_usec,
                (unsigned long long int)queue_timer_diff.tv_sec,
                (unsigned long long int)queue_timer_diff.tv_usec);
   
   /* Perform NFSv4 operations statistics if required */
-  if(ptr_req->rq_vers == NFS_V4)
-    if(ptr_req->rq_proc == NFSPROC4_COMPOUND)
-      nfs4_op_stat_update(parg_nfs, &res_nfs, &(pworker_data->stats.stat_req));
+  if(req->rq_vers == NFS_V4)
+      if(req->rq_proc == NFSPROC4_COMPOUND)
+          nfs4_op_stat_update(parg_nfs, &res_nfs,
+                              &(pworker_data->stats.stat_req));
 
+  /* XXX */
   pworker_data->current_xid = 0;        /* No more xid managed */
 
   /* If request is dropped, no return to the client */
@@ -1516,15 +1619,16 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       /* The request was dropped */
       LogDebug(COMPONENT_DISPATCH,
                "Drop request rpc_xid=%u, program %u, version %u, function %u",
-               rpcxid, (int)ptr_req->rq_prog,
-               (int)ptr_req->rq_vers, (int)ptr_req->rq_proc);
+               req->rq_xid, (int)req->rq_prog,
+               (int)req->rq_vers, (int)req->rq_proc);
 
       /* If the request is not normally cached, then the entry will be removed
        * later. We only remove a reply that is normally cached that has been
        * dropped. */
       if(do_dupreq_cache)
-        if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                              &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+        if (nfs_dupreq_delete(
+                req,
+                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
           {
             LogCrit(COMPONENT_DISPATCH,
                     "Attempt to delete duplicate request failed on line %d",
@@ -1541,20 +1645,22 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
 
       /* encoding the result on xdr output */
       CheckXprt(xprt);
-      if(svc_sendreply(xprt, pworker_data->pfuncdesc->xdr_encode_func, (caddr_t) & res_nfs) == FALSE)
+      if(svc_sendreply2(xprt, req, pworker_data->pfuncdesc->xdr_encode_func,
+                        (caddr_t) &res_nfs) == FALSE)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
-          svcerr_systemerr(xprt);
-          svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
+          svcerr_systemerr2(xprt, req);
 
-          if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                                &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(
+                  req,
+                  &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
                       __LINE__);
             }
+          svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
           return;
         }
 
@@ -1562,24 +1668,26 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
                    "After svc_sendreply on socket %d",
                    xprt->xp_fd);
 
+      /* XXX */
+#if 0
       svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
+#endif
 
       /* Mark request as finished */
       LogFullDebug(COMPONENT_DUPREQ, "YES?: %d", do_dupreq_cache);
       if(do_dupreq_cache)
         {
-          status = nfs_dupreq_finish(rpcxid,
-                                     ptr_req,
-                                     preqnfs->xprt,
-                                     &res_nfs,
-                                     lru_dupreq);
+          status = nfs_dupreq_finish(req, &res_nfs, lru_dupreq);
         }
     } /* rc == NFS_REQ_DROP */
 
   /* Free the allocated resources once the work is done */
   /* Free the arguments */
-  if(preqnfs->req.rq_vers == 2 || preqnfs->req.rq_vers == 3 || preqnfs->req.rq_vers == 4)
-    if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func, (caddr_t) parg_nfs))
+  if((preqnfs->req.rq_vers == 2) ||
+     (preqnfs->req.rq_vers == 3) ||
+     (preqnfs->req.rq_vers == 4))
+      if(!SVC_FREEARGS(xprt, pworker_data->pfuncdesc->xdr_decode_func,
+                       (caddr_t) parg_nfs))
       {
         LogCrit(COMPONENT_DISPATCH,
                 "NFS DISPATCHER: FAILURE: Bad SVC_FREEARGS for %s",
@@ -1591,8 +1699,9 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
    * mark the dupreq cached info eligible for being reuse by other requests */
   if(!do_dupreq_cache)
     {
-      if (nfs_dupreq_delete(rpcxid, ptr_req, preqnfs->xprt,
-                            &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
+      if (nfs_dupreq_delete(
+              req,
+              &pworker_data->dupreq_pool) != DUPREQ_SUCCESS)
         {
           LogCrit(COMPONENT_DISPATCH,
                   "Attempt to delete duplicate request failed on line %d",
@@ -1600,11 +1709,14 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
         }
       /* Free only the non dropped requests */
       if(rc == NFS_REQ_OK) {
-          /* XXXXXXX fix */
-          /* pworker_data->pfuncdesc->free_function(&res_nfs); */
+          /* XXX */
+          pworker_data->pfuncdesc->free_function(&res_nfs);
       }
 
     }
+
+  svc_dplx_unlock_x(xprt, &mask);
+
 #ifdef _DEBUG_MEMLEAKS
   if(nb_iter_memleaks > 1000)
     {
@@ -1618,7 +1730,7 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
       LogFullDebug(COMPONENT_MEMLEAKS,
                    "Stats for thread: total mnt1=%u mnt3=%u nfsv2=%u nfsv3=%u nfsv4=%u",
                    pworker_data->stats.stat_req.nb_mnt1_req,
-                   pworker_data->stats.stat_req.nb_mnt3_req,
+                   pworkerf_data->stats.stat_req.nb_mnt3_req,
                    pworker_data->stats.stat_req.nb_nfs2_req,
                    pworker_data->stats.stat_req.nb_nfs3_req,
                    pworker_data->stats.stat_req.nb_nfs4_req);
@@ -1628,52 +1740,10 @@ static void nfs_rpc_execute(nfs_request_data_t * preqnfs,
     nb_iter_memleaks += 1;
 #endif
 
-  /* By now the dupreq cache entry should have been completed w/ a request that is reusable
-   * or the dupreq cache entry should have been removed. */
+  /* By now the dupreq cache entry should have been completed w/ a request
+   * that is reusable or the dupreq cache entry should have been removed. */
   return;
 }                               /* nfs_rpc_execute */
-
-worker_available_rc worker_available(unsigned long worker_index, unsigned int avg_number_pending)
-{
-  worker_available_rc rc = WORKER_AVAILABLE;
-  P(workers_data[worker_index].wcb.tcb_mutex);
-  switch(workers_data[worker_index].wcb.tcb_state)
-    {
-      case STATE_AWAKE:
-      case STATE_AWAKEN:
-        /* Choose only fully initialized workers and that does not gc. */
-        if(workers_data[worker_index].wcb.tcb_ready == FALSE)
-          {
-            LogFullDebug(COMPONENT_THREAD,
-                         "worker thread #%lu is not ready", worker_index);
-            rc = WORKER_PAUSED;
-          }
-        else if(workers_data[worker_index].gc_in_progress == TRUE)
-          {
-            LogFullDebug(COMPONENT_THREAD,
-                         "worker thread #%lu is doing garbage collection", worker_index);
-            rc = WORKER_GC;
-          }
-        else if(workers_data[worker_index].pending_request_len >= avg_number_pending)
-          {
-            rc = WORKER_BUSY;
-          }
-        break;
-
-      case STATE_STARTUP:
-      case STATE_PAUSE:
-      case STATE_PAUSED:
-        rc = WORKER_ALL_PAUSED;
-        break;
-
-      case STATE_EXIT:
-        rc = WORKER_EXIT;
-        break;
-    }
-  V(workers_data[worker_index].wcb.tcb_mutex);
-
-  return rc;
-}
 
 /**
  * nfs_Init_worker_data: Init the data associated with a worker instance.
@@ -1723,15 +1793,15 @@ int nfs_Init_worker_data(nfs_worker_data_t * pdata)
 
 void DispatchWorkNFS(request_data_t *pnfsreq, unsigned int worker_index)
 {
-  struct svc_req *ptr_req = NULL;
+  struct svc_req *req = NULL;
   uint32_t rpcxid = 0;
 
   switch (pnfsreq->rtype) {
   case NFS_CALL:
       break;
   default:
-      ptr_req = &pnfsreq->r_u.nfs.req;
-      rpcxid = get_rpc_xid(ptr_req);
+      req = &pnfsreq->r_u.nfs->req;
+      rpcxid = req->rq_xid;
   }
 
   LogDebug(COMPONENT_DISPATCH,
@@ -1760,8 +1830,8 @@ void DispatchWorkNFS(request_data_t *pnfsreq, unsigned int worker_index)
 enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
                                    bool_t *no_dispatch)
 {
-  struct rpc_msg *pmsg;
-  struct svc_req *preq;
+  struct rpc_msg *msg;
+  struct svc_req *req;
   SVCXPRT *xprt;
   enum auth_stat why;
 
@@ -1778,26 +1848,29 @@ enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
   *no_dispatch = FALSE;
 
   /* Set pointers */
-  pmsg = &(pnfsreq->msg);
-  preq = &(pnfsreq->req);
+  msg = &(pnfsreq->msg);
+  req = &(pnfsreq->req);
   xprt = pnfsreq->xprt;
 
-  preq->rq_xprt = pnfsreq->xprt;
-  preq->rq_prog = pmsg->rm_call.cb_prog;
-  preq->rq_vers = pmsg->rm_call.cb_vers;
-  preq->rq_proc = pmsg->rm_call.cb_proc;
+  req->rq_xprt = pnfsreq->xprt;
+  req->rq_prog = msg->rm_call.cb_prog;
+  req->rq_vers = msg->rm_call.cb_vers;
+  req->rq_proc = msg->rm_call.cb_proc;
+  req->rq_xid = msg->rm_xid;
+
   LogFullDebug(COMPONENT_DISPATCH,
-               "About to authenticate Prog = %d, vers = %d, proc = %d xprt=%p",
-               (int)preq->rq_prog, (int)preq->rq_vers,
-               (int)preq->rq_proc, preq->rq_xprt);
+               "About to authenticate Prog=%d, vers=%d, proc=%d xid=%u xprt=%p",
+               (int)req->rq_prog, (int)req->rq_vers,
+               (int)req->rq_proc, req->rq_xid, req->rq_xprt);
+
   /* XXX Restore previously saved GssData. 
    * I'm not clear what we're restoring here.  Operating on xprt means that
    * we do (did) not share buffers with xprt_copy.
    */
 #ifdef _HAVE_GSSAPI
-  if((why = Rpcsecgss__authenticate(preq, pmsg, no_dispatch)) != AUTH_OK)
+  if((why = Rpcsecgss__authenticate(req, msg, no_dispatch)) != AUTH_OK)
 #else
-  if((why = _authenticate(preq, pmsg)) != AUTH_OK)
+  if((why = _authenticate(req, msg)) != AUTH_OK)
 #endif
     {
       char auth_str[AUTH_STR_LEN];
@@ -1805,7 +1878,7 @@ enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
       LogInfo(COMPONENT_DISPATCH,
               "Could not authenticate request... rejecting with AUTH_STAT=%s",
               auth_str);
-      svcerr_auth(xprt, why);
+      svcerr_auth2(xprt, req, why);
       *no_dispatch = TRUE;
       return why;
     }
@@ -1814,9 +1887,9 @@ enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
 #ifdef _HAVE_GSSAPI
       struct rpc_gss_cred *gc;
 
-      if(preq->rq_xprt->xp_verf.oa_flavor == RPCSEC_GSS)
+      if(req->rq_xprt->xp_verf.oa_flavor == RPCSEC_GSS)
         {
-          gc = (struct rpc_gss_cred *)preq->rq_clntcred;
+          gc = (struct rpc_gss_cred *) req->rq_clntcred;
           LogFullDebug(COMPONENT_DISPATCH,
                        "AuthenticateRequest no_dispatch=%d gc->gc_proc=(%u) %s",
                        *no_dispatch, gc->gc_proc, str_gc_proc(gc->gc_proc));
@@ -1846,6 +1919,54 @@ static void _9p_execute( _9p_request_data_t * preq9p,
 } /* _9p_execute */
 #endif
 
+static inline enum xprt_stat
+cond_multi_dispatch(nfs_worker_data_t *pmydata, request_data_t *pnfsreq)
+{
+    unsigned long *multi_cnt;
+    enum xprt_stat stat;
+    struct pollfd fd; /* XXXX */
+    bool_t try_multi = FALSE, dispatched = FALSE;
+    SVCXPRT *xprt = pnfsreq->r_u.nfs->xprt;
+    sigset_t mask;
+
+    svc_dplx_lock_x(xprt, &mask);
+    stat = SVC_STAT(xprt);
+    svc_dplx_unlock_x(xprt, &mask);
+
+    if (stat == XPRT_MOREREQS)
+        try_multi = TRUE;
+    else {
+        fd.fd = xprt->xp_fd;
+        fd.events = POLLIN;
+        if (poll(&fd, 1, 0 /* ms, ie, now */) > 0)
+            try_multi = TRUE;
+    }
+
+#if 0 /* XXX */
+    try_multi = FALSE;
+#endif
+
+    if (try_multi) {
+        process_status_t rc_multi __attribute__((unused));
+        pthread_rwlock_wrlock(&xprt->lock);
+        multi_cnt = (unsigned long*) &(pnfsreq->r_u.nfs->xprt->xp_u1);
+        if (*multi_cnt < nfs_param.core_param.dispatch_multi_xprt_max) {
+            ++(*multi_cnt);
+            /* dispatch it */
+            rc_multi = dispatch_rpc_subrequest(pmydata, pnfsreq);
+            dispatched = TRUE;
+        }
+        pthread_rwlock_unlock(&xprt->lock);
+    }
+
+    if (! dispatched) {
+        /* Execute it */
+        nfs_rpc_execute(pnfsreq, pmydata);
+    }
+
+    return (stat);
+}
+
 /**
  * nfs_worker_process_rpc_requests: read and process a sequence of RPC
  * requests.
@@ -1860,27 +1981,31 @@ nfs_worker_process_rpc_requests(nfs_worker_data_t *pmydata,
   const nfs_function_desc_t *pfuncdesc;
   bool_t no_dispatch = TRUE, recv_status;
   process_status_t rc = PROCESS_DONE;
-  SVCXPRT *xprt = pnfsreq->r_u.nfs.xprt;
-
-  preq = &pnfsreq->r_u.nfs.req;
-  pmsg = &pnfsreq->r_u.nfs.msg;
+  SVCXPRT *xprt;
 
 again:
   /*
    * Receive from socket.
    * Will block until the client operates on the socket
    */
+  xprt = pnfsreq->r_u.nfs->xprt;
+
   LogFullDebug(COMPONENT_DISPATCH,
                "Before calling SVC_RECV on socket %d",
                xprt->xp_fd);
 
+  rc = PROCESS_DONE;
+
+  preq = &pnfsreq->r_u.nfs->req;
+  pmsg = &pnfsreq->r_u.nfs->msg;
+
   svc_dplx_lock_x(xprt, &pmydata->sigmask);
-  recv_status = SVC_RECV(pnfsreq->r_u.nfs.xprt, pmsg);
+  recv_status = SVC_RECV(pnfsreq->r_u.nfs->xprt, pmsg);
   svc_dplx_unlock_x(xprt, &pmydata->sigmask);
 
   LogFullDebug(COMPONENT_DISPATCH,
                "Status for SVC_RECV on socket %d is %d, xid=%lu",
-               pnfsreq->r_u.nfs.xprt->xp_fd, recv_status,
+               pnfsreq->r_u.nfs->xprt->xp_fd, recv_status,
                (unsigned long)pmsg->rm_xid);
 
   /* If status is ok, the request will be processed by the related
@@ -1894,10 +2019,11 @@ again:
        * uses XPRT_MOREREQS to indicate that additional records are ready to
        * be consumed immediately. */
 
+        /* XXXX */
       sockaddr_t addr;
       char addrbuf[SOCK_NAME_MAX];
 
-      if(copy_xprt_addr(&addr, pnfsreq->r_u.nfs.xprt) == 1)
+      if(copy_xprt_addr(&addr, pnfsreq->r_u.nfs->xprt) == 1)
         sprint_sockaddr(&addr, addrbuf, sizeof(addrbuf));
       else
         sprintf(addrbuf, "<unresolved>");
@@ -1911,65 +2037,60 @@ again:
 
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s disappeared...",
-                   pnfsreq->r_u.nfs.xprt->xp_fd, addrbuf);
+                   pnfsreq->r_u.nfs->xprt->xp_fd, addrbuf);
           /* XXX someone must do this */
-          SVC_DESTROY(pnfsreq->r_u.nfs.xprt);
+          SVC_DESTROY(pnfsreq->r_u.nfs->xprt);
           rc = PROCESS_LOST_CONN;
         }
       else if(stat == XPRT_MOREREQS)
         {
+          /* unexpected case */
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_MOREREQS",
-                   pnfsreq->r_u.nfs.xprt->xp_fd, addrbuf);
+                   pnfsreq->r_u.nfs->xprt->xp_fd, addrbuf);
         }
       else if(stat == XPRT_IDLE)
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status XPRT_IDLE",
-                   pnfsreq->r_u.nfs.xprt->xp_fd, addrbuf);
+                   pnfsreq->r_u.nfs->xprt->xp_fd, addrbuf);
         }
       else
         {
           LogDebug(COMPONENT_DISPATCH,
                    "Client on socket=%d, addr=%s has status unknown (%d)",
-                   pnfsreq->r_u.nfs.xprt->xp_fd, addrbuf, (int)stat);
+                   pnfsreq->r_u.nfs->xprt->xp_fd, addrbuf, (int)stat);
         }
 
       goto unblock;
     }
   else
     {
-      /* Call svc_getargs before making copy to prevent race conditions. */
-      pnfsreq->r_u.nfs.req.rq_prog = pmsg->rm_call.cb_prog;
-      pnfsreq->r_u.nfs.req.rq_vers = pmsg->rm_call.cb_vers;
-      pnfsreq->r_u.nfs.req.rq_proc = pmsg->rm_call.cb_proc;
+      pnfsreq->r_u.nfs->req.rq_prog = pmsg->rm_call.cb_prog;
+      pnfsreq->r_u.nfs->req.rq_vers = pmsg->rm_call.cb_vers;
+      pnfsreq->r_u.nfs->req.rq_proc = pmsg->rm_call.cb_proc;
+      pnfsreq->r_u.nfs->req.rq_xid = pmsg->rm_xid;
 
-      pfuncdesc = nfs_rpc_get_funcdesc(&pnfsreq->r_u.nfs);
+      pfuncdesc = nfs_rpc_get_funcdesc(pnfsreq->r_u.nfs);
 
       if(pfuncdesc == INVALID_FUNCDESC)
         goto unblock;
 
-      if(AuthenticateRequest(&pnfsreq->r_u.nfs,
+      if(AuthenticateRequest(pnfsreq->r_u.nfs,
                              &no_dispatch) != AUTH_OK || no_dispatch)
         goto unblock;
 
-      if(!nfs_rpc_get_args(&pnfsreq->r_u.nfs, pfuncdesc))
+      if(!nfs_rpc_get_args(pnfsreq->r_u.nfs, pfuncdesc))
         goto unblock;
 
-      preq->rq_xprt = pnfsreq->r_u.nfs.xprt;
+      preq->rq_xprt = pnfsreq->r_u.nfs->xprt;
 
       /* Validate the rpc request as being a valid program, version,
        * and proc. If not, report the error. Otherwise, execute the
        * funtion. */      
-      if(is_rpc_call_valid(preq->rq_xprt, preq) == TRUE) {
-          LogFullDebug(COMPONENT_DISPATCH,
-                       "About to execute Prog = %d, vers = %d, proc = %d "
-                       "xprt=%p",
-                       (int)preq->rq_prog, (int)preq->rq_vers,
-                       (int)preq->rq_proc, preq->rq_xprt);
-          /* Execute it */
-          nfs_rpc_execute(&pnfsreq->r_u.nfs, pmydata);
-      }
+      if(is_rpc_call_valid(preq->rq_xprt, preq) == TRUE)
+          stat = cond_multi_dispatch(pmydata, pnfsreq);
+
       rc = PROCESS_DISPATCHED;
     }
 
@@ -1980,12 +2101,12 @@ unblock:
    * into the worker thread, so this will asynchronous wrt to the shared
    * event loop */
   if (rc == PROCESS_DISPATCHED) {
-      if (SVC_STAT(pnfsreq->r_u.nfs.xprt) == XPRT_MOREREQS)
+      if (stat == XPRT_MOREREQS)
           goto again;
   }
 
   if (rc != PROCESS_LOST_CONN)
-      (void) svc_rqst_unblock_events(pnfsreq->r_u.nfs.xprt,
+      (void) svc_rqst_unblock_events(pnfsreq->r_u.nfs->xprt,
                                      SVC_RQST_FLAG_NONE);
 
   return (rc);
@@ -2159,14 +2280,15 @@ void *worker_thread(void *IndexArg)
 
       switch( pnfsreq->rtype )
        {
-          case NFS_REQUEST:
+          case NFS_REQUEST_LEADER:
            LogFullDebug(COMPONENT_DISPATCH,
-                        "I have some work to do, pnfsreq=%p, pending=%d, xid=%lu",
+                        "Multi-dispatch leader, pnfsreq=%p, pending=%d, "
+                        "xid=%lu",
                         pnfsreq,
                         pmydata->pending_request_len,
-                        (unsigned long) pnfsreq->r_u.nfs.msg.rm_xid);
+                        (unsigned long) pnfsreq->r_u.nfs->msg.rm_xid);
 
-           if(pnfsreq->r_u.nfs.xprt->xp_fd == 0)
+           if(pnfsreq->r_u.nfs->xprt->xp_fd == 0)
            {
                LogFullDebug(COMPONENT_DISPATCH,
                             "RPC dispatch error:  pnfsreq=%p, xp_fd==0",
@@ -2178,6 +2300,24 @@ void *worker_thread(void *IndexArg)
               (void) nfs_worker_process_rpc_requests(pmydata, pnfsreq);
             }
            break ;
+
+       case NFS_REQUEST:
+           LogFullDebug(COMPONENT_DISPATCH,
+                        "Multi-dispatch subrequest, pnfsreq=%p, pending=%d, "
+                        "xid=%lu",
+                        pnfsreq,
+                        pmydata->pending_request_len,
+                        (unsigned long) pnfsreq->r_u.nfs->msg.rm_xid);
+
+           {
+               unsigned long *multi_cnt = (unsigned long *)
+                   &pnfsreq->r_u.nfs->xprt->xp_u1;
+               nfs_rpc_execute(pnfsreq, pmydata);
+               pthread_rwlock_wrlock(&pnfsreq->r_u.nfs->xprt->lock);
+               --(*multi_cnt);
+               pthread_rwlock_unlock(&pnfsreq->r_u.nfs->xprt->lock);
+           }
+           break;
 
        case NFS_CALL:
            /* NFSv4 rpc call (callback) */

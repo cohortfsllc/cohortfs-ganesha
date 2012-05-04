@@ -22,12 +22,6 @@ extern int CheckAuth(SVCAUTH *auth);
 #define CheckAuth(ptr)
 #endif
 
-#ifdef _USE_TIRPC
-/* public data : */
-extern rw_lock_t Svc_fd_lock;
-extern unsigned int get_tirpc_xid(SVCXPRT *xprt);
-#endif
-
 #ifdef _HAVE_GSSAPI
 /*
  * from mit-krb5-1.2.1 mechglue/mglueP.h:
