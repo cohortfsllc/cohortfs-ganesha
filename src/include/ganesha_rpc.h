@@ -27,23 +27,10 @@ void socket_setoptions(int socketFd);
 #define __FDS_BITS(set) ((set)->fds_bits)
 #endif
 
-#ifdef _USE_TIRPC
 typedef struct sockaddr_storage sockaddr_t;
-#else
-typedef struct sockaddr_in sockaddr_t;
-#endif
 
-#if defined( _USE_TIRPC ) || defined( _FREEBSD )
-#define XP_SOCK xp_fd
-#else
-#define XP_SOCK xp_sock
-#endif
+#define SOCK_NAME_MAX 128
 
-#ifndef AUTH_SYS
-#define AUTH_SYS 1
-#endif
-
-#ifdef _USE_TIRPC
 extern void Svc_dg_soft_destroy(SVCXPRT * xport);
 extern struct netconfig *getnetconfigent(const char *netid);
 extern void freenetconfigent(struct netconfig *);
@@ -56,30 +43,10 @@ extern int CheckXprt(SVCXPRT *xprt);
 #define CheckXprt(ptr)
 #endif
 
-#else                       /* not _USE_TIRPC */
-
-extern void Svcudp_soft_destroy(SVCXPRT * xprt);
-extern SVCXPRT *Svctcp_create(register int sock, u_int sendsize, u_int recvsize);
-extern SVCXPRT *Svcudp_bufcreate(register int sock, u_int sendsz, u_int recvsz);
-extern bool_t Svc_register(SVCXPRT * xprt, u_long prog, u_long vers, void (*dispatch) (),
-                    int protocol);
-#define CheckXprt(ptr)
-
-#endif                          /* _USE_TIRPC */
-
-#ifndef _HAVE_GSSAPI  // This enum is already defined in auth_gss.h
-  enum rpc_gss_svc_t
-  {
-    RPC_GSS_SVC_NONE = 1,
-    RPC_GSS_SVC_INTEGRITY = 2,
-    RPC_GSS_SVC_PRIVACY = 3,
-  };
-  typedef enum rpc_gss_svc_t rpc_gss_svc_t;
-#endif 
-
 #ifdef _SOLARIS
 #define _authenticate __authenticate
 #endif
+
 
 #ifdef _HAVE_GSSAPI
 struct svc_rpc_gss_data
@@ -121,9 +88,7 @@ int Gss_ctx_Hash_Init(nfs_krb5_parameter_t param);
 enum auth_stat Rpcsecgss__authenticate(register struct svc_req *rqst,
                                        struct rpc_msg *msg,
                                        bool_t * no_dispatch);
-#endif
 
-#ifdef _HAVE_GSSAPI
 void log_sperror_gss(char *outmsg, OM_uint32 maj_stat, OM_uint32 min_stat);
 uint32_t gss_ctx_hash_func(hash_parameter_t * p_hparam, hash_buffer_t * buffclef);
 uint64_t gss_ctx_rbt_hash_func(hash_parameter_t * p_hparam,
@@ -132,13 +97,9 @@ int compare_gss_ctx(hash_buffer_t * buff1, hash_buffer_t * buff2);
 int display_gss_ctx(hash_buffer_t * pbuff, char *str);
 int display_gss_svc_data(hash_buffer_t * pbuff, char *str);
 const char *str_gc_proc(rpc_gss_proc_t gc_proc);
+
 #endif                          /* _HAVE_GSSAPI */
 
-#ifdef _USE_TIRPC
-#define SOCK_NAME_MAX 128
-#else
-#define SOCK_NAME_MAX 32
-#endif
 extern int copy_xprt_addr(sockaddr_t *addr, SVCXPRT *xprt);
 extern int sprint_sockaddr(sockaddr_t *addr, char *buf, int len);
 extern int sprint_sockip(sockaddr_t *addr, char *buf, int len);
