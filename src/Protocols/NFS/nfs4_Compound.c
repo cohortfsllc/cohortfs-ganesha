@@ -501,7 +501,7 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
  * @see nfs4_op_getfh
  *
  */
-void nfs4_Compound_FreeOne(nfs_resop4 * pres)
+void nfs4_Compound_FreeOne(nfs_resop4 *pres)
 {
   /* LogFullDebug(COMPONENT_NFS_V4,
                   "nfs4_Compound_Free sur op=%s",
@@ -721,7 +721,7 @@ void nfs4_Compound_FreeOne(nfs_resop4 * pres)
  * @see nfs4_op_getfh
  *
  */
-void nfs4_Compound_Free(nfs_res_t * pres)
+void nfs4_Compound_Free(nfs_res_t *pres)
 {
   unsigned int i = 0;
 
@@ -730,8 +730,14 @@ void nfs4_Compound_Free(nfs_res_t * pres)
                pres,
                pres->res_compound4.resarray.resarray_len);
 
-  for(i = 0; i < pres->res_compound4.resarray.resarray_len; i++)
-    nfs4_Compound_FreeOne(&pres->res_compound4.resarray.resarray_val[i]);
+  for(i = 0; i < pres->res_compound4.resarray.resarray_len; i++) {
+      nfs_resop4 *val = &pres->res_compound4.resarray.resarray_val[i];
+      if (val) {
+          /* !val is an error case, but it can occur, so avoid
+           * indirect on NULL */
+          nfs4_Compound_FreeOne(val);
+      }
+  }
 
   Mem_Free((char *)pres->res_compound4.resarray.resarray_val);
   free_utf8(&pres->res_compound4.tag);
