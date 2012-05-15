@@ -100,6 +100,88 @@ const char *str_gc_proc(rpc_gss_proc_t gc_proc);
 
 #endif                          /* _HAVE_GSSAPI */
 
+/* Private data associated with a new TI-RPC (TCP) SVCXPRT (transport
+ * connection), ie, xprt->xp_u1.
+ */
+#define XPRT_PRIVATE_FLAG_NONE       0x0000
+#define XPRT_PRIVATE_FLAG_DESTROYED  0x0001 /* forward destroy */
+#define XPRT_PRIVATE_FLAG_LOCKED     0x0002
+#define XPRT_PRIVATE_FLAG_REF        0x0004
+
+typedef struct gsh_xprt_private
+{
+    uint32_t flags;
+    uint32_t refcnt;
+    uint32_t multi_cnt; /* multi-dispatch counter */
+} gsh_xprt_private_t;
+
+static inline gsh_xprt_private_t *
+alloc_gsh_xprt_private(uint32_t flags)
+{
+    gsh_xprt_private_t *xu = Mem_Alloc(sizeof(gsh_xprt_private_t));
+
+    xu->flags = 0;
+    xu->multi_cnt = 0;
+
+    if (flags & XPRT_PRIVATE_FLAG_REF)
+        xu->refcnt = 1;
+    else
+        xu->refcnt = 0;
+
+    return (xu);
+}
+
+static inline void
+free_gsh_xprt_private(gsh_xprt_private_t *xu)
+{
+    Mem_Free(xu);
+}
+
+static inline void
+gsh_xprt_ref(SVCXPRT *xprt, uint32_t flags)
+{
+    gsh_xprt_private_t *xu = (gsh_xprt_private_t *) xprt->xp_u1;
+
+    if (! (flags & XPRT_PRIVATE_FLAG_LOCKED))
+        pthread_rwlock_wrlock(&xprt->lock);
+
+    ++(xu->refcnt);
+
+    if (! (flags & XPRT_PRIVATE_FLAG_LOCKED))
+        pthread_rwlock_unlock(&xprt->lock);
+}
+
+static inline void
+gsh_xprt_unref(SVCXPRT * xprt, uint32_t flags)
+{
+    gsh_xprt_private_t *xu = (gsh_xprt_private_t *) xprt->xp_u1;
+
+    if (! (flags & XPRT_PRIVATE_FLAG_LOCKED))
+        pthread_rwlock_wrlock(&xprt->lock);
+
+    --(xu->refcnt);
+
+    pthread_rwlock_unlock(&xprt->lock);
+
+    /* finalize */
+    if (xu->refcnt == 0) {
+        if (xu->flags & XPRT_PRIVATE_FLAG_DESTROYED) {
+            SVC_DESTROY(xprt);
+        }
+    }
+}
+
+static inline void
+gsh_xprt_destroy(SVCXPRT *xprt)
+{
+    gsh_xprt_private_t *xu = (gsh_xprt_private_t *) xprt->xp_u1;
+
+    pthread_rwlock_wrlock(&xprt->lock);
+    xu->flags |= XPRT_PRIVATE_FLAG_DESTROYED;
+
+    gsh_xprt_unref(xprt, XPRT_PRIVATE_FLAG_LOCKED);
+}
+
 extern int copy_xprt_addr(sockaddr_t *addr, SVCXPRT *xprt);
 extern int sprint_sockaddr(sockaddr_t *addr, char *buf, int len);
 extern int sprint_sockip(sockaddr_t *addr, char *buf, int len);
