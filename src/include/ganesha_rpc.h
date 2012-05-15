@@ -37,12 +37,6 @@ extern void freenetconfigent(struct netconfig *);
 extern SVCXPRT *Svc_vc_create(int, u_int, u_int);
 extern SVCXPRT *Svc_dg_create(int, u_int, u_int);
 
-#if !defined(_NO_BUDDY_SYSTEM) && defined(_DEBUG_MEMLEAKS)
-extern int CheckXprt(SVCXPRT *xprt);
-#else
-#define CheckXprt(ptr)
-#endif
-
 #ifdef _SOLARIS
 #define _authenticate __authenticate
 #endif
@@ -155,16 +149,17 @@ static inline void
 gsh_xprt_unref(SVCXPRT * xprt, uint32_t flags)
 {
     gsh_xprt_private_t *xu = (gsh_xprt_private_t *) xprt->xp_u1;
+    uint32_t refcnt;
 
     if (! (flags & XPRT_PRIVATE_FLAG_LOCKED))
         pthread_rwlock_wrlock(&xprt->lock);
 
-    --(xu->refcnt);
+    refcnt = --(xu->refcnt);
 
     pthread_rwlock_unlock(&xprt->lock);
 
     /* finalize */
-    if (xu->refcnt == 0) {
+    if (refcnt == 0) {
         if (xu->flags & XPRT_PRIVATE_FLAG_DESTROYED) {
             SVC_DESTROY(xprt);
         }

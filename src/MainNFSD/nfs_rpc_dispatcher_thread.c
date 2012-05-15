@@ -962,11 +962,11 @@ dispatch_rpc_subrequest(nfs_worker_data_t *pmydata,
   /* choose a worker who is not us */
   worker_index = nfs_core_select_worker_queue( pmydata->worker_index );
 
-  LogFullDebug(COMPONENT_DISPATCH,
-               "Use request from Worker Thread #%u's pool, xprt->xp_fd=%d, "
-               "thread has %d pending requests",
-               worker_index, onfsreq->r_u.nfs->xprt->xp_fd,
-               workers_data[worker_index].pending_request_len);
+  LogDebug(COMPONENT_DISPATCH,
+           "Use request from Worker Thread #%u's pool, xprt->xp_fd=%d, "
+           "thread has %d pending requests",
+           worker_index, onfsreq->r_u.nfs->xprt->xp_fd,
+           workers_data[worker_index].pending_request_len);
 
   /* Get a pnfsreq from the worker's pool */
   P(workers_data[worker_index].request_pool_mutex);
@@ -997,10 +997,10 @@ dispatch_rpc_subrequest(nfs_worker_data_t *pmydata,
 
   V(pmydata->request_pool_mutex);
 
-  if(pnfsreq->r_u.nfs == NULL)
+  if(onfsreq->r_u.nfs == NULL)
     {
       LogMajor(COMPONENT_DISPATCH,
-               "Empty request pool for the chosen worker ! Exiting...");
+               "Empty request data pool! Exiting...");
       Fatal();
     }
 
@@ -1103,7 +1103,7 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
   preq->rq_xprt = xprt;
 
   /* Count as 1 ref */
-  gsh_xprt_ref(xprt, XPRT_PRIVATE_FLAG_LOCKED);
+  gsh_xprt_ref(xprt, XPRT_PRIVATE_FLAG_NONE);
 
   /* Hand it off */
   DispatchWorkNFS(pnfsreq, worker_index);
