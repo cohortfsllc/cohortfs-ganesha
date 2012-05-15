@@ -773,7 +773,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
   int port;
   int rc;
   int do_dupreq_cache;
-  int status;
+  dupreq_status_t dpq_status;
   exportlist_client_entry_t related_client;
   struct user_cred user_credentials;
   int   update_per_share_stats;
@@ -828,10 +828,10 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
 
   do_dupreq_cache = pworker_data->pfuncdesc->dispatch_behaviour & CAN_BE_DUP;
   LogFullDebug(COMPONENT_DISPATCH, "do_dupreq_cache = %d", do_dupreq_cache);
-  status = nfs_dupreq_add_not_finished(req,
-                                       &pworker_data->dupreq_pool,
-                                       &res_nfs);
-  switch(status)
+  dpq_status = nfs_dupreq_add_not_finished(req,
+                                           &pworker_data->dupreq_pool,
+                                           &res_nfs);
+  switch(dpq_status)
     {
       /* a new request, continue processing it */
     case DUPREQ_SUCCESS:
@@ -1677,7 +1677,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
       LogFullDebug(COMPONENT_DUPREQ, "YES?: %d", do_dupreq_cache);
       if(do_dupreq_cache)
         {
-          status = nfs_dupreq_finish(req, &res_nfs, lru_dupreq);
+          dpq_status = nfs_dupreq_finish(req, &res_nfs, lru_dupreq);
         }
     } /* rc == NFS_REQ_DROP */
 
@@ -1922,7 +1922,6 @@ static void _9p_execute( _9p_request_data_t * preq9p,
 static inline enum xprt_stat
 cond_multi_dispatch(nfs_worker_data_t *pmydata, request_data_t *pnfsreq)
 {
-    unsigned long *multi_cnt;
     enum xprt_stat stat;
     struct pollfd fd; /* XXXX */
     bool_t try_multi = FALSE, dispatched = FALSE;
