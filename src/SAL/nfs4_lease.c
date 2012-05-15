@@ -64,28 +64,36 @@
  */
 int nfs4_is_lease_expired(nfs_client_id_t * clientp)
 {
-  LogFullDebug(COMPONENT_NFS_V4,
-               "Check lease for client_name = %s id=%"PRIx64"",
-               clientp->client_name, clientp->clientid);
+    int rc = 0;
 
-  LogFullDebug(COMPONENT_NFS_V4,
-               "--------- nfs4_is_lease_expired ---------> %lu %lu delta=%lu lease=%u",
-               time(NULL), clientp->last_renew,
-               time(NULL) - clientp->last_renew, nfs_param.nfsv4_param.lease_lifetime);
+    pthread_mutex_lock(&clientp->clientid_mutex);
+    LogFullDebug(COMPONENT_NFS_V4,
+                 "Check lease for client_name = %s id=%"PRIx64"",
+                 clientp->client_name, clientp->clientid);
 
-  /* Check is lease is still valid */
+    LogFullDebug(COMPONENT_NFS_V4,
+                 "--------- nfs4_is_lease_expired ---------> %lu %lu delta=%lu lease=%u",
+                 time(NULL), clientp->last_renew,
+                 time(NULL) - clientp->last_renew, nfs_param.nfsv4_param.lease_lifetime);
+
+    /* Check is lease is still valid */
   if(time(NULL) - clientp->last_renew > (int)nfs_param.nfsv4_param.lease_lifetime)
-    return 1;
+      rc = 1;
   else
-    return 0;
+      rc = 0;
+
+  pthread_mutex_unlock(&clientp->clientid_mutex);
+
+  return (rc);
 }                               /* nfs4_is_lease_expired */
 
 void nfs4_update_lease(nfs_client_id_t * clientp)
 {
-  LogFullDebug(COMPONENT_NFS_V4,
-               "Update lease for client_name = %s id=%"PRIx64"",
-               clientp->client_name, clientp->clientid);
-
-  clientp->last_renew = time(NULL);
+    pthread_mutex_lock(&clientp->clientid_mutex);
+    LogFullDebug(COMPONENT_NFS_V4,
+                 "Update lease for client_name = %s id=%"PRIx64"",
+                 clientp->client_name, clientp->clientid);
+    clientp->last_renew = time(NULL);
+    pthread_mutex_unlock(&clientp->clientid_mutex);
 }
 
