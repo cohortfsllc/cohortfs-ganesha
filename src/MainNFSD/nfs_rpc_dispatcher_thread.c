@@ -54,7 +54,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs23.h"
 #include "nfs4.h"
 #include "mount.h"
@@ -80,14 +79,6 @@
 
 static pthread_mutex_t lock_worker_selection = PTHREAD_MUTEX_INITIALIZER;
 
-#ifndef _NO_BUDDY_SYSTEM
-/* This structure is set to initial state (zero-ed) in stat thread */
-buddy_stats_t          global_tcp_dispatcher_buddy_stat;
-
-/* This structure exists per tcp dispatcher thread */
-buddy_stats_t __thread local_tcp_dispatcher_buddy_stat;
-#endif /*!_NO_BUDDY_SYSTEM*/
-
 /* TI-RPC event channels.  Each channel is a thread servicing an event
  * demultiplexer. */
 
@@ -109,57 +100,6 @@ static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
                           void *u_data);
 static bool_t nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */);
 static void nfs_rpc_free_xprt(SVCXPRT *xprt);
-
-#if !defined(_NO_BUDDY_SYSTEM) && defined(_DEBUG_MEMLEAKS)
-/**
- *
- * nfs_debug_debug_label_debug_info: a function used for debugging purpose, tracing Buddy Malloc activity.
- *
- * @param none (void arguments)
- *
- * @return nothing (void function)
- *
- */
-void nfs_debug_debug_label_info()
-{
-  buddy_stats_t bstats;
-
-  if(isFullDebug(COMPONENT_MEMLEAKS) && isFullDebug(COMPONENT_DISPATCH))
-    {
-      BuddyLabelsSummary(COMPONENT_DISPATCH);
-
-      BuddyGetStats(&bstats);
-      LogFullDebug(COMPONENT_MEMLEAKS,
-                   "------- TOTAL SPACE USED FOR WORKER THREAD: %12lu (on %2u pages)",
-                   (unsigned long)bstats.StdUsedSpace, bstats.NbStdUsed);
-
-      /* DisplayMemoryMap(); */
-
-      LogFullDebug(COMPONENT_MEMLEAKS,
-                   "--------------------------------------------------");
-    }
-
-}                               /* nfs_debug_debug_label_info */
-
-void nfs_debug_buddy_info()
-{
-  buddy_stats_t bstats;
-
-  if(isFullDebug(COMPONENT_MEMLEAKS) && isFullDebug(COMPONENT_DISPATCH))
-    {
-      BuddyLabelsSummary(COMPONENT_DISPATCH);
-
-      BuddyGetStats(&bstats);
-      LogFullDebug(COMPONENT_MEMLEAKS,
-                   "------- TOTAL SPACE USED FOR DISPATCHER THREAD: %12lu (on %2u pages)",
-                   (unsigned long)bstats.StdUsedSpace, bstats.NbStdUsed);
-
-      LogFullDebug(COMPONENT_MEMLEAKS,
-                   "--------------------------------------------------");
-    }
-}
-
-#endif
 
 /**
  *
@@ -556,21 +496,7 @@ void nfs_Init_svc()
   if (!tirpc_control(TIRPC_SET_WARNX, (warnx_t) rpc_warnx))
       LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __warnx");
 
-  /* Is BuddyMalloc useful as a general RPC allocator?  We should find out.  Permit
-   * comparative profiling.
-   */
 #define TIRPC_SET_ALLOCATORS 0
-#if !defined(_NO_BUDDY_SYSTEM) && defined(TIRPC_SET_ALLOCATORS)
-  if (!tirpc_control(TIRPC_SET_MALLOC, (mem_alloc_t) BuddyMallocZ))
-      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC alloc");
-
-  if (!tirpc_control(TIRPC_SET_MEM_FREE, (mem_free_t) BuddyFreeSize))
-      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC mem_free");
-
-  if (!tirpc_control(TIRPC_SET_FREE, (std_free_t) BuddyFree))
-      LogCrit(COMPONENT_INIT, "Failed redirecting TI-RPC __free");
-#endif
-
     for (ix = 0; ix < N_EVENT_CHAN; ++ix) {
         rpc_evchan[ix].chan_id = 0;
         if ((code = svc_rqst_new_evchan(&rpc_evchan[ix].chan_id, NULL /* u_data */,
@@ -940,10 +866,7 @@ nfs_rpc_get_nfsreq(nfs_worker_data_t *worker, uint32_t flags)
 {
     request_data_t *pnfsreq = NULL;
 
-    P(worker->request_pool_mutex);
-    GetFromPool(pnfsreq, &worker->request_pool,
-                request_data_t);
-    V(worker->request_pool_mutex);
+    pnfsreq = pool_alloc(request_pool, NULL);
 
     return (pnfsreq);
 }
@@ -1035,7 +958,7 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
   char *cred_area;
   struct rpc_msg *pmsg;
   struct svc_req *preq;
-  request_data_t *pnfsreq = NULL;
+  request_data_t *nfsreq = NULL;
   unsigned int worker_index;
   process_status_t rc = PROCESS_DONE;
 
@@ -1062,24 +985,10 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
                worker_index, xprt->xp_fd,
                workers_data[worker_index].pending_request_len);
 
-  /* Get a pnfsreq from the worker's pool */
-  P(workers_data[worker_index].request_pool_mutex);
+  /* Get a nfsreq from the worker's pool */
+  nfsreq = pool_alloc(request_pool, NULL);
 
-  GetFromPool(pnfsreq, &workers_data[worker_index].request_pool,
-              request_data_t);
-  GetFromPool(pnfsreq->r_u.nfs, &workers_data[worker_index].request_data_pool,
-              nfs_request_data_t);
-
-  V(workers_data[worker_index].request_pool_mutex);
-
-  if(pnfsreq == NULL)
-    {
-      LogMajor(COMPONENT_DISPATCH,
-               "Empty request pool for the chosen worker ! Exiting...");
-      Fatal();
-    }
-
-  if(pnfsreq->r_u.nfs == NULL)
+  if(nfsreq == NULL)
     {
       LogMajor(COMPONENT_DISPATCH,
                "Empty request pool for the chosen worker ! Exiting...");
@@ -1087,26 +996,26 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
     }
 
   /* Set the request as NFS with xprt hand-off */
-  pnfsreq->rtype = NFS_REQUEST_LEADER ;
+  nfsreq->rtype = NFS_REQUEST_LEADER ;
 
   /* Set up cred area */
-  cred_area = pnfsreq->r_u.nfs->cred_area;
-  preq = &(pnfsreq->r_u.nfs->req);
-  pmsg = &(pnfsreq->r_u.nfs->msg);
+  cred_area = nfsreq->r_u.nfs->cred_area;
+  preq = &(nfsreq->r_u.nfs->req);
+  pmsg = &(nfsreq->r_u.nfs->msg);
 
   pmsg->rm_call.cb_cred.oa_base = cred_area;
   pmsg->rm_call.cb_verf.oa_base = &(cred_area[MAX_AUTH_BYTES]);
   preq->rq_clntcred = &(cred_area[2 * MAX_AUTH_BYTES]);
 
   /* Set up xprt */
-  pnfsreq->r_u.nfs->xprt = xprt;
+  nfsreq->r_u.nfs.xprt = xprt;
   preq->rq_xprt = xprt;
 
   /* Count as 1 ref */
   gsh_xprt_ref(xprt, XPRT_PRIVATE_FLAG_NONE);
 
   /* Hand it off */
-  DispatchWorkNFS(pnfsreq, worker_index);
+  DispatchWorkNFS(nfsreq, worker_index);
 
   return (rc);
 }
@@ -1208,7 +1117,7 @@ nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */)
      * completion of SVC_RECV */
     (void) svc_rqst_block_events(xprt, SVC_RQST_FLAG_NONE);
 
-    code = dispatch_rpc_request(xprt);
+    dispatch_rpc_request(xprt);
 
     return (TRUE);
 }
@@ -1253,16 +1162,6 @@ void *rpc_dispatcher_thread(void *arg)
     LogDebug(COMPONENT_DISPATCH,
              "My pthread id is %p", (caddr_t) pthread_self());
 
-#ifndef _NO_BUDDY_SYSTEM
-    /* XXXX check */
-    /* Initialisation of the Buddy Malloc */
-    LogInfo(COMPONENT_DISPATCH,
-            "Initialization of memory manager");
-    if(BuddyInit(&nfs_param.buddy_param_tcp_mgr)!= BUDDY_SUCCESS)
-        LogFatal(COMPONENT_DISPATCH,
-                 "Memory manager could not be initialized");
-#endif
-
     svc_rqst_thrd_run(chan_id, SVC_RQST_FLAG_NONE);
 
     return (NULL);
@@ -1279,10 +1178,9 @@ void *rpc_dispatcher_thread(void *arg)
  * @return nothing (void function) will exit the program if failed.
  *
  */
-
-void constructor_nfs_request_data_t(void *ptr)
+void constructor_nfs_request_data_t(void *ptr, void *parameters)
 {
-  nfs_request_data_t * pdata = (nfs_request_data_t *) ptr;
+  nfs_request_data_t *pdata = (nfs_request_data_t *) ptr;
   memset(pdata, 0, sizeof(nfs_request_data_t));
 }
 

@@ -49,7 +49,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs4.h"
 #include "nfs_core.h"
 #include "sal_functions.h"
@@ -195,7 +194,6 @@ int nfs4_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                   plock_owner,
                   pstate_found,
                   &lock_desc,
-                  data->pclient,
                   &state_status) != STATE_SUCCESS)
     {
       res_LOCKU4.status = nfs4_Errno_state(state_status);
@@ -234,7 +232,6 @@ int nfs4_op_locku(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
  */
 void nfs4_op_locku_Free(LOCKU4res * resp)
 {
-  /* Nothing to Mem_Free */
   return;
 }                               /* nfs4_op_locku_Free */
 

@@ -6,23 +6,23 @@
  * may copy or modify Sun RPC without charge, but are not authorized
  * to license or distribute it to anyone else except as part of a product or
  * program developed by the user.
- * 
+ *
  * SUN RPC IS PROVIDED AS IS WITH NO WARRANTIES OF ANY KIND INCLUDING THE
  * WARRANTIES OF DESIGN, MERCHANTIBILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE, OR ARISING FROM A COURSE OF DEALING, USAGE OR TRADE PRACTICE.
- * 
+ *
  * Sun RPC is provided with no support and without any obligation on the
  * part of Sun Microsystems, Inc. to assist in its use, correction,
  * modification or enhancement.
- * 
+ *
  * SUN MICROSYSTEMS, INC. SHALL HAVE NO LIABILITY WITH RESPECT TO THE
  * INFRINGEMENT OF COPYRIGHTS, TRADE SECRETS OR ANY PATENTS BY SUN RPC
  * OR ANY PART THEREOF.
- * 
+ *
  * In no event will Sun Microsystems, Inc. be liable for any lost revenue
  * or profits or other special, indirect and consequential damages, even if
  * Sun has been advised of the possibility of such damages.
- * 
+ *
  * Sun Microsystems, Inc.
  * 2550 Garcia Avenue
  * Mountain View, California  94043
@@ -48,6 +48,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include "abstract_mem.h"
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -56,7 +57,6 @@
 #include "../rpcal.h"
 #include <Rpc_com_tirpc.h>
 #include <getpeereid.h>
-#include "stuff_alloc.h"
 #include "RW_Lock.h"
 #include <pthread.h>
 
@@ -119,7 +119,7 @@ const char *nettype;            /* Networktype token */
           xprt = Svc_tp_create(dispatch, prognum, versnum, nconf);
           if(xprt)
             {
-              l = (struct xlist *)Mem_Alloc(sizeof(*l));
+              l = gsh_malloc(sizeof(*l));
               if(l == NULL)
                 {
                   warnx("svc_create: no memory");

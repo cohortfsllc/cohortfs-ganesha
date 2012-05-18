@@ -48,11 +48,9 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs4.h"
 #include "nfs_core.h"
 #include "sal_functions.h"
-#include "cache_content_policy.h"
 #include "nfs_proto_functions.h"
 #include "nfs_proto_tools.h"
 #ifdef _PNFS_DS
@@ -255,7 +253,6 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
     {
       if(cache_inode_access(pentry,
                             FSAL_WRITE_ACCESS,
-                            data->pclient,
                             data->pcontext,
                             &cache_status) != CACHE_INODE_SUCCESS)
         {
@@ -349,7 +346,6 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                       &written_size,
                       bufferdata,
                       &eof_met,
-                      data->pclient,
                       data->pcontext,
                       stability,
                       &cache_status) != CACHE_INODE_SUCCESS)

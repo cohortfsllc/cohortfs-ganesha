@@ -65,7 +65,6 @@
 #include "nfs23.h"
 #include "nfs4.h"
 #include "fsal.h"
-#include "stuff_alloc.h"
 #include "nfs_tools.h"
 #include "nfs_exports.h"
 #include "nfs_file_handle.h"
@@ -134,7 +133,7 @@ int print_entry_dupreq(LRU_data_t data, char *str)
 }
 
 static int _remove_dupreq(hash_table_t * ht_dupreq, hash_buffer_t *buffkey, dupreq_entry_t *pdupreq,
-                          struct prealloc_pool *dupreq_pool, int nfs_req_status)
+                          pool_t *dupreq_pool, int nfs_req_status)
 {
   int rc;
   nfs_function_desc_t funcdesc = nfs2_func_desc[0];
@@ -233,13 +232,13 @@ static int _remove_dupreq(hash_table_t * ht_dupreq, hash_buffer_t *buffkey, dupr
     funcdesc.free_function(&(pdupreq->res_nfs));
 
   /* Send the entry back to the pool */
-  ReleaseToPool(pdupreq, dupreq_pool);
-  Mem_Free(usedbuffkey.pdata);
+  pool_free(dupreq_pool, pdupreq);
+  gsh_free(usedbuffkey.pdata);
 
   return DUPREQ_SUCCESS;
 }
 
-int nfs_dupreq_delete(struct svc_req *req, struct prealloc_pool *dupreq_pool)
+int nfs_dupreq_delete(struct svc_req *req)
 {
   int status;
 
@@ -298,7 +297,7 @@ int nfs_dupreq_delete(struct svc_req *req, struct prealloc_pool *dupreq_pool)
 int clean_entry_dupreq(LRU_entry_t *pentry, void *addparam)
 {
   hash_buffer_t buffkey;
-  struct prealloc_pool *dupreq_pool = (struct prealloc_pool *) addparam;
+  pool_t *dupreq_pool = (pool_t*) addparam;
   dupreq_entry_t *pdupreq = (dupreq_entry_t *) (pentry->buffdata.pdata);
   dupreq_key_t dupkey;
   hash_table_t * ht_dupreq = NULL ;
@@ -499,10 +498,7 @@ int nfs_Init_dupreq(nfs_rpc_dupreq_parameter_t param)
  * @return DUPREQ_INSERT_MALLOC_ERROR if an error occured during the insertion process.
  *
  */
-
-int nfs_dupreq_add_not_finished(struct svc_req *req,
-                                struct prealloc_pool *dupreq_pool,
-                                nfs_res_t *res_nfs)
+int nfs_dupreq_add_not_finished(struct svc_req *req, nfs_res_t *res_nfs)
 {
   hash_buffer_t buffkey;
   hash_buffer_t buffval;
@@ -514,22 +510,22 @@ int nfs_dupreq_add_not_finished(struct svc_req *req,
 
   /* Get correct HT depending on proto used */
   ht_dupreq = get_ht_by_xprt(req->rq_xprt) ;
- 
+
   /* Entry to be cached */
-  GetFromPool(pdupreq, dupreq_pool, dupreq_entry_t);
+  pdupreq = pool_alloc(dupreq_pool, NULL);
   if(pdupreq == NULL)
     return DUPREQ_INSERT_MALLOC_ERROR;
 
   memset(pdupreq, 0, sizeof(*pdupreq));
   if(pthread_mutex_init(&pdupreq->dupreq_mutex, NULL) == -1)
     {
-      ReleaseToPool(pdupreq, dupreq_pool);
+      pool_free(dupreq_pool, pdupreq);
       return DUPREQ_INSERT_MALLOC_ERROR;
     }
 
-  if((pdupkey = (dupreq_key_t *) Mem_Alloc(sizeof(dupreq_key_t))) == NULL)
+  if((pdupkey = gsh_malloc(sizeof(dupreq_key_t))) == NULL)
     {
-      ReleaseToPool(pdupreq, dupreq_pool);
+      pool_free(dupreq_pool, pdupreq);
       return DUPREQ_INSERT_MALLOC_ERROR;
     }
 
@@ -537,8 +533,8 @@ int nfs_dupreq_add_not_finished(struct svc_req *req,
   if(copy_xprt_addr(&pdupkey->addr, req->rq_xprt) == 0 ||
      copy_xprt_addr(&pdupreq->addr, req->rq_xprt) == 0)
     {
-      Mem_Free(pdupkey);
-      ReleaseToPool(pdupreq, dupreq_pool);
+      gsh_free(pdupkey);
+      pool_free(dupreq_pool, pdupreq);
       return DUPREQ_INSERT_MALLOC_ERROR;
     }
 
@@ -593,8 +589,8 @@ int nfs_dupreq_add_not_finished(struct svc_req *req,
   else
     status = DUPREQ_SUCCESS;
   if (status != DUPREQ_SUCCESS) {
-    ReleaseToPool(pdupreq, dupreq_pool);
-    Mem_Free(pdupkey);
+    pool_free(dupreq_pool, pdupreq);
+    gsh_free(pdupkey);
   }
   return status;
 }                               /* nfs_dupreq_add_not_finished */

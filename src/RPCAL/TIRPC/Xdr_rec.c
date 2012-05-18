@@ -85,7 +85,6 @@
 #include <unistd.h>
 
 #include "tirpc.h"
-#include "stuff_alloc.h"
 
 static bool_t	Xdrrec_getlong(XDR *, long *);
 static bool_t	Xdrrec_putlong(XDR *, const long *);

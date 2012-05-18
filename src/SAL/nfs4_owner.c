@@ -40,7 +40,6 @@
 #include <pthread.h>
 #include <ctype.h>
 #include "log.h"
-#include "stuff_alloc.h"
 #include "HashData.h"
 #include "HashTable.h"
 #include "nfs4.h"
@@ -281,8 +280,7 @@ uint64_t nfs4_owner_rbt_hash_func(hash_parameter_t * p_hparam,
   return res;
 }                               /* state_id_rbt_hash_func */
 
-void remove_nfs4_owner(cache_inode_client_t * pclient,
-                       state_owner_t        * powner,
+void remove_nfs4_owner(state_owner_t        * powner,
                        const char           * str)
 {
   hash_buffer_t           buffkey, old_key, old_value;
@@ -327,7 +325,7 @@ void remove_nfs4_owner(cache_inode_client_t * pclient,
       case HASHTABLE_SUCCESS:
         if(powner->so_type == STATE_LOCK_OWNER_NFSV4 &&
            powner->so_owner.so_nfs4_owner.so_related_owner != NULL)
-          dec_state_owner_ref(powner->so_owner.so_nfs4_owner.so_related_owner, pclient);
+          dec_state_owner_ref(powner->so_owner.so_nfs4_owner.so_related_owner);
 
         /* Release the owner_name (key) and owner (data) back to appropriate pools */
         LogFullDebug(COMPONENT_STATE, "Free %s", str);
@@ -339,8 +337,8 @@ void remove_nfs4_owner(cache_inode_client_t * pclient,
             glist_del(&powner->so_owner.so_nfs4_owner.so_owner_list);
             V(clientid_powner->so_mutex);
           }
-        ReleaseToPool(old_value.pdata, &pclient->pool_state_owner);
-        ReleaseToPool(old_key.pdata, &pclient->pool_nfs4_owner_name);
+        pool_free(state_owner_pool, old_value.pdata);
+        pool_free(state_nfs4_owner_name_pool, old_key.pdata);
         break;
 
       case HASHTABLE_NOT_DELETED:
@@ -547,8 +545,7 @@ void convert_nfs4_clientid_owner(clientid4                 clientid,
   pname_owner->son_owner_val[0] = '\0';
 }                               /* convert_nfs4_clientid_owner */
 
-state_owner_t *create_nfs4_owner(cache_inode_client_t    * pclient,
-                                 state_nfs4_owner_name_t * pname,
+state_owner_t *create_nfs4_owner(state_nfs4_owner_name_t * pname,
                                  state_owner_type_t        type,
                                  state_owner_t           * related_owner,
                                  unsigned int              init_seqid)
@@ -576,18 +573,16 @@ state_owner_t *create_nfs4_owner(cache_inode_client_t    * pclient,
     }
 
   /* This lock owner is not known yet, allocated and set up a new one */
-  GetFromPool(powner, &pclient->pool_state_owner, state_owner_t);
+  powner = pool_alloc(state_owner_pool, NULL);
 
   if(powner == NULL)
     return NULL;
 
-  GetFromPool(powner_name,
-              &pclient->pool_nfs4_owner_name,
-              state_nfs4_owner_name_t);
+  powner_name = pool_alloc(state_nfs4_owner_name_pool, NULL);
 
   if(powner_name == NULL)
     {
-      ReleaseToPool(powner, &pclient->pool_state_owner);
+      pool_free(state_owner_pool, powner);
       return NULL;
     }
 
@@ -609,8 +604,6 @@ state_owner_t *create_nfs4_owner(cache_inode_client_t    * pclient,
   if ( type == STATE_LOCK_OWNER_NFSV4)
     powner->so_owner.so_nfs4_owner.so_confirmed   = 1;
 #endif
-  powner->so_pclient                              = pclient;
-
   init_glist(&powner->so_lock_list);
   init_glist(&powner->so_owner.so_nfs4_owner.so_owner_list);
   init_glist(&powner->so_owner.so_nfs4_owner.so_state_list);
@@ -623,15 +616,15 @@ state_owner_t *create_nfs4_owner(cache_inode_client_t    * pclient,
 
   if(pthread_mutex_init(&powner->so_mutex, NULL) == -1)
     {
-      ReleaseToPool(powner, &pclient->pool_state_owner);
-      ReleaseToPool(powner_name, &pclient->pool_nfs4_owner_name);
+      pool_free(state_owner_pool, powner);
+      pool_free(state_nfs4_owner_name_pool, powner_name);
       return NULL;
     }
 
   if(!nfs4_owner_Set(powner_name, powner))
     {
-      ReleaseToPool(powner, &pclient->pool_state_owner);
-      ReleaseToPool(powner_name, &pclient->pool_nfs4_owner_name);
+      pool_free(state_owner_pool, powner);
+      pool_free(state_nfs4_owner_name_pool, powner_name);
       return NULL;
     }
 
@@ -657,8 +650,7 @@ state_owner_t *create_nfs4_owner(cache_inode_client_t    * pclient,
 
 void Process_nfs4_conflict(LOCK4denied          * denied,    /* NFS v4 LOck4denied structure to fill in */
                            state_owner_t        * holder,    /* owner that holds conflicting lock */
-                           fsal_lock_param_t    * conflict,  /* description of conflicting lock */
-                           cache_inode_client_t * pclient)
+                           fsal_lock_param_t    * conflict)  /* description of conflicting lock */
 {
   /* A  conflicting lock from a different lock_owner, returns NFS4ERR_DENIED */
   denied->offset = conflict->lock_start;
@@ -670,7 +662,7 @@ void Process_nfs4_conflict(LOCK4denied          * denied,    /* NFS v4 LOck4deni
     denied->locktype = WRITE_LT;
 
   if(holder != NULL && holder->so_owner_len != 0)
-    denied->owner.owner.owner_val = Mem_Alloc(holder->so_owner_len);
+    denied->owner.owner.owner_val = gsh_malloc(holder->so_owner_len);
   else
     denied->owner.owner.owner_val = NULL;
 
@@ -699,14 +691,14 @@ void Process_nfs4_conflict(LOCK4denied          * denied,    /* NFS v4 LOck4deni
 
   /* Release any lock owner reference passed back from SAL */
   if(holder != NULL)
-    dec_state_owner_ref(holder, pclient);
+    dec_state_owner_ref(holder);
 }
 
 void Release_nfs4_denied(LOCK4denied * denied)
 {
   if(denied->owner.owner.owner_val != unknown_owner.so_owner_val &&
      denied->owner.owner.owner_val != NULL)
-    Mem_Free(denied->owner.owner.owner_val);
+    gsh_free(denied->owner.owner.owner_val);
 }
 
 void Copy_nfs4_denied(LOCK4denied * denied_dst, LOCK4denied * denied_src)
@@ -716,7 +708,8 @@ void Copy_nfs4_denied(LOCK4denied * denied_dst, LOCK4denied * denied_src)
   if(denied_src->owner.owner.owner_val != unknown_owner.so_owner_val &&
      denied_src->owner.owner.owner_val != NULL)
     {
-      denied_dst->owner.owner.owner_val = Mem_Alloc(denied_src->owner.owner.owner_len);
+      denied_dst->owner.owner.owner_val
+        = gsh_malloc(denied_src->owner.owner.owner_len);
       LogFullDebug(COMPONENT_STATE,
                    "denied_dst->owner.owner.owner_val = %p",
                    denied_dst->owner.owner.owner_val);

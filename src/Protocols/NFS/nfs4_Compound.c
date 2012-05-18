@@ -50,7 +50,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs23.h"
 #include "nfs4.h"
 #include "mount.h"
@@ -208,24 +207,24 @@ nfs4_op_desc_t *optabvers[] = { (nfs4_op_desc_t *) optab4v0 };
  * Operation and functions necessary to process them are defined in array optab4 .
  *
  *
- *  @param parg        [IN]  generic nfs arguments
- *  @param pexportlist [IN]  the full export list
- *  @param pcontex     [IN]  context for the FSAL (unused but kept for nfs functions prototype homogeneity)
- *  @param pclient     [INOUT] client resource for request management
- *  @param preq        [IN]  RPC svc request
- *  @param pres        [OUT] generic nfs reply
+ *  @param[in]  parg        Generic nfs arguments
+ *  @param[in]  pexportlist The full export list
+ *  @param[in]  pcontex     Context for the FSAL
+ *  @param[in]  pworker     Worker thread data
+ *  @param[in]  preq        NFSv4 request structure
+ *  @param[out] pres        NFSv4 reply structure
  *
- *  @see   nfs4_op_<*> functions
- *  @see   nfs4_GetPseudoFs
+ *  @see nfs4_op_<*> functions
+ *  @see nfs4_GetPseudoFs
  *
  */
 
-int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
-                  exportlist_t * pexport /* IN     */ ,
-                  fsal_op_context_t * pcontext /* IN     */ ,
-                  cache_inode_client_t * pclient /* INOUT  */ ,
-                  struct svc_req *preq /* IN     */ ,
-                  nfs_res_t * pres /* OUT    */ )
+int nfs4_Compound(nfs_arg_t *parg,
+                  exportlist_t *pexport,
+                  fsal_op_context_t *pcontext,
+                  nfs_worker_data_t *pworker,
+                  struct svc_req *preq,
+                  nfs_res_t * pres)
 {
   unsigned int i = 0;
   int status = NFS4_OK;
@@ -295,11 +294,13 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
   data.minorversion = COMPOUND4_MINOR;
   /** @todo BUGAZOMEU: Reminder: Stats on NFSv4 operations are to be set here */
 
-  data.pfullexportlist = pexport;       /* Full export list is provided in input */
-  data.pcontext = pcontext;     /* Get the fsal credentials from the worker thread */
+  data.pfullexportlist = pexport;       /* Full export list is
+                                           provided in input */
+  data.pcontext = pcontext; /* Get the fsal credentials from the
+                               worker thread */
+  data.pworker = pworker;
   data.pseudofs = nfs4_GetPseudoFs();
   data.reqp = preq;
-  data.pclient = pclient;
 
   strcpy(data.MntPath, "/");
 
@@ -319,8 +320,8 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
 
   /* Allocating the reply nfs_resop4 */
   if((pres->res_compound4.resarray.resarray_val =
-      (struct nfs_resop4 *)Mem_Alloc((COMPOUND4_ARRAY.argarray_len) *
-                                     sizeof(struct nfs_resop4))) == NULL)
+      gsh_calloc((COMPOUND4_ARRAY.argarray_len),
+                 sizeof(struct nfs_resop4))) == NULL)
     {
       return NFS_REQ_DROP;
     }
@@ -492,9 +493,9 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
 
 /**
  *
- * nfs4_Compound_FreeOne: Mem_Free the result for one NFS4_OP
+ * @brief Free the result for one NFS4_OP
  *
- * @param resp pointer to be Mem_Freed
+ * @param resp pointer to be freed
  *
  * @return nothing (void function).
  *
@@ -503,10 +504,6 @@ int nfs4_Compound(nfs_arg_t * parg /* IN     */ ,
  */
 void nfs4_Compound_FreeOne(nfs_resop4 *pres)
 {
-  /* LogFullDebug(COMPONENT_NFS_V4,
-                  "nfs4_Compound_Free sur op=%s",
-                  optabvers[COMPOUND4_MINOR][optab4index[pres->resop]].name);
-  */
   switch (pres->resop)
     {
       case NFS4_OP_ACCESS:
@@ -710,11 +707,11 @@ void nfs4_Compound_FreeOne(nfs_resop4 *pres)
 
 /**
  *
- * nfs4_Compound_Free: Mem_Free the result for NFS4PROC_COMPOUND
+ * nfs4_Compound_Free: Free the result for NFS4PROC_COMPOUND
  *
- * Mem_Free the result for NFS4PROC_COMPOUND.
+ * Free the result for NFS4PROC_COMPOUND.
  *
- * @param resp pointer to be Mem_Freed
+ * @param resp pointer to be freed
  *
  * @return nothing (void function).
  *
@@ -739,7 +736,7 @@ void nfs4_Compound_Free(nfs_res_t *pres)
       }
   }
 
-  Mem_Free((char *)pres->res_compound4.resarray.resarray_val);
+  gsh_free(pres->res_compound4.resarray.resarray_val);
   free_utf8(&pres->res_compound4.tag);
 
   return;
@@ -747,11 +744,11 @@ void nfs4_Compound_Free(nfs_res_t *pres)
 
 /**
  *
- * compound_data_Free: Mem_Frees the compound data structure.
+ * compound_data_Free: Frees the compound data structure.
  *
- * Mem_Frees the compound data structure..
+ * Frees the compound data structure..
  *
- * @param data pointer to be Mem_Freed
+ * @param data pointer to be freed
  *
  * @return nothing (void function).
  *
@@ -763,25 +760,25 @@ void compound_data_Free(compound_data_t * data)
 
   /* Release refcounted cache entries */
   if (data->current_entry)
-      cache_inode_put(data->current_entry, data->pclient);
+      cache_inode_put(data->current_entry);
 
   if (data->saved_entry)
-      cache_inode_put(data->saved_entry, data->pclient);
+      cache_inode_put(data->saved_entry);
 
   if(data->currentFH.nfs_fh4_val != NULL)
-    Mem_Free((char *)data->currentFH.nfs_fh4_val);
+    gsh_free(data->currentFH.nfs_fh4_val);
 
   if(data->rootFH.nfs_fh4_val != NULL)
-    Mem_Free((char *)data->rootFH.nfs_fh4_val);
+    gsh_free(data->rootFH.nfs_fh4_val);
 
   if(data->publicFH.nfs_fh4_val != NULL)
-    Mem_Free((char *)data->publicFH.nfs_fh4_val);
+    gsh_free(data->publicFH.nfs_fh4_val);
 
   if(data->savedFH.nfs_fh4_val != NULL)
-    Mem_Free((char *)data->savedFH.nfs_fh4_val);
+    gsh_free(data->savedFH.nfs_fh4_val);
 
   if(data->mounted_on_FH.nfs_fh4_val != NULL)
-    Mem_Free((char *)data->mounted_on_FH.nfs_fh4_val);
+    gsh_free(data->mounted_on_FH.nfs_fh4_val);
 
 }                               /* compound_data_Free */
 
@@ -909,7 +906,7 @@ void nfs4_Compound_CopyResOne(nfs_resop4 * pres_dst, nfs_resop4 * pres_src)
  *
  * Copy the result for NFS4PROC_COMPOUND.
  *
- * @param resp pointer to be Mem_Freed
+ * @param resp pointer to be freed
  *
  * @return nothing (void function).
  *

@@ -49,7 +49,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs4.h"
 #include "nfs_core.h"
 #include "sal_functions.h"
@@ -271,7 +270,6 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
     {
       if(cache_inode_access(pentry,
                             FSAL_READ_ACCESS,
-                            data->pclient,
                             data->pcontext,
                             &cache_status) != CACHE_INODE_SUCCESS)
         {
@@ -339,7 +337,7 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
     }
 
   /* Some work is to be done */
-  if((bufferdata = Mem_Alloc_Page_Aligned(size)) == NULL)
+  if((bufferdata = gsh_malloc_aligned(4096, size)) == NULL)
     {
       res_READ4.status = NFS4ERR_SERVERFAULT;
       if (anonymous)
@@ -357,13 +355,12 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data, struct nfs_resop
                       &read_size,
                       bufferdata,
                       &eof_met,
-                      data->pclient,
                       data->pcontext,
                       CACHE_INODE_SAFE_WRITE_TO_FS,
                       &cache_status) != CACHE_INODE_SUCCESS) ||
-     ((cache_inode_getattr(pentry, &attr, data->pclient, data->pcontext,
-                              &cache_status)) != CACHE_INODE_SUCCESS))
- 
+     ((cache_inode_getattr(pentry, &attr, data->pcontext,
+                           &cache_status)) != CACHE_INODE_SUCCESS))
+
     {
       res_READ4.status = nfs4_Errno(cache_status);
       if (anonymous)
@@ -411,7 +408,7 @@ void nfs4_op_read_Free(READ4res * resp)
 {
   if(resp->status == NFS4_OK)
     if(resp->READ4res_u.resok4.data.data_len != 0)
-      Mem_Free_Page_Aligned(resp->READ4res_u.resok4.data.data_val);
+      gsh_free(resp->READ4res_u.resok4.data.data_val);
   return;
 }                               /* nfs4_op_read_Free */
 
@@ -466,7 +463,7 @@ static int op_dsread(struct nfs_argop4 *op,
   memset(&handle, 0, sizeof(handle));
   memcpy(&handle, fh_desc.start, fh_desc.len);
 
-  buffer = Mem_Alloc_Page_Aligned(arg_READ4.count);
+  buffer = gsh_malloc_aligned(4096, arg_READ4.count);
   if (buffer == NULL)
     {
       res_READ4.status = NFS4ERR_SERVERFAULT;
@@ -486,7 +483,7 @@ static int op_dsread(struct nfs_argop4 *op,
                                   &eof))
       != NFS4_OK)
     {
-      Mem_Free_Page_Aligned(buffer);
+      gsh_free(buffer);
       buffer = NULL;
     }
 
@@ -497,4 +494,4 @@ static int op_dsread(struct nfs_argop4 *op,
   return res_READ4.status;
 }
 
-#endif /* _USE_FSALDS */
+#endif /* _PNFS_DS */

@@ -51,7 +51,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs23.h"
 #include "nfs4.h"
 #include "mount.h"
@@ -127,7 +126,7 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
   if(nfs4_Is_Fh_Pseudo(&(data->currentFH)))
     {
         if (data->current_entry) {
-            cache_inode_put(data->current_entry, data->pclient);
+            cache_inode_put(data->current_entry);
         }
         data->current_entry = NULL;
         data->current_filetype = DIRECTORY;
@@ -172,7 +171,6 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                                                        &(res_PUTFH4.status),
                                                        &attr,
                                                        data->pcontext,
-                                                       data->pclient,
                                                        &rc)) == NULL)
             {
               res_PUTFH4.status = NFS4ERR_BADHANDLE;

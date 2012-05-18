@@ -51,8 +51,6 @@
 #include "nfs_stat.h"
 #include "external_tools.h"
 
-#include "stuff_alloc.h"
-
 #include "nfs23.h"
 #include "nfs4.h"
 #include "mount.h"
@@ -90,32 +88,21 @@
 #define NB_REQUEST_BEFORE_QUEUE_AVG  1000
 #define NB_MAX_CONCURRENT_GC 3
 #define NB_MAX_PENDING_REQUEST 30
-#define NB_PREALLOC_LRU_WORKER 100
 #define NB_REQUEST_BEFORE_GC 50
 #define PRIME_DUPREQ 17         /* has to be a prime number */
 #define PRIME_ID_MAPPER 17      /* has to be a prime number */
 #define DUPREQ_EXPIRATION 180
-#define NB_PREALLOC_HASH_DUPREQ 100
-#define NB_PREALLOC_LRU_DUPREQ 100
-#define NB_PREALLOC_GC_DUPREQ 100
-#define NB_PREALLOC_ID_MAPPER 200
 
 #define PRIME_CACHE_INODE 37    /* has to be a prime number */
-#define NB_PREALLOC_HASH_CACHE_INODE 1000
-#define NB_PREALLOC_LRU_CACHE_INODE 1000
 
 #define PRIME_IP_NAME            17
-#define NB_PREALLOC_HASH_IP_NAME 10
 #define IP_NAME_EXPIRATION       36000
 
 #define PRIME_IP_STATS            17
-#define NB_PREALLOC_HASH_IP_STATS 10
 
 #define PRIME_CLIENT_ID            17
-#define NB_PREALLOC_HASH_CLIENT_ID 10
 
 #define PRIME_STATE_ID            17
-#define NB_PREALLOC_HASH_STATE_ID 10
 
 #define DEFAULT_NFS_PRINCIPAL     "nfs" /* GSSAPI will expand this to nfs/host@DOMAIN */
 #define DEFAULT_NFS_KEYTAB        ""    /* let GSSAPI use keytab specified in /etc/krb5.conf */
@@ -217,10 +204,6 @@ typedef char path_str_t[MAXPATHLEN] ;
 typedef struct nfs_worker_param__
 {
   LRU_parameter_t lru_dupreq;
-  unsigned int nb_pending_prealloc;
-  unsigned int nb_dupreq_prealloc;
-  unsigned int nb_client_id_prealloc;
-  unsigned int nb_ip_stats_prealloc;
   unsigned int nb_before_gc;
 } nfs_worker_parameter_t;
 
@@ -228,13 +211,6 @@ typedef struct nfs_rpc_dupreq_param__
 {
   hash_parameter_t hash_param;
 } nfs_rpc_dupreq_parameter_t;
-
-typedef struct nfs_cache_layer_parameter__
-{
-  cache_inode_parameter_t cache_param;
-  cache_inode_client_parameter_t cache_inode_client_param;
-  cache_inode_gc_policy_t gcpol;
-} nfs_cache_layers_parameter_t;
 
 typedef enum protos
 {
@@ -315,9 +291,8 @@ typedef struct nfs_session_id_param__
 
 typedef struct nfs_fsal_up_param__
 {
-  struct prealloc_pool event_pool;
   pthread_mutex_t event_pool_lock;
-  unsigned int nb_event_data_prealloc;
+  pool_t *event_pool;
 } nfs_fsal_up_parameter_t;
 
 typedef char entry_name_array_item_t[FSAL_MAX_NAME_LEN];
@@ -365,20 +340,11 @@ typedef struct nfs_param__
   hash_parameter_t nlm_client_hash_param;
   hash_parameter_t nlm_owner_hash_param;
 #endif
-  nfs_cache_layers_parameter_t cache_layers_param;
   fsal_parameter_t fsal_param;
   external_tools_parameter_t extern_param;
 
   /* list of exports declared in config file */
   exportlist_t *pexportlist;
-#ifndef _NO_BUDDY_SYSTEM
-  /* buddy parameter for workers and dispatcher */
-  buddy_parameter_t buddy_param_worker;
-  buddy_parameter_t buddy_param_admin;
-  buddy_parameter_t buddy_param_tcp_mgr;
-  buddy_parameter_t buddy_param_fsal_up;
-#endif
-
 } nfs_parameter_t;
 
 typedef struct nfs_dupreq_stat__
@@ -566,10 +532,9 @@ struct nfs_client_id__
   struct glist_head clientid_openowners;
   struct glist_head clientid_lockowners;
   pthread_mutex_t clientid_mutex;
-  struct prealloc_pool *clientid_pool;
   struct {
       char client_r_addr[SOCK_NAME_MAX]; /* supplied univ. address */
-      gsh_addr_t addr; 
+      gsh_addr_t addr;
       uint32_t program;
       union {
           struct {
@@ -603,7 +568,7 @@ typedef enum pause_state
   STATE_PAUSED,
   STATE_EXIT
 } pause_state_t;
-  
+
 typedef struct nfs_thread_control_block__
 {
   pthread_cond_t tcb_condvar;
@@ -614,18 +579,16 @@ typedef struct nfs_thread_control_block__
   struct glist_head tcb_list;
 } nfs_tcb_t;
 
+extern pool_t *request_pool;
+extern pool_t *dupreq_pool;
+extern pool_t *ip_stats_pool;
+
 typedef struct nfs_worker_data__
 {
   unsigned int worker_index;
   int  pending_request_len;
   struct glist_head pending_request;
   LRU_list_t *duplicate_request;
-  struct prealloc_pool request_pool;
-  struct prealloc_pool request_data_pool;
-  struct prealloc_pool dupreq_pool;
-  struct prealloc_pool ip_stats_pool;
-  struct prealloc_pool clientid_pool;
-  cache_inode_client_t cache_inode_client;
   hash_table_t *ht_ip_stats;
   pthread_mutex_t request_pool_mutex;
   nfs_tcb_t wcb; /* Worker control block */
@@ -669,10 +632,6 @@ typedef struct ganesha_stats__ {
     hash_stat_t             drc_udp;
     hash_stat_t             drc_tcp;
     fsal_statistics_t       global_fsal;
-#ifndef _NO_BUDDY_SYSTEM
-    buddy_stats_t           global_buddy;
-#endif
-
     unsigned int min_pending_request;
     unsigned int max_pending_request;
     unsigned int total_pending_request;
@@ -731,7 +690,13 @@ typedef enum worker_available_rc
   WORKER_EXIT
 } worker_available_rc;
 
-/* 
+/*
+ * Object pools
+ */
+
+extern pool_t *nfs_clientid_pool;
+
+/*
  *functions prototypes
  */
 enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
@@ -783,8 +748,8 @@ int nfs_Init_worker_data(nfs_worker_data_t * pdata);
 int nfs_Init_request_data(nfs_request_data_t * pdata);
 int nfs_Init_gc_counter(void);
 void nfs_rpc_dispatch_threads(pthread_attr_t *attr_thr);
-void constructor_nfs_request_data_t(void *ptr);
-void constructor_request_data_t(void *ptr);
+void constructor_nfs_request_data_t(void *ptr, void *parameters);
+void constructor_request_data_t(void *ptr, void *parameters);
 
 /* Config parsing routines */
 int get_stat_exporter_conf(config_file_t in_config, external_tools_parameter_t * out_parameter);
@@ -854,7 +819,7 @@ void auth_stat2str(enum auth_stat, char *str);
 int nfs_Init_client_id(nfs_client_id_parameter_t param);
 int nfs_Init_client_id_reverse(nfs_client_id_parameter_t param);
 
-int nfs_client_id_remove(clientid4 clientid, struct prealloc_pool *clientid_pool);
+int nfs_client_id_remove(clientid4 clientid);
 
 int nfs_client_id_get(clientid4 clientid, nfs_client_id_t * client_id_res);
 
@@ -863,12 +828,10 @@ int nfs_client_id_get_reverse(char *key, nfs_client_id_t * client_id_res);
 int nfs_client_id_Get_Pointer(clientid4 clientid, nfs_client_id_t ** ppclient_id_res);
 
 int nfs_client_id_add(clientid4 clientid,
-                      nfs_client_id_t client_record,
-                      cache_inode_client_t *pclient);
+                      nfs_client_id_t client_record);
 
 int nfs_client_id_set(clientid4 clientid,
-                      nfs_client_id_t client_record,
-                      struct prealloc_pool *clientid_pool);
+                      nfs_client_id_t client_record);
 
 void nfs_client_id_expire(nfs_client_id_t *client_record);
 

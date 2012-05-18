@@ -100,7 +100,6 @@
 #include <grp.h>
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs_core.h"
 #include "nfs23.h"
 #include "nfs4.h"
@@ -303,8 +302,8 @@ int get_req_uid_gid(struct svc_req *req,
 }
 
 int nfs_check_anon(exportlist_client_entry_t * pexport_client,
-		   exportlist_t * pexport,
-		   struct user_cred *user_credentials)
+                   exportlist_t * pexport,
+                   struct user_cred *user_credentials)
 {
   if (user_credentials == NULL)
     return FALSE;

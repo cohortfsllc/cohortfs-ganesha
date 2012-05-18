@@ -49,7 +49,6 @@
 #include "HashTable.h"
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "nfs4.h"
 #include "nfs_core.h"
 #include "sal_functions.h"
@@ -308,8 +307,7 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
       if(!nfs4_owner_Get_Pointer(&owner_name, &plock_owner))
         {
           /* This lock owner is not known yet, allocated and set up a new one */
-          plock_owner = create_nfs4_owner(data->pclient,
-                                          &owner_name,
+          plock_owner = create_nfs4_owner(&owner_name,
                                           STATE_LOCK_OWNER_NFSV4,
                                           popen_owner,
                                           0);
@@ -339,7 +337,6 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                    candidate_type,
                    &candidate_data,
                    plock_owner,
-                   data->pclient,
                    data->pcontext,
                    &plock_state, &state_status) != STATE_SUCCESS)
         {
@@ -352,7 +349,7 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                   plock_owner,
                   &lock_desc);
 
-          dec_state_owner_ref(plock_owner, data->pclient);
+          dec_state_owner_ref(plock_owner);
 
           return res_LOCK4.status;
         }
@@ -383,7 +380,6 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
                 &lock_desc,
                 &conflict_owner,
                 &conflict_desc,
-                data->pclient,
                 &state_status) != STATE_SUCCESS)
     {
       if(state_status == STATE_LOCK_CONFLICT)
@@ -391,8 +387,7 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
           /* A  conflicting lock from a different lock_owner, returns NFS4ERR_DENIED */
           Process_nfs4_conflict(&res_LOCK4.LOCK4res_u.denied,
                                 conflict_owner,
-                                &conflict_desc,
-                                data->pclient);
+                                &conflict_desc);
         }
 
       LogDebug(COMPONENT_NFS_V4_LOCK,
@@ -405,7 +400,6 @@ int nfs41_op_lock(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
         {
           /* Need to destroy lock owner and state */
           if(state_del(plock_state,
-                       data->pclient,
                        &state_status) != STATE_SUCCESS)
             LogDebug(COMPONENT_NFS_V4_LOCK,
                      "state_del failed with status %s",

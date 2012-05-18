@@ -6,23 +6,23 @@
  * may copy or modify Sun RPC without charge, but are not authorized
  * to license or distribute it to anyone else except as part of a product or
  * program developed by the user.
- * 
+ *
  * SUN RPC IS PROVIDED AS IS WITH NO WARRANTIES OF ANY KIND INCLUDING THE
  * WARRANTIES OF DESIGN, MERCHANTIBILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE, OR ARISING FROM A COURSE OF DEALING, USAGE OR TRADE PRACTICE.
- * 
+ *
  * Sun RPC is provided with no support and without any obligation on the
  * part of Sun Microsystems, Inc. to assist in its use, correction,
  * modification or enhancement.
- * 
+ *
  * SUN MICROSYSTEMS, INC. SHALL HAVE NO LIABILITY WITH RESPECT TO THE
  * INFRINGEMENT OF COPYRIGHTS, TRADE SECRETS OR ANY PATENTS BY SUN RPC
  * OR ANY PART THEREOF.
- * 
+ *
  * In no event will Sun Microsystems, Inc. be liable for any lost revenue
  * or profits or other special, indirect and consequential damages, even if
  * Sun has been advised of the possibility of such damages.
- * 
+ *
  * Sun Microsystems, Inc.
  * 2550 Garcia Avenue
  * Mountain View, California  94043
@@ -60,10 +60,10 @@
 
 #include "tirpc.h"
 #include "RW_Lock.h"
-#include "stuff_alloc.h"
+#include "abstract_mem.h"
 
 #ifndef MAX
-#define	MAX(a, b)	(((a) > (b)) ? (a) : (b))
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #endif
 
 static void Svc_dg_ops(SVCXPRT *);
@@ -119,20 +119,19 @@ u_int recvsize;
       return (NULL);
     }
 
-  xprt = (SVCXPRT *) Mem_Alloc(sizeof(SVCXPRT));
+  xprt = gsh_calloc(1, sizeof(SVCXPRT));
   if(xprt == NULL)
     goto freedata;
-  memset(xprt, 0, sizeof(SVCXPRT));
   Svc_dg_ops(xprt);
 
-  su = (struct svc_dg_data *)Mem_Alloc(sizeof(struct svc_dg_data));
+  su = gsh_malloc(sizeof(struct svc_dg_data));
   if(su == NULL)
     goto freedata;
   su->su_iosz = ((MAX(sendsize, recvsize) + 3) / 4) * 4;
   su->su_cache = NULL;
   su_data_set(xprt) = su;
 
-  rpc_buffer(xprt) = Mem_Alloc(su->su_iosz);
+  rpc_buffer(xprt) = gsh_malloc(su->su_iosz);
   if(rpc_buffer(xprt) == NULL)
     goto freedata;
   xdrmem_create(&(su->su_xdrs), rpc_buffer(xprt), su->su_iosz, XDR_DECODE);
@@ -144,7 +143,7 @@ u_int recvsize;
   if(getsockname(fd, (struct sockaddr *)(void *)&ss, &slen) < 0)
     goto freedata;
 
-  xprt->xp_ltaddr.buf = Mem_Alloc(sizeof(struct sockaddr_storage));
+  xprt->xp_ltaddr.buf = gsh_malloc(sizeof(struct sockaddr_storage));
   if(!xprt->xp_ltaddr.buf)
     goto freedata;
   xprt->xp_ltaddr.maxlen = sizeof(struct sockaddr_storage);
@@ -190,8 +189,8 @@ struct rpc_msg *msg;
   if(xprt->xp_rtaddr.len < alen)
     {
       if(xprt->xp_rtaddr.len != 0)
-        Mem_Free(xprt->xp_rtaddr.buf);
-      xprt->xp_rtaddr.buf = Mem_Alloc(alen);
+        gsh_free(xprt->xp_rtaddr.buf);
+      xprt->xp_rtaddr.buf = gsh_malloc(alen);
       if(xprt->xp_rtaddr.buf == NULL)
         return (FALSE);
       xprt->xp_rtaddr.len = alen;
@@ -378,17 +377,17 @@ u_int size;
       V(dupreq_lock);
       return (0);
     }
-  uc = (struct cl_cache *) Mem_Alloc(sizeof(struct cl_cache));
+  uc = gsh_malloc(sizeof(struct cl_cache));
   if(uc == NULL)
     {
       warnx(cache_enable_str, alloc_err, " ");
       V(dupreq_lock);
       return (0);
     }
-  su->su_cache = (char *)(void *)uc;
+  su->su_cache = (char *)uc;
   uc->uc_size = size;
   uc->uc_nextvictim = 0;
-  uc->uc_entries = (cache_ptr *) Mem_Alloc(sizeof(cache_ptr) * size * SPARSENESS);
+  uc->uc_entries = gsh_calloc(size * SPARSENESS, sizeof(cache_ptr));
   if(uc->uc_entries == NULL)
     {
       warnx(cache_enable_str, alloc_err, "data");
@@ -396,8 +395,7 @@ u_int size;
       V(dupreq_lock);
       return (0);
     }
-  memset(uc->uc_entries, 0, sizeof(cache_ptr) * size * SPARSENESS);
-  uc->uc_fifo = (cache_ptr *) Mem_Alloc(sizeof(cache_ptr) * size);
+  uc->uc_fifo = gsh_calloc(sizeof(cache_ptr), size);
   if(uc->uc_fifo == NULL)
     {
       warnx(cache_enable_str, alloc_err, "fifo");
@@ -406,7 +404,6 @@ u_int size;
       V(dupreq_lock);
       return (0);
     }
-  memset(uc->uc_fifo, 0, sizeof(cache_ptr) * size);
   V(dupreq_lock);
   return (1);
 }
@@ -458,18 +455,18 @@ size_t replylen;
     }
   else
     {
-      victim = (struct cache_node *)Mem_Alloc(sizeof(struct cache_node));
+      victim = gsh_malloc(sizeof(struct cache_node));
       if(victim == NULL)
         {
           warnx(cache_set_str, cache_set_err2);
           V(dupreq_lock);
           return;
         }
-      newbuf = Mem_Alloc(su->su_iosz);
+      newbuf = gsh_malloc(su->su_iosz);
       if(newbuf == NULL)
         {
           warnx(cache_set_str, cache_set_err3);
-          Mem_Free(victim);
+          gsh_free(victim);
           V(dupreq_lock);
           return;
         }
@@ -505,8 +502,8 @@ size_t replylen;
   victim->cache_vers = uc->uc_vers;
   victim->cache_prog = uc->uc_prog;
   victim->cache_addr = xprt->xp_rtaddr;
-  victim->cache_addr.buf = (char *) Mem_Alloc(xprt->xp_rtaddr.len);
-  (void)memcpy(victim->cache_addr.buf, xprt->xp_rtaddr.buf, (size_t) xprt->xp_rtaddr.len);
+  victim->cache_addr.buf = gsh_malloc(xprt->xp_rtaddr.len);
+  memcpy(victim->cache_addr.buf, xprt->xp_rtaddr.buf, (size_t) xprt->xp_rtaddr.len);
   loc = CACHE_LOC(xprt, victim->cache_xid);
   victim->cache_next = uc->uc_entries[loc];
   uc->uc_entries[loc] = victim;

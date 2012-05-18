@@ -93,7 +93,6 @@ int compare_req(hash_buffer_t *buff1, hash_buffer_t *buff2);
 int print_entry_dupreq(LRU_data_t data, char *str);
 int clean_entry_dupreq(LRU_entry_t *pentry, void *addparam);
 int nfs_dupreq_gc_function(LRU_entry_t *pentry, void *addparam);
-
 nfs_res_t nfs_dupreq_get(struct svc_req *req, int *pstatus);
 int nfs_dupreq_delete(struct svc_req *req, struct prealloc_pool *dupreq_pool);
 int nfs_dupreq_add_not_finished(struct svc_req *req, struct prealloc_pool *dupreq_pool,

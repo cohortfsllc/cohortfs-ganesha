@@ -54,7 +54,6 @@
 #include <pthread.h>
 #include "log.h"
 #include "ganesha_rpc.h"
-#include "stuff_alloc.h"
 #include "HashData.h"
 #include "HashTable.h"
 #include "nfs_core.h"
@@ -66,6 +65,8 @@
 #include "nfs_file_handle.h"
 
 size_t strnlen(const char *s, size_t maxlen);
+
+pool_t *nfs41_session_pool;
 
 hash_table_t *ht_session_id;
 uint32_t global_sequence = 0;
@@ -221,7 +222,7 @@ int nfs41_Session_Set(char sessionid[NFS4_SESSIONID_SIZE],
                    "         -----  SetSSession : %s", str);
     }
 
-  if((buffkey.pdata = (caddr_t) Mem_Alloc(NFS4_SESSIONID_SIZE)) == NULL)
+  if((buffkey.pdata = gsh_malloc(NFS4_SESSIONID_SIZE)) == NULL)
     return 0;
   memcpy(buffkey.pdata, sessionid, NFS4_SESSIONID_SIZE);
   buffkey.len = NFS4_SESSIONID_SIZE;
@@ -401,7 +402,7 @@ int nfs41_Session_Del(char sessionid[NFS4_SESSIONID_SIZE])
   if(HashTable_Del(ht_session_id, &buffkey, &old_key, &old_value) == HASHTABLE_SUCCESS)
     {
       /* free the key that was stored in hash table */
-      Mem_Free((void *)old_key.pdata);
+      gsh_free(old_key.pdata);
 
       /* State is managed in stuff alloc, no fre is needed for old_value.pdata */
 

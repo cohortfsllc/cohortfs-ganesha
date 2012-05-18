@@ -56,7 +56,6 @@
 #include "nfs4.h"
 #include "fsal.h"
 #include "sal_functions.h"
-#include "stuff_alloc.h"
 #include "cache_inode_lru.h"
 
 /**
@@ -131,7 +130,6 @@ state_status_t state_add_impl(cache_entry_t         * pentry,
                               state_type_t            state_type,
                               state_data_t          * pstate_data,
                               state_owner_t         * powner_input,
-                              cache_inode_client_t  * pclient,
                               fsal_op_context_t     * pcontext,
                               state_t              ** ppstate,
                               state_status_t        * pstatus)
@@ -158,7 +156,7 @@ state_status_t state_add_impl(cache_entry_t         * pentry,
       got_pinned = TRUE;
     }
 
-  GetFromPool(pnew_state, &pclient->pool_state_v4, state_t);
+  pnew_state = pool_alloc(state_v4_pool, NULL);
 
   if(pnew_state == NULL)
     {
@@ -188,7 +186,7 @@ state_status_t state_add_impl(cache_entry_t         * pentry,
                    pentry);
 
           /* stat */
-          ReleaseToPool(pnew_state, &pclient->pool_state_v4);
+          pool_free(state_v4_pool, pnew_state);
 
           *pstatus = STATE_STATE_CONFLICT;
 
@@ -222,7 +220,7 @@ state_status_t state_add_impl(cache_entry_t         * pentry,
                "Can't create a new state id %s for the pentry %p (F)",
                debug_str, pentry);
 
-      ReleaseToPool(pnew_state, &pclient->pool_state_v4);
+      pool_free(state_v4_pool, pnew_state);
 
       /* Return STATE_MALLOC_ERROR since most likely the nfs4_State_Set failed
        * to allocate memory.
@@ -277,7 +275,6 @@ state_status_t state_add(cache_entry_t         * pentry,
                          state_type_t            state_type,
                          state_data_t          * pstate_data,
                          state_owner_t         * powner_input,
-                         cache_inode_client_t  * pclient,
                          fsal_op_context_t     * pcontext,
                          state_t              ** ppstate,
                          state_status_t        * pstatus)
@@ -298,15 +295,14 @@ state_status_t state_add(cache_entry_t         * pentry,
 
   pthread_rwlock_wrlock(&pentry->state_lock);
   state_add_impl(pentry, state_type, pstate_data, powner_input,
-                 pclient, pcontext, ppstate, pstatus);
+                 pcontext, ppstate, pstatus);
   pthread_rwlock_unlock(&pentry->state_lock);
 
   return *pstatus;
 }                               /* state_add */
 
 state_status_t state_del_locked(state_t              * pstate,
-                                cache_entry_t        * pentry,
-                                cache_inode_client_t * pclient)
+                                cache_entry_t        * pentry)
 {
   char            debug_str[OTHERSIZE * 2 + 1];
 
@@ -331,7 +327,7 @@ state_status_t state_del_locked(state_t              * pstate,
       P(pstate->state_powner->so_mutex);
       glist_del(&pstate->state_owner_list);
       V(pstate->state_powner->so_mutex);
-      dec_state_owner_ref(pstate->state_powner, pclient);
+      dec_state_owner_ref(pstate->state_powner);
     }
 
   /* Remove from the list of states for a particular cache entry */
@@ -346,7 +342,7 @@ state_status_t state_del_locked(state_t              * pstate,
   glist_del(&pstate->state_export_list);
   V(pstate->state_pexport->exp_state_mutex);
 
-  ReleaseToPool(pstate, &pclient->pool_state_v4);
+  pool_free(state_v4_pool, pstate);
 
   LogFullDebug(COMPONENT_STATE, "Deleted state %s", debug_str);
 
@@ -370,22 +366,20 @@ state_status_t state_del_locked(state_t              * pstate,
  *
  */
 state_status_t state_del(state_t              * pstate,
-                         cache_inode_client_t * pclient,
                          state_status_t       * pstatus)
 {
   cache_entry_t *entry = pstate->state_pentry;
 
   pthread_rwlock_wrlock(&entry->state_lock);
 
-  *pstatus = state_del_locked(pstate, pstate->state_pentry, pclient);
+  *pstatus = state_del_locked(pstate, pstate->state_pentry);
 
   pthread_rwlock_unlock(&entry->state_lock);
 
   return *pstatus;
 }                               /* state_del */
 
-void state_nfs4_state_wipe(cache_entry_t        * pentry,
-                           cache_inode_client_t * pclient)
+void state_nfs4_state_wipe(cache_entry_t        * pentry)
 {
   struct glist_head * glist;
   state_t           * pstate = NULL;
@@ -415,7 +409,7 @@ void state_nfs4_state_wipe(cache_entry_t        * pentry,
           case STATE_TYPE_NONE:
             break;
         }
-      state_del_locked(pstate, pentry, pclient);
+      state_del_locked(pstate, pentry);
     }
 
   cache_inode_dec_pin_ref(pstate->state_pentry);
