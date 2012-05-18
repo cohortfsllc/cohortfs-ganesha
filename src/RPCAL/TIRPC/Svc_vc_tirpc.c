@@ -65,7 +65,7 @@
 #include <unistd.h>
 
 #include "tirpc.h"
-#include "stuff_alloc.h"
+#include "abstract_mem.h"
 
 int getpeereid(int s, uid_t * euid, gid_t * egid);
 int fridgethr_get( pthread_t * pthrid, void *(*thrfunc)(void*), void * thrarg ) ;
@@ -113,17 +113,16 @@ SVCXPRT *Svc_vc_create(int fd, u_int sendsize, u_int recvsize)
   struct sockaddr_storage sslocal;
   socklen_t slen;
 
-  xprt = (SVCXPRT *) Mem_Alloc(sizeof(SVCXPRT));
+  xprt = gsh_calloc(1, sizeof(SVCXPRT));
   if(xprt == NULL)
     {
       LogCrit(COMPONENT_RPC,
               "Svc_vc_create: out of memory");
       goto cleanup_svc_vc_create;
     }
-  memset(xprt, 0, sizeof(SVCXPRT));
   Svc_vc_rendezvous_ops(xprt);
 
-  r = (struct cf_rendezvous *)Mem_Alloc(sizeof(*r));
+  r = gsh_malloc(sizeof(*r));
   if(r == NULL)
     {
       LogCrit(COMPONENT_RPC,
@@ -156,7 +155,7 @@ SVCXPRT *Svc_vc_create(int fd, u_int sendsize, u_int recvsize)
     }
 
   xprt->xp_ltaddr.maxlen = xprt->xp_ltaddr.len = sizeof(sslocal);
-  xprt->xp_ltaddr.buf = Mem_Alloc((size_t) sizeof(sslocal));
+  xprt->xp_ltaddr.buf = gsh_malloc(sizeof(sslocal));
   if(xprt->xp_ltaddr.buf == NULL)
     {
       LogCrit(COMPONENT_RPC,
@@ -188,13 +187,12 @@ static SVCXPRT *Makefd_xprt(int fd, u_int sendsize, u_int recvsize)
 
   assert(fd != -1);
 
-  xprt = (SVCXPRT *) Mem_Alloc(sizeof(SVCXPRT));
+  xprt = gsh_calloc(1, sizeof(SVCXPRT));
   if(xprt == NULL)
     goto fail;
-  memset(xprt, 0, sizeof(SVCXPRT));
   Svc_vc_ops(xprt);             /* truely deals with calls */
 
-  cd = (struct cf_conn *)Mem_Alloc(sizeof(struct cf_conn));
+  cd = gsh_malloc(sizeof(struct cf_conn));
   if(cd == NULL)
     goto fail;
   xprt->xp_p1 = cd;
@@ -268,7 +266,7 @@ static bool_t Rendezvous_request(SVCXPRT *xprt, struct rpc_msg *msg)
    */
   newxprt = Makefd_xprt(sock, r->sendsize, r->recvsize);
 
-  newxprt->xp_rtaddr.buf = Mem_Alloc(len);
+  newxprt->xp_rtaddr.buf = gsh_malloc(len);
   if(newxprt->xp_rtaddr.buf == NULL)
     {
       FreeXprt(newxprt);

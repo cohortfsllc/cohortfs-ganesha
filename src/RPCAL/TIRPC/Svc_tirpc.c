@@ -53,9 +53,9 @@
 #include <string.h>
 
 #include "tirpc.h"
-#include "stuff_alloc.h"
+#include "abstract_mem.h"
 
-#define	RQCRED_SIZE	400     /* this size is excessive */
+#define RQCRED_SIZE 400     /* this size is excessive */
 
 #define max(a, b) (a > b ? a : b)
 
@@ -222,7 +222,7 @@ void FreeXprt(SVCXPRT *xprt)
   if (xprt->xp_auth)
     SVCAUTH_DESTROY(xprt->xp_auth);
 
-  Mem_Free(xprt);
+  gsh_free(xprt);
 }
 
 /*
@@ -258,14 +258,13 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
   if(xprt_copy)
     FreeXprt(xprt_copy);
 
-  xprt_copy = (SVCXPRT *) Mem_Alloc(sizeof(SVCXPRT));
+  xprt_copy = gsh_calloc(1, sizeof(SVCXPRT));
   if(xprt_copy == NULL)
     goto fail_no_xprt;
 
   LogFullDebug(COMPONENT_RPC,
                "Svcxprt_copy copying xprt_orig=%p to xprt_copy=%p",
                xprt_orig, xprt_copy);
-  memset(xprt_copy, 0, sizeof(SVCXPRT));
   xprt_copy->xp_ops  = xprt_orig->xp_ops;
   xprt_copy->xp_ops2 = xprt_orig->xp_ops2;
   xprt_copy->xp_fd   = xprt_orig->xp_fd;
@@ -275,7 +274,7 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
       if(su_data(xprt_orig))
         {
           struct svc_dg_data *su_o = su_data(xprt_orig), *su_c;
-          su_c = (struct svc_dg_data *) Mem_Alloc(sizeof(*su_c));
+          su_c = gsh_malloc(sizeof(*su_c));
           if(!su_c)
             goto fail;
           su_data_set(xprt_copy) = su_c;
@@ -287,8 +286,8 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
               if(!Svc_dg_enablecache(xprt_copy, uc->uc_size))
                 goto fail;
             }
-      
-          rpc_buffer(xprt_copy) = Mem_Alloc(su_c->su_iosz);
+
+          rpc_buffer(xprt_copy) = gsh_malloc(su_c->su_iosz);
           if(!rpc_buffer(xprt_copy))
             goto fail;
           xdrmem_create(&(su_c->su_xdrs), rpc_buffer(xprt_copy), su_c->su_iosz, XDR_DECODE);
@@ -305,7 +304,7 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
   else if (xprt_orig->xp_ops == &vc_ops)
     {
       struct cf_conn *cd_o = (struct cf_conn *)xprt_orig->xp_p1, *cd_c;
-      cd_c = (struct cf_conn *) Mem_Alloc(sizeof(*cd_c));
+      cd_c = gsh_malloc(sizeof(*cd_c));
       if(!cd_c)
         goto fail;
       memcpy(cd_c, cd_o, sizeof(*cd_c));
@@ -331,7 +330,7 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
       LogDebug(COMPONENT_RPC,
                "Attempt to copy unknown xprt %p",
                xprt_orig);
-      Mem_Free(xprt_copy);
+      gsh_free(xprt_copy);
       goto fail_no_xprt;
     }
 
@@ -351,7 +350,7 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
 
   if(xprt_orig->xp_rtaddr.buf)
     {
-      xprt_copy->xp_rtaddr.buf = Mem_Alloc(sizeof(struct sockaddr_storage));
+      xprt_copy->xp_rtaddr.buf = gsh_malloc(sizeof(struct sockaddr_storage));
       if(!xprt_copy->xp_rtaddr.buf)
         goto fail;
       memset(xprt_copy->xp_rtaddr.buf, 0, sizeof(struct sockaddr_storage));
@@ -362,7 +361,7 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
 
   if(xprt_orig->xp_ltaddr.buf)
     {
-      xprt_copy->xp_ltaddr.buf = Mem_Alloc(sizeof(struct sockaddr_storage));
+      xprt_copy->xp_ltaddr.buf = gsh_malloc(sizeof(struct sockaddr_storage));
       if(!xprt_copy->xp_ltaddr.buf)
         goto fail;
       xprt_copy->xp_ltaddr.maxlen = xprt_orig->xp_ltaddr.maxlen;
@@ -384,70 +383,3 @@ SVCXPRT *Svcxprt_copy(SVCXPRT *xprt_copy, SVCXPRT *xprt_orig)
   svcerr_systemerr(xprt_orig);
   return NULL;
 }
-
-#if !defined(_NO_BUDDY_SYSTEM) && defined(_DEBUG_MEMLEAKS)
-
-#define check(x, s)                  \
-  if(x)                              \
-    {                                \
-      rc = BuddyCheckLabel(x, 1, s); \
-      if(!rc)                        \
-        return 0;                    \
-    }
-
-int CheckXprt(SVCXPRT *xprt)
-{
-  int rc;
-  if(!xprt)
-    {
-      LogWarn(COMPONENT_MEMALLOC,
-              "CheckXprt xprt=NULL");
-      return 0;
-    }
-
-  LogFullDebug(COMPONENT_MEMALLOC,
-               "Checking Xprt %p",
-               xprt);
-
-  rc = BuddyCheckLabel(xprt, 1, "xprt");
-  if(!rc)
-    return 0;
-
-  if(xprt->xp_ops == &dg_ops)
-    {
-      if(su_data(xprt))
-        {
-          struct svc_dg_data *su = su_data(xprt);
-          if(su->su_cache)
-            {
-              struct cl_cache *uc = su->su_cache;
-              check(uc->uc_entries, "uc_entries");
-              check(uc->uc_fifo, "uc_fifo");
-              check(su_data(xprt)->su_cache, "su_cache");
-            }
-        }
-      check(su_data(xprt), "su_data");
-      check(rpc_buffer(xprt), "rpc_buffer");
-    }
-  else if (xprt->xp_ops == &vc_ops)
-    {
-      check(xprt->xp_p1, "cd"); /* cd */
-    }
-  else if (xprt->xp_ops == &rendezvous_ops)
-    {
-      check(xprt->xp_p1, "r"); /* r */
-    }
-  else
-    {
-      LogCrit(COMPONENT_MEMALLOC,
-              "Attempt to check unknown xprt %p",
-              xprt);
-      return 0;
-    }
-  check(xprt->xp_tp, "xp_tp");
-  check(xprt->xp_netid, "xp_netid");
-  check(xprt->xp_rtaddr.buf, "xp_rtaddr.buf");
-  check(xprt->xp_ltaddr.buf, "xp_ltaddr.buf");
-  return CheckAuth(xprt->xp_auth);
-}
-#endif
