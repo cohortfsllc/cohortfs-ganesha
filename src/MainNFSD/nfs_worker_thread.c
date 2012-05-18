@@ -1969,10 +1969,6 @@ cond_multi_dispatch(nfs_worker_data_t *pmydata, request_data_t *pnfsreq,
     if (stat == XPRT_MOREREQS)
         try_multi = TRUE;
 
-#if 0 /* XXX */
-    try_multi = FALSE;
-#endif
-
     if (try_multi) {
         process_status_t rc_multi __attribute__((unused));
         gsh_xprt_private_t *xu;
@@ -2033,7 +2029,7 @@ nfs_worker_process_rpc_requests(nfs_worker_data_t *pmydata,
   bool_t no_dispatch = TRUE, recv_status;
   process_status_t rc = PROCESS_DONE;
   SVCXPRT *xprt;
-  bool locked;
+  bool locked =  FALSE;
 
 again:
   /*
