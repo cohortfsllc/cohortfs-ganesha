@@ -108,7 +108,7 @@ static struct rpc_evchan rpc_evchan[N_EVENT_CHAN];
 static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
                           void *u_data);
 static bool_t nfs_rpc_getreq_ng(SVCXPRT *xprt /*, int chan_id */);
-static bool_t nfs_rpc_free_xprt(SVCXPRT *xprt);
+static void nfs_rpc_free_xprt(SVCXPRT *xprt);
 
 #if !defined(_NO_BUDDY_SYSTEM) && defined(_DEBUG_MEMLEAKS)
 /**
@@ -806,7 +806,7 @@ static u_int nfs_rpc_rdvs(SVCXPRT *xprt, SVCXPRT *newxprt, const u_int flags,
     return (0);
 }
 
-static bool_t nfs_rpc_free_xprt(SVCXPRT *xprt)
+static void nfs_rpc_free_xprt(SVCXPRT *xprt)
 {
     if (xprt->xp_u1)
         free_gsh_xprt_private(xprt->xp_u1);
