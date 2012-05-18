@@ -75,6 +75,7 @@
 extern nfs_worker_data_t *workers_data;
 
 pool_t *request_pool;
+pool_t *request_data_pool;
 pool_t *dupreq_pool;
 pool_t *ip_stats_pool;
 
@@ -833,9 +834,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
 
   do_dupreq_cache = pworker_data->pfuncdesc->dispatch_behaviour & CAN_BE_DUP;
   LogFullDebug(COMPONENT_DISPATCH, "do_dupreq_cache = %d", do_dupreq_cache);
-  dpq_status = nfs_dupreq_add_not_finished(req,
-                                           dupreq_pool,
-                                           &res_nfs);
+  dpq_status = nfs_dupreq_add_not_finished(req, &res_nfs);
   switch(dpq_status)
     {
       /* a new request, continue processing it */
@@ -982,9 +981,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                   svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                   svcerr_auth2(xprt, req, AUTH_FAILED);
                   svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                  if (nfs_dupreq_delete(
-                          req,
-                          dupreq_pool) != DUPREQ_SUCCESS)
+                  if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
                               "Attempt to delete duplicate request failed on "
@@ -1036,9 +1033,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                   svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                   svcerr_auth2(xprt, req, AUTH_FAILED);
                   svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                  if (nfs_dupreq_delete(
-                          req,
-                          dupreq_pool) != DUPREQ_SUCCESS)
+                  if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                     {
                       LogCrit(COMPONENT_DISPATCH,
                               "Attempt to delete duplicate request failed on "
@@ -1145,9 +1140,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
               svc_dplx_lock_x(xprt, &pworker_data->sigmask);
               svcerr_auth2(xprt, req, AUTH_FAILED);
               svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-              if (nfs_dupreq_delete(
-                      req,
-                      dupreq_pool) != DUPREQ_SUCCESS)
+              if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                 {
                   LogCrit(COMPONENT_DISPATCH,
                           "Attempt to delete duplicate request failed on line "
@@ -1184,9 +1177,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                 svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                 svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                 svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                if (nfs_dupreq_delete(
-                        req,
-                        dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
                             "Attempt to delete duplicate request failed on "
@@ -1205,9 +1196,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                 svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                 svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                 svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                if (nfs_dupreq_delete(
-                        req,
-                        dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
                             "Attempt to delete duplicate request failed on "
@@ -1227,9 +1216,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                 LogInfo(COMPONENT_DISPATCH,
                         "Export %s does not support RPCSEC_GSS",
                         pexport->dirname);
-                if (nfs_dupreq_delete(
-                        req,
-                        dupreq_pool) != DUPREQ_SUCCESS)
+                if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                   {
                     LogCrit(COMPONENT_DISPATCH,
                             "Attempt to delete duplicate request failed on "
@@ -1261,9 +1248,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                           svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                           svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                          if (nfs_dupreq_delete(
-                                  req,
-                                  dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
                                       "Attempt to delete duplicate request "
@@ -1284,9 +1269,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                           svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                           svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                          if (nfs_dupreq_delete(
-                                  req,
-                                  dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
                                       "Attempt to delete duplicate request "
@@ -1307,9 +1290,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                           svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                           svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                           svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                          if (nfs_dupreq_delete(
-                                  req,
-                                  dupreq_pool) != DUPREQ_SUCCESS)
+                          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                             {
                               LogCrit(COMPONENT_DISPATCH,
                                       "Attempt to delete duplicate request "
@@ -1327,9 +1308,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                       svc_dplx_lock_x(xprt, &pworker_data->sigmask);
                       svcerr_auth2(xprt, req, AUTH_TOOWEAK);
                       svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-                      if (nfs_dupreq_delete(
-                              req,
-                              dupreq_pool) != DUPREQ_SUCCESS)
+                      if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                         {
                           LogCrit(COMPONENT_DISPATCH,
                                   "Attempt to delete duplicate request failed "
@@ -1347,9 +1326,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
             svc_dplx_lock_x(xprt, &pworker_data->sigmask);
             svcerr_auth2(xprt, req, AUTH_TOOWEAK);
             svc_dplx_unlock_x(xprt, &pworker_data->sigmask);
-            if (nfs_dupreq_delete(
-                    req,
-                    dupreq_pool) != DUPREQ_SUCCESS)
+            if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
               {
                 LogCrit(COMPONENT_DISPATCH,
                         "Attempt to delete duplicate request failed on line %d",
@@ -1389,9 +1366,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
           /* XXX */
           pworker_data->current_xid = 0;    /* No more xid managed */
 
-          if (nfs_dupreq_delete(
-                  req,
-                  dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
@@ -1413,9 +1388,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
           /* XXX */
           pworker_data->current_xid = 0;    /* No more xid managed */
 
-          if (nfs_dupreq_delete(
-                  req,
-                  dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
@@ -1463,9 +1436,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
       /* XXX */
       pworker_data->current_xid = 0;        /* No more xid managed */
 
-      if (nfs_dupreq_delete(
-              req,
-              dupreq_pool) != DUPREQ_SUCCESS)
+      if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
         {
           LogCrit(COMPONENT_DISPATCH,
                   "Attempt to delete duplicate request failed on line %d",
@@ -1528,9 +1499,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
               /* XXX */
               pworker_data->current_xid = 0;    /* No more xid managed */
 
-              if (nfs_dupreq_delete(
-                      req,
-                      dupreq_pool) != DUPREQ_SUCCESS)
+              if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
                 {
                   LogCrit(COMPONENT_DISPATCH,
                          "Attempt to delete duplicate request failed on line %d",
@@ -1664,9 +1633,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
        * later. We only remove a reply that is normally cached that has been
        * dropped. */
       if(do_dupreq_cache)
-        if (nfs_dupreq_delete(
-                req,
-                dupreq_pool) != DUPREQ_SUCCESS)
+        if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
           {
             LogCrit(COMPONENT_DISPATCH,
                     "Attempt to delete duplicate request failed on line %d",
@@ -1689,9 +1656,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
                    "NFS DISPATCHER: FAILURE: Error while calling svc_sendreply");
           svcerr_systemerr2(xprt, req);
 
-          if (nfs_dupreq_delete(
-                  req,
-                  dupreq_pool) != DUPREQ_SUCCESS)
+          if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
             {
               LogCrit(COMPONENT_DISPATCH,
                       "Attempt to delete duplicate request failed on line %d",
@@ -1734,9 +1699,7 @@ static void nfs_rpc_execute(request_data_t *preq, nfs_worker_data_t *pworker_dat
    * mark the dupreq cached info eligible for being reuse by other requests */
   if(!do_dupreq_cache)
     {
-      if (nfs_dupreq_delete(
-              req,
-              dupreq_pool) != DUPREQ_SUCCESS)
+      if (nfs_dupreq_delete(req) != DUPREQ_SUCCESS)
         {
           LogCrit(COMPONENT_DISPATCH,
                   "Attempt to delete duplicate request failed on line %d",
@@ -1809,7 +1772,7 @@ void DispatchWorkNFS(request_data_t *nfsreq, unsigned int worker_index)
   case NFS_CALL:
       break;
   default:
-      req = &pnfsreq->r_u.nfs->req;
+      req = &nfsreq->r_u.nfs->req;
       rpcxid = req->rq_xid;
   }
 
@@ -1996,7 +1959,7 @@ process_status_t
 nfs_worker_process_rpc_requests(nfs_worker_data_t *pmydata,
                                 request_data_t *nfsreq)
 {
-  enum xprt_stat stat;
+  enum xprt_stat stat = XPRT_IDLE;
   struct rpc_msg *pmsg;
   struct svc_req *preq;
   const nfs_function_desc_t *pfuncdesc;
@@ -2159,7 +2122,6 @@ unblock:
 void *worker_thread(void *IndexArg)
 {
   request_data_t *nfsreq;
-  int rc = 0;
   unsigned int gc_allowed = FALSE;
   unsigned long worker_index = (unsigned long) IndexArg;
   nfs_worker_data_t *pmydata = &(workers_data[worker_index]);
@@ -2305,9 +2267,9 @@ void *worker_thread(void *IndexArg)
        {
           case NFS_REQUEST_LEADER:
               LogDebug(COMPONENT_DISPATCH,
-                       "Multi-dispatch leader, pnfsreq=%p, pending=%d, "
+                       "Multi-dispatch leader, nfsreq=%p, pending=%d, "
                        "xid=%u xprt=%p refcnt=%u",
-                       pnfsreq,
+                       nfsreq,
                        pmydata->pending_request_len,
                        nfsreq->r_u.nfs->msg.rm_xid,
                        nfsreq->r_u.nfs->xprt,
@@ -2328,14 +2290,14 @@ void *worker_thread(void *IndexArg)
 
        case NFS_REQUEST:
            LogDebug(COMPONENT_DISPATCH,
-                    "Multi-dispatch subrequest, pnfsreq=%p, pending=%d, "
+                    "Multi-dispatch subrequest, nfsreq=%p, pending=%d, "
                     "xid=%u xprt=%p refcnt=%u",
-                    pnfsreq,
+                    nfsreq,
                     pmydata->pending_request_len,
-                    pnfsreq->r_u.nfs->msg.rm_xid,
-                    pnfsreq->r_u.nfs->xprt,
+                    nfsreq->r_u.nfs->msg.rm_xid,
+                    nfsreq->r_u.nfs->xprt,
                     xu->refcnt);
-           nfs_rpc_execute(pnfsreq, pmydata);
+           nfs_rpc_execute(nfsreq, pmydata);
            break;
 
        case NFS_CALL:
@@ -2359,16 +2321,16 @@ void *worker_thread(void *IndexArg)
       LogInfo(COMPONENT_DISPATCH, "Signaling completion of request");
 
       /* Drop multi_cnt and xprt refcnt, if appropriate */
-      switch( pnfsreq->rtype ) {
+      switch( nfsreq->rtype ) {
        case NFS_REQUEST_LEADER:
            gsh_xprt_unref(
-               pnfsreq->r_u.nfs->xprt, XPRT_PRIVATE_FLAG_NONE);
+               nfsreq->r_u.nfs->xprt, XPRT_PRIVATE_FLAG_NONE);
            break;
        case NFS_REQUEST:
-           pthread_rwlock_wrlock(&pnfsreq->r_u.nfs->xprt->lock);
+           pthread_rwlock_wrlock(&nfsreq->r_u.nfs->xprt->lock);
            --(xu->multi_cnt);
            gsh_xprt_unref(
-               pnfsreq->r_u.nfs->xprt, XPRT_PRIVATE_FLAG_LOCKED);
+               nfsreq->r_u.nfs->xprt, XPRT_PRIVATE_FLAG_LOCKED);
            break;
        case NFS_CALL:
            break;

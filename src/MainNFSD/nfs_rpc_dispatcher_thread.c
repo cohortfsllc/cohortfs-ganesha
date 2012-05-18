@@ -864,11 +864,11 @@ nfs_core_select_worker_queue(unsigned int avoid_index)
 request_data_t *
 nfs_rpc_get_nfsreq(nfs_worker_data_t *worker, uint32_t flags)
 {
-    request_data_t *pnfsreq = NULL;
+    request_data_t *nfsreq = NULL;
 
-    pnfsreq = pool_alloc(request_pool, NULL);
+    nfsreq = pool_alloc(request_pool, NULL);
 
-    return (pnfsreq);
+    return (nfsreq);
 }
 
 process_status_t
@@ -878,7 +878,7 @@ dispatch_rpc_subrequest(nfs_worker_data_t *pmydata,
   char *cred_area;
   struct rpc_msg *msg;
   struct svc_req *req;
-  request_data_t *pnfsreq = NULL;
+  request_data_t *nfsreq = NULL;
   unsigned int worker_index;
   process_status_t rc = PROCESS_DONE;
 
@@ -892,40 +892,26 @@ dispatch_rpc_subrequest(nfs_worker_data_t *pmydata,
            workers_data[worker_index].pending_request_len);
 
   /* Get a pnfsreq from the worker's pool */
-  P(workers_data[worker_index].request_pool_mutex);
-
-  GetFromPool(pnfsreq, &workers_data[worker_index].request_pool,
-              request_data_t);
-
-  V(workers_data[worker_index].request_pool_mutex);
-
-  if(pnfsreq == NULL)
-    {
+  nfsreq = pool_alloc(request_pool, NULL);
+  if(nfsreq == NULL) {
       LogMajor(COMPONENT_DISPATCH,
                "Empty request pool for the chosen worker ! Exiting...");
       Fatal();
-    }
+  }
 
   /* Set the request as NFS already-read */
-  pnfsreq->rtype = NFS_REQUEST;
+  nfsreq->rtype = NFS_REQUEST;
 
   /* tranfer onfsreq */
-  pnfsreq->r_u.nfs = onfsreq->r_u.nfs;
+  nfsreq->r_u.nfs = onfsreq->r_u.nfs;
 
   /* And fixup onfsreq */
-  P(pmydata->request_pool_mutex);
-
-  GetFromPool(onfsreq->r_u.nfs, &pmydata->request_data_pool,
-              nfs_request_data_t);
-
-  V(pmydata->request_pool_mutex);
-
-  if(onfsreq->r_u.nfs == NULL)
-    {
+  onfsreq->r_u.nfs = pool_alloc(request_data_pool, NULL);
+  if(onfsreq->r_u.nfs == NULL) {
       LogMajor(COMPONENT_DISPATCH,
                "Empty request data pool! Exiting...");
       Fatal();
-    }
+  }
 
   /* Set up cred area */
   cred_area = onfsreq->r_u.nfs->cred_area;
@@ -937,14 +923,14 @@ dispatch_rpc_subrequest(nfs_worker_data_t *pmydata,
   req->rq_clntcred = &(cred_area[2 * MAX_AUTH_BYTES]);
 
   /* Set up xprt */
-  onfsreq->r_u.nfs->xprt = pnfsreq->r_u.nfs->xprt;
+  onfsreq->r_u.nfs->xprt = nfsreq->r_u.nfs->xprt;
   req->rq_xprt = onfsreq->r_u.nfs->xprt;
 
   /* count as 1 ref */
   gsh_xprt_ref(req->rq_xprt, XPRT_PRIVATE_FLAG_LOCKED);
 
   /* Hand it off */
-  DispatchWorkNFS(pnfsreq, worker_index);
+  DispatchWorkNFS(nfsreq, worker_index);
 
   return (rc);
 }
@@ -998,6 +984,14 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
   /* Set the request as NFS with xprt hand-off */
   nfsreq->rtype = NFS_REQUEST_LEADER ;
 
+  /* r_u.nfs */
+  nfsreq->r_u.nfs = pool_alloc(request_data_pool, NULL);
+  if(nfsreq->r_u.nfs == NULL) {
+      LogMajor(COMPONENT_DISPATCH,
+               "Empty request data pool! Exiting...");
+      Fatal();
+  }
+
   /* Set up cred area */
   cred_area = nfsreq->r_u.nfs->cred_area;
   preq = &(nfsreq->r_u.nfs->req);
@@ -1008,7 +1002,7 @@ process_status_t dispatch_rpc_request(SVCXPRT *xprt)
   preq->rq_clntcred = &(cred_area[2 * MAX_AUTH_BYTES]);
 
   /* Set up xprt */
-  nfsreq->r_u.nfs.xprt = xprt;
+  nfsreq->r_u.nfs->xprt = xprt;
   preq->rq_xprt = xprt;
 
   /* Count as 1 ref */
@@ -1178,7 +1172,7 @@ void *rpc_dispatcher_thread(void *arg)
  * @return nothing (void function) will exit the program if failed.
  *
  */
-void constructor_nfs_request_data_t(void *ptr, void *parameters)
+void constructor_nfs_request_data_t(void *ptr, void *arg)
 {
   nfs_request_data_t *pdata = (nfs_request_data_t *) ptr;
   memset(pdata, 0, sizeof(nfs_request_data_t));
@@ -1195,7 +1189,7 @@ void constructor_nfs_request_data_t(void *ptr, void *parameters)
  * @return nothing (void function) will exit the program if failed.
  *
  */
-void constructor_request_data_t(void *ptr)
+void constructor_request_data_t(void *ptr, void *arg)
 {
   request_data_t * pdata = (request_data_t *) ptr;
   memset(pdata, 0, sizeof(request_data_t));

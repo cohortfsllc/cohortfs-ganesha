@@ -4,7 +4,6 @@
 #ifndef GANESHA_RPC_H
 #define GANESHA_RPC_H
 
-
 #include <rpc/xdr_inline.h>
 #include <rpc/rpc.h>
 #include <rpc/svc.h>
@@ -19,6 +18,7 @@
 #include <rpc/svc_rqst.h>
 #include  <rpc/svc_dplx.h>
 
+#include "abstract_mem.h"
 #include "HashTable.h"
 
 void socket_setoptions(int socketFd);
@@ -112,7 +112,7 @@ typedef struct gsh_xprt_private
 static inline gsh_xprt_private_t *
 alloc_gsh_xprt_private(uint32_t flags)
 {
-    gsh_xprt_private_t *xu = Mem_Alloc(sizeof(gsh_xprt_private_t));
+    gsh_xprt_private_t *xu = gsh_malloc(sizeof(gsh_xprt_private_t));
 
     xu->flags = 0;
     xu->multi_cnt = 0;
@@ -128,7 +128,7 @@ alloc_gsh_xprt_private(uint32_t flags)
 static inline void
 free_gsh_xprt_private(gsh_xprt_private_t *xu)
 {
-    Mem_Free(xu);
+    gsh_free(xu);
 }
 
 static inline void

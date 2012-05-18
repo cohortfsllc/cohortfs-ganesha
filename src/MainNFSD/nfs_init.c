@@ -1481,7 +1481,19 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                            sizeof(request_data_t),
                            constructor_request_data_t,
                            NULL);
-  if(!(request_pool))
+  if(! (request_pool))
+    {
+      LogCrit(COMPONENT_INIT,
+              "Error while allocating request pool");
+      LogError(COMPONENT_INIT, ERR_SYS, ERR_MALLOC, errno);
+      Fatal();
+    }
+
+  request_data_pool = pool_init("Request data pool",
+                                sizeof(nfs_request_data_t),
+                                constructor_nfs_request_data_t,
+                                NULL);
+  if(! (request_data_pool))
     {
       LogCrit(COMPONENT_INIT,
               "Error while allocating request pool");

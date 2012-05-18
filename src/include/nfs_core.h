@@ -580,6 +580,7 @@ typedef struct nfs_thread_control_block__
 } nfs_tcb_t;
 
 extern pool_t *request_pool;
+extern pool_t *request_data_pool;
 extern pool_t *dupreq_pool;
 extern pool_t *ip_stats_pool;
 
@@ -699,12 +700,12 @@ extern pool_t *nfs_clientid_pool;
 /*
  *functions prototypes
  */
-enum auth_stat AuthenticateRequest(nfs_request_data_t *pnfsreq,
+enum auth_stat AuthenticateRequest(nfs_request_data_t *nfsreq,
                                    bool_t *dispatch);
 pause_rc pause_workers(pause_reason_t reason);
 pause_rc wake_workers(awaken_reason_t reason);
 pause_rc wait_for_workers_to_awaken();
-void DispatchWorkNFS(request_data_t *pnfsreq, unsigned int worker_index);
+void DispatchWorkNFS(request_data_t *nfsreq, unsigned int worker_index);
 void *worker_thread(void *IndexArg);
 request_data_t *nfs_rpc_get_nfsreq(nfs_worker_data_t *worker, uint32_t flags);
 process_status_t process_rpc_request(SVCXPRT *xprt);
