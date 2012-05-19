@@ -7,18 +7,19 @@
  *
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * ---------------------------------------
  */
@@ -44,7 +45,6 @@
 #include <sys/time.h>
 
 #include "ganesha_rpc.h"
-#include "LRU_List.h"
 #include "fsal.h"
 #include "cache_inode.h"
 #include "sal_data.h"
@@ -56,7 +56,6 @@
 #include "mount.h"
 #include "nfs_proto_functions.h"
 #include "nfs_dupreq.h"
-#include "err_LRU_List.h"
 #include "err_HashTable.h"
 
 #include "cache_inode.h"
@@ -203,7 +202,6 @@ typedef char path_str_t[MAXPATHLEN] ;
 
 typedef struct nfs_worker_param__
 {
-  LRU_parameter_t lru_dupreq;
   unsigned int nb_before_gc;
 } nfs_worker_parameter_t;
 
@@ -358,8 +356,8 @@ typedef struct nfs_request_data__
   struct svc_req req;
   struct rpc_msg msg;
   char cred_area[2 * MAX_AUTH_BYTES + RQCRED_SIZE];
-  nfs_res_t res_nfs;
   nfs_arg_t arg_nfs;
+  nfs_res_t *res_nfs;
   struct timeval time_queued; /* The time at which a request was added
                                * to the worker thread queue. */
 } nfs_request_data_t;
@@ -581,7 +579,7 @@ typedef struct nfs_thread_control_block__
 
 extern pool_t *request_pool;
 extern pool_t *request_data_pool;
-extern pool_t *dupreq_pool;
+extern pool_t *dupreq_pool; /* XXX hide */
 extern pool_t *ip_stats_pool;
 
 typedef struct nfs_worker_data__
@@ -589,16 +587,13 @@ typedef struct nfs_worker_data__
   unsigned int worker_index;
   int  pending_request_len;
   struct glist_head pending_request;
-  LRU_list_t *duplicate_request;
   hash_table_t *ht_ip_stats;
   pthread_mutex_t request_pool_mutex;
   nfs_tcb_t wcb; /* Worker control block */
 
   nfs_worker_stat_t stats;
-  unsigned int passcounter;
   sockaddr_t hostaddr;
   sigset_t sigmask; /* masked signals */
-  unsigned int gc_in_progress;
   unsigned int current_xid;
   fsal_op_context_t thread_fsal_context;
   /* Description of current or most recent function processed and start time (or 0) */
@@ -809,11 +804,6 @@ void nfs_reset_stats(void);
 int display_req_key(hash_buffer_t * pbuff, char *str);
 int display_req_val(hash_buffer_t * pbuff, char *str);
 int compare_req(hash_buffer_t * buff1, hash_buffer_t * buff2);
-
-int print_entry_dupreq(LRU_data_t data, char *str);
-int clean_entry_dupreq(LRU_entry_t * pentry, void *addparam);
-
-int print_pending_request(LRU_data_t data, char *str);
 
 void auth_stat2str(enum auth_stat, char *str);
 

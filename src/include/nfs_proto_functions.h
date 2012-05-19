@@ -103,10 +103,10 @@ typedef union nfs_arg__
   COMMIT3args arg_commit3;
   COMPOUND4args arg_compound4;
 
-  /* mnt protocol arguments */
+  /* mnt */
   dirpath arg_mnt;
 
-  /* nlm protocl arguments */
+  /* nlm */
   nlm4_testargs arg_nlm4_test;
   nlm4_lockargs arg_nlm4_lock;
   nlm4_cancargs arg_nlm4_cancel;
@@ -114,13 +114,13 @@ typedef union nfs_arg__
   nlm4_sm_notifyargs arg_nlm4_sm_notify;
   nlm4_res arg_nlm4_res;
 
-  /* Rquota arguments */
+  /* Rquota */
   getquota_args arg_rquota_getquota;
   getquota_args arg_rquota_getactivequota;
   setquota_args arg_rquota_setquota;
   setquota_args arg_rquota_setactivequota;
 
-  /* Rquota arguments */
+  /* Rquota */
   ext_getquota_args arg_ext_rquota_getquota;
   ext_getquota_args arg_ext_rquota_getactivequota;
   ext_setquota_args arg_ext_rquota_setquota;
@@ -159,28 +159,26 @@ typedef union nfs_res__
   COMMIT3res res_commit3;
   COMPOUND4res res_compound4;
 
-  /* mount protocol returned values */
+  /* mount */
   fhstatus2 res_mnt1;
   exports res_mntexport;
   mountres3 res_mnt3;
   mountlist res_dump;
 
-  /* nlm4 returned values */
+  /* nlm4 */
   nlm4_testres res_nlm4test;
   nlm4_res res_nlm4;
 
-  /* Ext Rquota arguments */
+  /* Ext Rquota */
   getquota_rslt res_rquota_getquota;
   getquota_rslt res_rquota_getactivequota;
   setquota_rslt res_rquota_setquota;
   setquota_rslt res_rquota_setactivequota;
-  /* Rquota arguments */
+  /* Rquota */
   getquota_rslt res_ext_rquota_getquota;
   getquota_rslt res_ext_rquota_getactivequota;
   setquota_rslt res_ext_rquota_setquota;
   setquota_rslt res_ext_rquota_setactivequota;
-
-  char padding[1024];
 } nfs_res_t;
 
 /* flags related to the behaviour of the requests (to be stored in the dispatch behaviour field)  */
