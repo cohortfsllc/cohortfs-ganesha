@@ -1467,18 +1467,20 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 
   nfs_clientid_pool = pool_init("Client ID record pool",
                                 sizeof(nfs_client_id_t),
-                                NULL,
-                                NULL);
+                                pool_basic_substrate,
+                                NULL, NULL, NULL);
 
 #ifdef _USE_NFS4_1
   nfs41_session_pool = pool_init("NFSv4.1 session pool",
                                  sizeof(nfs41_session_t),
-                                 NULL,
-                                 NULL);
+                                 pool_basic_substrate,
+                                 NULL, NULL, NULL);
 #endif /* _USE_NFS4_1 */
 
   request_pool = pool_init("Request pool",
                            sizeof(request_data_t),
+                           pool_basic_substrate,
+                           NULL,
                            constructor_request_data_t,
                            NULL);
   if(! (request_pool))
@@ -1491,6 +1493,8 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 
   request_data_pool = pool_init("Request data pool",
                                 sizeof(nfs_request_data_t),
+                                pool_basic_substrate,
+                                NULL,
                                 constructor_nfs_request_data_t,
                                 NULL);
   if(! (request_data_pool))
@@ -1502,7 +1506,9 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
     }
 
   dupreq_pool = pool_init("Duplicate Request Pool",
-                          sizeof(dupreq_entry_t), NULL, NULL);
+                          sizeof(dupreq_entry_t),
+                          pool_basic_substrate,
+                          NULL, NULL, NULL);
   if(!(dupreq_pool))
     {
       LogCrit(COMPONENT_INIT,
@@ -1513,7 +1519,8 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 
   ip_stats_pool = pool_init("IP Stats Cache Pool",
                             sizeof(nfs_ip_stats_t),
-                            NULL, NULL);
+                            pool_basic_substrate,
+                            NULL, NULL, NULL);
 
   if(!(ip_stats_pool))
     {
