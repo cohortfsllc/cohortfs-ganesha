@@ -25,13 +25,9 @@
 
 /**
  * \file    nfs_proto_tools.c
- * \author  $Author: leibovic $
- * \date    $Date: 2006/01/31 10:06:00 $
- * \version $Revision: 1.48 $
  * \brief   A set of functions used to managed NFS.
  *
- * nfs_proto_tools.c -  A set of functions used to managed NFS.
- *
+ * Helper functions to work with NFS protocol objects.
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -100,116 +96,104 @@ static struct {
 #endif                          /* _USE_NFS4_ACL */
 
 /**
+ * @brief Converts a file handle to a string representation
  *
- * nfs_FhandleToStr: Converts a file handle to a string representation.
+ * This function converts a file handle to a string representation.
  *
- * Converts a file handle to a string representation.
- *
- * @param rq_vers  [IN]    version of the NFS protocol to be used
- * @param pfh2     [IN]    NFSv2 file handle or NULL
- * @param pfh3     [IN]    NFSv3 file handle or NULL
- * @param pfh4     [IN]    NFSv4 file handle or NULL
- * @param str      [OUT]   string version of handle
- *
+ * @param[in]  rq_vers Version of the NFS protocol to be used
+ * @param[in]  fh      The file handle
+ * @param[out] str     String version of handle
  */
-void nfs_FhandleToStr(u_long     rq_vers,
-                      fhandle2  *pfh2,
-                      nfs_fh3   *pfh3,
-                      nfs_fh4   *pfh4,
-                      char      *str)
-{
 
+void
+nfs_FhandleToStr(u_long rq_vers,
+                 void *fh,
+                 char *str)
+{
   switch (rq_vers)
     {
     case NFS_V4:
-      sprint_fhandle4(str, pfh4);
+      sprint_fhandle4(str, (nfs_fh4 *)fh);
       break;
 
     case NFS_V3:
-      sprint_fhandle3(str, pfh3);
+      sprint_fhandle3(str, (nfs_fh3 *)fh);
       break;
 
     case NFS_V2:
-      sprint_fhandle2(str, pfh2);
+      sprint_fhandle2(str, (fhandle2 *)fh);
       break;
     }
 }                               /* nfs_FhandleToStr */
 
 /**
  *
- * nfs_FhandleToCache: Gets a cache entry using a file handle (v2/3/4) as input.
- * 
- * Gets a cache entry using a file handle (v2/3/4) as input.
+ * @brief Gets a cache entry using a file handle as input
  *
- * If a cache entry is returned, its refcount is +1.
+ * This function returns a cache entry corresponding to the supplied
+ * filehandle.
  *
- * @param rq_vers  [IN]    version of the NFS protocol to be used 
- * @param pfh2     [IN]    NFSv2 file handle or NULL 
- * @param pfh3     [IN]    NFSv3 file handle or NULL 
- * @param pfh4     [IN]    NFSv4 file handle or NULL 
- * @param pstatus2 [OUT]   pointer to NFSv2 status or NULL
- * @param pstatus3 [OUT]   pointer to NFSv3 status or NULL
- * @param pstatus4 [OUT]   pointer to NFSv4 status or NULL
- * @param pattr    [OUT]   FSAL attributes related to this cache entry
- * @param pcontext    [IN]    client's FSAL credentials
- * @param pclient  [IN]    client's ressources to be used for accessing the Cache Inode
- * @param prc      [OUT]   internal status for the request (NFS_REQ_DROP or NFS_REQ_OK)
+ * If a cache entry is returned, its refcount is incremented by 1.
  *
- * @return a pointer to the related pentry if successful, NULL is returned in case of a failure.
+ * @param[in]  rq_vers  Version of the NFS protocol to be used
+ * @param[in]  fh       Filehandle to look up
+ * @param[out] status   Status, as appropriate to supplied version
+ * @param[out] attr     FSAL attributes for this cache entry
+ * @param[in]  context  Client's FSAL credentials
+ * @param[out] rc       Status for the request (NFS_REQ_DROP or NFS_REQ_OK)
+ *
+ * @return a cache entry if successful, NULL otherwise
  *
  */
-cache_entry_t *nfs_FhandleToCache(u_long rq_vers,
-                                  fhandle2 * pfh2,
-                                  nfs_fh3 * pfh3,
-                                  nfs_fh4 * pfh4,
-                                  nfsstat2 * pstatus2,
-                                  nfsstat3 * pstatus3,
-                                  nfsstat4 * pstatus4,
-                                  fsal_attrib_list_t * pattr,
-                                  fsal_op_context_t * pcontext,
-                                  int *prc)
+cache_entry_t *
+nfs_FhandleToCache(u_long rq_vers,
+                   void *fh,
+                   int *status,
+                   fsal_attrib_list_t *attr,
+                   fsal_op_context_t *context,
+                   int *rc)
 {
   cache_inode_fsal_data_t fsal_data;
   cache_inode_status_t cache_status;
-  cache_entry_t *pentry = NULL;
-  fsal_attrib_list_t attr;
-  exportlist_t *pexport = NULL;
+  cache_entry_t *entry = NULL;
+  fsal_attrib_list_t obj_attr;
+  exportlist_t *export = NULL;
   short exportid = 0;
 
   /* Default behaviour */
-  *prc = NFS_REQ_OK;
+  *rc = NFS_REQ_OK;
 
   memset(&fsal_data, 0, sizeof(fsal_data));
   switch (rq_vers)
     {
     case NFS_V4:
-      if(!nfs4_FhandleToFSAL(pfh4, &fsal_data.fh_desc, pcontext))
+      if(!nfs4_FhandleToFSAL((nfs_fh4 *)fh, &fsal_data.fh_desc, context))
         {
-          *prc = NFS_REQ_DROP;
-          *pstatus4 = NFS4ERR_BADHANDLE;
+          *rc = NFS_REQ_DROP;
+          *status = NFS4ERR_BADHANDLE;
           return NULL;
         }
-      exportid = nfs4_FhandleToExportId(pfh4);
+      exportid = nfs4_FhandleToExportId((nfs_fh4 *)fh);
       break;
 
     case NFS_V3:
-      if(!nfs3_FhandleToFSAL(pfh3, &fsal_data.fh_desc, pcontext))
+      if(!nfs3_FhandleToFSAL((nfs_fh3 *)fh, &fsal_data.fh_desc, context))
         {
-          *prc = NFS_REQ_DROP;
-          *pstatus3 = NFS3ERR_BADHANDLE;
+          *rc = NFS_REQ_DROP;
+          *status = NFS3ERR_BADHANDLE;
           return NULL;
         }
-      exportid = nfs3_FhandleToExportId(pfh3);
+      exportid = nfs3_FhandleToExportId((nfs_fh3 *)fh);
       break;
 
     case NFS_V2:
-      if(!nfs2_FhandleToFSAL(pfh2, &fsal_data.fh_desc, pcontext))
+      if(!nfs2_FhandleToFSAL((fhandle2 *)fh, &fsal_data.fh_desc, pcontext))
         {
-          *prc = NFS_REQ_DROP;
-          *pstatus2 = NFSERR_STALE;
+          *rc = NFS_REQ_DROP;
+          *status = NFSERR_STALE;
           return NULL;
         }
-      exportid = nfs2_FhandleToExportId(pfh2);
+      exportid = nfs2_FhandleToExportId((fhandle2 *)fh);
       break;
     }
 
@@ -223,154 +207,142 @@ cache_entry_t *nfs_FhandleToCache(u_long rq_vers,
       switch (rq_vers)
         {
         case NFS_V4:
-          *pstatus4 = NFS4ERR_STALE;
+          *status = NFS4ERR_STALE;
           break;
 
         case NFS_V3:
-          *pstatus3 = NFS3ERR_STALE;
+          *status = NFS3ERR_STALE;
           break;
 
         case NFS_V2:
-          *pstatus2 = NFSERR_STALE;
+          *status = NFSERR_STALE;
           break;
         }
-      *prc = NFS_REQ_DROP;
+      *rc = NFS_REQ_DROP;
 
       LogFullDebug(COMPONENT_NFSPROTO,
                    "Invalid file handle passed to nfsFhandleToCache ");
       return NULL;
     }
 
-  if((pentry = cache_inode_get(&fsal_data, &attr, pcontext,
-                               NULL, &cache_status)) == NULL)
+  if((entry = cache_inode_get(&fsal_data, &obj_attr, context,
+                              NULL, &cache_status)) == NULL)
     {
       switch (rq_vers)
         {
         case NFS_V4:
-          *pstatus4 = NFS4ERR_STALE;
+          *status = NFS4ERR_STALE;
           break;
 
         case NFS_V3:
-          *pstatus3 = NFS3ERR_STALE;
+          *status = NFS3ERR_STALE;
           break;
 
         case NFS_V2:
-          *pstatus2 = NFSERR_STALE;
+          *status = NFSERR_STALE;
           break;
         }
       *prc = NFS_REQ_OK;
       return NULL;
     }
 
-  if(pattr != NULL)
-    *pattr = attr;
+  if(attr != NULL)
+    *attr = obj_attr;
 
-  return pentry;
+  return entry;
 }                               /* nfs_FhandleToCache */
 
 /**
+ * @brief Converts FSAL Attributes to NFSv3 PostOp Attributes structure.
  *
- * nfs_SetPostOpAttr: Converts FSAL Attributes to NFSv3 PostOp Attributes structure.
+ * This function converts FSAL Attributes to NFSv3 PostOp Attributes structure.
  *
- * Converts FSAL Attributes to NFSv3 PostOp Attributes structure.
- *
- * @param pexport    [IN]  the related export entry
- * @param pfsal_attr [IN]  FSAL attributes
- * @param pattr      [OUT] NFSv3 PostOp structure attributes.
+ * @param[in]  export    The related export entry
+ * @param[in]  fsal_attr FSAL attributes
+ * @param[out] attr      NFSv3 PostOp structure attributes.
  *
  */
-int nfs_SetPostOpAttr(exportlist_t *pexport,
-                      const fsal_attrib_list_t *pfsal_attr,
-                      post_op_attr *presult)
+int nfs_SetPostOpAttr(exportlist_t *export,
+                      const fsal_attrib_list_t *fsal_attr,
+                      post_op_attr *result)
 {
-  if(pfsal_attr == NULL)
+  if(fsal_attr == NULL)
     {
-      presult->attributes_follow
-           = nfs3_FSALattr_To_Fattr(pexport,
-                                    pfsal_attr,
-                                    &(presult->post_op_attr_u.attributes));
+      result->attributes_follow
+           = nfs3_FSALattr_To_Fattr(export,
+                                    fsal_attr,
+                                    &(result->post_op_attr_u.attributes));
     }
 
-  if(nfs3_FSALattr_To_Fattr(pexport,
-                            pfsal_attr,
+  if(nfs3_FSALattr_To_Fattr(export,
+                            fsal_attr,
                             &(presult->post_op_attr_u.attributes))
      == 0)
-    presult->attributes_follow = FALSE;
+    result->attributes_follow = FALSE;
   else
-    presult->attributes_follow = TRUE;
+    result->attributes_follow = TRUE;
 
   return 0;
 } /* nfs_SetPostOpAttr */
 
 /**
- *
- * nfs_SetPreOpAttr: Converts FSAL Attributes to NFSv3 PreOp Attributes structure.
+ * @brief Converts FSAL Attributes to NFSv3 PreOp Attributes structure.
  *
  * Converts FSAL Attributes to NFSv3 PreOp Attributes structure.
- * 
- * @param pfsal_attr [IN]  FSAL attributes.
- * @param pattr      [OUT] NFSv3 PreOp structure attributes.
  *
- * @return nothing (void function)
- *
+ * @param[in]  fsal_attr FSAL attributes.
+ * @param[out] attr      NFSv3 PreOp structure attributes.
  */
-void nfs_SetPreOpAttr(fsal_attrib_list_t * pfsal_attr, pre_op_attr * pattr)
+void nfs_SetPreOpAttr(fsal_attrib_list_t *fsal_attr, pre_op_attr *attr)
 {
-  if(pfsal_attr == NULL)
+  if(fsal_attr == NULL)
     {
-      pattr->attributes_follow = FALSE;
+      attr->attributes_follow = FALSE;
     }
   else
     {
-      pattr->pre_op_attr_u.attributes.size = pfsal_attr->filesize;
-      pattr->pre_op_attr_u.attributes.mtime.seconds = pfsal_attr->mtime.seconds;
-      pattr->pre_op_attr_u.attributes.mtime.nseconds = 0 ;
+      attr->pre_op_attr_u.attributes.size = pfsal_attr->filesize;
+      attr->pre_op_attr_u.attributes.mtime.seconds = fsal_attr->mtime.seconds;
+      attr->pre_op_attr_u.attributes.mtime.nseconds = 0;
 
-      pattr->pre_op_attr_u.attributes.ctime.seconds = pfsal_attr->ctime.seconds;
-      pattr->pre_op_attr_u.attributes.ctime.nseconds = 0; 
+      attr->pre_op_attr_u.attributes.ctime.seconds = fsal_attr->ctime.seconds;
+      attr->pre_op_attr_u.attributes.ctime.nseconds = 0;
 
-      pattr->attributes_follow = TRUE;
+      attr->attributes_follow = TRUE;
     }
 }                               /* nfs_SetPreOpAttr */
 
 /**
- * 
- * nfs_SetWccData: Sets NFSv3 Weak Cache Coherency structure.
+ * @brief Sets NFSv3 Weak Cache Coherency structure.
  *
  * Sets NFSv3 Weak Cache Coherency structure.
  *
- * @param pexport      [IN]  export entry
- * @param pentry       [IN]  related pentry
- * @param pbefore_attr [IN]  the attributes before the operation.
- * @param pafter_attr  [IN]  the attributes after the operation
- * @param pwcc_data    [OUT] the Weak Cache Coherency structure 
- *
- * @return nothing (void function).
- *
+ * @param[in]  export      Export entry
+ * @param[in]  entry       Related pentry
+ * @param[in]  before_attr The attributes before the operation.
+ * @param[in]  after_attr  The attributes after the operation
+ * @param[out] wcc_data    The Weak Cache Coherency structure
  */
-void nfs_SetWccData(exportlist_t * pexport,
-                    fsal_attrib_list_t * pbefore_attr,
-                    fsal_attrib_list_t * pafter_attr, wcc_data * pwcc_data)
+void nfs_SetWccData(exportlist_t *export,
+                    fsal_attrib_list_t *before_attr,
+                    fsal_attrib_list_t *after_attr,
+                    wcc_data *wcc_data)
 {
   /* Build directory pre operation attributes */
-  nfs_SetPreOpAttr(pbefore_attr, &(pwcc_data->before));
+  nfs_SetPreOpAttr(before_attr, &(wcc_data->before));
 
   /* Build directory post operation attributes */
-  nfs_SetPostOpAttr(pexport, pafter_attr, &(pwcc_data->after));
-}                               /* nfs_SetWccData */
+  nfs_SetPostOpAttr(export, after_attr, &(wcc_data->after));
+} /* nfs_SetWccData */
 
 /**
+ * @brief Indicates if an error is retryable or not.
  *
- * nfs_RetryableError: Indicates if an error is retryable or not.
+ * Ths function indicates if an error is retryable or not.
  *
- * Indicates if an error is retryable or not.
- *
- * @param cache_status [IN] input Cache Inode Status value, to be tested.
+ * @param[in] cache_status Input Cache Inode Status value, to be tested
  *
  * @return TRUE if retryable, FALSE otherwise.
- *
- * @todo: Not implemented for NOW BUGAZEOMEU 
- *
  */
 int nfs_RetryableError(cache_inode_status_t cache_status)
 {
@@ -473,39 +445,39 @@ int nfs_RetryableError(cache_inode_status_t cache_status)
   return FALSE;
 }
 
-void nfs_SetFailedStatus(fsal_op_context_t * pcontext,
-                         exportlist_t * pexport,
+void nfs_SetFailedStatus(fsal_op_context_t *context,
+                         exportlist_t *export,
                          int version,
-                         cache_inode_status_t status,
-                         nfsstat2 * pstatus2,
-                         nfsstat3 * pstatus3,
-                         cache_entry_t * pentry0,
-                         post_op_attr * ppost_op_attr,
-                         cache_entry_t * pentry1,
-                         fsal_attrib_list_t * ppre_vattr1,
-                         wcc_data * pwcc_data1,
-                         cache_entry_t * pentry2,
-                         fsal_attrib_list_t * ppre_vattr2, wcc_data * pwcc_data2)
+                         cache_inode_status_t cache_status,
+                         unsigned int status,
+                         cache_entry_t *entry0,
+                         post_op_attr *post_op_attr,
+                         cache_entry_t *entry1,
+                         fsal_attrib_list_t *pre_vattr1,
+                         wcc_data *wcc_data1,
+                         cache_entry_t *entry2,
+                         fsal_attrib_list_t *pre_vattr2,
+                         wcc_data *wcc_data2)
 {
   switch (version)
     {
     case NFS_V2:
-      if(status != CACHE_INODE_SUCCESS) /* Should not use success to address a failed status */
-        *pstatus2 = nfs2_Errno(status);
+      if(status != CACHE_INODE_SUCCESS)
+        *status = nfs2_Errno(cache_status);
       break;
 
     case NFS_V3:
       if(status != CACHE_INODE_SUCCESS) /* Should not use success to address a failed status */
-        *pstatus3 = nfs3_Errno(status);
+        *status = nfs3_Errno(cache_status);
 
-      if(ppost_op_attr != NULL)
-        nfs_SetPostOpAttr(pexport, NULL, ppost_op_attr);
+      if(post_op_attr != NULL)
+        nfs_SetPostOpAttr(export, NULL, post_op_attr);
 
-      if(pwcc_data1 != NULL)
-        nfs_SetWccData(pexport, ppre_vattr1, NULL, pwcc_data1);
+      if(wcc_data1 != NULL)
+        nfs_SetWccData(export, pre_vattr1, NULL, wcc_data1);
 
-      if(pwcc_data2 != NULL)
-        nfs_SetWccData(pexport, ppre_vattr2, NULL, pwcc_data2);
+      if(wcc_data2 != NULL)
+        nfs_SetWccData(export, pre_vattr2, NULL, wcc_data2);
       break;
 
     }
