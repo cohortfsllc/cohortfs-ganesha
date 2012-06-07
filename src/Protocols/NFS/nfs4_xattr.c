@@ -106,7 +106,6 @@ int nfs4_XattrToFattr(fattr4 * Fattr,
   fattr4_maxlink maxlink;
   fattr4_homogeneous homogeneous;
   fattr4_acl acl;
-  fattr4_mimetype mimetype;
   fattr4_aclsupport aclsupport;
   fattr4_quota_avail_hard quota_avail_hard;
   fattr4_quota_avail_soft quota_avail_soft;
@@ -610,17 +609,6 @@ int nfs4_XattrToFattr(fattr4 * Fattr,
                  sizeof(fattr4_maxwrite));
           LastOffset += fattr4tab[attribute_to_set].size_fattr4;
           op_attr_success = 1;
-          break;
-
-        case FATTR4_MIMETYPE:
-          LogFullDebug(COMPONENT_NFS_V4_XATTR,
-                       "-----> Wanting FATTR4_MIMETYPE");
-
-          mimetype.utf8string_len = htonl(0);
-          memcpy((char *)(attrvalsBuffer + LastOffset), &mimetype,
-                 sizeof(fattr4_mimetype));
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          op_attr_success = 1;  /* No supported for the moment */
           break;
 
         case FATTR4_MODE:

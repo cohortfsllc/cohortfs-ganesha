@@ -152,6 +152,13 @@ typedef struct exportlist_client__
 struct fsal_up_filter_list_t_;
 #endif
 
+/**
+ * @brief Describe a single export
+ *
+ * This structure describes a single exported filesystem.  It also
+ * functions as a single entry in the linked export list.
+ */
+
 typedef struct exportlist__
 {
   unsigned short id;            /* entry identifier   */
@@ -187,37 +194,40 @@ typedef struct exportlist__
   bool_t use_ganesha_write_buffer;
   bool_t use_commit;
 
-  fsal_size_t MaxRead;          /* Max Read for this entry                           */
-  fsal_size_t MaxWrite;         /* Max Write for this entry                          */
-  fsal_size_t PrefRead;         /* Preferred Read size                               */
-  fsal_size_t PrefWrite;        /* Preferred Write size                              */
-  fsal_size_t PrefReaddir;      /* Preferred Readdir size                            */
-  fsal_off_t MaxOffsetWrite;    /* Maximum Offset allowed for write                  */
-  fsal_off_t MaxOffsetRead;     /* Maximum Offset allowed for read                   */
-  fsal_off_t MaxCacheSize;      /* Maximum Cache Size allowed                        */
-  unsigned int UseCookieVerifier;       /* Is Cookie verifier to be used ?                   */
-  exportlist_client_t clients;  /* allowed clients                                   */
-  struct exportlist__ *next;    /* next entry                                        */
-  unsigned int fsalid ;
-
-  pthread_mutex_t   exp_state_mutex; /* Mutex to protect the following two lists */
-  struct glist_head exp_state_list;  /* List of NFS v4 state belonging to this export */
+  fsal_size_t MaxRead; /*< Max Read for this entry */
+  fsal_size_t MaxWrite; /*< Max Write for this entry */
+  fsal_size_t PrefRead; /*< Preferred Read size */
+  fsal_size_t PrefWrite; /*< Preferred Write size */
+  fsal_size_t PrefReaddir; /*< Preferred Readdir size */
+  fsal_off_t MaxOffsetWrite; /*< Maximum Offset allowed for write */
+  fsal_off_t MaxOffsetRead; /*< Maximum Offset allowed for read */
+  fsal_off_t MaxCacheSize; /*< Maximum Cache Size allowed */
+  unsigned int UseCookieVerifier; /*< Is Cookie verifier to be used? */
+  exportlist_client_t clients; /*< allowed clients */
+  struct exportlist__ *next; /*< next entry */
+  unsigned int fsalid;
+  pthread_mutex_t   exp_state_mutex; /*< Mutex to protect the following two
+                                         lists */
+  struct glist_head exp_state_list;  /*< List of NFS v4 state belonging to
+                                         this export */
 #ifdef _USE_NLM
-  struct glist_head exp_lock_list;   /* List of locks belonging to this export
-                                      * Only need this list if NLM, otherwise
-                                      * state list is sufficient
-                                      */
-#endif
+  struct glist_head exp_lock_list;   /*< List of locks belonging to this export
+                                         Only need this list if NLM, otherwise
+                                         tate list is sufficient */
+#endif /* _USE_NLM */
 
 #ifdef _USE_FSAL_UP
-  bool_t use_fsal_up;
+  bool_t use_fsal_up; /*< Whether to use FSAL upcalls */
   char fsal_up_type[MAXPATHLEN];
   fsal_time_t fsal_up_timeout;
-  pthread_t fsal_up_thr; /* This value may be modified later to point to an FSAL CB thread. */
-  struct fsal_up_filter_list_t_ *fsal_up_filter_list; /* List of filters to apply through FSAL CB interface. */
+  pthread_t fsal_up_thr; /*< This value may be modified later to point
+                             to an FSAL CB thread. */
+  struct fsal_up_filter_list_t_ *fsal_up_filter_list; /*< List of filters to
+                                                          apply through FSAL CB
+                                                          interface. */
 #endif /* _USE_FSAL_UP */
-
-  nfs_worker_stat_t *worker_stats; /* List of worker stats to support per-share stat. */
+  nfs_worker_stat_t *worker_stats; /*< List of worker stats to support
+                                       per-share stat. */
 } exportlist_t;
 
 /* Constant for options masks */
@@ -230,8 +240,6 @@ typedef struct exportlist__
 #define EXPORT_OPTION_WILDCARD        0x00000040        /* client entry is wildcarded          */
 #define EXPORT_OPTION_GSSPRINC        0x00000080        /* client entry is a GSS principal     */
 #define EXPORT_OPTION_PSEUDO          0x00000100        /* pseudopath is provided              */
-#define EXPORT_OPTION_MAXREAD         0x00000200        /* Max read is provided                */
-#define EXPORT_OPTION_MAXWRITE        0x00000400        /* Max write is provided               */
 #define EXPORT_OPTION_PREFREAD        0x00000800        /* Pref read is provided               */
 #define EXPORT_OPTION_PREFWRITE       0x00001000        /* Pref write is provided              */
 #define EXPORT_OPTION_PREFRDDIR       0x00002000        /* Pref readdir size is provided       */

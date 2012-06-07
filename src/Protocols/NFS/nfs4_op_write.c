@@ -282,17 +282,7 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t * data, struct nfs_reso
         return res_WRITE4.status;
       }
 
-  /* The size to be written should not be greater than FATTR4_MAXWRITESIZE because this value is asked
-   * by the client at mount time, but we check this by security */
-
-  /* We should check against the value we returned in getattr. This was not
-   * the case before the following check_size code was added.
-   */
-  if( ((data->pexport->options & EXPORT_OPTION_MAXWRITE) == EXPORT_OPTION_MAXWRITE)) 
-    check_size = data->pexport->MaxWrite;
-  else
-    check_size = pstaticinfo->maxwrite;
-  if( size > check_size )
+  if(size > data->pexport->MaxWrite)
     {
       /*
        * The client asked for too much data, we

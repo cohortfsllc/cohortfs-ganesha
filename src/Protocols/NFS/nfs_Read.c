@@ -318,17 +318,15 @@ int nfs_Read(nfs_arg_t *parg,
     }
 
   /*
-   * We should not exceed the FSINFO rtmax field for
-   * the size 
+   * We should not exceed the FSINFO rtmax field for the size
    */
-  if(((pexport->options & EXPORT_OPTION_MAXREAD) == EXPORT_OPTION_MAXREAD) &&
-     size > pexport->MaxRead)
+
+  if (size > pexport->MaxRead)
     {
       /*
-       * The client asked for too much, normally
-       * this should not happen because the client
-       * is calling nfs_Fsinfo at mount time and so
-       * is aware of the server maximum write size 
+       * The client asked for too much, normally this should not
+       * happen because the client is calling nfs_Fsinfo at mount time
+       * and so is aware of the server maximum write size
        */
       size = pexport->MaxRead;
     }

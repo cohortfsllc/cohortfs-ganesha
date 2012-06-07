@@ -1372,9 +1372,6 @@ int utf8dup(utf8string * newstr, utf8string * oldstr);
 int utf82str(char *str, int size, utf8string * utf8str);
 int str2utf8(char *str, utf8string * utf8str);
 
-int uid2utf8(uid_t uid, utf8string * utf8str);
-int utf82uid(utf8string * utf8str, uid_t * Uid);
-
 int uid2str(uid_t uid, char *str);
 int str2uid(char *str, uid_t * Uid);
 

@@ -697,10 +697,10 @@ static int BuildExportEntry(config_item_t block, exportlist_t ** pp_export)
   p_entry->filesystem_id.major = 666;
   p_entry->filesystem_id.minor = 666;
 
-  p_entry->MaxWrite = 16384;
-  p_entry->MaxRead = 16384;
-  p_entry->PrefWrite = 16384;
-  p_entry->PrefRead = 16384;
+  p_entry->MaxWrite = 1048576;
+  p_entry->MaxRead = 1048576;
+  p_entry->PrefWrite = 1048576;
+  p_entry->PrefRead = 1048576;
   p_entry->PrefReaddir = 16384;
 
   init_glist(&p_entry->exp_state_list);
@@ -1391,10 +1391,9 @@ static int BuildExportEntry(config_item_t block, exportlist_t ** pp_export)
               continue;
             }
 
-          /* set filesystem_id */
+          /* Set Maximum Read Size */
 
-          p_entry->MaxRead = (fsal_size_t) size;
-          p_entry->options |= EXPORT_OPTION_MAXREAD;
+          p_entry->MaxRead = size;
 
           set_options |= FLAG_EXPORT_MAX_READ;
         }
@@ -1433,10 +1432,13 @@ static int BuildExportEntry(config_item_t block, exportlist_t ** pp_export)
 
           /* set filesystem_id */
 
-          p_entry->MaxWrite = (fsal_size_t) size;
-          p_entry->options |= EXPORT_OPTION_MAXWRITE;
-
-          set_options |= FLAG_EXPORT_MAX_WRITE;
+          /**
+           * @todo ACE: Restructure this call path so it has the
+           * staticfsinfo from the FSAL to set default parameters
+           * rather than checking both versions explicitly.  (Which we
+           * don't even do consistently anyway.)
+           */
+          p_entry->MaxWrite = size;
         }
       else if(!STRCMP(var_name, CONF_EXPORT_PREF_READ))
         {
@@ -2140,22 +2142,23 @@ exportlist_t *BuildDefaultExport()
   if(p_entry == NULL)
     return NULL;
 
-  /** @todo set default values here */
 
   p_entry->next = NULL;
   p_entry->options = 0;
   p_entry->status = EXPORTLIST_OK;
   p_entry->clients.num_clients = 0;
   p_entry->access_type = ACCESSTYPE_RW;
-  p_entry->anonymous_uid = (uid_t) ANON_UID;
-  p_entry->MaxOffsetWrite = (fsal_off_t) 0;
-  p_entry->MaxOffsetRead = (fsal_off_t) 0;
-  p_entry->MaxCacheSize = (fsal_off_t) 0;
+  p_entry->anonymous_uid = ANON_UID;
+  p_entry->MaxOffsetWrite = 0;
+  p_entry->MaxOffsetRead = 0;
+  p_entry->MaxCacheSize = 0;
 
   /* by default, we support auth_none and auth_sys */
   p_entry->options |= EXPORT_OPTION_AUTH_NONE | EXPORT_OPTION_AUTH_UNIX;
 
-  /* by default, we support all NFS versions supported by the core and both transport protocols */
+  /* by default, we support all NFS versions supported by the core and
+     both transport protocols */
+
   if((nfs_param.core_param.core_options & CORE_OPTION_NFSV2) != 0)
     p_entry->options |= EXPORT_OPTION_NFSV2;
   if((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0)
@@ -2164,14 +2167,14 @@ exportlist_t *BuildDefaultExport()
     p_entry->options |= EXPORT_OPTION_NFSV4;
   p_entry->options |= EXPORT_OPTION_UDP | EXPORT_OPTION_TCP;
 
-  p_entry->filesystem_id.major = (fsal_u64_t) 101;
-  p_entry->filesystem_id.minor = (fsal_u64_t) 101;
+  p_entry->filesystem_id.major = 101;
+  p_entry->filesystem_id.minor = 101;
 
-  p_entry->MaxWrite = (fsal_size_t) 16384;
-  p_entry->MaxRead = (fsal_size_t) 16384;
-  p_entry->PrefWrite = (fsal_size_t) 16384;
-  p_entry->PrefRead = (fsal_size_t) 16384;
-  p_entry->PrefReaddir = (fsal_size_t) 16384;
+  p_entry->MaxWrite = 1048576;
+  p_entry->MaxRead = 1048576;
+  p_entry->PrefWrite = 1048576;
+  p_entry->PrefRead = 1048576;
+  p_entry->PrefReaddir = 16384;
 
   strcpy(p_entry->FS_specific, "");
   strcpy(p_entry->FS_tag, "ganesha");
@@ -2189,7 +2192,8 @@ exportlist_t *BuildDefaultExport()
   /**
    * Grant root access to all clients
    */
-  rc = nfs_AddClientsToExportList(p_entry, 1, client_root_access, EXPORT_OPTION_ROOT);
+  rc = nfs_AddClientsToExportList(p_entry, 1, client_root_access,
+                                  EXPORT_OPTION_ROOT);
 
   if(rc != 0)
     {

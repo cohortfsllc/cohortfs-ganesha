@@ -168,8 +168,8 @@ typedef mode_t fsal_accessmode_t;             /**< Access mode (32 bits) */
 
 typedef struct fsal_time__
 {
-  fsal_uint_t seconds;
-  fsal_uint_t nseconds;
+  uint64_t seconds;
+  uint32_t nseconds;
 } fsal_time_t;       /**< time */
 
 /** Behavior for init values */

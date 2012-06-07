@@ -64,6 +64,8 @@
 #define NFS2_MODE_NFLNK 0120000
 #define NFS2_MODE_NFNON 0140000
 
+static const uint32_t NFS4_ATTRMAP_LEN = 3;
+
 uint64_t nfs_htonl64(uint64_t arg64);
 uint64_t nfs_ntohl64(uint64_t arg64);
 

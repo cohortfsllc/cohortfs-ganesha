@@ -7,19 +7,20 @@
  *
  *
  * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 3 of the License, or (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * modify it under the terms of the GNU Lesser General Public License
+ * as published by the Free Software Foundation; either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * 
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ *
  * ---------------------------------------
  */
 
@@ -88,10 +89,9 @@ int nfsidmap_set_conf()
 #endif                          /* _USE_NFSIDMAP */
 
 /**
+ * @brief Convert a uid to a name.
  *
- * uid2name: convert a uid to a name. 
- *
- * convert a uid to a name. 
+ * Convert a uid to a name.
  *
  * @param name [OUT]  the name of the user
  * @param uid  [IN]   the input uid
@@ -624,9 +624,9 @@ int name2gid(char *name, gid_t * pgid)
 
 /**
  *
- * uid2ustr: convert a uid to a string.
+ * @brief convert a uid to a string.
  *
- * Convert a gidonvert a uid to a string. to a string.
+ * Convert a uid to a string.
  *
  * @param uid [IN]  the input gid
  * @param str [OUT] computed string
@@ -691,72 +691,121 @@ int gid2str(gid_t gid, char *str)
 }                               /* gid2str */
 
 /**
+ * @brief Encode a user ID.
  *
- * uid2utf8: converts a uid to a utf8 string descriptor.
+ * Given a UID and an XDR stream, encode the user as a UTF-8 string on
+ * the given XDR stream.
  *
- * Converts a uid to a utf8 string descriptor.
+ * @param[in,out] xdr  The XDR stream to which to write
+ * @param[in]     uid  the UID to encode
  *
- * @param uid     [IN]  the input uid
- * @param utf8str [OUT] computed UTF8 string descriptor
- *
- * @return the length of the utf8 buffer if succesfull, -1 if failed
- *
+ * @retval TRUE on success.
+ * @retval FALSE on failure.
  */
-int uid2utf8(uid_t uid, utf8string * utf8str)
+
+bool_t
+nfs4_encode_user(XDR *xdr, uid_t uid)
 {
-  char buff[NFS4_MAX_DOMAIN_LEN];
-  unsigned int len = 0;
+     char name[NFS4_MAX_DOMAIN_LEN];
+     size_t namelen = 0;
+#ifndef _USE_NFSIDMAP
+     size_t domainlen = strlen(nfs_param.nfsv4_param.domainname);
+#endif /* !_USE_NFSIDMAP */
+     size_t totallen = 0;
+     size_t slacklen = 0;
+     uid_t local_uid = uid;
+     char *stream = NULL;
 
-  if(uid2str(uid, buff) == -1)
-    return -1;
+     if (uid2name(name, &local_uid) == 0) {
+          return FALSE;
+     }
 
-  len = strlen(buff);
+     namelen = strlen(name);
 
-  /* A matching uid was found, now do the conversion to utf8 */
-  if((utf8str->utf8string_val = gsh_malloc(len)) == NULL)
-    return -1;
-  else
-    utf8str->utf8string_len = len;
+#ifndef _USE_NFSIDMAP
+     totallen = namelen + domainlen + 1;
+#else /* _USE_NFSIDMAP */
+     totallen = namelen;
+#endif /* _USE_NFSIDMAP */
 
-  return str2utf8(buff, utf8str);
+     slacklen = 4 - (totallen % 4);
 
-}                               /* uid2utf8 */
+     if (!(stream = (char *) XDR_INLINE(xdr, totallen + slacklen))) {
+          return FALSE;
+     }
+
+     *(uint32_t *)stream = htonl(totallen);
+     stream += sizeof(uint32_t);
+     memcpy(stream, name, namelen);
+#ifndef _USE_NFSIDMAP
+     *(stream++) = '@';
+     memcpy(stream, nfs_param.nfsv4_param.domainname, domainlen);
+     stream += domainlen;
+#endif /* !_USE_NFSIDMAP */
+     if (slacklen) {
+          memset(stream, 0, slacklen);
+     }
+} /* nfs4_encode_user */
 
 /**
+ * @brief Encode a group
  *
- * gid2utf8: converts a gid to a utf8 string descriptor.
+ * Given a GID and an XDR stream, encode athe group as a UTF-8 string
+ * on the given XDR stream.
  *
- * Converts a gid to a utf8 string descriptor.
+ * @param[in,out] xdr  The XDR stream to which to write
+ * @param[in]     gid  the GID to encode
  *
- * @param gid     [IN]  the input gid
- * @param utf8str [OUT] computed UTF8 string descriptor
- *
- * @return the length of the utf8 buffer if succesfull, -1 if failed
- *
+ * @retval TRUE on success.
+ * @retval FALSE on failure.
  */
-int gid2utf8(gid_t gid, utf8string * utf8str)
+
+bool_t
+nfs4_encode_group(XDR *xdr, gid_t gid)
 {
-  char buff[NFS4_MAX_DOMAIN_LEN];
-  unsigned int len = 0;
+     char name[NFS4_MAX_DOMAIN_LEN];
+     size_t namelen = 0;
+#ifndef _USE_NFSIDMAP
+     size_t domainlen = strlen(nfs_param.nfsv4_param.domainname);
+#endif /* !_USE_NFSIDMAP */
+     size_t totallen = 0;
+     size_t slacklen = 0;
+     uid_t local_gid = gid;
+     char *stream = NULL;
 
-  if(gid2str(gid, buff) == -1)
-    return -1;
+     if (gid2name(name, &local_uid) == 0) {
+          return FALSE;
+     }
 
-  len = strlen(buff);
+     namelen = strlen(name);
 
-  /* A matching gid was found */
-  /* Do the conversion to uft8 format */
-  if((utf8str->utf8string_val = gsh_malloc(len)) == NULL)
-    return -1;
-  else
-    utf8str->utf8string_len = len;
+#ifndef _USE_NFSIDMAP
+     totallen = namelen + domainlen + 1;
+#else /* _USE_NFSIDMAP */
+     totallen = namelen;
+#endif /* _USE_NFSIDMAP */
 
-  return str2utf8(buff, utf8str);
-}                               /* gid2utf8 */
+     slacklen = 4 - (totallen % 4);
+
+     if (!(stream = (char *) XDR_INLINE(xdr, totallen + slacklen))) {
+          return FALSE;
+     }
+
+     *(uint32_t *)stream = htonl(totallen);
+     stream += sizeof(uint32_t);
+     memcpy(stream, name, namelen);
+#ifndef _USE_NFSIDMAP
+     *(stream++) = '@';
+     memcpy(stream, nfs_param.nfsv4_param.domainname, domainlen);
+     stream += domainlen;
+#endif /* !_USE_NFSIDMAP */
+     if (slacklen) {
+          memset(stream, 0, slacklen);
+     }
+} /* nfs4_encode_group */
 
 /**
- *
- *  utf82uid: converts a utf8 string descriptor to a uid .
+ * @brief converts a utf8 string descriptor to a uid .
  *
  * Converts a utf8 string descriptor to a uid.
  *
