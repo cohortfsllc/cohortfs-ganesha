@@ -1482,237 +1482,243 @@ out:
 } /* nfs4_FSALattr_To_Fattr */
 
 /**
+ * @brief Convert NFSv3 sattr to FSAL attributes
  *
- * nfs3_Sattr_To_FSALattr: Converts NFSv3 Sattr to FSAL Attributes.
+ * This function converts an NFSv3 sattr structure to an FSAL
+ * attribute structure that can be used to set the attributes on a
+ * node.
  *
- * Converts NFSv3 Sattr to FSAL Attributes.
+ * @param[out] FSAL_attr FSAL attributes
+ * @param[in]  sattr     NFSv3 sattr structure
  *
- * @param pFSAL_attr  [OUT]  computed FSAL attributes.
- * @param psattr      [IN]   NFSv3 sattr to be set.
- * 
- * @return 0 if failed, 1 if successful.
- *
+ * @retval 0 if failed
+ * @retval 1 if successful.
  */
-int nfs3_Sattr_To_FSALattr(fsal_attrib_list_t * pFSAL_attr,     /* Out: file attributes */
-                           sattr3 * psattr)     /* In: file attributes  */
+
+int nfs3_Sattr_To_FSALattr(fsal_attrib_list_t *FSAL_attr,
+                           sattr3 *sattr)
 {
   struct timeval t;
 
-  if(pFSAL_attr == NULL || psattr == NULL)
+  if (FSAL_attr == NULL || sattr == NULL)
     return 0;
 
-  pFSAL_attr->asked_attributes = 0;
+  FSAL_attr->asked_attributes = 0;
 
-  if(psattr->mode.set_it == TRUE)
+  if(sattr->mode.set_it == TRUE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: mode = %o",
-                   psattr->mode.set_mode3_u.mode);
-      pFSAL_attr->mode = unix2fsal_mode(psattr->mode.set_mode3_u.mode);
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_MODE;
+                   sattr->mode.set_mode3_u.mode);
+      FSAL_attr->mode = unix2fsal_mode(sattr->mode.set_mode3_u.mode);
+      FSAL_attr->asked_attributes |= FSAL_ATTR_MODE;
     }
 
-  if(psattr->uid.set_it == TRUE)
+  if(sattr->uid.set_it == TRUE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: uid = %d",
-                   psattr->uid.set_uid3_u.uid);
-      pFSAL_attr->owner = psattr->uid.set_uid3_u.uid;
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_OWNER;
+                   sattr->uid.set_uid3_u.uid);
+      FSAL_attr->owner = sattr->uid.set_uid3_u.uid;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_OWNER;
     }
 
-  if(psattr->gid.set_it == TRUE)
+  if(sattr->gid.set_it == TRUE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: gid = %d",
-                   psattr->gid.set_gid3_u.gid);
-      pFSAL_attr->group = psattr->gid.set_gid3_u.gid;
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_GROUP;
+                   sattr->gid.set_gid3_u.gid);
+      FSAL_attr->group = sattr->gid.set_gid3_u.gid;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_GROUP;
     }
 
-  if(psattr->size.set_it == TRUE)
+  if(sattr->size.set_it == TRUE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: size = %lld",
-                   psattr->size.set_size3_u.size);
-      pFSAL_attr->filesize = (fsal_size_t) psattr->size.set_size3_u.size;
-      pFSAL_attr->spaceused = (fsal_size_t) psattr->size.set_size3_u.size;
+                   sattr->size.set_size3_u.size);
+      FSAL_attr->filesize = sattr->size.set_size3_u.size;
+      FSAL_attr->spaceused = sattr->size.set_size3_u.size;
       /* Both FSAL_ATTR_SIZE and FSAL_ATTR_SPACEUSED are to be managed */
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_SPACEUSED;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_SPACEUSED;
     }
 
-  if(psattr->atime.set_it != DONT_CHANGE)
+  if(sattr->atime.set_it != DONT_CHANGE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: set=%d atime = %d,%d",
-                   psattr->atime.set_it, psattr->atime.set_atime_u.atime.seconds,
-                   psattr->atime.set_atime_u.atime.nseconds);
-      if(psattr->atime.set_it == SET_TO_CLIENT_TIME)
+                   sattr->atime.set_it,
+                   sattr->atime.set_atime_u.atime.seconds,
+                   sattr->atime.set_atime_u.atime.nseconds);
+      if(sattr->atime.set_it == SET_TO_CLIENT_TIME)
         {
-          pFSAL_attr->atime.seconds = psattr->atime.set_atime_u.atime.seconds;
-          pFSAL_attr->atime.nseconds = 0;
+          FSAL_attr->atime.seconds = sattr->atime.set_atime_u.atime.seconds;
+          FSAL_attr->atime.nseconds = 0;
         }
       else
         {
           /* Use the server's current time */
           gettimeofday(&t, NULL);
 
-          pFSAL_attr->atime.seconds = t.tv_sec;
-          pFSAL_attr->atime.nseconds = 0;
+          FSAL_attr->atime.seconds = t.tv_sec;
+          FSAL_attr->atime.nseconds = 0;
         }
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_ATIME;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_ATIME;
     }
 
-  if(psattr->mtime.set_it != DONT_CHANGE)
+  if(sattr->mtime.set_it != DONT_CHANGE)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_Sattr_To_FSALattr: set=%d mtime = %d",
-                   psattr->atime.set_it, psattr->mtime.set_mtime_u.mtime.seconds ) ;
-      if(psattr->mtime.set_it == SET_TO_CLIENT_TIME)
+                   sattr->atime.set_it,
+                   sattr->mtime.set_mtime_u.mtime.seconds ) ;
+      if(sattr->mtime.set_it == SET_TO_CLIENT_TIME)
         {
-          pFSAL_attr->mtime.seconds = psattr->mtime.set_mtime_u.mtime.seconds;
-          pFSAL_attr->mtime.nseconds = 0 ;
+          FSAL_attr->mtime.seconds = sattr->mtime.set_mtime_u.mtime.seconds;
+          FSAL_attr->mtime.nseconds = 0;
         }
       else
         {
           /* Use the server's current time */
           gettimeofday(&t, NULL);
-          pFSAL_attr->mtime.seconds = t.tv_sec;
-          pFSAL_attr->mtime.nseconds = 0 ;
+          FSAL_attr->mtime.seconds = t.tv_sec;
+          FSAL_attr->mtime.nseconds = 0 ;
         }
-      pFSAL_attr->asked_attributes |= FSAL_ATTR_MTIME;
+      FSAL_attr->asked_attributes |= FSAL_ATTR_MTIME;
     }
 
   return 1;
 }                               /* nfs3_Sattr_To_FSALattr */
 
 /**
- * 
- * nfs2_FSALattr_To_Fattr: Converts FSAL Attributes to NFSv2 attributes.
- * 
- * Converts FSAL Attributes to NFSv2 attributes.
  *
- * @param pexport   [IN]  the related export entry.
- * @param FSAL_attr [IN]  pointer to FSAL attributes.
- * @param Fattr     [OUT] pointer to NFSv2 attributes. 
- * 
- * @return 1 if successful, 0 otherwise. 
+ * @brief Convert FSAL Attributes to NFSv2 attributes.
+ *
+ * This function converts FSAL attributes to an NFSv2 attribute
+ * structure.
+ *
+ * @param[in]  export    The related export entry.
+ * @param[in]  FSAL_attr FSAL attributes
+ * @param[out] fattr     Memory for NFSv2 attributes
+ *
+ * @retval 1 if successful
+ * @retval 0 otherwise
  *
  */
-int nfs2_FSALattr_To_Fattr(exportlist_t * pexport,      /* In: the related export entry */
-                           fsal_attrib_list_t * pFSAL_attr,     /* In: file attributes  */
-                           fattr2 * pFattr)     /* Out: file attributes */
+int
+nfs2_FSALattr_To_Fattr(exportlist_t *export,
+                       fsal_attrib_list_t *FSAL_attr,
+                       fattr2 *fattr)
 {
   /* Badly formed arguments */
-  if(pFSAL_attr == NULL || pFattr == NULL)
+  if(FSAL_attr == NULL || fattr == NULL)
     return 0;
 
-  /* @todo BUGAZOMEU: sanity check on attribute mask (does the FSAL support the attributes required to support NFSv2 ? */
+  /* Initialize mode */
+  Fattr->mode = 0;
 
-  /* initialize mode */
-  pFattr->mode = 0;
-
-  switch (pFSAL_attr->type)
+  switch (FSAL_attr->type)
     {
     case FSAL_TYPE_FILE:
-      pFattr->type = NFREG;
-      pFattr->mode = NFS2_MODE_NFREG;
+      fattr->type = NFREG;
+      fattr->mode = NFS2_MODE_NFREG;
       break;
 
     case FSAL_TYPE_DIR:
-      pFattr->type = NFDIR;
-      pFattr->mode = NFS2_MODE_NFDIR;
+      fattr->type = NFDIR;
+      fattr->mode = NFS2_MODE_NFDIR;
       break;
 
     case FSAL_TYPE_BLK:
-      pFattr->type = NFBLK;
-      pFattr->mode = NFS2_MODE_NFBLK;
+      fattr->type = NFBLK;
+      fattr->mode = NFS2_MODE_NFBLK;
       break;
 
     case FSAL_TYPE_CHR:
-      pFattr->type = NFCHR;
-      pFattr->mode = NFS2_MODE_NFCHR;
+      fattr->type = NFCHR;
+      fattr->mode = NFS2_MODE_NFCHR;
       break;
 
     case FSAL_TYPE_FIFO:
-      pFattr->type = NFFIFO;
+      fattr->type = NFFIFO;
       /** @todo mode mask ? */
       break;
 
     case FSAL_TYPE_LNK:
-      pFattr->type = NFLNK;
-      pFattr->mode = NFS2_MODE_NFLNK;
+      fattr->type = NFLNK;
+      fattr->mode = NFS2_MODE_NFLNK;
       break;
 
     case FSAL_TYPE_SOCK:
-      pFattr->type = NFSOCK;
+      fattr->type = NFSOCK;
       /** @todo mode mask ? */
       break;
 
-    case FSAL_TYPE_XATTR:
-    case FSAL_TYPE_JUNCTION:
-      pFattr->type = NFBAD;
+    default:
+      fattr->type = NFBAD;
     }
 
-  pFattr->mode |= fsal2unix_mode(pFSAL_attr->mode);
-  pFattr->nlink = pFSAL_attr->numlinks;
-  pFattr->uid = pFSAL_attr->owner;
-  pFattr->gid = pFSAL_attr->group;
+  fattr->mode |= fsal2unix_mode(FSAL_attr->mode);
+  fattr->nlink = FSAL_attr->numlinks;
+  fattr->uid = FSAL_attr->owner;
+  fattr->gid = FSAL_attr->group;
 
   /* in NFSv2, it only keeps fsid.major, casted into an into an int32 */
-  pFattr->fsid = (u_int) (pexport->filesystem_id.major & 0xFFFFFFFFLL);
+  Fattr->fsid = (uint32_t) (export->filesystem_id.major & 0xFFFFFFFFLL);
 
   LogFullDebug(COMPONENT_NFSPROTO,
-               "nfs2_FSALattr_To_Fattr: fsid.major = %#llX (%llu), fsid.minor = %#llX (%llu), nfs2_fsid = %#X (%u)",
-               pexport->filesystem_id.major, pexport->filesystem_id.major,
-               pexport->filesystem_id.minor, pexport->filesystem_id.minor, pFattr->fsid,
-               pFattr->fsid);
+               "nfs2_FSALattr_To_Fattr: fsid.major = %#llX (%llu), "
+               "fsid.minor = %#llX (%llu), nfs2_fsid = %#X (%u)",
+               export->filesystem_id.major, export->filesystem_id.major,
+               attr->fsid, Fattr->fsid);
 
-  if(pFSAL_attr->filesize > NFS2_MAX_FILESIZE)
-    pFattr->size = NFS2_MAX_FILESIZE;
+  if(FSAL_attr->filesize > NFS2_MAX_FILESIZE)
+    fattr->size = NFS2_MAX_FILESIZE;
   else
-    pFattr->size = pFSAL_attr->filesize;
+    fattr->size = FSAL_attr->filesize;
 
-  pFattr->blocksize = DEV_BSIZE;
+  fattr->blocksize = DEV_BSIZE;
 
-  pFattr->blocks = pFattr->size >> 9;   /* dividing by 512 */
-  if(pFattr->size % DEV_BSIZE != 0)
-    pFattr->blocks += 1;
+  fattr->blocks = pFattr->size >> 9;   /* dividing by 512 */
+  if(fattr->size % DEV_BSIZE != 0)
+    fattr->blocks += 1;
 
-  if(pFSAL_attr->type == FSAL_TYPE_CHR || pFSAL_attr->type == FSAL_TYPE_BLK)
-    pFattr->rdev = pFSAL_attr->rawdev.major;
+  if(FSAL_attr->type == FSAL_TYPE_CHR || pFSAL_attr->type == FSAL_TYPE_BLK)
+    fattr->rdev = FSAL_attr->rawdev.major;
   else
-    pFattr->rdev = 0;
+    fattr->rdev = 0;
 
-  pFattr->atime.seconds = pFSAL_attr->atime.seconds;
-  pFattr->atime.useconds = pFSAL_attr->atime.nseconds / 1000;
-  pFattr->mtime.seconds = pFSAL_attr->mtime.seconds;
-  pFattr->mtime.useconds = pFSAL_attr->mtime.nseconds / 1000;
-  pFattr->ctime.seconds = pFSAL_attr->ctime.seconds;
-  pFattr->ctime.useconds = pFSAL_attr->ctime.nseconds / 1000;
-  pFattr->fileid = pFSAL_attr->fileid;
+  fattr->atime.seconds = FSAL_attr->atime.seconds;
+  fattr->atime.useconds = FSAL_attr->atime.nseconds / 1000;
+  fattr->mtime.seconds = FSAL_attr->mtime.seconds;
+  fattr->mtime.useconds = FSAL_attr->mtime.nseconds / 1000;
+  fattr->ctime.seconds = FSAL_attr->ctime.seconds;
+  fattr->ctime.useconds = FSAL_attr->ctime.nseconds / 1000;
+  fattr->fileid = FSAL_attr->fileid;
 
   return 1;
-}                               /*  nfs2_FSALattr_To_Fattr */
+} /*  nfs2_FSALattr_To_Fattr */
 
 /**
- * 
- * nfs4_SetCompoundExport
- * 
+ *
+ * @brief Set the export for a compound.
+ *
  * This routine fills in the pexport field in the compound data.
  *
- * @param pfh [OUT] pointer to compound data to be used. 
- * 
- * @return NFS4_OK if successfull. Possible errors are NFS4ERR_BADHANDLE and NFS4ERR_WRONGSEC.
+ * @param[in,out] data Compound data to update
  *
+ * @retval NFS4_OK if successfull.
+ * @retval NFS4ERR_BADHANDLE.
+ * @retval NFS4ERR_WRONGSEC.
  */
 
-int nfs4_SetCompoundExport(compound_data_t * data)
+int nfs4_SetCompoundExport(compound_data_t *data)
 {
   short exportid;
 
-  /* This routine is not related to pseudo fs file handle, do not handle them */
+  /* This routine is not related to pseudo fs file handle, do not
+     handle them */
   if(nfs4_Is_Fh_Pseudo(&(data->currentFH)))
     return NFS4_OK;
 
@@ -1733,99 +1739,75 @@ int nfs4_SetCompoundExport(compound_data_t * data)
 }                               /* nfs4_SetCompoundExport */
 
 /**
- * 
- * nfs4_FhandleToExId
- * 
+ * @brief Return the export ID from a filehandle
+ *
  * This routine extracts the export id from the filehandle
  *
- * @param fh4p  [IN]  pointer to file handle to be used.
- * @param ExIdp [OUT] pointer to buffer in which found export id will be stored. 
- * 
- * @return TRUE is successful, FALSE otherwise. 
+ * @param[in]  fh4   File handle to be used.
+ * @param[out] ExId  Location to store export ID
  *
+ * @retval TRUE is successful.
+ * @retval FALSE otherwise.
  */
-int nfs4_FhandleToExId(nfs_fh4 * fh4p, unsigned short *ExIdp)
+bool_t nfs4_FhandleToExId(nfs_fh4 *fh4,
+                          unsigned short *ExId)
 {
-  file_handle_v4_t *pfhandle4;
+  file_handle_v4_t *fhandle4;
 
   /* Map the filehandle to the correct structure */
-  pfhandle4 = (file_handle_v4_t *) (fh4p->nfs_fh4_val);
+  fhandle4 = (file_handle_v4_t *) (fh4->nfs_fh4_val);
 
   /* The function should not be used on a pseudo fhandle */
-  if(pfhandle4->pseudofs_flag == TRUE)
+  if(fhandle4->pseudofs_flag == TRUE)
     return FALSE;
 
-  *ExIdp = pfhandle4->exportid;
+  *ExId = fhandle4->exportid;
   return TRUE;
-}                               /* nfs4_FhandleToExId */
+} /* nfs4_FhandleToExId */
 
 /**** Glue related functions ****/
 
 /**
+ * @brief Split a domain stamped name in two different parts
  *
- * nfs4_stringid_split: Splits a domain stamped name in two different parts.
+ * This function splits a domain stamped name into user and domain
+ * parts, copying them into buffers provided by the caller.
  *
- * Splits a domain stamped name in two different parts.
+ * ACE: This function was originally written to assume that the '@' is
+ * always present in any argument passed in, so I kept that
+ * assumption.  If this is not the case, it should be fixed.
  *
- * @param buff [IN] the input string
- * @param uidname [OUT] the extracted uid name
- * @param domainname [OUT] the extracted fomain name
- *
- * @return nothing (void function) 
- *
+ * @param[in]  name       The name to split
+ * @param[out] user       The extracted username
+ * @param[out] domainname the extracted domain name
  */
-void nfs4_stringid_split(char *buff, char *uidname, char *domainname)
+void nfs4_stringid_split(char *name, char *username, char *domainname)
 {
-  char *c = NULL;
-  unsigned int i = 0;
+  ptrdiff_t offset = (strchr(name, '@') - name);
 
-  for(c = buff, i = 0; *c != '\0'; c++, i++)
-    if(*c == '@')
-      break;
 
-  strncpy(uidname, buff, i);
-  uidname[i] = '\0';
-  strcpy(domainname, c);
-
-  LogFullDebug(COMPONENT_NFS_V4,
-               "buff = #%s#    uid = #%s#   domain = #%s#",
-               buff, uidname, domainname);
-}                               /* nfs4_stringid_split */
+  strncpy(username, name, offset);
+  username[offset] = '\0';
+  strcpy(domainname, name + offset + 1);
+} /* nfs4_stringid_split */
 
 /**
+ * @brief Make a copy of a utf8strin
  *
- * free_utf8: Free's a utf8str that was created by utf8dup
+ * This function copies a utf8string's value and length.
  *
- * @param utf8str [IN]  UTF8 string to be freed
+ * @param[out] newstr The copy
+ * @param[in]  oldstr The original
  *
+ * @retval -1 if failed.
+ * @retval 0 if successful.
  */
-void free_utf8(utf8string * utf8str)
+int utf8dup(utf8string *newstr,
+            utf8string *oldstr)
 {
-  if(utf8str != NULL)
-    {
-      if(utf8str->utf8string_val != NULL)
-        gsh_free(utf8str->utf8string_val);
-      utf8str->utf8string_val = 0;
-      utf8str->utf8string_len = 0;
-    }
-}
-
-/**
- *
- * utf8dup: Makes a copy of a utf8str.
- *
- * @param newstr  [OUT] copied UTF8 string
- * @param oldstr  [IN]  input UTF8 string
- *
- * @return -1 if failed, 0 if successful.
- *
- */
-int utf8dup(utf8string * newstr, utf8string * oldstr)
-{
-  if(newstr == NULL)
+  if (newstr == NULL)
     return -1;
 
-  newstr->utf8string_len = oldstr->utf8string_len;
   newstr->utf8string_val = NULL;
 
   if(oldstr->utf8string_len == 0 || oldstr->utf8string_val == NULL)
@@ -1834,300 +1816,122 @@ int utf8dup(utf8string * newstr, utf8string * oldstr)
   newstr->utf8string_val = gsh_malloc(oldstr->utf8string_len);
   if(newstr->utf8string_val == NULL)
     return -1;
-
-  strncpy(newstr->utf8string_val, oldstr->utf8string_val, oldstr->utf8string_len);
+  newstr->utf8string_len = oldstr->utf8string_len;
+  /* In general, one should not use strcpy to copy strings or opaques
+     decoded from XDR.  These are all counted rather than terminated
+     and some may contain NUL. */
+  memcpy(newstr->utf8string_val, oldstr->utf8string_val,
+         oldstr->utf8string_len);
 
   return 0;
-}                               /* uft82str */
+} /* uft82str */
 
 /**
+ * @brief Converts a UTF-8 string buffer into a C string
  *
- * utf82str: converts a UTF8 string buffer into a string descriptor.
+ * This function converts a UTF-8 string as decoded from XDR into a
+ * NUL terminated C string, copying it into a user-supplied buffer.
  *
- * Converts a UTF8 string buffer into a string descriptor.
+ * This function returns an error, rather than silently truncating the
+ * result, if the input string contains NULs or is too long for the
+ * buffer.  Previous versions behaved differently.
  *
- * @param str     [OUT] computed output string
- * @param utf8str [IN]  input UTF8 string
+ * @param[out] str     NUL temrinated srring
+ * @param[in]  size    The length of the supplied buffer
+ * @param[in]  utf8str Counted string
  *
- * @return -1 if failed, 0 if successful.
+ * @retval -1 on failure.
+ * @rteval 0 on success.
  *
  */
-int utf82str(char *str, int size, utf8string * utf8str)
+int utf82str(char *str, size_t size, utf8string *utf8str)
 {
-  int copy;
-
-  if(str == NULL)
+  if((str == NULL) || utf8str == NULL)
     return -1;
 
-  if(utf8str == NULL || utf8str->utf8string_len == 0)
+  /* We require sufficient space for the string and the terminating
+     NUL. */
+  if (size < (utf8str->utf8string_len + 1))
+    return -1;
+
+  /* Fast track for zero-length strings */
+  if(utf8str->utf8string_len == 0)
     {
       str[0] = '\0';
-      return -1;
+      return 0;
     }
 
-  if(utf8str->utf8string_len >= size)
-    copy = size - 1;
-  else
-    copy = utf8str->utf8string_len;
+  /* This string cannot be represented as a C string */
 
-  strncpy(str, utf8str->utf8string_val, copy);
-  str[copy] = '\0';
-
-  if(copy < utf8str->utf8string_len)
+  if (memchr(str, '\0', utf8str->utf8string_len))
     return -1;
+
+  memcpy(str, utf8str->utf8string_val, utf8str->utf8string_len);
+  str[utf8str->utf8string_len] = '\0';
 
   return 0;
-}                               /* uft82str */
+} /* uft82str */
 
 /**
+ * @brief Converts a string buffer into a UTF-8 string descriptor.
  *
- * str2utf8: converts a string buffer into a UTF8 string descriptor.
+ * This function conerts a C string to a UTF-8 string as used for XDR
+ * encoding.  There is no need to worry about padding, since the XDR
+ * encoder pads while serializing.  If the caller provides a buffer,
+ * we assume it is large enough to hold the string.
  *
- * Converts a string buffer into a UTF8 string descriptor.
+ * @param[in]  str     C string
+ * @param[out] utf8str UTF-8 string structure
  *
- * @param str     [IN]  input string
- * @param utf8str [OUT] computed UTF8 string
- *
- * @return -1 if failed, 0 if successful.
+ * @return -1 if failed.
+ * @return 0 if successful.
  *
  */
-int str2utf8(char *str, utf8string * utf8str)
+int str2utf8(char *str, utf8string *utf8str)
 {
-  uint_t len;
-  char buff[MAXNAMLEN];
+  uint32_t len = strlen(str);
 
-  /* The uft8 will probably be sent over XDR, for this reason, its size MUST be a multiple of 32 bits = 4 bytes */
-  strcpy(buff, str);
-  len = strlen(buff);
-
-  /* BUGAZOMEU: TO BE DONE: use STUFF ALLOCATOR here */
   if(utf8str->utf8string_val == NULL)
-    return -1;
+    {
+      utf8str->utf8string_val = gsh_malloc(len);
+      if (utf8str->utf8string_val == NULL)
+        return -1
+    }
 
   utf8str->utf8string_len = len;
-  memcpy(utf8str->utf8string_val, buff, utf8str->utf8string_len);
+  memcpy(utf8str->utf8string_val, str, len);
   return 0;
-}                               /* str2utf8 */
-
-/**
- * 
- * nfs4_NextSeqId: compute the next nfsv4 sequence id.
- *
- * Compute the next nfsv4 sequence id.
- *
- * @param seqid [IN] previous sequence number.
- * 
- * @return the requested sequence number.
- *
- */
-
-seqid4 nfs4_NextSeqId(seqid4 seqid)
-{
-  return ((seqid + 1) % 0xFFFFFFFF);
-}                               /* nfs4_NextSeqId */
-
-/**
- *
- * nfs_bitmap4_to_list: convert an attribute's bitmap to a list of attributes.
- *
- * Convert an attribute's bitmap to a list of attributes.
- *
- * @param b     [IN] bitmap to convert.
- * @param plen  [OUT] list's length.
- * @param plval [OUT] list's values.
- *
- * @return nothing (void function)
- *
- */
-
-/*
- * bitmap is usually 2 x uint32_t which makes a uint64_t
- *
- * Structure of the bitmap is as follow
- *
- *                  0         1
- *    +-------+---------+----------+-
- *    | count | 31 .. 0 | 63 .. 32 |
- *    +-------+---------+----------+-
- *
- * One bit is set for every possible attributes. The bits are packed together in a uint32_T (XDR alignment reason probably)
- * As said in the RFC3530, the n-th bit is with the uint32_t #(n/32), and its position with the uint32_t is n % 32
- * Example
- *     1st bit = FATTR4_TYPE            = 1
- *     2nd bit = FATTR4_LINK_SUPPORT    = 5
- *     3rd bit = FATTR4_SYMLINK_SUPPORT = 6
- *
- *     Juste one uint32_t is necessay: 2**1 + 2**5 + 2**6 = 2 + 32 + 64 = 98
- *   +---+----+
- *   | 1 | 98 |
- *   +---+----+
- *
- * Other Example
- *
- *     1st bit = FATTR4_LINK_SUPPORT    = 5
- *     2nd bit = FATTR4_SYMLINK_SUPPORT = 6
- *     3rd bit = FATTR4_MODE            = 33
- *     4th bit = FATTR4_OWNER           = 36
- *
- *     Two uint32_t will be necessary there:
- *            #1 = 2**5 + 2**6 = 32 + 64 = 96
- #            #2 = 2**(33-32) + 2**(36-32) = 2**1 + 2**4 = 2 + 16 = 18 
- *   +---+----+----+
- *   | 2 | 98 | 18 |
- *   +---+----+----+
- *
- */
-
-void nfs4_bitmap4_to_list(bitmap4 * b, uint_t * plen, uint32_t * pval)
-{
-  uint_t i = 0;
-  uint_t val = 0;
-  uint_t index = 0;
-  uint_t offset = 0;
-  uint_t fattr4tabidx=0;
-  if(b->bitmap4_len > 0)
-    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u Val = %u|%u",
-                 b->bitmap4_len, b->bitmap4_val[0], b->bitmap4_val[1]);
-  else
-    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u ... ", b->bitmap4_len);
-
-  for(offset = 0; offset < b->bitmap4_len; offset++)
-    {
-      for(i = 0; i < 32; i++)
-        {
-          fattr4tabidx = i+32*offset;
-#ifdef _USE_NFS4_1
-          if (fattr4tabidx > FATTR4_FS_CHARSET_CAP)
-#else
-          if (fattr4tabidx > FATTR4_MOUNTED_ON_FILEID)
-#endif
-             goto exit;
-
-          val = 1 << i;         /* Compute 2**i */
-          if(b->bitmap4_val[offset] & val)
-            pval[index++] = fattr4tabidx;
-        }
-    }
-exit:
-  *plen = index;
-
-}                               /* nfs4_bitmap4_to_list */
-
-/**
- * 
- * nfs4_list_to_bitmap4: convert a list of attributes to an attributes's bitmap.
- * 
- * Convert a list of attributes to an attributes's bitmap.
- *
- * @param b [OUT] computed bitmap
- * @param plen [IN] list's length 
- * @param pval [IN] list's array
- *
- * @return nothing (void function).
- *
- */
-
-/* bitmap is usually 2 x uint32_t which makes a uint64_t 
- * bitmap4_len is the number of uint32_t required to keep the bitmap value 
- *
- * Structure of the bitmap is as follow
- *
- *                  0         1
- *    +-------+---------+----------+-
- *    | count | 31 .. 0 | 63 .. 32 | 
- *    +-------+---------+----------+-
- *
- * One bit is set for every possible attributes. The bits are packed together in a uint32_T (XDR alignment reason probably)
- * As said in the RFC3530, the n-th bit is with the uint32_t #(n/32), and its position with the uint32_t is n % 32
- * Example
- *     1st bit = FATTR4_TYPE            = 1
- *     2nd bit = FATTR4_LINK_SUPPORT    = 5
- *     3rd bit = FATTR4_SYMLINK_SUPPORT = 6
- *
- *     Juste one uint32_t is necessay: 2**1 + 2**5 + 2**6 = 2 + 32 + 64 = 98
- *   +---+----+
- *   | 1 | 98 |
- *   +---+----+
- *
- * Other Example
- *
- *     1st bit = FATTR4_LINK_SUPPORT    = 5
- *     2nd bit = FATTR4_SYMLINK_SUPPORT = 6
- *     3rd bit = FATTR4_MODE            = 33
- *     4th bit = FATTR4_OWNER           = 36
- *
- *     Two uint32_t will be necessary there:
- *            #1 = 2**5 + 2**6 = 32 + 64 = 96
- #            #2 = 2**(33-32) + 2**(36-32) = 2**1 + 2**4 = 2 + 16 = 18 
- *   +---+----+----+
- *   | 2 | 98 | 18 |
- *   +---+----+----+
- *
- */
-
-/* This function converts a list of attributes to a bitmap4 structure */
-void nfs4_list_to_bitmap4(bitmap4 * b, uint_t * plen, uint32_t * pval)
-{
-  uint_t i;
-  uint_t intpos = 0;
-  uint_t bitpos = 0;
-  uint_t val = 0;
-  /* Both uint32 int the bitmap MUST be allocated */
-  b->bitmap4_val[0] = 0;
-  b->bitmap4_val[1] = 0;
-  b->bitmap4_val[2] = 0;
-
-  for(i = 0; i < *plen; i++)
-    {
-      intpos = pval[i] / 32;
-      bitpos = pval[i] % 32;
-      val = 1 << bitpos;
-      b->bitmap4_val[intpos] |= val;
-
-      if(intpos == 0)
-        b->bitmap4_len = 1;
-      else if(intpos == 1)
-        b->bitmap4_len = 2;
-      else if(intpos == 2)
-        b->bitmap4_len = 3;
-    }
-  LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u   Val = %u|%u|%u",
-               b->bitmap4_len,
-               b->bitmap4_len >= 1 ? b->bitmap4_val[0] : 0,
-               b->bitmap4_len >= 2 ? b->bitmap4_val[1] : 0,
-               b->bitmap4_len >= 3 ? b->bitmap4_val[2] : 0);
-}                               /* nfs4_list_to_bitmap4 */
+} /* str2utf8 */
 
 /*
  * Conversion of attributes
  */
 
 /**
+ * @brief Convert some FSAL Attributes to NFSv3 attributes
  *
- * nfs3_FSALattr_To_PartialFattr: Converts FSAL Attributes to NFSv3 attributes.
+ * This function fills in the fields in the fattr3 structure with the
+ * FSAL attribute values specified by 'want'.
  *
- * Fill in the fields in the fattr3 structure which have matching
- * attribute bits set. Caller must explictly specify which bits it expects
- * to avoid misunderstandings.
+ * @param[in]  FSAL_attr FSAL attribute structure
+ * @param[in]  want      Attributes to be copied into output
+ * @param[out] Fattr     Buffer for NFSv3 attributes
  *
- * @param FSAL_attr [IN]  pointer to FSAL attributes.
- * @param want      [IN]  attributes which MUST be copied into output
- * @param Fattr     [OUT] pointer to NFSv3 attributes. 
- *
- * @return 1 if successful, 0 otherwise.
+ * @retval TRUE if successful.
+ * @retval FALSE otherwise.
  *
  */
-int 
-nfs3_FSALattr_To_PartialFattr(const fsal_attrib_list_t * FSAL_attr,
+bool_t
+nfs3_FSALattr_To_PartialFattr(const fsal_attrib_list_t *FSAL_attr,
                               fsal_attrib_mask_t want,
-                              fattr3 * Fattr)
+                              fattr3 *Fattr)
 {
   if(FSAL_attr == NULL || Fattr == NULL)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
-                   "%s: FSAL_attr=%p, Fattr=%p",
-                   __func__, FSAL_attr, Fattr);
-      return 0;
+                   "FSAL_attr=%p, Fattr=%p",
+                   FSAL_attr, Fattr);
+      return FALSE;
     }
 
   if((FSAL_attr->asked_attributes & want) != want)
@@ -2136,7 +1940,7 @@ nfs3_FSALattr_To_PartialFattr(const fsal_attrib_list_t * FSAL_attr,
                    "%s: Caller wants 0x%llx, we only have 0x%llx - missing 0x%llx",
                    __func__, want, FSAL_attr->asked_attributes, 
                    (FSAL_attr->asked_attributes & want) ^ want);
-      return 0;
+      return FALSE;
     }
 
   if(FSAL_attr->asked_attributes & FSAL_ATTR_TYPE)
@@ -2172,19 +1976,11 @@ nfs3_FSALattr_To_PartialFattr(const fsal_attrib_list_t * FSAL_attr,
           Fattr->type = NF3SOCK;
           break;
 
-        case FSAL_TYPE_JUNCTION:
-          /* Should not occur */
-          LogFullDebug(COMPONENT_NFSPROTO,
-                       "nfs3_FSALattr_To_Fattr: FSAL_attr->type = %d",
-                       FSAL_attr->type);
-          Fattr->type = 0;
-          return 0;
-
         default:
           LogEvent(COMPONENT_NFSPROTO,
                        "nfs3_FSALattr_To_Fattr: Bogus type = %d",
                        FSAL_attr->type);
-          return 0;
+          return FALSE;
         }
     }
 
@@ -2223,97 +2019,95 @@ nfs3_FSALattr_To_PartialFattr(const fsal_attrib_list_t * FSAL_attr,
       Fattr->ctime.nseconds = FSAL_attr->ctime.nseconds;
     }
 
-  return 1;
-}                         /* nfs3_FSALattr_To_PartialFattr */
+  return TRUE;
+} /* nfs3_FSALattr_To_PartialFattr */
 
 /**
+ * @brief Converts FSAL Attributes to NFSv3 attributes
  *
- * nfs3_FSALattr_To_Fattr: Converts FSAL Attributes to NFSv3 attributes.
+ * Converts all FSAL attributes in a structure to NFSv3 attributes.
+ * The caller is expecting the full complement of FSAL attributes to
+ * fill in all the fields in the fattr3 structure.
  *
- * Converts FSAL Attributes to NFSv3 attributes.
- * The callee is expecting the full compliment of FSAL attributes to fill
- * in all the fields in the fattr3 structure.
+ * @param[in]  export    The related export entry
+ * @param[in]  FSAL_attr FSAL attributes
+ * @param[out] Fattr     Buffer for NFSv3 attributes
  *
- * @param pexport   [IN]  the related export entry
- * @param FSAL_attr [IN]  pointer to FSAL attributes.
- * @param Fattr     [OUT] pointer to NFSv3 attributes. 
- *
- * @return 1 if successful, 0 otherwise.
+ * @retval TRUE if successful.
+ * @retval FALSE otherwise.
  *
  */
-int nfs3_FSALattr_To_Fattr(exportlist_t * pexport,      /* In: the related export entry */
-                           const fsal_attrib_list_t * FSAL_attr,      /* In: file attributes */
-                           fattr3 * Fattr)      /* Out: file attributes */
+bool_t nfs3_FSALattr_To_Fattr(exportlist_t *export,
+                              const fsal_attrib_list_t *FSAL_attr,
+                              fattr3 *Fattr)
 {
   if(FSAL_attr == NULL || Fattr == NULL)
     {
       LogFullDebug(COMPONENT_NFSPROTO,
                    "nfs3_FSALattr_To_Fattr: FSAL_attr=%p, Fattr=%p",
                    FSAL_attr, Fattr);
-      return 0;
+      return FALSE;
     }
 
-  if(!nfs3_FSALattr_To_PartialFattr(FSAL_attr, 
-                                    FSAL_ATTR_TYPE| FSAL_ATTR_MODE | FSAL_ATTR_NUMLINKS |
-                                    FSAL_ATTR_OWNER | FSAL_ATTR_GROUP | FSAL_ATTR_SIZE |
+  if(!nfs3_FSALattr_To_PartialFattr(FSAL_attr,
+                                    FSAL_ATTR_TYPE      | FSAL_ATTR_MODE   |
+                                    FSAL_ATTR_NUMLINKS  | FSAL_ATTR_OWNER  |
+                                    FSAL_ATTR_GROUP     | FSAL_ATTR_SIZE   |
                                     FSAL_ATTR_SPACEUSED | FSAL_ATTR_RAWDEV |
-                                    FSAL_ATTR_ATIME | FSAL_ATTR_MTIME | FSAL_ATTR_CTIME,
+                                    FSAL_ATTR_ATIME     | FSAL_ATTR_MTIME  |
+                                    FSAL_ATTR_CTIME,
                                     Fattr))
-    return 0;
+    return FALSE;
 
-  /* in NFSv3, we only keeps fsid.major, casted into an nfs_uint64 */
-  Fattr->fsid = (nfs3_uint64) pexport->filesystem_id.major;
-  LogFullDebug(COMPONENT_NFSPROTO,
-               "%s: fsid.major = %#llX (%llu), fsid.minor = %#llX (%llu), nfs3_fsid = %#llX (%llu)",
-               __func__,
-               pexport->filesystem_id.major, pexport->filesystem_id.major,
-               pexport->filesystem_id.minor, pexport->filesystem_id.minor, Fattr->fsid,
-               Fattr->fsid);
-  return 1;
+  /* in NFSv3, we only keep fsid.major */
+  Fattr->fsid = export->filesystem_id.major;
+
+  return TRUE;
 }
 
 /**
- * 
- * nfs2_Sattr_To_FSALattr: Converts NFSv2 Set Attributes to FSAL attributes.
- * 
- * Converts NFSv2 Set Attributes to FSAL attributes.
  *
- * @param FSAL_attr [IN]  pointer to FSAL attributes.
- * @param Fattr     [OUT] pointer to NFSv2 set attributes. 
- * 
- * @return 1 if successful, 0 otherwise. 
+ * @brief Converts NFSv2 Set Attributes to FSAL attributes.
+ *
+ * This function converts NFSv2 Set Attributes to FSAL attributes.
+ *
+ * @param[out]  FSAL_attr Buffer for FSAL attributes
+ * @param[in]   sattr     NFSv2 set attributes
+ *
+ * @retval TRUE if successful.
+ * @retval FALSE otherwise.
  *
  */
-int nfs2_Sattr_To_FSALattr(fsal_attrib_list_t * pFSAL_attr,     /* Out: file attributes */
-                           sattr2 * Fattr)      /* In: file attributes */
+bool_t nfs2_Sattr_To_FSALattr(fsal_attrib_list_t *FSAL_attr,
+                              sattr2 *sttr)
 {
   struct timeval t;
 
-  FSAL_CLEAR_MASK(pFSAL_attr->asked_attributes);
+  FSAL_CLEAR_MASK(FSAL_attr->asked_attributes);
 
-  if(Fattr->mode != (unsigned int)-1)
+  if(sattr->mode != (unsigned int)-1)
     {
-      pFSAL_attr->mode = unix2fsal_mode(Fattr->mode);
+      FSAL_attr->mode = unix2fsal_mode(sattr->mode);
       FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_MODE);
     }
 
-  if(Fattr->uid != (unsigned int)-1)
+  if(sattr->uid != (unsigned int)-1)
     {
-      pFSAL_attr->owner = Fattr->uid;
+      FSAL_attr->owner = sattr->uid;
       FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_OWNER);
     }
 
-  if(Fattr->gid != (unsigned int)-1)
+  if(sattr->gid != (unsigned int)-1)
     {
-      pFSAL_attr->group = Fattr->gid;
+      FSAL_attr->group = sattr->gid;
       FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_GROUP);
     }
 
-  if(Fattr->size != (unsigned int)-1)
+  if(xattr->size != (unsigned int)-1)
     {
       /* Both FSAL_ATTR_SIZE and FSAL_ATTR_SPACEUSED are to be managed */
-      pFSAL_attr->filesize = (fsal_size_t) Fattr->size;
-      pFSAL_attr->spaceused = (fsal_size_t) Fattr->size;
+      FSAL_attr->filesize = sattr->size;
+      FSAL_attr->spaceused = sattr->size;
       FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_SIZE);
       FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_SPACEUSED);
     }
@@ -2326,10 +2120,10 @@ int nfs2_Sattr_To_FSALattr(fsal_attrib_list_t * pFSAL_attr,     /* Out: file att
     {
       gettimeofday(&t, NULL);
 
-      pFSAL_attr->atime.seconds = pFSAL_attr->mtime.seconds = t.tv_sec;
-      pFSAL_attr->atime.nseconds = pFSAL_attr->mtime.nseconds = 0 ;
-      FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_ATIME);
-      FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_MTIME);
+      FSAL_attr->atime.seconds = FSAL_attr->mtime.seconds = t.tv_sec;
+      FSAL_attr->atime.nseconds = FSAL_attr->mtime.nseconds = 0 ;
+      FSAL_SET_MASK(FSAL_attr->asked_attributes, FSAL_ATTR_ATIME);
+      FSAL_SET_MASK(FSAL_attr->asked_attributes, FSAL_ATTR_MTIME);
     }
   else
     {
@@ -2337,443 +2131,292 @@ int nfs2_Sattr_To_FSALattr(fsal_attrib_list_t * pFSAL_attr,     /* Out: file att
 
       if(Fattr->atime.seconds != (unsigned int)-1)
         {
-          pFSAL_attr->atime.seconds = Fattr->atime.seconds;
+          FSAL_attr->atime.seconds = Fattr->atime.seconds;
 
           if(Fattr->atime.seconds != (unsigned int)-1)
-            pFSAL_attr->atime.nseconds = Fattr->atime.useconds * 1000;
+            FSAL_attr->atime.nseconds = sattr->atime.useconds * 1000;
           else
-            pFSAL_attr->atime.nseconds = 0;     /* ignored */
+            FSAL_attr->atime.nseconds = 0;     /* ignored */
 
-          FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_ATIME);
+          FSAL_SET_MASK(FSAL_attr->asked_attributes, FSAL_ATTR_ATIME);
         }
 
       /* set mtime to client */
 
-      if(Fattr->mtime.seconds != (unsigned int)-1)
+      if(sattr->mtime.seconds != (unsigned int)-1)
         {
-          pFSAL_attr->mtime.seconds = Fattr->mtime.seconds;
+          FSAL_attr->mtime.seconds = sattr->mtime.seconds;
 
-          if(Fattr->mtime.seconds != (unsigned int)-1)
-            pFSAL_attr->mtime.nseconds = Fattr->mtime.useconds * 1000;
+          if(sattr->mtime.seconds != (unsigned int)-1)
+            FSAL_attr->mtime.nseconds = sattr->mtime.useconds * 1000;
           else
-            pFSAL_attr->mtime.nseconds = 0;     /* ignored */
+            FSAL_attr->mtime.nseconds = 0;     /* ignored */
 
-          FSAL_SET_MASK(pFSAL_attr->asked_attributes, FSAL_ATTR_MTIME);
+          FSAL_SET_MASK(FSAL_attr->asked_attributes, FSAL_ATTR_MTIME);
         }
     }
 
   return 1;
-}                               /* nfs2_Sattr_To_FSALattr */
+} /* nfs2_Sattr_To_FSALattr */
 
 /**
  *
- * nfs4_Fattr_Check_Access: checks if attributes have READ or WRITE access.
+ * @bref Check access for attributes
  *
- * Checks if attributes have READ or WRITE access.
+ * Take an access specifier and check if the supplied attributes allow
+ * the access specified.
  *
- * @param Fattr      [IN] pointer to NFSv4 attributes.
- * @param access     [IN] access to be checked, either FATTR4_ATTR_READ or FATTR4_ATTR_WRITE
+ * @param[in] Fattr  NFSv4 attributes
+ * @param[in] access Access to be checked, either FATTR4_ATTR_READ
+ *                   or FATTR4_ATTR_WRITE
  *
- * @return 1 if successful, 0 otherwise.
+ * @retval TRUE if successful.
+ * @retval FALSE otherwise.
  *
  */
 
-int nfs4_Fattr_Check_Access(fattr4 * Fattr, int access)
+bool_t nfs4_Fattr_Check_Access(fattr4 *Fattr, int access)
 {
-  unsigned int i = 0;
+     return nfs4_Fattr_Check_Access_Bitmap(Fattr->attrmask,
+                                           access);
+} /* nfs4_Fattr_Check_Access */
 
-  uint32_t attrmasklist[FATTR4_MOUNTED_ON_FILEID];      /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen = 0;
 
-  /* Parameter sanity check */
-  if(Fattr == NULL)
-    return 0;
+/**
+ *
+ * @bref Check access for attributes
+ *
+ * Take an access specifier and check if the attributes specified in
+ * the supplied bitmap allow the access requested.
+ *
+ * @param[in] bitmap NFSv4 attribute mask
+ * @param[in] access Access to be checked, either FATTR4_ATTR_READ
+ *                   or FATTR4_ATTR_WRITE
+ *
+ * @retval TRUE if successful.
+ * @retval FALSE otherwise.
+ *
+ */
+bool_t nfs4_Fattr_Check_Access_Bitmap(bitmap4 *bitmap, int access)
+{
+     /* Index of the current word in the attribute mask */
+     uint32_t mask_word = 0;
+     /* Index of the current bit in the attribute mask */
+     unsigned mask_bit = 0;
 
-  if(access != FATTR4_ATTR_READ && access != FATTR4_ATTR_WRITE)
-    return 0;
+     /* Parameter sanity check */
+     if (Fattr == NULL) {
+          return 0;
+     }
 
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(&(Fattr->attrmask), &attrmasklen, attrmasklist);
+     if (access != FATTR4_ATTR_READ && access != FATTR4_ATTR_WRITE)
+          return 0;
 
-  for(i = 0; i < attrmasklen; i++)
-    {
-#ifdef _USE_NFS4_1
-      if(attrmasklist[i] > FATTR4_FS_CHARSET_CAP)
-#else
-      if(attrmasklist[i] > FATTR4_MOUNTED_ON_FILEID)
-#endif
-        {
-          /* Erroneous value... skip */
-          continue;
-        }
+     for (mask_word  = 0, mask_bit = 0;
+          mask_word < bitmap->bitmap4_len;
+          (mask_bit == 31 ? mask_bit = 0 : ++mask_bit) || ++mask_word) {
+          /* The number of the attribute corresponding to the current
+             word and bit. */
+          uint32_t attribute_to_check = mask_bit + mask_word * 32;
+          if (!(bitmap.bitmap4_val[mask_word] & (1 << mask_bit))) {
+               continue;
+          }
 
-      if(((int)fattr4tab[attrmasklist[i]].access & access) != access)
-        return 0;
-    }
+          if (attribute_to_check > FATTR4_FS_CHARSET_CAP) {
+               /* Nonexistent attribute */
+               return FALSE;
+          }
 
-  return 1;
+          if (!(fattr4tab[attribute_to_check].access & access)) {
+               /* The requested access is not allowed. */
+               return FALSE;
+          }
+     }
+
+     /* We passed the gauntlet */
+     return TRUE;
 }                               /* nfs4_Fattr_Check_Access */
 
 /**
+ * @brief Remove unsupported attributes from an attribute mask
  *
- * nfs4_Fattr_Check_Access_Bitmap: checks if attributes bitmaps have READ or WRITE access.
+ * This function clears all the bits in the supplied attribute mask
+ * corresponding to unsupported attributes.
  *
- * Checks if attributes have READ or WRITE access.
+ * @param[in] bitmap NFSv4 attribute mask
  *
- * @param pbitmap    [IN] pointer to NFSv4 attributes.
- * @param access     [IN] access to be checked, either FATTR4_ATTR_READ or FATTR4_ATTR_WRITE
- *
- * @return 1 if successful, 0 otherwise.
- *
+ * @retval TRUE if all of the attributes are supported.
+ * @retval FALSE if unsupportedattributes were found.
  */
-
-int nfs4_Fattr_Check_Access_Bitmap(bitmap4 * pbitmap, int access)
+bool_t nfs4_bitmap4_Remove_Unsupported(bitmap4 *bitmap)
 {
-  unsigned int i = 0;
-#ifdef _USE_NFS4_1
-#define MAXATTR FATTR4_FS_CHARSET_CAP
-#else
-#define MAXATTR FATTR4_MOUNTED_ON_FILEID
-#endif
-  uint32_t attrmasklist[MAXATTR];
-  uint32_t attrmasklen = 0;
+     /* TRUE until we find an unsupported attribute */
+     bool_t allsupp = TRUE;
+     /* Index of the current word in the attribute mask */
+     uint32_t mask_word = 0;
+     /* Index of the current bit in the attribute mask */
+     unsigned mask_bit = 0;
 
-  /* Parameter sanity check */
-  if(pbitmap == NULL)
-    return 0;
+     /* Parameter sanity check */
+     if (bitmap == NULL) {
+          return FALSE;
+     }
 
-  if(access != FATTR4_ATTR_READ && access != FATTR4_ATTR_WRITE)
-    return 0;
+     for (mask_word  = 0, mask_bit = 0;
+          mask_word < bitmap->bitmap4_len;
+          (mask_bit == 31 ? mask_bit = 0 : ++mask_bit) || ++mask_word) {
+          /* The number of the attribute corresponding to the current
+             word and bit. */
+          uint32_t attribute_to_check = mask_bit + mask_word * 32;
+          /* If a bit is set */
+          if ((bitmap.bitmap4_val[mask_word] & (1 << mask_bit)) &&
+              /* And it is either higher than the highest supported bit */
+              ((attribute_to_check > FATTR4_FS_CHARSET_CAP) ||
+               /* Or listed as not supported */
+               !(fattr4tab[attribute_to_check].supported))) {
+               /* Clear the bit and flag the error. */
+               bitmap.bitmap4_val[mask_word] &= ~(1 << mask_bit);
+               allsup = FALSE;
+          }
+     }
 
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(pbitmap, &attrmasklen, attrmasklist);
-
-  for(i = 0; i < attrmasklen; i++)
-    {
-      if(attrmasklist[i] > MAXATTR)
-        {
-          /* Erroneous value... skip */
-          continue;
-        }
-
-      if(((int)fattr4tab[attrmasklist[i]].access & access) != access)
-        return 0;
-    }
-
-  return 1;
-}                               /* nfs4_Fattr_Check_Access */
-
-/**
- *
- * nfs4_bitmap4_Remove_Unsupported: removes unsupported attributes from bitmap4
- *
- * Removes unsupported attributes from bitmap4
- *
- * @param pbitmap    [IN] pointer to NFSv4 attributes's bitmap.
- *
- * @return 1 if successful, 0 otherwise.
- *
- */
-int nfs4_bitmap4_Remove_Unsupported(bitmap4 * pbitmap )
-{
-  uint_t i = 0;
-  uint_t val = 0;
-  uint_t offset = 0;
-  uint fattr4tabidx = 0;
-
-  uint32_t bitmap_val[3] ;
-  bitmap4 bout ;
-  int allsupp = 1;
-
-  memset(bitmap_val, 0, 3 * sizeof(uint32_t));
-
-  bout.bitmap4_val = bitmap_val ;
-  bout.bitmap4_len = pbitmap->bitmap4_len  ;
-
-  if(pbitmap->bitmap4_len > 0)
-    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u Val = %u|%u",
-                 pbitmap->bitmap4_len, pbitmap->bitmap4_val[0],
-                 pbitmap->bitmap4_val[1]);
-  else
-    LogFullDebug(COMPONENT_NFS_V4, "Bitmap: Len = %u ... ",
-                 pbitmap->bitmap4_len);
-
-  for(offset = 0; offset < pbitmap->bitmap4_len; offset++)
-    {
-      for(i = 0; i < 32; i++)
-        {
-          fattr4tabidx = i+32*offset;
-#ifdef _USE_NFS4_1
-          if (fattr4tabidx > FATTR4_FS_CHARSET_CAP)
-#else
-          if (fattr4tabidx > FATTR4_MOUNTED_ON_FILEID)
-#endif
-             goto exit;
-
-          val = 1 << i;         /* Compute 2**i */
-          if(pbitmap->bitmap4_val[offset] & val)
-           {
-             if( fattr4tab[fattr4tabidx].supported ) /* keep only supported stuff */
-               bout.bitmap4_val[offset] |= val ;
-           }
-        }
-    }
-
-exit:
-  memcpy(pbitmap->bitmap4_val, bout.bitmap4_val,
-         bout.bitmap4_len * sizeof(uint32_t));
-
-  return allsupp;
-}                               /* nfs4_Fattr_Bitmap_Remove_Unsupported */
+     return allsupp;
+} /* nfs4_Fattr_Bitmap_Remove_Unsupported */
 
 
 /**
+ * @brief Check if all attributes are supported
  *
- * nfs4_Fattr_Supported: Checks if an attribute is supported.
+ * Checks that all attributes listed are supported without modifying
+ * the mask in any way.
  *
- * Checks if an attribute is supported.
+ * @param[in] Fattr The attributex to check
  *
- * @param Fattr      [IN] pointer to NFSv4 attributes.
- *
- * @return 1 if successful, 0 otherwise.
+ * @retval TRUE if all attributes are supported.
+ * @retval FALSE otherwise.
  *
  */
-
-int nfs4_Fattr_Supported(fattr4 * Fattr)
+bool_t nfs4_Fattr_Supported(fattr4 *Fattr)
 {
-  unsigned int i = 0;
-
-  uint32_t attrmasklist[FATTR4_MOUNTED_ON_FILEID];      /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen = 0;
-
-  /* Parameter sanity check */
-  if(Fattr == NULL)
-    return 0;
-
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(&(Fattr->attrmask), &attrmasklen, attrmasklist);
-
-  for(i = 0; i < attrmasklen; i++)
-    {
-
-#ifndef _USE_NFS4_1
-      if(attrmasklist[i] > FATTR4_MOUNTED_ON_FILEID)
-        {
-          /* Erroneous value... skip */
-          continue;
-        }
-#endif
-
-      LogFullDebug(COMPONENT_NFS_V4,
-                   "nfs4_Fattr_Supported  ==============> %s supported flag=%u | ",
-                   fattr4tab[attrmasklist[i]].name, fattr4tab[attrmasklist[i]].supported);
-
-      if(!fattr4tab[attrmasklist[i]].supported)
-        return 0;
-    }
-
-  return 1;
-}                               /* nfs4_Fattr_Supported */
+     return nfs4_Fattr_Supported_Bitmap(fattr->attrmask);
+} /* nfs4_Fattr_Supported */
 
 /**
+ * @brief Check if all attributes are supported
  *
- * nfs4_Fattr_Supported: Checks if an attribute is supported.
+ * Checks that all attributes in the mask are supported without
+ * modifying the mask in any way.
  *
- * Checks if an attribute is supported.
+ * @param[in] bitmap  The attribute mask to check
  *
- * @param Fattr      [IN] pointer to NFSv4 attributes.
- *
- * @return 1 if successful, 0 otherwise.
+ * @retval TRUE if all attributes are supported.
+ * @retval FALSE otherwise.
  *
  */
-
-int nfs4_Fattr_Supported_Bitmap(bitmap4 * pbitmap)
+bool_t nfs4_Fattr_Supported_Bitmap(bitmap4 *bitmap)
 {
-  unsigned int i = 0;
+     /* Index of the current word in the attribute mask */
+     uint32_t mask_word = 0;
+     /* Index of the current bit in the attribute mask */
+     unsigned mask_bit = 0;
 
-  uint32_t attrmasklist[FATTR4_MOUNTED_ON_FILEID];      /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen = 0;
+     /* Parameter sanity check */
+     if (bitmap == NULL) {
+          return FALSE;
+     }
 
-  /* Parameter sanity check */
-  if(pbitmap == NULL)
-    return 0;
-
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(pbitmap, &attrmasklen, attrmasklist);
-
-  for(i = 0; i < attrmasklen; i++)
-    {
-
-#ifndef _USE_NFS4_1
-      if(attrmasklist[i] > FATTR4_MOUNTED_ON_FILEID)
-        {
-          /* Erroneous value... skip */
-          continue;
-        }
-#endif
-      
-      LogFullDebug(COMPONENT_NFS_V4,
-                   "nfs4_Fattr_Supported  ==============> %s supported flag=%u",
-                   fattr4tab[attrmasklist[i]].name,
-                   fattr4tab[attrmasklist[i]].supported);
-      if(!fattr4tab[attrmasklist[i]].supported)
-        return 0;
-    }
-
-  return 1;
-}                               /* nfs4_Fattr_Supported */
+     for (mask_word  = 0, mask_bit = 0;
+          mask_word < bitmap->bitmap4_len;
+          (mask_bit == 31 ? mask_bit = 0 : ++mask_bit) || ++mask_word) {
+          /* The number of the attribute corresponding to the current
+             word and bit. */
+          uint32_t attribute_to_check = mask_bit + mask_word * 32;
+          /* If a bit is set */
+          if ((bitmap.bitmap4_val[mask_word] & (1 << mask_bit)) &&
+              /* And it is either higher than the highest supported bit */
+              ((attribute_to_check > FATTR4_FS_CHARSET_CAP) ||
+               /* Or listed as not supported */
+               !(fattr4tab[attribute_to_check].supported))) {
+               /* Clear the bit and flag the error. */
+               return FALSE;
+          }
+     }
+} /* nfs4_Fattr_Supported_Bitmap */
 
 /**
+ * @brief Compare sets of NFSv4 attributes
  *
- * nfs4_Fattr_cmp: compares 2 fattr4 buffers.
+ * This function compares Fattr1 and FattrA. It rules them to be equal
+ * if each has the same set of attributes set and each of those
+ * attributes has the same value.
  *
- * Compares 2 fattr4 buffers.
+ * @param[in] Fattr1  A set of NFSv4 attributes
+ * @param[in] FattrA  A set of NFSv4 attributes
  *
- * @param Fattr1      [IN] pointer to NFSv4 attributes.
- * @param Fattr2      [IN] pointer to NFSv4 attributes.
- *
- * @return TRUE if attributes are the same, FALSE otherwise, but -1 if RDATTR_ERROR is set
+ * @retval 1 if attributes are the same.
+ * @retval 0 If they differ.
+ * @retval -1 if RDATTR_ERROR is set or something else bad happens.
  *
  */
-int nfs4_Fattr_cmp(fattr4 * Fattr1, fattr4 * Fattr2)
+int nfs4_Fattr_cmp(fattr4 *Fattr1, fattr4 *FattrA)
 {
-  uint32_t attrmasklist1[FATTR4_MOUNTED_ON_FILEID];     /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen1 = 0;
-  u_int LastOffset;
-  uint32_t attrmasklist2[FATTR4_MOUNTED_ON_FILEID];     /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen2 = 0;
-  uint32_t i;
-  uint32_t k;
-  unsigned int cmp = 0;
-  u_int len = 0;
-  uint32_t attribute_to_set = 0;
+     /* Index of the current word in the attribute mask */
+     uint32_t mask_word = 0;
+     /* Index of the current bit in the attribute mask */
+     unsigned mask_bit = 0;
+     /* Offsets into the attribute data */
+     size_t offset1 = 0, offsetA = 0;
 
-  if(Fattr1 == NULL)
-    return FALSE;
+     if ((Fattr1 == NULL) || (FattrA == NULL)) {
+          return -1;
+     }
 
-  if(Fattr2 == NULL)
-    return FALSE;
+     if ((Fattr1->attrmask.bitmap4_len == 0) &&
+         (FattrA->attrmask.bitmap4_len == 0)) {
+          return 1;
+     }
 
-  if(Fattr1->attrmask.bitmap4_len != Fattr2->attrmask.bitmap4_len)      /* different mask */
-    return FALSE;
+     if ((Fattr1->attrmask.bitmap4_val == NULL) &&
+         (FattrA->attrmask.bitmap4_val == NULL)) {
+          return -1;
+     }
 
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(&(Fattr1->attrmask), &attrmasklen1, attrmasklist1);
-  nfs4_bitmap4_to_list(&(Fattr2->attrmask), &attrmasklen2, attrmasklist2);
+     for (mask_word  = 0, mask_bit = 0;
+          mask_word < max(Fattr1->attrmask.bitmap4_len,
+                          FattrA->attrmask.bitmap4_len);
+          (mask_bit == 31 ? mask_bit = 0 : ++mask_bit) || ++mask_word) {
+          /* The number of the attribute corresponding to the current
+             word and bit. */
+          uint32_t attribute_to_check = mask_bit + mask_word * 32;
 
-  /* Should not occur, bu this is a sanity check */
-  if(attrmasklen1 != attrmasklen2)
-    return FALSE;
+          if (((Fattr1->attrmask.bitmap4_len < mask_word) &&
+               (FattrA->attrmask.bitmap4_val[mask_word] &
+                (1 << mask_bit))) ||
+              ((FattrA->attrmask.bitmap4_len < mask_word) &&
+               (Fattr1->attrmask.bitmap4_val[mask_word] &
+                (1 << mask_bit)))) {
+               /* If one list is longer than the other, the 'extra'
+                  word should be all zeros. */
+               return 0;
+          }
+          /* We can now safely compare the the current two bits in
+             the attribute masks. */
+
+          if ((attribute_to_check == FATTR4_RDATTR_ERROR) &&
+              ((Fattr1->attrmask.bitmap4_val[mask_word] &
+                (1 << mask_bit)) ||
+               (FattrA->attrmask.bitmap4_val[mask_word] &
+                (1 << mask_bit)))) {
+               return -1;
+          }
+     }
 
   for(i = 0; i < attrmasklen1; i++)
-    {
-      if(attrmasklist1[i] != attrmasklist2[i])
-        return 0;
-
-      if(attrmasklist1[i] == FATTR4_RDATTR_ERROR)
-        return -1;
-
-      if(attrmasklist2[i] == FATTR4_RDATTR_ERROR)
-        return -1;
-    }
-
-  cmp = 0;
-  LastOffset = 0;
-  len = 0;
-
-  for(i = 0; i < attrmasklen1; i++)
-    {
-      attribute_to_set = attrmasklist1[i];
-
-      LogFullDebug(COMPONENT_NFS_V4,
-                   "nfs4_Fattr_cmp ==============> %s",
-                   fattr4tab[attribute_to_set].name);
+  {
 
       switch (attribute_to_set)
         {
         case FATTR4_SUPPORTED_ATTRS:
-          memcpy(&len, (char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(u_int));
-          cmp +=
-              memcmp((char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                     (char *)(Fattr2->attr_vals.attrlist4_val + LastOffset),
-                     sizeof(u_int));
-
-          len = htonl(len);
-          LastOffset += sizeof(u_int);
-
-          for(k = 0; k < len; k++)
-            {
-              cmp += memcmp((char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                            (char *)(Fattr2->attr_vals.attrlist4_val + LastOffset),
-                            sizeof(uint32_t));
-              LastOffset += sizeof(uint32_t);
-            }
-
-          break;
-
-        case FATTR4_FILEHANDLE:
-        case FATTR4_OWNER:
-        case FATTR4_OWNER_GROUP:
-          memcpy(&len, (char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(u_int));
-          len = ntohl(len);     /* xdr marshalling on fattr4 */
-          cmp += memcmp((char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                        (char *)(Fattr2->attr_vals.attrlist4_val + LastOffset),
-                        sizeof(u_int));
-          LastOffset += sizeof(u_int);
-          cmp += memcmp((char *)(Fattr1->attr_vals.attrlist4_val + LastOffset),
-                        (char *)(Fattr2->attr_vals.attrlist4_val + LastOffset), len);
-          break;
-
-        case FATTR4_TYPE:
-        case FATTR4_FH_EXPIRE_TYPE:
-        case FATTR4_CHANGE:
-        case FATTR4_SIZE:
-        case FATTR4_LINK_SUPPORT:
-        case FATTR4_SYMLINK_SUPPORT:
-        case FATTR4_NAMED_ATTR:
-        case FATTR4_FSID:
-        case FATTR4_UNIQUE_HANDLES:
-        case FATTR4_LEASE_TIME:
-        case FATTR4_RDATTR_ERROR:
-        case FATTR4_ACL:
-        case FATTR4_ACLSUPPORT:
-        case FATTR4_ARCHIVE:
-        case FATTR4_CANSETTIME:
-        case FATTR4_CASE_INSENSITIVE:
-        case FATTR4_CASE_PRESERVING:
-        case FATTR4_CHOWN_RESTRICTED:
-        case FATTR4_FILEID:
-        case FATTR4_FILES_AVAIL:
-        case FATTR4_FILES_FREE:
-        case FATTR4_FILES_TOTAL:
-        case FATTR4_FS_LOCATIONS:
-        case FATTR4_HIDDEN:
-        case FATTR4_HOMOGENEOUS:
-        case FATTR4_MAXFILESIZE:
-        case FATTR4_MAXLINK:
-        case FATTR4_MAXNAME:
-        case FATTR4_MAXREAD:
-        case FATTR4_MAXWRITE:
-        case FATTR4_MIMETYPE:
-        case FATTR4_MODE:
-        case FATTR4_NO_TRUNC:
-        case FATTR4_NUMLINKS:
-        case FATTR4_QUOTA_AVAIL_HARD:
-        case FATTR4_QUOTA_AVAIL_SOFT:
-        case FATTR4_QUOTA_USED:
-        case FATTR4_RAWDEV:
-        case FATTR4_SPACE_AVAIL:
-        case FATTR4_SPACE_FREE:
-        case FATTR4_SPACE_TOTAL:
-        case FATTR4_SPACE_USED:
-        case FATTR4_SYSTEM:
-        case FATTR4_TIME_ACCESS:
-        case FATTR4_TIME_ACCESS_SET:
-        case FATTR4_TIME_BACKUP:
-        case FATTR4_TIME_CREATE:
-        case FATTR4_TIME_DELTA:
         case FATTR4_TIME_METADATA:
         case FATTR4_TIME_MODIFY:
         case FATTR4_TIME_MODIFY_SET:
@@ -2952,329 +2595,255 @@ static int nfs4_decode_acl(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr, u_in
 #endif                          /* _USE_NFS4_ACL */
 
 /**
- * 
- * nfs4_attrmap_To_FSAL_attrmask: Converts NFSv4 attribute bitmap to
- * FSAL attribute mask.
- * 
- * Converts NFSv4 attributes buffer to a FSAL attributes structure.
+ * @brief Convert NFSv4 attribute bitmap to FSAL attribute mask.
  *
- * @param attrmap  [IN]   pointer to NFSv4 attribute bitmap. 
- * @param attrmask [OUT]  pointer to FSAL attribute mask.
- * 
+ * This function converts an NFSv4 attribute map to a FSAL attribute
+ * mask.
+ *
+ * @param[in]  attrmap  NFSv4 attribute bitmap
+ * @param[out] attrmask FSAL attribute mask
+ *
  * @return NFS4_OK if successful, NFS4ERR codes if not.
  *
  */
-int nfs4_attrmap_to_FSAL_attrmask(bitmap4 attrmap, fsal_attrib_mask_t* attrmask)
+nfsstat4
+nfs4_attrmap_to_FSAL_attrmask(bitmap4 attrmap, fsal_attrib_mask_t* attrmask)
 {
-  unsigned int offset = 0;
-  unsigned int i = 0;
-  char __attribute__ ((__unused__)) funcname[] = "nfs4_FattrToSattr";
+     size_t offset = 0;
+     size_t i = 0;
+     char __attribute__ ((__unused__)) funcname[] = "nfs4_FattrToSattr";
 
-  for(offset = 0; offset < attrmap.bitmap4_len; offset++)
-    {
-      for(i = 0; i < 32; i++)
-        {
-          if(attrmap.bitmap4_val[offset] & (1 << i)) {
-            uint32_t val = i + 32 * offset;
-            switch (val)
-              {
-              case FATTR4_TYPE:
-                *attrmask |= FSAL_ATTR_TYPE;
-                break;
-              case FATTR4_FILEID:
-                *attrmask |= FSAL_ATTR_FILEID;
-                break;
-              case FATTR4_FSID:
-                *attrmask |= FSAL_ATTR_FSID;
-                break;
-              case FATTR4_NUMLINKS:
-                *attrmask |= FSAL_ATTR_NUMLINKS;
-                break;
-              case FATTR4_SIZE:
-                *attrmask |= FSAL_ATTR_SIZE;
-                break;
-              case FATTR4_MODE:
-                *attrmask |= FSAL_ATTR_MODE;
-                break;
-              case FATTR4_OWNER:
-                *attrmask |= FSAL_ATTR_OWNER;
-                break;
-              case FATTR4_OWNER_GROUP:
-                *attrmask |= FSAL_ATTR_GROUP;
-                break;
-              case FATTR4_CHANGE:
-                *attrmask |= FSAL_ATTR_CHGTIME;
-                break;
-              case FATTR4_RAWDEV:
-                *attrmask |= FSAL_ATTR_RAWDEV;
-                break;
-              case FATTR4_SPACE_USED:
-                *attrmask |= FSAL_ATTR_SPACEUSED;
-                break;
-              case FATTR4_TIME_ACCESS:
-                *attrmask |= FSAL_ATTR_ATIME;
-                break;
-              case FATTR4_TIME_METADATA:
-                *attrmask |= FSAL_ATTR_CTIME;
-                break;
-              case FATTR4_TIME_MODIFY:
-                *attrmask |= FSAL_ATTR_MTIME;
-                break;
-              case FATTR4_TIME_ACCESS_SET:
-                *attrmask |= FSAL_ATTR_ATIME;
-                break;
-              case FATTR4_TIME_MODIFY_SET:
-                *attrmask |= FSAL_ATTR_MTIME;
-                break;
-              case FATTR4_FILEHANDLE:
-                LogFullDebug(COMPONENT_NFS_V4,
-                             "Filehandle attribute requested on readdir!");
-                /* pFSAL_attr->asked_attributes |= FSAL_ATTR_FILEHANDLE; */
-                break;
+     for(offset = 0; offset < attrmap.bitmap4_len; offset++) {
+          for(i = 0; i < 32; i++) {
+               if (attrmap.bitmap4_val[offset] & (1 << i)) {
+                    uint32_t val = i + 32 * offset;
+                    switch (val) {
+                    case FATTR4_TYPE:
+                         *attrmask |= FSAL_ATTR_TYPE;
+                         break;
+                    case FATTR4_FILEID:
+                         *attrmask |= FSAL_ATTR_FILEID;
+                         break;
+                    case FATTR4_FSID:
+                         *attrmask |= FSAL_ATTR_FSID;
+                         break;
+                    case FATTR4_NUMLINKS:
+                         *attrmask |= FSAL_ATTR_NUMLINKS;
+                         break;
+                    case FATTR4_SIZE:
+                         *attrmask |= FSAL_ATTR_SIZE;
+                         break;
+                    case FATTR4_MODE:
+                         *attrmask |= FSAL_ATTR_MODE;
+                         break;
+                    case FATTR4_OWNER:
+                         *attrmask |= FSAL_ATTR_OWNER;
+                         break;
+                    case FATTR4_OWNER_GROUP:
+                         *attrmask |= FSAL_ATTR_GROUP;
+                         break;
+                    case FATTR4_CHANGE:
+                         *attrmask |= FSAL_ATTR_CHGTIME;
+                         break;
+                    case FATTR4_RAWDEV:
+                         *attrmask |= FSAL_ATTR_RAWDEV;
+                         break;
+                    case FATTR4_SPACE_USED:
+                         *attrmask |= FSAL_ATTR_SPACEUSED;
+                         break;
+                    case FATTR4_TIME_ACCESS:
+                         *attrmask |= FSAL_ATTR_ATIME;
+                         break;
+                    case FATTR4_TIME_METADATA:
+                         *attrmask |= FSAL_ATTR_CTIME;
+                         break;
+                    case FATTR4_TIME_MODIFY:
+                         *attrmask |= FSAL_ATTR_MTIME;
+                         break;
+                    case FATTR4_TIME_ACCESS_SET:
+                         *attrmask |= FSAL_ATTR_ATIME;
+                         break;
+                    case FATTR4_TIME_MODIFY_SET:
+                         *attrmask |= FSAL_ATTR_MTIME;
+                         break;
+                    case FATTR4_FILEHANDLE:
+                         LogFullDebug(COMPONENT_NFS_V4,
+                                      "Filehandle attribute requested "
+                                      "on readdir!");
+                         break;
 #ifdef _USE_NFS4_ACL
-              case FATTR4_ACL:
-                *attrmask |= FSAL_ATTR_ACL;
-                break;
-#endif                          /* _USE_NFS4_ACL */
-              }
+                    case FATTR4_ACL:
+                         *attrmask |= FSAL_ATTR_ACL;
+                         break;
+#endif /* _USE_NFS4_ACL */
+                    }
+               }
           }
-        }
-    }
-  return NFS4_OK;
+     }
+     return NFS4_OK;
 }                               /* nfs4_Fattr_To_FSAL_attr */
 
-static int nfstime4_to_fsal_time(fsal_time_t *ts, const char *attrval)
+/**
+ * @brief Decode type
+ *
+ * This function decodes the type of a file from the attributes
+ * buffer.
+ *
+ * @param[in,out] xdr    Stream to which to write the attribute
+ * @param[out]     type   Type of the file
+ *
+ * @retval TRUE on success
+ * @retval FALSE on failure
+ */
+
+static inline bool_t
+decode_type(XDR *xdr,
+            fsal_nodetype_t *type)
 {
-  int LastOffset = 0;
-  uint64_t seconds;
-  uint32_t nseconds;
+     nfs_ftype4 nfs_type = 0;
 
-  memcpy(&seconds, attrval + LastOffset, sizeof(seconds));
-  LastOffset += sizeof(seconds) ;
+     xdr_nfs_ftype4(xdr, &nfs_type);
 
-  memcpy(&nseconds, attrval + LastOffset, sizeof(nseconds));
-  LastOffset += sizeof( nseconds ) ;
+     switch (nfs_type) {
+     case NF4REG:
+          *type = FSAL_TYPE_FILE;
+          break;
 
-  ts->seconds = (uint32_t) nfs_ntohl64(seconds);
-  ts->nseconds = (uint32_t) ntohl(nseconds);
+     case NF4DIR:
+          *type = FSAL_TYPE_DIR;
+          break;
 
-  return LastOffset; 
+     case NF4BLK:
+          *type = FSAL_TYPE_BLK;
+          break;
+
+     case NF4CHR:
+          *type = FSAL_TYPE_CHR;
+          break;
+
+     case NF4LNK:
+          *type = FSAL_TYPE_LNK;
+          break;
+
+     case NF4SOCK:
+          *type = FSAL_TYPE_SOCK;
+          break;
+
+     case NF4FIFO:
+          *type = FSAL_TYPE_FIFO;
+          break;
+
+     default:
+          return FALSE;
+     }
+
+     return TRUE;
 }
 
-static int settime4_to_fsal_time(fsal_time_t *ts, const char *attrval)
-{
-  time_how4 how;
-  int LastOffset = 0;
-
-  memcpy(&how, attrval + LastOffset , sizeof(how));
-  LastOffset += sizeof(how);
-
-  if(ntohl(how) == SET_TO_SERVER_TIME4)
-    {
-      ts->seconds = time(NULL);   /* Use current server's time */
-      ts->nseconds = 0;
-    }
-  else
-    {
-        LastOffset += nfstime4_to_fsal_time(ts, attrval + LastOffset);
-    }
-
-  return LastOffset;
-}
 
 /**
- * 
- * Fattr4_To_FSAL_attr: Converts NFSv4 attributes buffer to a FSAL attributes structure.
- * 
- * Converts NFSv4 attributes buffer to a FSAL attributes structure.
+ * @brief Convert NFSv4 attributes to an FSAL attributes structure
+ *
+ * This function populates an FSAL attribute list from the supplied
+ * NFsv4 attributes.
  *
  * NB! If the pointer for the handle is provided the memory is not allocated,
  *     the handle's nfs_fh4_val points inside fattr4. The pointer is valid
  *     as long as fattr4 is valid.
  *
- * @param pFSAL_attr [OUT]  pointer to FSAL attributes.
- * @param Fattr      [IN] pointer to NFSv4 attributes. 
- * @param hdl4       [OUT] optional pointer to return NFSv4 file handle
- * 
+ * @param[out] FSAL_attr Buffer for FSAL attributes
+ * @param[in]  Fattr     NFSv4 attributes
+ * @param[out] fh4       Optional pointer to handle
+ *
  * @return NFS4_OK if successful, NFS4ERR codes if not.
  *
  */
-int Fattr4_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr, nfs_fh4 *hdl4)
+nfsstat4 Fattr4_To_FSAL_attr(fsal_attrib_list_t * pFSAL_attr, fattr4 * Fattr, nfs_fh4 *hdl4)
 {
-  u_int LastOffset = 0;
-  unsigned int i = 0;
-  uint32_t attrmasklist[FATTR4_MOUNTED_ON_FILEID];      /* List cannot be longer than FATTR4_MOUNTED_ON_FILEID */
-  uint32_t attrmasklen = 0;
-  uint32_t attribute_to_set = 0;
-  int len;
-  char buffer[MAXNAMLEN];
-  utf8string utf8buffer;
+     /* Current word in the attrmap */
+     uint32_t mask_word = 0;
+     /* Current bit in the current word in the attrmap */
+     unsigned mask_bit = 0;
+     /* The XDR decoding stream */
+     XDR xdr;
 
-  fattr4_type attr_type;
-  fattr4_fsid attr_fsid;
-  fattr4_fileid attr_fileid;
-  fattr4_rdattr_error rdattr_error;
-  fattr4_size attr_size;
-  fattr4_change attr_change;
-  fattr4_numlinks attr_numlinks;
-  fattr4_rawdev attr_rawdev;
-  fattr4_space_used attr_space_used;
-#ifdef _USE_NFS4_ACL
-  int rc;
-#endif
+     if (FSAL_attr == NULL || Fattr == NULL) {
+          return NFS4ERR_BADXDR;
+     }
 
-  if(pFSAL_attr == NULL || Fattr == NULL)
-    return NFS4ERR_BADXDR;
+     /* Check attributes data */
+     if ((Fattr->attr_vals.attrlist4_val == NULL) ||
+         (Fattr->attr_vals.attrlist4_len == 0)) {
+          return NFS4ERR_BADXDR;
+     }
 
-  /* Check attributes data */
-  if((Fattr->attr_vals.attrlist4_val == NULL) ||
-     (Fattr->attr_vals.attrlist4_len == 0))
-    return NFS4ERR_BADXDR;
+     /* Init */
+     FSAL_attr->asked_attributes = 0;
+     xdrmem_create(&xdr, Fattr->attr_vals.attrlist4_val,
+                   Fattr->attr_vals.attrlist4_len,
+                   XDR_DECODE);
 
-  /* Convert the attribute bitmap to an attribute list */
-  nfs4_bitmap4_to_list(&(Fattr->attrmask), &attrmasklen, attrmasklist);
+     for (mask_word  = 0, mask_bit = 0;
+          mask_word < bitmap->bitmap4_len;
+          (mask_bit == 31 ? mask_bit = 0 : ++mask_bit) || ++mask_word) {
+          /* The number of the attribute corresponding to the current
+             word and bit. */
+          uint32_t attribute_to_set = mask_bit + mask_word * 32;
+          /* If a bit is set */
+          if (!(bitmap.bitmap4_val[mask_word] & (1 << mask_bit))) {
+               continue;
+          }
+          if (attribute_to_set > FATTR4_FS_CHARSET_CAP) {
+               return NFS4ERR_ATTRNOTSUP;
+          }
 
-  LogFullDebug(COMPONENT_NFS_V4,
-               "   nfs4_bitmap4_to_list ====> attrmasklen = %d", attrmasklen);
+          switch (attribute_to_set) {
+          case FATTR4_TYPE:
+               if (!decode_type(&xdr, &FSAL_attr->type)) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_TYPE;
+               break;
 
-  /* Init */
-  pFSAL_attr->asked_attributes = 0;
+          case FATTR4_FILEID:
+               if (!xdr_fattr4_fileid(&xdr, &FSAL_attr->fileid)) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_FILEID;
+               break;
 
-  for(i = 0; i < attrmasklen; i++)
-    {
-      attribute_to_set = attrmasklist[i];
+          case FATTR4_FSID:
+               if (!(xdr_fattr4_fsid(&xdr, &FSAL_attr->fsid))) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_FSID;
+               break;
 
-#ifdef _USE_NFS4_1
-      if(attrmasklist[i] > FATTR4_FS_CHARSET_CAP)
-#else
-      if(attrmasklist[i] > FATTR4_MOUNTED_ON_FILEID)
-#endif
-        {
-          /* Erroneous value... skip */
-          continue;
-        }
-      LogFullDebug(COMPONENT_NFS_V4,
-                   "=================> nfs4_Fattr_To_FSAL_attr: i=%u attr=%u", i,
-                   attrmasklist[i]);
-      LogFullDebug(COMPONENT_NFS_V4,
-                   "Flag for Operation = %d|%d is ON,  name  = %s  reply_size = %d",
-                   attrmasklist[i], fattr4tab[attribute_to_set].val,
-                   fattr4tab[attribute_to_set].name,
-                   fattr4tab[attribute_to_set].size_fattr4);
+          case FATTR4_NUMLINKS:
+               if (!(xdr_fattr4_numlinks(&xdr,
+                                         &FSAL_attr->numlinks))) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_NUMLINKS;
+               break;
 
-      switch (attribute_to_set)
-        {
-        case FATTR4_TYPE:
-          memcpy((char *)&attr_type,
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_type));
+          case FATTR4_SIZE:
+               if (!(xdr_fattr4_size(&xdr, &FSAL_attr->filesize))) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
+               break;
 
-          switch (ntohl(attr_type))
-            {
-            case NF4REG:
-              pFSAL_attr->type = FSAL_TYPE_FILE;
-              break;
+          case FATTR4_MODE:
+               if (!(xdr_fattr4_mode(&xdr, &FSAL_attr->mode))) {
+                    return NFS4ERR_BADXDR;
+               }
+               FSAL_attr->asked_attributes |= FSAL_ATTR_MODE;
+               break;
 
-            case NF4DIR:
-              pFSAL_attr->type = FSAL_TYPE_DIR;
-              break;
-
-            case NF4BLK:
-              pFSAL_attr->type = FSAL_TYPE_BLK;
-              break;
-
-            case NF4CHR:
-              pFSAL_attr->type = FSAL_TYPE_CHR;
-              break;
-
-            case NF4LNK:
-              pFSAL_attr->type = FSAL_TYPE_LNK;
-              break;
-
-            case NF4SOCK:
-              pFSAL_attr->type = FSAL_TYPE_SOCK;
-              break;
-
-            case NF4FIFO:
-              pFSAL_attr->type = FSAL_TYPE_FIFO;
-              break;
-
-            default:
-              /* For wanting of a better solution */
-              return NFS4ERR_BADXDR;
-            }                   /* switch( pattr->type ) */
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_TYPE;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          break;
-
-        case FATTR4_FILEID:
-          /* The analog to the inode number. RFC3530 says "a number uniquely identifying the file within the filesystem"
-           * I use hpss_GetObjId to extract this information from the Name Server's handle */
-          memcpy((char *)&attr_fileid,
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_fileid));
-          pFSAL_attr->fileid = nfs_ntohl64(attr_fileid);
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_FILEID;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-
-          break;
-
-        case FATTR4_FSID:
-          memcpy((char *)&attr_fsid,
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_fsid));
-          pFSAL_attr->fsid.major = nfs_ntohl64(attr_fsid.major);
-          pFSAL_attr->fsid.minor = nfs_ntohl64(attr_fsid.minor);
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_FSID;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-
-          break;
-
-        case FATTR4_NUMLINKS:
-          memcpy((char *)&attr_numlinks,
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_numlinks));
-          pFSAL_attr->numlinks = ntohl(attr_numlinks);
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_NUMLINKS;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-
-          break;
-
-        case FATTR4_SIZE:
-          memcpy((char *)&attr_size,
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_size));
-
-          /* Do not forget the XDR marshalling for the fattr4 stuff */
-          pFSAL_attr->filesize = nfs_ntohl64(attr_size);
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_SIZE;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          LogFullDebug(COMPONENT_NFS_V4,
-                       "      SATTR: size seen %zu", (size_t)pFSAL_attr->filesize);
-          break;
-
-        case FATTR4_MODE:
-          memcpy((char *)&(pFSAL_attr->mode),
-                 (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(fattr4_mode));
-
-          /* Do not forget the XDR marshalling for the fattr4 stuff */
-          pFSAL_attr->mode = ntohl(pFSAL_attr->mode);
-
-          pFSAL_attr->asked_attributes |= FSAL_ATTR_MODE;
-          LastOffset += fattr4tab[attribute_to_set].size_fattr4;
-          LogFullDebug(COMPONENT_NFS_V4,
-                       "      SATTR: We see the mode 0%o", pFSAL_attr->mode);
-          break;
-
-        case FATTR4_OWNER:
-          memcpy(&len, (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
-                 sizeof(u_int));
+          case FATTR4_OWNER:
+               memcpy(&len, (char *)(Fattr->attr_vals.attrlist4_val + LastOffset),
+                      sizeof(u_int));
           len = ntohl(len);     /* xdr marshalling on fattr4 */
           LastOffset += sizeof(u_int);
 

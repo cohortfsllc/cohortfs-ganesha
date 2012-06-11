@@ -1367,7 +1367,6 @@ int principal2uid(char *principal, uid_t * puid);
 int gid2name(char *name, gid_t * pgid);
 int name2gid(char *name, gid_t * pgid);
 
-void free_utf8(utf8string * utf8str);
 int utf8dup(utf8string * newstr, utf8string * oldstr);
 int utf82str(char *str, int size, utf8string * utf8str);
 int str2utf8(char *str, utf8string * utf8str);
@@ -1382,8 +1381,6 @@ int gid2utf8(gid_t gid, utf8string * utf8str);
 int utf82gid(utf8string * utf8str, gid_t * Gid);
 
 void nfs4_stringid_split(char *buff, char *uidname, char *domainname);
-
-seqid4 nfs4_NextSeqId(seqid4 seqid);
 
 /* Attributes conversion */
 int nfs2_Sattr_To_FSALattr(fsal_attrib_list_t * pFSAL_attr,     /* Out: file attributes */
@@ -1470,9 +1467,6 @@ int nfs4_FSALattr_To_Fattr(exportlist_t *pexport,
                            compound_data_t *data,
                            nfs_fh4 *objFH,
                            bitmap4 *Bitmap);
-
-void nfs4_list_to_bitmap4(bitmap4 * b, uint_t * plen, uint32_t * pval);
-void nfs4_bitmap4_to_list(bitmap4 * b, uint_t * plen, uint32_t * pval);
 
 int nfs4_bitmap4_Remove_Unsupported(bitmap4 * pbitmap) ;
 

@@ -737,7 +737,7 @@ void nfs4_Compound_Free(nfs_res_t *pres)
   }
 
   gsh_free(pres->res_compound4.resarray.resarray_val);
-  free_utf8(&pres->res_compound4.tag);
+  gsh_free(&pres->res_compound4.tag.utf8string_val);
 
   return;
 }                               /* nfs4_Compound_Free */

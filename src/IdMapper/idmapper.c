@@ -834,7 +834,8 @@ int utf82uid(utf8string * utf8str, uid_t * Uid)
   utf82str(buff, sizeof(buff), utf8str);
 
 #ifndef _USE_NFSIDMAP
-  /* User is shown as a string 'user@domain', remove it if libnfsidmap is not used */
+  /* User is shown as a string 'user@domain', remove it if libnfsidmap
+     is not used */
   nfs4_stringid_split(buff, uidname, domainname);
 #else
   strncpy(uidname, buff, NFS4_MAX_DOMAIN_LEN);
