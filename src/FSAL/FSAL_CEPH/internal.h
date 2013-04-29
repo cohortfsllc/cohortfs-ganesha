@@ -71,20 +71,28 @@ struct handle {
 	struct fsal_obj_handle handle; /*< The public handle */
 	Fh *fd;
 	fsal_openflags_t openflags;
-	uint64_t rd_issued;
-	uint64_t rd_serial;
-	uint64_t rw_issued;
-	uint64_t rw_serial;
 	uint64_t rw_max_len;
 };
 
 /**
- * The wire content of a DS (data server) handle
+ * The opaque content of fsal_seg_data
+ */
+struct fsal_seg_data {
+    uint64_t rsv_id;
+    uint64_t expiration;
+    uint16_t type;
+};
+
+/**
+ * The wire content of a DS (data server) segment handle
  */
 
 struct ds_wire {
 	struct wire_handle wire; /*< All the information of a regualr handle */
-	struct ceph_file_layout layout; /*< Layout information */
+    /* XXX below really needed? */
+	struct ceph_file_layout layout; /*< Ceph's placement strategy */
+        uint64_t ceph_rsv_id;
+    /* XXX below needed either? */
 	uint64_t snapseq; /*< And a single entry giving a degernate
                               snaprealm. */
 };

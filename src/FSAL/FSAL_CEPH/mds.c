@@ -43,6 +43,20 @@
  * support for the Ceph FSAL.
  */
 
+static inline void init_rsv(struct ceph_reservation *rsv,
+                            const struct pnfs_segment *segment)
+{
+    rsv->id = 0;
+    rsv->offset = segment->offset;
+    rsv->length = segment->length;
+    rsv->client = 0;
+    rsv->expiration = 0;
+    rsv->flags = 0;
+    rsv->iomode = (segment->io_mode == LAYOUTIOMODE4_RW) ?
+        CEPH_RSV_IOMODE_RW : CEPH_RSV_IOMODE_READ;
+    rsv->type = CEPH_RSV_TYPE_PNFS_1;
+}
+
 static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
 {
 	/* The private 'full' object handle */
@@ -369,6 +383,10 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	/* Descriptor for DS handle */
 	struct gsh_buffdesc ds_desc = {.addr = &ds_wire,
 				       .len = sizeof(struct ds_wire)};
+        /* Ceph reservation prototype */
+        struct ceph_reservation rsv;
+	/* Layout private data */
+	struct fsal_seg_data *seg_data;
 	/* The smallest layout the client will accept */
 	struct pnfs_segment smallest_acceptable = {
 		.io_mode = res->segment.io_mode,
@@ -379,6 +397,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 		.io_mode = res->segment.io_mode,
 		.length = NFS4_UINT64_MAX
 	};
+        int r;
 
 	/* We support only LAYOUT4_NFSV4_1_FILES layouts */
 
@@ -439,55 +458,58 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 		return NFS4ERR_SERVERFAULT;
 	}
 	util = stripe_width;
-
-	/* If we have a cached capbility, use that.  Otherwise, call
-           in to Ceph. */
+        init_rsv(&rsv, &res->segment);
 
 	pthread_mutex_lock(&handle->handle.lock);
-	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
-		uint32_t r = 0;
-		if (handle->rd_issued == 0) {
-			r = ceph_ll_hold_rw(export->cmount,
-					    handle->wire.vi,
-					    false,
-					    initiate_recall,
-					    handle,
-					    &handle->rd_serial,
-					    NULL);
-			if (r < 0) {
-				pthread_mutex_unlock(&handle->handle.lock);
-				return posix2nfs4_error(-r);
-			}
-		}
-		++handle->rd_issued;
-	} else {
-		uint32_t r = 0;
-		if (handle->rw_issued == 0) {
-			r = ceph_ll_hold_rw(export->cmount,
-					    handle->wire.vi,
-					    true,
-					    initiate_recall,
-					    handle,
-					    &handle->rw_serial,
-					    &handle->rw_max_len);
-			if (r < 0) {
-				pthread_mutex_unlock(&handle->handle.lock);
-				return posix2nfs4_error(-r);
-			}
-		}
-		forbidden_area.offset = handle->rw_max_len;
-		if (pnfs_segments_overlap(&smallest_acceptable,
-					  &forbidden_area)) {
-			pthread_mutex_unlock(&handle->handle.lock);
-			return NFS4ERR_BADLAYOUT;
-		}
+
+        if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
+            r = ceph_ll_get_reservation(export->cmount,
+                                        handle->wire.vi,
+                                        initiate_recall,
+                                        handle,
+                                        &rsv,
+                                        NULL);
+            if (r < 0) {
+                pthread_mutex_unlock(&handle->handle.lock);
+                return posix2nfs4_error(-r);
+            }
+        } else {
+            r = ceph_ll_get_reservation(export->cmount,
+                                        handle->wire.vi,
+                                        initiate_recall,
+                                        handle,
+                                        &rsv,
+                                        &handle->rw_max_len);
+            if (r < 0) {
+                pthread_mutex_unlock(&handle->handle.lock);
+                return posix2nfs4_error(-r);
+            }
+            forbidden_area.offset = handle->rw_max_len;
+            if (pnfs_segments_overlap(&smallest_acceptable,
+                                      &forbidden_area)) {
+
+                /* XXXX do we need to return rsv? */
+
+                pthread_mutex_unlock(&handle->handle.lock);
+                return NFS4ERR_BADLAYOUT;
+            }
 #if CLIENTS_WILL_ACCEPT_SEGMENTED_LAYOUTS /* sigh */
 		res->segment.length = (handle->rw_max_len
 				       - res->segment.offset);
 #endif
-		++handle->rw_issued;
-	}
-	pthread_mutex_unlock(&handle->handle.lock);
+        }
+
+        /* stash reservation id for MDS */
+	seg_data = gsh_malloc(sizeof(struct fsal_seg_data));
+	seg_data->rsv_id = rsv.id;
+	seg_data->expiration = rsv.expiration;
+	seg_data->type = rsv.type;
+        res->fsal_seg_data = seg_data;
+
+        /* and DS */
+        ds_wire.ceph_rsv_id =  rsv.id;
+
+        pthread_mutex_unlock(&handle->handle.lock);
 
 	/* For now, just make the low quad of the deviceid be the
            inode number.  With the span of the layouts constrained
@@ -534,24 +556,8 @@ relinquish:
            reserved for it. */
 
 	pthread_mutex_lock(&handle->handle.lock);
-	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
-		if (--handle->rd_issued != 0) {
-			pthread_mutex_unlock(&handle->handle.lock);
-			return nfs_status;
-		}
-	} else {
-		if (--handle->rd_issued != 0) {
-			pthread_mutex_unlock(&handle->handle.lock);
-			return nfs_status;
-		}
-	}
 
-	ceph_ll_return_rw(export->cmount,
-			  handle->wire.vi,
-			  res->segment.io_mode ==
-			  LAYOUTIOMODE4_READ ?
-			  handle->rd_serial :
-			  handle->rw_serial);
+        ceph_ll_return_reservation(export->cmount, handle->wire.vi, &rsv);
 
 	pthread_mutex_unlock(&handle->handle.lock);
 
@@ -583,6 +589,10 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 	/* The private 'full' object handle */
 	struct handle *handle
 		= container_of(obj_pub, struct handle, handle);
+	/* Ceph reservation prototype */
+	struct ceph_reservation rsv;
+	/* Layout private data */
+	struct fsal_seg_data *seg_data = arg->fsal_seg_data;
 
 	/* Sanity check on type */
 	if (arg->lo_type != LAYOUT4_NFSV4_1_FILES) {
@@ -593,27 +603,21 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 	}
 
 	if (arg->dispose) {
-		pthread_mutex_lock(&handle->handle.lock);
-		if (arg->cur_segment.io_mode == LAYOUTIOMODE4_READ) {
-			if (--handle->rd_issued != 0) {
-				pthread_mutex_unlock(&handle->handle.lock);
-				return NFS4_OK;
-			}
-		} else {
-			if (--handle->rd_issued != 0) {
-				pthread_mutex_unlock(&handle->handle.lock);
-				return NFS4_OK;
-			}
-		}
 
-		ceph_ll_return_rw(export->cmount,
-				  handle->wire.vi,
-				  arg->cur_segment.io_mode ==
-				  LAYOUTIOMODE4_READ ?
-				  handle->rd_serial :
-				  handle->rw_serial);
+		init_rsv(&rsv, &arg->cur_segment);
+		rsv.id = seg_data->rsv_id;
+		rsv.expiration = seg_data->expiration;
+		rsv.type = seg_data->type;
+
+		pthread_mutex_lock(&handle->handle.lock);
+
+		ceph_ll_return_reservation(export->cmount,
+			handle->wire.vi,
+			&rsv);
 
 		pthread_mutex_unlock(&handle->handle.lock);
+
+		gsh_free(seg_data);
 	}
 
 	return NFS4_OK;
