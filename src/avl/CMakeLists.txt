@@ -3,6 +3,7 @@
 
 SET(avltree_STAT_SRCS
    avl.c
+   avl_x.c
    bst.c
    rb.c
    splay.c

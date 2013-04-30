@@ -1213,6 +1213,16 @@ log_component_info __attribute__ ((__unused__)) LogComponents[COMPONENT_COUNT] =
     SYSLOG,
     "SYSLOG"
   },
+  { COMPONENT_AVL,         "COMPONENT_AVL", "AVL TREE",
+    NIV_EVENT,
+    SYSLOG,
+    "SYSLOG"
+  },
+  { COMPONENT_AVL_CACHE,   "COMPONENT_AVL_CACHE", "AVL TREE CACHE",
+    NIV_EVENT,
+    SYSLOG,
+    "SYSLOG"
+  },
   { LOG_MESSAGE_DEBUGINFO,        "LOG_MESSAGE_DEBUGINFO",
                                   "LOG MESSAGE DEBUGINFO",
     NIV_NULL,
