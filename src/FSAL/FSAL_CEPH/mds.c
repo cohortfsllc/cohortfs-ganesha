@@ -30,6 +30,7 @@
 #include "internal.h"
 #include "nfs_exports.h"
 #include "FSAL/fsal_commonlib.h"
+#include "city.h"
 
 /**
  * @file   FSAL_CEPH/mds.c
@@ -507,7 +508,15 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
         res->fsal_seg_data = seg_data;
 
         /* and DS */
-        ds_wire.ceph_rsv_id =  rsv.id;
+	struct ds_rsv_k dsk = {
+		.ino = handle->wire.vi.ino.val,
+		.k = rsv.id,
+	};
+	
+        ds_wire.rsv.id = rsv.id;
+	ds_wire.rsv.hk =
+		CityHash64WithSeed((void *) &dsk, sizeof(struct ds_rsv_k),
+			523);
 
         pthread_mutex_unlock(&handle->handle.lock);
 

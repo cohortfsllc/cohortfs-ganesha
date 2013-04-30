@@ -84,15 +84,26 @@ struct fsal_seg_data {
 };
 
 /**
+ * Input to DS reservation hash (used to compute ds_wire.rsv.hk)
+ */
+
+struct ds_rsv_k {
+	uint64_t ino;
+	uint64_t k;
+};
+
+/**
  * The wire content of a DS (data server) segment handle
  */
 
 struct ds_wire {
 	struct wire_handle wire; /*< All the information of a regualr handle */
-    /* XXX below really needed? */
 	struct ceph_file_layout layout; /*< Ceph's placement strategy */
-        uint64_t ceph_rsv_id;
-    /* XXX below needed either? */
+	struct {
+		uint64_t id;
+		uint64_t hk;
+	} rsv;
+/* XXX not needed in Cohort, and seemingly intractable in Ceph */
 	uint64_t snapseq; /*< And a single entry giving a degernate
                               snaprealm. */
 };
