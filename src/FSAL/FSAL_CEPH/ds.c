@@ -181,7 +181,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 
 	if (! io_check_range(rsv, offset, requested_length)) {
 		ds_cache_unref(rsv);
-		return (NFS4ERR_PNFS_NO_LAYOUT); /* XXX right error? */
+		return (NFS4ERR_INVAL);
 	}
 
 	amount_read = ceph_ll_read_block(
@@ -299,7 +299,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	if (! ((io_check_range(rsv, offset, write_length)) &&
 	       (rsv->rsv.iomode == CEPH_RSV_IOMODE_RW))) {
 		ds_cache_unref(rsv);
-		return (NFS4ERR_PNFS_NO_LAYOUT); /* XXX right error? */
+		return (NFS4ERR_INVAL);
 	}
 
 	adjusted_write = min((stripe_width - internal_offset),
