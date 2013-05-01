@@ -25,7 +25,7 @@
  * @author Adam C. Emerson <aemerson@linuxbox.com>
  * @date Thu Jul  5 14:48:33 2012
  *
- * @brief Impelmentation of FSAL module functions for Ceph
+ * @brief Implementation of FSAL module functions for Ceph
  *
  * This file implements the module functions for the Ceph FSAL, for
  * initialization, teardown, configuration, and creation of exports.
