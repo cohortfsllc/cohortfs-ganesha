@@ -104,8 +104,31 @@ ds_cache_pkginit(void)
 struct ds_rsv *
 ds_cache_ref(struct ds *ds, uint64_t osd)
 {
+	struct avltree_node *node;
+	struct ds_rsv rk, *rsv = NULL;
 
-	return (NULL);
+	rk.rsv.id = ds->wire.rsv.id;
+	rk.hk = ds->wire.rsv.hk;
+	rk.ino = ds->wire.wire.vi.ino.val;
+
+	struct avl_x_part *t =
+		avlx_partition_of_scalar(&ds_cache.rcache, rk.hk);
+
+	PTHREAD_RWLOCK_rdlock(&t->lock);
+	node = avl_x_cached_lookup(&ds_cache.rcache, t, &rk.node_k, rk.hk);
+	if (node) {
+		rsv = avltree_container_of(node, struct ds_rsv, node_k);
+		(void)  atomic_inc_int32_t(&rsv->refcnt);
+		goto unlock;
+	} else {
+		/* ! node */
+		PTHREAD_RWLOCK_unlock(&t->lock);
+		// need a remote--deal with races
+	}
+
+unlock:
+	PTHREAD_RWLOCK_unlock(&t->lock);
+	return (rsv);
 }
 
 void
