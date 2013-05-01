@@ -229,6 +229,9 @@ MODULE_INIT void init(void)
 
 	/* Set up module operations */
 	module->ops->create_export = create_export;
+
+        /* Init reservation cache */
+        ds_cache_pkginit();
 }
 
 /**
