@@ -18,6 +18,7 @@ SET(fsalceph_LIB_SRCS
    handle.c
    mds.c
    ds.c
+   ds_cache.c
    internal.c
    internal.h
 )

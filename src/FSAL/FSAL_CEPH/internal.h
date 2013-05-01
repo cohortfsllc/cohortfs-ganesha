@@ -39,6 +39,7 @@
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include <stdbool.h>
+#include "avltree.h"
 
 /**
  * Ceph private export object
@@ -123,7 +124,7 @@ struct ds {
 /* Keep internal.c from clashing with itself */
 extern attrmask_t supported_attributes;
 extern attrmask_t settable_attributes;
-#endif /* !CEPH_INTERNAL_C */
+#endif /* CEPH_INTERNAL_C */
 
 /**
  * Linux supports a stripe pattern with no more than 4096 stripes, but

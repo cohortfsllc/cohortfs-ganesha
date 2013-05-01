@@ -35,8 +35,8 @@
 
 #include "config.h"
 
-#include <cephfs/libcephfs.h>
 #include <fcntl.h>
+#include "ds_cache.h" /* XXX fsal.h has ordering issues wrt abstract_atomic.h */
 #include "fsal.h"
 #include "fsal_api.h"
 #include "FSAL/fsal_commonlib.h"
