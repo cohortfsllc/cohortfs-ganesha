@@ -93,25 +93,11 @@ void ds_cache_pkginit(void)
 		lru_init_queue(qlane);
 	}
 
-	ds_cache.max_entries = 2048; /* TODO:  conf */
+	ds_cache.max_entries = 16384; /* TODO:  conf */
 	ds_cache.n_entries = 0;
-	ds_cache.rcache.cachesz = 8192; /* 56K slot table */
+	ds_cache.rcache.cachesz = 4096; /* 28K slot table */
 
 	(void) avlx_init(&ds_cache.rcache, rsv_cmpf, 7, AVL_X_FLAG_CACHE_RT);
 }
 
-/**
- * @brief Get the appropriate lane for a reservation object
- *
- * This function gets the LRU lane by taking the modulus of the
- * supplied pointer.
- *
- * @param[in] entry  A pointer to expanded lru
- *
- * @return The LRU lane in which that object should be stored.
- */
-static inline uint32_t
-lru_lane_of_rsv(const struct ds_rsv *rsv)
-{
-	return (uint32_t) (((uintptr_t) rsv) % RSV_N_Q_LANES);
-}
+

@@ -88,7 +88,22 @@ struct ds_rsv_cache
 
 extern struct ds_rsv_cache ds_cache;
 
-void ds_cache_pkginit();
+/**
+ * @brief Get the appropriate lane for a reservation object
+ *
+ * This function gets the LRU lane by taking the modulus of the
+ * supplied pointer.
+ *
+ * @param[in] entry  A pointer to expanded lru
+ *
+ * @return The LRU lane in which that object should be stored.
+ */
+static inline uint32_t
+lru_lane_of_rsv(const struct ds_rsv *rsv)
+{
+	return (uint32_t) (((uintptr_t) rsv) % RSV_N_Q_LANES);
+}
 
+void ds_cache_pkginit();
 
 #endif /* FSAL_CEPH_DS_CACHE_H */
