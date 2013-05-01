@@ -244,6 +244,9 @@ MODULE_INIT void init(void)
 
 MODULE_FINI void finish(void)
 {
+	/* clean up reservation cache */
+	ds_cache_pkgshutdown();
+
 	if (unregister_fsal(module) != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"Unable to unload FSAL.  Dying with extreme "

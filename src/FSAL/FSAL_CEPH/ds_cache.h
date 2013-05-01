@@ -104,6 +104,7 @@ lru_lane_of_rsv(const struct ds_rsv *rsv)
 	return (uint32_t) (((uintptr_t) rsv) % RSV_N_Q_LANES);
 }
 
-void ds_cache_pkginit();
+void ds_cache_pkginit(void);
+void ds_cache_pkgshutdown(void);
 
 #endif /* FSAL_CEPH_DS_CACHE_H */

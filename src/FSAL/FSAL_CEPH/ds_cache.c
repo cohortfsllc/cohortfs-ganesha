@@ -85,7 +85,8 @@ lru_init_queue(struct rsv_q_lane *qlane)
 /**
  *  Package init method
  */
-void ds_cache_pkginit(void)
+void
+ds_cache_pkginit(void)
 {
 	int ix;
 	for (ix = 0; ix < RSV_N_Q_LANES; ++ix) {
@@ -101,3 +102,11 @@ void ds_cache_pkginit(void)
 }
 
 
+/**
+ * Package shutdown
+ */
+void
+ds_cache_pkgshutdown(void)
+{
+	/* TODO:  discard all cached */
+}
