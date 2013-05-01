@@ -35,6 +35,7 @@
 
 #include <cephfs/libcephfs.h>
 #include "avl_x.h"
+#include "internal.h"
 #include "nlm_list.h"
 #include "abstract_mem.h"
 
@@ -103,6 +104,9 @@ lru_lane_of_rsv(const struct ds_rsv *rsv)
 {
 	return (uint32_t) (((uintptr_t) rsv) % RSV_N_Q_LANES);
 }
+
+struct ds_rsv *ds_cache_ref(struct ds *ds, uint64_t osd);
+void ds_cache_unref(struct ds_rsv *rsv);
 
 void ds_cache_pkginit(void);
 void ds_cache_pkgshutdown(void);

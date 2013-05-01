@@ -101,6 +101,17 @@ ds_cache_pkginit(void)
 	(void) avlx_init(&ds_cache.rcache, rsv_cmpf, 7, AVL_X_FLAG_CACHE_RT);
 }
 
+struct ds_rsv *
+ds_cache_ref(struct ds *ds, uint64_t osd)
+{
+
+	return (NULL);
+}
+
+void
+ds_cache_unref(struct ds_rsv *rsv)
+{
+}
 
 /**
  * Package shutdown

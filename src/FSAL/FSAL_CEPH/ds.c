@@ -69,6 +69,14 @@ local_invalidate(struct ds *ds, struct fsal_export *export)
     return;
 }
 
+static inline bool
+io_check_range(struct ds_rsv *rsv, uint64_t offset, uint64_t length)
+{
+	return ((offset >= rsv->rsv.offset) &&
+		( (rsv->rsv.length == 0) ||
+		  ((offset + length) <= rsv->rsv.offset + rsv->rsv.length)));
+}
+
 /**
  * @brief Release an object
  *
@@ -126,8 +134,10 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 	/* The private 'full' DS handle */
 	struct ds *ds
 		= container_of(ds_pub, struct ds, ds);
+        /* Reservation */
+        struct ds_rsv *rsv;
 	/* The OSD number for this machine */
-	int local_OSD = 0;
+	uint64_t local_OSD = 0;
 	/* Width of a stripe in the file */
 	uint32_t stripe_width = 0;
 	/* Beginning of a block */
@@ -160,7 +170,18 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 				      ds->wire.wire.vi,
 				      stripe,
 				      &(ds->wire.layout))) {
-		return NFS4ERR_PNFS_IO_HOLE;
+		return (NFS4ERR_PNFS_IO_HOLE);
+	}
+
+        rsv = ds_cache_ref(ds, local_OSD);
+        if (rsv->flags & DS_RSV_FLAG_FENCED) {
+		ds_cache_unref(rsv);
+		return (NFS4ERR_PNFS_NO_LAYOUT);
+        }
+
+	if (! io_check_range(rsv, offset, requested_length)) {
+		ds_cache_unref(rsv);
+		return (NFS4ERR_PNFS_NO_LAYOUT); /* XXX right error? */
 	}
 
 	amount_read = ceph_ll_read_block(
@@ -173,6 +194,9 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 		     internal_offset),
 		    requested_length),
 		&(ds->wire.layout));
+
+        ds_cache_unref(rsv);
+
 	if (amount_read < 0) {
 		return posix2nfs4_error(-amount_read);
 	}
@@ -224,6 +248,8 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	/* The private 'full' DS handle */
 	struct ds *ds
 		= container_of(ds_pub, struct ds, ds);
+        /* Reservation */
+        struct ds_rsv *rsv;
 	/* The OSD number for this host */
 	int local_OSD = 0;
 	/* Width of a stripe in the file */
@@ -261,7 +287,19 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 				      ds->wire.wire.vi,
 				      stripe,
 				      &(ds->wire.layout))) {
-		return NFS4ERR_PNFS_IO_HOLE;
+		return (NFS4ERR_PNFS_IO_HOLE);
+	}
+
+        rsv = ds_cache_ref(ds, local_OSD);
+        if (rsv->flags & DS_RSV_FLAG_FENCED) {
+		ds_cache_unref(rsv);
+		return (NFS4ERR_PNFS_NO_LAYOUT);
+        }
+
+	if (! ((io_check_range(rsv, offset, write_length)) &&
+	       (rsv->rsv.iomode == CEPH_RSV_IOMODE_RW))) {
+		ds_cache_unref(rsv);
+		return (NFS4ERR_PNFS_NO_LAYOUT); /* XXX right error? */
 	}
 
 	adjusted_write = min((stripe_width - internal_offset),
@@ -353,6 +391,8 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		*stability_got = stability_wanted;
 	}
 
+	ds_cache_unref(rsv);
+	    
 	return NFS4_OK;
 }
 
