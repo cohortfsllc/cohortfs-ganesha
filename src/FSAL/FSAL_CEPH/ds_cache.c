@@ -220,7 +220,7 @@ try_reap_rsv(int locked_ix)
 }
 
 struct ds_rsv *
-ds_cache_ref(struct ds *ds, uint64_t osd)
+ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
 {
 	struct avltree_node *node;
 	struct ds_rsv rk, *rsv;
@@ -273,7 +273,8 @@ ds_cache_ref(struct ds *ds, uint64_t osd)
 					   rsv->hk);
 		/* try_reap_rsv() can't find this */
 		QUNLOCK(qlane);
-		r = ceph_ll_verify_reservation(rsv, osd);
+		r = ceph_ll_assert_reservation(
+			export->cmount, ds->wire.wire.vi, rsv, osd);
 		QLOCK(qlane);
 		rsv->flags &= ~DS_RSV_FLAG_FETCHING;
 		if (r != 0) { 

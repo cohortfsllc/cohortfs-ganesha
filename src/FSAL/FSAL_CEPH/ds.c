@@ -173,7 +173,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 		return (NFS4ERR_PNFS_IO_HOLE);
 	}
 
-        rsv = ds_cache_ref(ds, local_OSD);
+        rsv = ds_cache_ref(export, ds, local_OSD);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
 		ds_cache_unref(rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);
@@ -290,7 +290,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		return (NFS4ERR_PNFS_IO_HOLE);
 	}
 
-        rsv = ds_cache_ref(ds, local_OSD);
+        rsv = ds_cache_ref(export, ds, local_OSD);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
 		ds_cache_unref(rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);

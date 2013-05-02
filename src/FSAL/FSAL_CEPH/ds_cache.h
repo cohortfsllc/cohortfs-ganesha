@@ -95,7 +95,7 @@ struct ds_rsv_cache
 
 extern struct ds_rsv_cache ds_cache;
 
-struct ds_rsv *ds_cache_ref(struct ds *ds, uint64_t osd);
+struct ds_rsv *ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd);
 void ds_cache_unref(struct ds_rsv *rsv);
 
 void ds_cache_pkginit(void);
