@@ -38,6 +38,8 @@ struct avl_x_part
 {
 	pthread_rwlock_t lock;
 	pthread_mutex_t mtx;
+	void *u1;
+	void *u2;
 	struct avltree t;
 	struct avltree_node **cache;
 	struct {
