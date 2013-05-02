@@ -166,8 +166,7 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 
 	/* QLOCKED */
 	refcnt = atomic_inc_int32_t(&rsv->refcnt);
-	if ((refcnt != SENTINEL_REFCOUNT+1) ||
-	    (rsv->flags & DS_RSV_FLAG_FETCHING)) {
+	if (refcnt != SENTINEL_REFCOUNT+1) {
 		(void) atomic_dec_int32_t(&rsv->refcnt);
 		return (NULL);
 	}
