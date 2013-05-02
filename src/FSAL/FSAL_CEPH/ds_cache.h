@@ -46,7 +46,8 @@
 
 #define DS_RSV_FLAG_NONE         0x0000
 #define DS_RSV_FLAG_FENCED       0x0001
-#define DS_RSV_FLAG_FETCHING     0x0002
+#define DS_RSV_FLAG_NOMATCH      0x0002
+#define DS_RSV_FLAG_FETCHING     0x0004
 
 struct ds_rsv {
 	uint64_t hk;
