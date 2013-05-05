@@ -219,6 +219,14 @@ try_reap_rsv(int locked_ix)
 	return (rsv);
 }
 
+/* DS notify callback (async fence, etc) */
+static bool
+ds_notify(vinodeno_t vi, bool write, void *opaque)
+{
+
+	return true;
+}
+
 struct ds_rsv *
 ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
 {
@@ -274,7 +282,8 @@ ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
 		/* try_reap_rsv() can't find this */
 		QUNLOCK(qlane);
 		r = ceph_ll_assert_reservation(
-			export->cmount, ds->wire.wire.vi, rsv, osd);
+			export->cmount, ds->wire.wire.vi, ds_notify, ds,
+			&rsv->rsv, osd);
 		QLOCK(qlane);
 		rsv->flags &= ~DS_RSV_FLAG_FETCHING;
 		if (r != 0) { 
@@ -298,6 +307,24 @@ unlock:
 void
 ds_cache_unref(struct ds_rsv *rsv)
 {
+	struct rsv_q_lane *qlane;
+	struct avl_x_part *t;
+	int32_t refcnt;
+	int ix;
+
+	refcnt = atomic_dec_int32_t(&rsv->refcnt);
+	if (refcnt == 0) {
+		ix = avlx_idx_of_scalar(&ds_cache.xt, rsv->hk);
+		t = avlx_partition_of_ix(&ds_cache.xt, ix);
+		qlane = qlane_of_tpart(t);
+		QLOCK(qlane);
+		refcnt = atomic_fetch_int32_t(&rsv->refcnt);
+		if (refcnt == 0) {
+			pool_free(ds_rsv_pool, rsv);
+		}
+		QUNLOCK(qlane);
+	}
+	return;
 }
 
 /**
