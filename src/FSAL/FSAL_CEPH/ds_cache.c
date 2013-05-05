@@ -163,6 +163,7 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 {
 	struct avl_x_part *t;
 	int32_t refcnt;
+	vinodeno_t vino;
 
 	/* QLOCKED */
 	refcnt = atomic_inc_int32_t(&rsv->refcnt);
@@ -174,7 +175,16 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 
 	/* rsv is almost always moving, due to new hk */
 	avl_x_cached_remove(&ds_cache.xt, t, &rsv->node_k, rsv->hk);
-	glist_del(&rsv->q);	
+	glist_del(&rsv->q);
+
+        /* call async (no need for threadpool) */
+	vino.ino.val = rsv->ino;
+	vino.snapid.val = CEPH_NOSNAP;
+
+        ceph_ll_unassert_reservation(
+		rsv->export->cmount, vino, &rsv->rsv, rsv->export->ds.osd);
+
+	(void) atomic_dec_int32_t(&rsv->export->ds.refcnt);
 
 	return (rsv);
 }
@@ -228,7 +238,7 @@ ds_notify(vinodeno_t vi, bool write, void *opaque)
 }
 
 struct ds_rsv *
-ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
+ds_cache_ref(struct export *export, struct ds *ds)
 {
 	struct avltree_node *node;
 	struct ds_rsv rk, *rsv;
@@ -273,6 +283,10 @@ ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
 		rsv = try_reap_rsv(-1); /* allocates if nothing available */
 		/* ref+1 */
 		rsv->flags = DS_RSV_FLAG_FETCHING; /* deal with races */
+		/* ds_cache_ref can't be called when draining export, but 
+                 * atomics permit async reclaim */
+		(void) atomic_inc_int32_t(&export->ds.refcnt);
+		rsv->export = export;
 		rsv->rsv.id = rk.rsv.id;
 		rsv->hk = rk.hk;
 		rsv->ino = rk.ino;
@@ -283,7 +297,7 @@ ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd)
 		QUNLOCK(qlane);
 		r = ceph_ll_assert_reservation(
 			export->cmount, ds->wire.wire.vi, ds_notify, ds,
-			&rsv->rsv, osd);
+			&rsv->rsv, export->ds.osd);
 		QLOCK(qlane);
 		rsv->flags &= ~DS_RSV_FLAG_FETCHING;
 		if (r != 0) { 

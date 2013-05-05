@@ -136,8 +136,6 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 		= container_of(ds_pub, struct ds, ds);
         /* Reservation */
         struct ds_rsv *rsv;
-	/* The OSD number for this machine */
-	uint64_t local_OSD = 0;
 	/* Width of a stripe in the file */
 	uint32_t stripe_width = 0;
 	/* Beginning of a block */
@@ -149,14 +147,6 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 	/* The amount actually read */
 	int amount_read = 0;
 
-	/* Find out what my OSD ID is, so we can avoid talking to
-           other OSDs. */
-
-	local_OSD = ceph_get_local_osd(export->cmount);
-	if (local_OSD < 0) {
-		return posix2nfs4_error(-local_OSD);
-	}
-
 	/* Find out what stripe we're writing to and where within the
            stripe. */
 
@@ -165,7 +155,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 	block_start = stripe * stripe_width;
 	internal_offset = offset - block_start;
 
-	if (local_OSD
+	if (export->ds.osd
 	    != ceph_ll_get_stripe_osd(export->cmount,
 				      ds->wire.wire.vi,
 				      stripe,
@@ -173,7 +163,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 		return (NFS4ERR_PNFS_IO_HOLE);
 	}
 
-        rsv = ds_cache_ref(export, ds, local_OSD);
+        rsv = ds_cache_ref(export, ds);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
 		ds_cache_unref(rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);
@@ -250,8 +240,6 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		= container_of(ds_pub, struct ds, ds);
         /* Reservation */
         struct ds_rsv *rsv;
-	/* The OSD number for this host */
-	int local_OSD = 0;
 	/* Width of a stripe in the file */
 	uint32_t stripe_width = 0;
 	/* Beginning of a block */
@@ -269,11 +257,6 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 
 	memset(*writeverf, 0, NFS4_VERIFIER_SIZE);
 
-	/* Find out what my OSD ID is, so we can avoid talking to
-           other OSDs. */
-
-	local_OSD = ceph_get_local_osd(export->cmount);
-
 	/* Find out what stripe we're writing to and where within the
            stripe. */
 
@@ -282,7 +265,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	block_start = stripe * stripe_width;
 	internal_offset = offset - block_start;
 
-	if (local_OSD
+	if (export->ds.osd
 	    != ceph_ll_get_stripe_osd(export->cmount,
 				      ds->wire.wire.vi,
 				      stripe,
@@ -290,7 +273,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		return (NFS4ERR_PNFS_IO_HOLE);
 	}
 
-        rsv = ds_cache_ref(export, ds, local_OSD);
+        rsv = ds_cache_ref(export, ds);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
 		ds_cache_unref(rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);

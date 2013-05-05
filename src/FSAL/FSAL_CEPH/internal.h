@@ -50,6 +50,11 @@ struct export {
                                             access all Ceph methods on
                                             this export. */
 	struct fsal_export export; /*< The public export object */
+	struct {
+		uint64_t osd;
+		int32_t refcnt; /*< # of ds_cache objects which point to this */
+	} ds;
+
 };
 
 /**

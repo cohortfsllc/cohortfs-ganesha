@@ -61,9 +61,7 @@ static const char *module_name = "Ceph";
  *
  * @todo ACE: We do not handle re-exports of the same cluster in a
  * sane way.  Currently we create multiple handles and cache objects
- * pointing to the same one.  This is not necessarily wrong, but it is
- * inefficient.  It may also not be something we expect to use enough
- * to care about.
+ * pointing to the same one.
  *
  * @param[in]     module_in  The supplied module handle
  * @param[in]     path       The path to export
@@ -118,7 +116,6 @@ static fsal_status_t create_export(struct fsal_module *module,
 		goto error;
 	}
 
-
 	if (fsal_export_init(&export->export,
 			     list_entry) != 0) {
 		status.major =  ERR_FSAL_NOMEM;
@@ -163,6 +160,9 @@ static fsal_status_t create_export(struct fsal_module *module,
 			"Unable to mount Ceph cluster.");
 		goto error;
 	}
+
+	/* ds.osd holds OSD number for this machine (if applicable) */
+	export->ds.osd = ceph_get_local_osd(export->cmount);
 
 	if (fsal_attach_export(module,
 			       &export->export.exports) != 0) {

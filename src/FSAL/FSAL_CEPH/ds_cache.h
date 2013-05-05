@@ -41,7 +41,7 @@
 #include "wait_queue.h"
 
 /**
- * Expanded reservation (local cache)
+ * Reservation support.
  */
 
 #define DS_RSV_FLAG_NONE         0x0000
@@ -53,6 +53,7 @@ struct ds_rsv {
 	uint64_t hk;
 	uint32_t flags;
 	int32_t refcnt;
+	struct export *export;
 	struct glist_head q;
 	struct avltree_node node_k; /*< AVL node in tree */
 	struct ceph_reservation rsv;
@@ -60,10 +61,6 @@ struct ds_rsv {
 	wait_entry_t we;
 	uint32_t waiters;
 };
-
-/**
- * Reservation support.
- */
 
 /* Cache-line padding macro from MCAS */
 #ifndef CACHE_LINE_SIZE
@@ -95,7 +92,7 @@ struct ds_rsv_cache
 
 extern struct ds_rsv_cache ds_cache;
 
-struct ds_rsv *ds_cache_ref(struct export *export, struct ds *ds, uint64_t osd);
+struct ds_rsv *ds_cache_ref(struct export *export, struct ds *ds);
 void ds_cache_unref(struct ds_rsv *rsv);
 
 void ds_cache_pkginit(void);
