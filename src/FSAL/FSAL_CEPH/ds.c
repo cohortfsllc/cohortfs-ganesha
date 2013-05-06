@@ -155,8 +155,8 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 	block_start = stripe * stripe_width;
 	internal_offset = offset - block_start;
 
-	if (export->ds.osd
-	    != ceph_ll_get_stripe_osd(export->cmount,
+	if (export->sm->ds.osd
+	    != ceph_ll_get_stripe_osd(export->sm->cmount,
 				      ds->wire.wire.vi,
 				      stripe,
 				      &(ds->wire.layout))) {
@@ -175,7 +175,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 	}
 
 	amount_read = ceph_ll_read_block(
-		export->cmount,
+		export->sm->cmount,
 		ds->wire.wire.vi,
 		stripe,
 		buffer,
@@ -265,8 +265,8 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	block_start = stripe * stripe_width;
 	internal_offset = offset - block_start;
 
-	if (export->ds.osd
-	    != ceph_ll_get_stripe_osd(export->cmount,
+	if (export->sm->ds.osd
+	    != ceph_ll_get_stripe_osd(export->sm->cmount,
 				      ds->wire.wire.vi,
 				      stripe,
 				      &(ds->wire.layout))) {
@@ -297,7 +297,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		if (!ds->connected) {
 			if ((ceph_status
 			     = ceph_ll_connectable_m(
-				     export->cmount,
+				     export->sm->cmount,
 				     &ds->wire.wire.vi,
 				     ds->wire.wire.parent_ino,
 				     ds->wire.wire.parent_hash)) != 0) {
@@ -310,7 +310,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 			ds->connected = true;
 		}
 		if ((ceph_status
-		     = ceph_ll_open(export->cmount,
+		     = ceph_ll_open(export->sm->cmount,
 				    ds->wire.wire.vi,
 				    O_WRONLY,
 				    &descriptor,
@@ -321,7 +321,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		}
 
 		amount_written
-			= ceph_ll_write(export->cmount,
+			= ceph_ll_write(export->sm->cmount,
 					descriptor,
 					offset,
 					adjusted_write,
@@ -329,18 +329,18 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 
 		if (amount_written < 0) {
 			printf("Write failed with: %d\n", amount_written);
-			ceph_ll_close(export->cmount, descriptor);
+			ceph_ll_close(export->sm->cmount, descriptor);
 			return posix2nfs4_error(-amount_written);
 		}
 
 		if ((ceph_status
-		     = ceph_ll_fsync(export->cmount, descriptor, 0)) < 0) {
+		     = ceph_ll_fsync(export->sm->cmount, descriptor, 0)) < 0) {
 			printf("fsync failed with: %d\n", ceph_status);
-			ceph_ll_close(export->cmount, descriptor);
+			ceph_ll_close(export->sm->cmount, descriptor);
 			return posix2nfs4_error(-ceph_status);
 		}
 
-		if ((ceph_status = ceph_ll_close(export->cmount,
+		if ((ceph_status = ceph_ll_close(export->sm->cmount,
 						 descriptor)) < 0) {
 			printf("close failed with: %d\n", ceph_status);
 			return posix2nfs4_error(-ceph_status);
@@ -356,7 +356,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
                    bother with the MDS. */
 
 		amount_written
-			= ceph_ll_write_block(export->cmount,
+			= ceph_ll_write_block(export->sm->cmount,
 					      ds->wire.wire.vi,
 					      stripe,
 					      (char*) buffer,
@@ -414,7 +414,7 @@ static nfsstat4 ds_commit(struct fsal_ds_handle *const ds_pub,
 	/* Find out what stripe we're writing to and where within the
            stripe. */
 
-	rc = ceph_ll_commit_blocks(export->cmount,
+	rc = ceph_ll_commit_blocks(export->sm->cmount,
 				   ds->wire.wire.vi,
 				   offset,
 				   (count == 0) ?

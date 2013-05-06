@@ -45,16 +45,19 @@
  * Ceph private export object
  */
 
-struct export {
+struct shared_ceph_mount {
 	struct ceph_mount_info *cmount; /*< The mount object used to
                                             access all Ceph methods on
                                             this export. */
-	struct fsal_export export; /*< The public export object */
+	int32_t refcnt; /*< mount refs */
 	struct {
 		uint64_t osd;
-		int32_t refcnt; /*< # of ds_cache objects which point to this */
 	} ds;
+};
 
+struct export {
+	struct fsal_export export; /*< The public export object */
+	struct shared_ceph_mount *sm;
 };
 
 /**

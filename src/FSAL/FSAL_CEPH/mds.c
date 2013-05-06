@@ -118,7 +118,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 	struct export* export
 		= container_of(export_pub, struct export, export);
 	/* The number of Ceph OSDs in the cluster */
-	unsigned num_osds = ceph_ll_num_osds(export->cmount);
+	unsigned num_osds = ceph_ll_num_osds(export->sm->cmount);
 	/* Minimal information needed to get layout info */
 	vinodeno_t vinode;
 	/* Structure containing the storage parameters of the file within
@@ -146,7 +146,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 
 	/* Retrieve and calculate storage parameters of layout */
 	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
-	if (ceph_ll_file_layout(export->cmount, vinode, &file_layout) != 0) {
+	if (ceph_ll_file_layout(export->sm->cmount, vinode, &file_layout) != 0) {
 		LogCrit(COMPONENT_PNFS, "Failed to get Ceph layout for inode");
 		return NFS4ERR_SERVERFAULT;
 	}
@@ -168,7 +168,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 	for (stripe = 0; stripe < stripes; stripe++) {
 		uint32_t stripe_osd
 			= stripe_osd
-			= ceph_ll_get_stripe_osd(export->cmount,
+			= ceph_ll_get_stripe_osd(export->sm->cmount,
 						 vinode,
 						 stripe,
 						 &file_layout);
@@ -202,7 +202,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 		fsal_multipath_member_t host;
 		memset(&host, 0, sizeof(fsal_multipath_member_t));
 		host.proto = 6;
-		if (ceph_ll_osdaddr(export->cmount, osd, &host.addr) < 0) {
+		if (ceph_ll_osdaddr(export->sm->cmount, osd, &host.addr) < 0) {
 			LogCrit(COMPONENT_PNFS,
 				"Unable to get IP address for OSD %lu.",
 				osd);
@@ -414,7 +414,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 
 	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
 
-	ceph_ll_file_layout(export->cmount, handle->wire.vi, &file_layout);
+	ceph_ll_file_layout(export->sm->cmount, handle->wire.vi, &file_layout);
 	stripe_width = file_layout.fl_stripe_unit;
 	last_possible_byte = (BIGGEST_PATTERN * stripe_width) - 1;
 	forbidden_area.offset = last_possible_byte + 1;
@@ -464,7 +464,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	pthread_mutex_lock(&handle->handle.lock);
 
         if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
-            r = ceph_ll_get_reservation(export->cmount,
+            r = ceph_ll_get_reservation(export->sm->cmount,
                                         handle->wire.vi,
                                         initiate_recall,
                                         handle,
@@ -475,7 +475,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
                 return posix2nfs4_error(-r);
             }
         } else {
-            r = ceph_ll_get_reservation(export->cmount,
+            r = ceph_ll_get_reservation(export->sm->cmount,
                                         handle->wire.vi,
                                         initiate_recall,
                                         handle,
@@ -534,7 +534,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 
 	ds_wire.wire = handle->wire;
 	ds_wire.layout = file_layout;
-	ds_wire.snapseq = ceph_ll_snap_seq(export->cmount,
+	ds_wire.snapseq = ceph_ll_snap_seq(export->sm->cmount,
 					   handle->wire.vi);
 
 	if ((nfs_status
@@ -566,7 +566,7 @@ relinquish:
 
 	pthread_mutex_lock(&handle->handle.lock);
 
-        ceph_ll_return_reservation(export->cmount, handle->wire.vi, &rsv);
+        ceph_ll_return_reservation(export->sm->cmount, handle->wire.vi, &rsv);
 
 	pthread_mutex_unlock(&handle->handle.lock);
 
@@ -620,7 +620,7 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 
 		pthread_mutex_lock(&handle->handle.lock);
 
-		ceph_ll_return_reservation(export->cmount,
+		ceph_ll_return_reservation(export->sm->cmount,
 			handle->wire.vi,
 			&rsv);
 
@@ -683,7 +683,7 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 
 	memset(&stold, 0, sizeof(struct stat));
 	if ((ceph_status
-	     = ceph_ll_getattr(export->cmount, handle->wire.vi,
+	     = ceph_ll_getattr(export->sm->cmount, handle->wire.vi,
 			       &stold, 0, 0)) < 0) {
 		LogCrit(COMPONENT_PNFS,
 			"Error %d in attempt to get attributes of "
@@ -711,7 +711,7 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 
 	attrmask |= CEPH_SETATTR_MTIME;
 
-	if ((ceph_status = ceph_ll_setattr(export->cmount,
+	if ((ceph_status = ceph_ll_setattr(export->sm->cmount,
 					   handle->wire.vi, &stnew,
 					   attrmask, 0, 0)) < 0) {
 		LogCrit(COMPONENT_PNFS,

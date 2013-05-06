@@ -182,9 +182,11 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 	vino.snapid.val = CEPH_NOSNAP;
 
         ceph_ll_unassert_reservation(
-		rsv->export->cmount, vino, &rsv->rsv, rsv->export->ds.osd);
+		rsv->export->sm->cmount, vino, &rsv->rsv,
+		rsv->export->sm->ds.osd);
 
-	(void) atomic_dec_int32_t(&rsv->export->ds.refcnt);
+	/* XXX review */
+	(void) atomic_dec_int32_t(&rsv->export->sm->refcnt);
 
 	return (rsv);
 }
@@ -285,7 +287,8 @@ ds_cache_ref(struct export *export, struct ds *ds)
 		rsv->flags = DS_RSV_FLAG_FETCHING; /* deal with races */
 		/* ds_cache_ref can't be called when draining export, but 
                  * atomics permit async reclaim */
-		(void) atomic_inc_int32_t(&export->ds.refcnt);
+		/* XXX review */
+		(void) atomic_inc_int32_t(&export->sm->refcnt);
 		rsv->export = export;
 		rsv->rsv.id = rk.rsv.id;
 		rsv->hk = rk.hk;
@@ -296,8 +299,8 @@ ds_cache_ref(struct export *export, struct ds *ds)
 		/* try_reap_rsv() can't find this */
 		QUNLOCK(qlane);
 		r = ceph_ll_assert_reservation(
-			export->cmount, ds->wire.wire.vi, ds_notify, ds,
-			&rsv->rsv, export->ds.osd);
+			export->sm->cmount, ds->wire.wire.vi, ds_notify, ds,
+			&rsv->rsv, export->sm->ds.osd);
 		QLOCK(qlane);
 		rsv->flags &= ~DS_RSV_FLAG_FETCHING;
 		if (r != 0) { 

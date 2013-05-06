@@ -42,6 +42,32 @@
 #include "FSAL/fsal_commonlib.h"
 #include "internal.h"
 
+extern struct shared_ceph_mount *sm; /* Shared mount indirection */
+
+/**
+ * @brief Return a ref'd shared Ceph mount
+ *
+ * This function cleans up a mount after the last reference is
+ * released.
+ *
+ * @param[in,out] _sm The shared mount to be released
+ */
+static void release_ceph_mount(struct shared_ceph_mount *_sm)
+{
+	int32_t refcnt =
+		atomic_dec_int32_t(&_sm->refcnt);
+
+	if (refcnt == 0) {
+		ceph_shutdown(_sm->cmount);
+		_sm->cmount = NULL;
+
+		if (_sm == sm) {
+			gsh_free(_sm);
+			sm = NULL;
+		}
+	}
+}
+
 /**
  * @brief Clean up an export
  *
@@ -53,7 +79,6 @@
  * @retval ERR_FSAL_NO_ERROR on success.
  * @retval ERR_FSAL_BUSY if the export is in use.
  */
-
 static fsal_status_t release(struct fsal_export *export_pub)
 {
 	/* The priate, expanded export */
@@ -71,11 +96,9 @@ static fsal_status_t release(struct fsal_export *export_pub)
 	}
 	fsal_detach_export(export->export.fsal, &export->export.exports);
 	free_export_ops(&export->export);
+        export->export.ops = NULL;
 	pthread_mutex_unlock(&export->export.lock);
-
-	export->export.ops = NULL;
-	ceph_shutdown(export->cmount);
-	export->cmount = NULL;
+        release_ceph_mount(export->sm);
 	pthread_mutex_destroy(&export->export.lock);
 	gsh_free(export);
 	export = NULL;
@@ -139,9 +162,9 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 		vinodeno_t root;
 		root.ino.val = CEPH_INO_ROOT;
 		root.snapid.val = CEPH_NOSNAP;
-		rc = ceph_ll_getattr(export->cmount, root, &st, 0, 0);
+		rc = ceph_ll_getattr(export->sm->cmount, root, &st, 0, 0);
 	} else {
-		rc = ceph_ll_walk(export->cmount, realpath, &st);
+		rc = ceph_ll_walk(export->sm->cmount, realpath, &st);
 	}
 	if (rc < 0) {
 		status = ceph2fsal_error(rc);
@@ -302,7 +325,7 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 		goto out;
 	}
 
-	rc = ceph_ll_connectable_m(export->cmount, &wire->vi,
+	rc = ceph_ll_connectable_m(export->sm->cmount, &wire->vi,
 				   wire->parent_ino,
 				   wire->parent_hash);
 	if (rc < 0) {
@@ -311,7 +334,7 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 
 	/* The ceph_ll_connectable_m should have populated libceph's
            cache with all this anyway */
-	rc = ceph_ll_getattr(export->cmount, wire->vi, &st, 0, 0);
+	rc = ceph_ll_getattr(export->sm->cmount, wire->vi, &st, 0, 0);
 	if (rc < 0) {
 		return ceph2fsal_error(rc);
 	}
@@ -357,7 +380,7 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 	root.ino.val = CEPH_INO_ROOT;
 	root.snapid.val = CEPH_NOSNAP;
 
-	rc = ceph_ll_statfs(export->cmount, root, &vfs_st);
+	rc = ceph_ll_statfs(export->sm->cmount, root, &vfs_st);
 
 	if (rc < 0) {
 		return ceph2fsal_error(rc);

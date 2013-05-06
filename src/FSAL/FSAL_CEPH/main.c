@@ -54,14 +54,93 @@ static struct fsal_module *module = NULL;
  */
 static const char *module_name = "Ceph";
 
+/* Shared mount indirection */
+struct shared_ceph_mount *sm;
+
+/**
+ * There is no defined mechanism for Ceph clients to interact with
+ * multiple, distinct clusters yet (but presumably there will be).
+ * For now, every object in a given Ceph env is by definition in the
+ * same cluster, so sharing a single Ceph mount between exports is
+ * the only case--but it should be the unmarked case when a way to
+ * disambiguate Ceph clusters is added.  Then each export should have a
+ * refcounted shared_ceph_mount object, and create_export (and later
+ * destroy_export, etc) must do housekeeping accordingly.
+ */
+
+/**
+ * @brief Allocate a shared Ceph mount
+ *
+ * This function uses (currently non-existent) parameters to allocate
+ * and initialize a new shared Ceph mount.
+ *
+ * @return the new object.
+ */
+static struct shared_ceph_mount *
+new_ceph_mount(const char *path, fsal_status_t *status)
+{
+	struct shared_ceph_mount *sm = NULL;
+	/* A fake argument list for Ceph */
+	const char *argv[] = {"FSAL_CEPH", path};
+	int ceph_status = 0;
+
+	sm = gsh_calloc(1, sizeof(struct shared_ceph_mount));
+	if (sm == NULL) {
+		status->major = ERR_FSAL_NOMEM;
+		LogCrit(COMPONENT_FSAL,
+			"Unable to allocate shared mount object for "
+			"%s.", path);
+		goto error;
+	}
+
+	/* allocates ceph_mount_info */
+	ceph_status = ceph_create(&sm->cmount, NULL);
+	if (ceph_status != 0) {
+		status->major = ERR_FSAL_SERVERFAULT;
+		LogCrit(COMPONENT_FSAL,
+			"Unable to create Ceph handle");
+		goto error;
+	}
+
+	ceph_status = ceph_conf_read_file(sm->cmount, NULL);
+	if (ceph_status == 0) {
+		ceph_status = ceph_conf_parse_argv(sm->cmount, 2, argv);
+	}
+
+	if (ceph_status != 0) {
+		status->major = ERR_FSAL_SERVERFAULT;
+		LogCrit(COMPONENT_FSAL,
+			"Unable to read Ceph configuration");
+		goto error;
+	}
+
+	ceph_status = ceph_mount(sm->cmount, NULL);
+	if (ceph_status != 0) {
+		status->major = ERR_FSAL_SERVERFAULT;
+		LogCrit(COMPONENT_FSAL,
+			"Unable to mount Ceph cluster.");
+		goto error;
+	}
+
+	/* ds.osd holds OSD number for this machine (if applicable) */
+	sm->ds.osd = ceph_get_local_osd(sm->cmount);
+
+	return (sm);
+
+error:
+	if (sm) {
+		ceph_shutdown(sm->cmount);
+		sm->cmount = NULL;
+		gsh_free(sm);
+	}
+
+	return (NULL);
+}
+
 /**
  * @brief Create a new export under this FSAL
  *
  * This function creates a new export object for the Ceph FSAL.
- *
- * @todo ACE: We do not handle re-exports of the same cluster in a
- * sane way.  Currently we create multiple handles and cache objects
- * pointing to the same one.
  *
  * @param[in]     module_in  The supplied module handle
  * @param[in]     path       The path to export
@@ -72,7 +151,6 @@ static const char *module_name = "Ceph";
  *
  * @return FSAL status.
  */
-
 static fsal_status_t create_export(struct fsal_module *module,
 				   const char *path,
 				   const char *options,
@@ -87,10 +165,6 @@ static fsal_status_t create_export(struct fsal_module *module,
 	bool initialized = false;
 	/* The internal export object */
 	struct export *export = NULL;
-	/* A fake argument list for Ceph */
-	const char *argv[] = {"FSAL_CEPH", path};
-	/* Return code from Ceph calls */
-	int ceph_status = 0;
 
 	if ((path == NULL) ||
 	    (strlen(path) == 0)) {
@@ -116,6 +190,12 @@ static fsal_status_t create_export(struct fsal_module *module,
 		goto error;
 	}
 
+	if (! sm) {
+		sm = new_ceph_mount(path, &status);
+		if (! sm)
+			goto error;
+	}
+
 	if (fsal_export_init(&export->export,
 			     list_entry) != 0) {
 		status.major =  ERR_FSAL_NOMEM;
@@ -124,45 +204,15 @@ static fsal_status_t create_export(struct fsal_module *module,
 			path);
 		goto error;
 	}
+
+	export->sm = sm;
+	atomic_inc_int32_t(&sm->refcnt);
 	export_ops_init(export->export.ops);
 	handle_ops_init(export->export.obj_ops);
 	ds_ops_init(export->export.ds_ops);
 	export->export.up_ops = up_ops;
 
 	initialized = true;
-
-	/* allocates ceph_mount_info */
-	ceph_status = ceph_create(&export->cmount, NULL);
-	if (ceph_status != 0) {
-		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL,
-			"Unable to create Ceph handle");
-		goto error;
-	}
-
-	ceph_status = ceph_conf_read_file(export->cmount, NULL);
-	if (ceph_status == 0) {
-		ceph_status = ceph_conf_parse_argv(export->cmount, 2,
-						   argv);
-	}
-
-	if (ceph_status != 0) {
-		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL,
-			"Unable to read Ceph configuration");
-		goto error;
-	}
-
-	ceph_status = ceph_mount(export->cmount, NULL);
-	if (ceph_status != 0) {
-		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL,
-			"Unable to mount Ceph cluster.");
-		goto error;
-	}
-
-	/* ds.osd holds OSD number for this machine (if applicable) */
-	export->ds.osd = ceph_get_local_osd(export->cmount);
 
 	if (fsal_attach_export(module,
 			       &export->export.exports) != 0) {
@@ -179,12 +229,6 @@ static fsal_status_t create_export(struct fsal_module *module,
 	return status;
 
 error:
-
-	if (export->cmount != NULL) {
-		ceph_shutdown(export->cmount);
-		export->cmount = NULL;
-	}
-
 	if (initialized) {
 		pthread_mutex_destroy(&export->export.lock);
 		initialized = false;
@@ -229,6 +273,9 @@ MODULE_INIT void init(void)
 
 	/* Set up module operations */
 	module->ops->create_export = create_export;
+
+	/* Null mounts */
+	sm = NULL;
 
         /* Init reservation cache */
         ds_cache_pkginit();

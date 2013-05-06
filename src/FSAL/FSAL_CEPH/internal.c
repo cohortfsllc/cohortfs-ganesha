@@ -289,7 +289,7 @@ int construct_handle(const struct stat *st,
 	constructing->wire.vi.ino.val = st->st_ino;
 	constructing->wire.vi.snapid.val = st->st_dev;
 
-	rc = ceph_ll_connectable_x(export->cmount,
+	rc = ceph_ll_connectable_x(export->sm->cmount,
 				   constructing->wire.vi,
 				   &constructing->wire.parent_ino,
 				   &constructing->wire.parent_hash);
