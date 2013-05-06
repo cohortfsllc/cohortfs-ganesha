@@ -33,6 +33,7 @@
  */
 
 #include <sys/stat.h>
+#include "avl_x.h"
 #include "fsal_types.h"
 #include "fsal.h"
 #include "fsal_convert.h"

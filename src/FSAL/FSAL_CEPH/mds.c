@@ -20,14 +20,11 @@
  * -------------
  */
 
+#include "internal.h"
 #include "ganesha_rpc.h"
-#include <cephfs/libcephfs.h>
 #include "fsal.h"
-#include "fsal_types.h"
-#include "fsal_api.h"
 #include "fsal_up.h"
 #include "pnfs_utils.h"
-#include "internal.h"
 #include "nfs_exports.h"
 #include "FSAL/fsal_commonlib.h"
 #include "city.h"

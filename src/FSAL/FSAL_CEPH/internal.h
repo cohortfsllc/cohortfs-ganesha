@@ -1,6 +1,5 @@
 /*
  * Copyright © 2012, CohortFS, LLC.
- * Author: Adam C. Emerson <aemerson@linuxbox.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -23,6 +22,7 @@
 /**
  * @file   internal.h
  * @author Adam C. Emerson <aemerson@linuxbox.com>
+ * @author Matt Benjamin <matt@linuxbox.com>
  * @date   Mon Jul  9 13:33:32 2012
  *
  * @brief Internal declarations for the Ceph FSAL
@@ -35,11 +35,63 @@
 #define FSAL_CEPH_INTERNAL_INTERNAL__
 
 #include <cephfs/libcephfs.h>
+#include "avl_x.h"
 #include "fsal.h"
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include <stdbool.h>
-#include "avltree.h"
+#include "nlm_list.h"
+#include "abstract_mem.h"
+#include "wait_queue.h"
+
+/**
+ * Reservation support.
+ */
+
+#define DS_RSV_FLAG_NONE         0x0000
+#define DS_RSV_FLAG_FENCED       0x0001
+#define DS_RSV_FLAG_NOMATCH      0x0002
+#define DS_RSV_FLAG_FETCHING     0x0004
+
+struct ds_rsv {
+	uint64_t hk;
+	uint32_t flags;
+	int32_t refcnt;
+	struct glist_head q;
+	struct avltree_node node_k; /*< AVL node in tree */
+	struct ceph_reservation rsv;
+	uint64_t ino;
+	wait_entry_t we;
+	uint32_t waiters;
+};
+
+/* Cache-line padding macro from MCAS */
+#ifndef CACHE_LINE_SIZE
+#define CACHE_LINE_SIZE 64 /* XXX arch-specific define */
+#endif
+#define CACHE_PAD(_n) char __pad ## _n [CACHE_LINE_SIZE]
+#define ALIGNED_ALLOC(_s)					\
+     ((void *)(((unsigned long)malloc((_s)+CACHE_LINE_SIZE*2) + \
+		CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE-1)))
+
+#define RSV_N_Q_LANES 7
+
+struct rsv_q_lane
+{
+	pthread_mutex_t mtx;
+	struct glist_head q; /* LRU is at HEAD, MRU at tail */
+	struct avl_x_part *t;
+	CACHE_PAD(0);
+};
+
+struct ds_rsv_cache
+{
+	uint32_t max_entries; /* TODO:  move to config file */
+	uint32_t n_entries;
+
+	struct avl_x xt;
+	struct rsv_q_lane lru[RSV_N_Q_LANES];
+};
 
 /**
  * Ceph private export object
@@ -52,6 +104,7 @@ struct shared_ceph_mount {
 	int32_t refcnt; /*< mount refs */
 	struct {
 		uint64_t osd;
+		struct ds_rsv_cache cache;
 	} ds;
 };
 
@@ -155,5 +208,12 @@ void handle_ops_init(struct fsal_obj_ops *ops);
 void ds_ops_init(struct fsal_ds_ops *ops);
 void export_ops_pnfs(struct export_ops *ops);
 void handle_ops_pnfs(struct fsal_obj_ops *ops);
+
+void ds_cache_init(struct shared_ceph_mount *sm);
+struct ds_rsv *ds_cache_ref(struct export *export, struct ds *ds);
+void ds_cache_unref(struct export *export, struct ds_rsv *rsv);
+/* XXX fixme */
+void ds_cache_pkginit(void);
+void ds_cache_pkgshutdown(void);
 
 #endif /* !FSAL_CEPH_INTERNAL_INTERNAL__ */

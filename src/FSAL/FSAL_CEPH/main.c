@@ -33,15 +33,9 @@
 
 #include <stdlib.h>
 #include <assert.h>
-#include "avl_x.h"
-#include "ds_cache.h"
-#include "fsal.h"
-#include "fsal_types.h"
+#include "internal.h"
 #include "FSAL/fsal_init.h"
 #include "FSAL/fsal_commonlib.h"
-#include "fsal_api.h"
-#include "internal.h"
-#include "abstract_mem.h"
 
 /**
  * A local copy of the handle for this module, so it can be disposed

@@ -36,12 +36,9 @@
 #include "config.h"
 
 #include <fcntl.h>
-#include "ds_cache.h" /* XXX fsal.h has ordering issues wrt abstract_atomic.h */
-#include "fsal.h"
-#include "fsal_api.h"
+#include "internal.h"
 #include "FSAL/fsal_commonlib.h"
 #include "fsal_up.h"
-#include "internal.h"
 #include "pnfs_utils.h"
 
 #define min(a,b)				\
@@ -165,12 +162,12 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 
         rsv = ds_cache_ref(export, ds);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
-		ds_cache_unref(rsv);
+		ds_cache_unref(export, rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);
         }
 
 	if (! io_check_range(rsv, offset, requested_length)) {
-		ds_cache_unref(rsv);
+		ds_cache_unref(export, rsv);
 		return (NFS4ERR_INVAL);
 	}
 
@@ -185,7 +182,7 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 		    requested_length),
 		&(ds->wire.layout));
 
-        ds_cache_unref(rsv);
+        ds_cache_unref(export, rsv);
 
 	if (amount_read < 0) {
 		return posix2nfs4_error(-amount_read);
@@ -275,13 +272,13 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 
         rsv = ds_cache_ref(export, ds);
         if (rsv->flags & DS_RSV_FLAG_FENCED) {
-		ds_cache_unref(rsv);
+		ds_cache_unref(export, rsv);
 		return (NFS4ERR_PNFS_NO_LAYOUT);
         }
 
 	if (! ((io_check_range(rsv, offset, write_length)) &&
 	       (rsv->rsv.iomode == CEPH_RSV_IOMODE_RW))) {
-		ds_cache_unref(rsv);
+		ds_cache_unref(export, rsv);
 		return (NFS4ERR_INVAL);
 	}
 
@@ -374,7 +371,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		*stability_got = stability_wanted;
 	}
 
-	ds_cache_unref(rsv);
+	ds_cache_unref(export, rsv);
 	    
 	return NFS4_OK;
 }

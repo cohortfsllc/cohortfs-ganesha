@@ -21,7 +21,7 @@
  */
 
 /**
- * @file   ds_cache.h
+ * @file   ds_cache.c
  * @author Matt Benjamin <matt@linuxbox.com>
  * @date   Wed May  1 08:29:47 PDT 2013
  *
@@ -32,13 +32,9 @@
 
 #include "config.h"
 
-#include "ds_cache.h"
-#include "fsal.h"
-#include "fsal_api.h"
-#include "FSAL/fsal_commonlib.h"
 #include "internal.h"
+#include "FSAL/fsal_commonlib.h"
 
-struct ds_rsv_cache ds_cache;
 static pool_t *ds_rsv_pool;
 
 #define QLOCK(qlane) \
@@ -59,8 +55,8 @@ static pool_t *ds_rsv_pool;
 	if (! locked) \
 		pthread_mutex_unlock(&(qlane)->mtx)
 
-#define qlane_of_ix(ix) \
-	(&ds_cache.lru[(ix)])
+#define qlane_of_ix(ds_cache, ix) \
+	(&ds_cache->lru[(ix)])
 
 #define qlane_of_tpart(t) \
 	((struct rsv_q_lane *) (t)->u1)
@@ -111,31 +107,38 @@ lru_init_queue(struct rsv_q_lane *qlane)
 void
 ds_cache_pkginit(void)
 {
-	int ix;
-	struct avl_x_part *t;
-	struct rsv_q_lane *qlane;
-
 	ds_rsv_pool =
 		pool_init("ds_rsv_pool", sizeof(struct ds_rsv),
 			  pool_basic_substrate,
 			  NULL, NULL, NULL);
+}
 
-	ds_cache.max_entries = 16384; /* TODO:  conf */
-	ds_cache.n_entries = 0;
-	ds_cache.xt.cachesz = 4096; /* 28K slot table */
+/**
+ *  Per-mount cache init
+ */
+void
+ds_cache_init(struct shared_ceph_mount *sm)
+{
+	int ix;
+	struct avl_x_part *t;
+	struct rsv_q_lane *qlane;
+        struct ds_rsv_cache *ds_cache = &sm->ds.cache;        
 
-	(void) avlx_init(&ds_cache.xt, rsv_cmpf, RSV_N_Q_LANES,
+	ds_cache->max_entries = 16384; /* TODO:  conf */
+	ds_cache->n_entries = 0;
+	ds_cache->xt.cachesz = 4096; /* 28K slot table */
+
+	(void) avlx_init(&sm->ds.cache.xt, rsv_cmpf, RSV_N_Q_LANES,
 			 AVL_X_FLAG_CACHE_RT);
 
 	/* for simplicity, unify partitions and lanes */
 	for (ix = 0; ix < RSV_N_Q_LANES; ++ix) {
-		t = avlx_partition_of_ix(&ds_cache.xt, ix);
-		qlane = qlane_of_ix(ix);
+		t = avlx_partition_of_ix(&ds_cache->xt, ix);
+		qlane = qlane_of_ix(ds_cache, ix);
 		lru_init_queue(qlane);
 		t->u1 = qlane;
 		qlane->t = t;
 	}
-
 }
 
 #define SENTINEL_REFCOUNT 1
@@ -159,11 +162,15 @@ new_rsv(void)
 }
 
 static inline struct ds_rsv *
-try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
+try_reclaim(struct export *export, struct rsv_q_lane *qlane,
+	    struct ds_rsv *rsv)
 {
+	struct ds_rsv_cache *ds_cache;
 	struct avl_x_part *t;
 	int32_t refcnt;
 	vinodeno_t vino;
+
+	ds_cache = &export->sm->ds.cache;
 
 	/* QLOCKED */
 	refcnt = atomic_inc_int32_t(&rsv->refcnt);
@@ -174,7 +181,7 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 	t = qlane->t;
 
 	/* rsv is almost always moving, due to new hk */
-	avl_x_cached_remove(&ds_cache.xt, t, &rsv->node_k, rsv->hk);
+	avl_x_cached_remove(&ds_cache->xt, t, &rsv->node_k, rsv->hk);
 	glist_del(&rsv->q);
 
         /* call async (no need for threadpool) */
@@ -182,42 +189,45 @@ try_reclaim(struct rsv_q_lane *qlane, struct ds_rsv *rsv)
 	vino.snapid.val = CEPH_NOSNAP;
 
         ceph_ll_unassert_reservation(
-		rsv->export->sm->cmount, vino, &rsv->rsv,
-		rsv->export->sm->ds.osd);
+		export->sm->cmount, vino, &rsv->rsv,
+		export->sm->ds.osd);
 
 	/* XXX review */
-	(void) atomic_dec_int32_t(&rsv->export->sm->refcnt);
+	(void) atomic_dec_int32_t(&export->sm->refcnt);
 
 	return (rsv);
 }
 
 static inline struct ds_rsv *
-try_reap_rsv(int locked_ix)
+try_reap_rsv(struct export *export, int locked_ix)
 {
 	static uint32_t reap_lane = 0;
 	struct ds_rsv *lru, *rsv = NULL;
+	struct ds_rsv_cache *ds_cache;
 	struct rsv_q_lane *qlane;
 	struct glist_head *glist;
 	struct glist_head *glistn;
 	uint32_t lane, n_entries;
 	int ix;
 
-	n_entries = atomic_fetch_uint32_t(&ds_cache.n_entries);
-	if (n_entries >= ds_cache.n_entries) {
+	ds_cache = &export->sm->ds.cache;
+
+	n_entries = atomic_fetch_uint32_t(&ds_cache->n_entries);
+	if (n_entries >= ds_cache->max_entries) {
 		/* try to reclaim */		
 		for (ix = 0; ix < RSV_N_Q_LANES; ++ix,
 			     lane = LRU_NEXT(reap_lane)) {
-			qlane = qlane_of_ix(lane);
+			qlane = qlane_of_ix(ds_cache, lane);
 			bool locked = (locked_ix == lane);
 			COND_QLOCK(qlane);
 			glist_for_each_safe(glist, glistn, &qlane->q) {
 				lru = glist_entry(glist, struct ds_rsv, q);
 				if (lru) {
-					rsv = try_reclaim(qlane, lru);
+					rsv = try_reclaim(export, qlane, lru);
 					if (rsv) {
 						COND_QUNLOCK(qlane);
 						(void) atomic_dec_uint32_t(
-							&ds_cache.n_entries);
+							&ds_cache->n_entries);
 						return (rsv);
 					}
 				}
@@ -242,6 +252,7 @@ ds_notify(vinodeno_t vi, bool write, void *opaque)
 struct ds_rsv *
 ds_cache_ref(struct export *export, struct ds *ds)
 {
+	struct ds_rsv_cache *ds_cache;
 	struct avltree_node *node;
 	struct ds_rsv rk, *rsv;
 	struct rsv_q_lane *qlane;
@@ -249,16 +260,18 @@ ds_cache_ref(struct export *export, struct ds *ds)
 	struct timespec ts;
 	int ix, r;
 
+	ds_cache = &export->sm->ds.cache;
+
 	rk.rsv.id = ds->wire.rsv.id;
 	rk.hk = ds->wire.rsv.hk;
 	rk.ino = ds->wire.wire.vi.ino.val;
 
-	ix = avlx_idx_of_scalar(&ds_cache.xt, rk.hk);
-	t = avlx_partition_of_ix(&ds_cache.xt, ix);
+	ix = avlx_idx_of_scalar(&ds_cache->xt, rk.hk);
+	t = avlx_partition_of_ix(&ds_cache->xt, ix);
 	qlane = qlane_of_tpart(t);
 
 	QLOCK(qlane);
-	node = avl_x_cached_lookup(&ds_cache.xt, t, &rk.node_k, rk.hk);
+	node = avl_x_cached_lookup(&ds_cache->xt, t, &rk.node_k, rk.hk);
 	if (node) {
 		rsv = avltree_container_of(node, struct ds_rsv, node_k);
 		(void) atomic_inc_int32_t(&rsv->refcnt);
@@ -282,19 +295,18 @@ ds_cache_ref(struct export *export, struct ds *ds)
 		}
 	} else {
 		/* ! node */
-		rsv = try_reap_rsv(-1); /* allocates if nothing available */
+		rsv = try_reap_rsv(export, -1); /* allocates if none avail */
 		/* ref+1 */
 		rsv->flags = DS_RSV_FLAG_FETCHING; /* deal with races */
 		/* ds_cache_ref can't be called when draining export, but 
                  * atomics permit async reclaim */
 		/* XXX review */
 		(void) atomic_inc_int32_t(&export->sm->refcnt);
-		rsv->export = export;
 		rsv->rsv.id = rk.rsv.id;
 		rsv->hk = rk.hk;
 		rsv->ino = rk.ino;
 		/* pins the tree at this position */
-		(void) avl_x_cached_insert(&ds_cache.xt, t, &rsv->node_k,
+		(void) avl_x_cached_insert(&ds_cache->xt, t, &rsv->node_k,
 					   rsv->hk);
 		/* try_reap_rsv() can't find this */
 		QUNLOCK(qlane);
@@ -322,17 +334,20 @@ unlock:
 }
 
 void
-ds_cache_unref(struct ds_rsv *rsv)
+ds_cache_unref(struct export *export, struct ds_rsv *rsv)
 {
+	struct ds_rsv_cache *ds_cache;
 	struct rsv_q_lane *qlane;
 	struct avl_x_part *t;
 	int32_t refcnt;
 	int ix;
 
+	ds_cache = &export->sm->ds.cache;
+
 	refcnt = atomic_dec_int32_t(&rsv->refcnt);
 	if (refcnt == 0) {
-		ix = avlx_idx_of_scalar(&ds_cache.xt, rsv->hk);
-		t = avlx_partition_of_ix(&ds_cache.xt, ix);
+		ix = avlx_idx_of_scalar(&ds_cache->xt, rsv->hk);
+		t = avlx_partition_of_ix(&ds_cache->xt, ix);
 		qlane = qlane_of_tpart(t);
 		QLOCK(qlane);
 		refcnt = atomic_fetch_int32_t(&rsv->refcnt);

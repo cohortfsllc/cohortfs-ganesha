@@ -32,11 +32,10 @@
  */
 
 #include <fcntl.h>
-#include <cephfs/libcephfs.h>
+#include "internal.h"
 #include "fsal.h"
 #include "fsal_types.h"
 #include "fsal_api.h"
-#include "internal.h"
 #include "nfs_exports.h"
 #include "FSAL/fsal_commonlib.h"
 
