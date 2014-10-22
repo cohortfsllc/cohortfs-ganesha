@@ -23,6 +23,10 @@ if(USE_FSAL_CEPH)
   add_subdirectory(FSAL_CEPH)
 endif(USE_FSAL_CEPH)
 
+if(USE_FSAL_COHORT)
+  add_subdirectory(FSAL_COHORT)
+endif(USE_FSAL_COHORT)
+
 if(USE_FSAL_LUSTRE)
   add_subdirectory(FSAL_LUSTRE)
 endif(USE_FSAL_LUSTRE)
