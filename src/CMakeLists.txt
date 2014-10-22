@@ -173,6 +173,7 @@ ENDIF()
 option(USE_FSAL_PROXY "build PROXY FSAL shared library" ON)
 option(USE_FSAL_VFS "build VFS FSAL shared library" ON)
 option(USE_FSAL_CEPH "build CEPH FSAL shared library" ON)
+option(USE_FSAL_COHORT "build COHORT FSAL shared library" ON)
 option(USE_FSAL_GPFS "build GPFS FSAL" ON)
 option(USE_FSAL_ZFS "build ZFS FSAL" ON)
 option(USE_FSAL_LUSTRE "build LUSTRE FSAL" ON)
@@ -289,6 +290,17 @@ IF(USE_FSAL_CEPH)
     LIST(APPEND CMAKE_REQUIRED_INCLUDES "${CEPH_PREFIX}/include")
   ELSE()
     set(CEPH_PREFIX "/usr" CACHE PATH "Path to Ceph installation")
+  ENDIF()
+ENDIF()
+
+IF(USE_FSAL_COHORT)
+  IF(COHORT_PREFIX)
+    set(COHORT_PREFIX ${COHORT_PREFIX} CACHE PATH "Path to Cohort installation")
+    LIST(APPEND CMAKE_PREFIX_PATH "${COHORT_PREFIX}")
+    LIST(APPEND CMAKE_LIBRARY_PATH "${COHORT_PREFIX}/lib")
+    LIST(APPEND CMAKE_REQUIRED_INCLUDES "${COHORT_PREFIX}/include")
+  ELSE()
+    set(COHORT_PREFIX "/usr" CACHE PATH "Path to Cohort installation")
   ENDIF()
 ENDIF()
 
@@ -499,14 +511,47 @@ if(USE_FSAL_CEPH)
     CEPH_FS
     )
   if(NOT CEPH_FS)
-if(STRICT_PACKAGE)
+    if(STRICT_PACKAGE)
       message(FATAL_ERROR "STRICT_PACKAGE : Cannot find CEPH runtime.  Disabling CEPH fsal build")
     else(STRICT_PACKAGE)
       message(WARNING "Cannot find CEPH runtime.  Disabling CEPH fsal build")
       set(USE_FSAL_CEPH OFF)
     endif(STRICT_PACKAGE)
- endif(NOT CEPH_FS)
+  endif(NOT CEPH_FS)
 endif(USE_FSAL_CEPH)
+
+if(USE_FSAL_COHORT)
+  find_library(COHORT_FS cephfs)
+  check_library_exists(
+    cephfs
+    ceph_ll_connectable_x
+    ${COHORT_PREFIX}
+    COHORT_FS
+    )
+  if(NOT COHORT_FS)
+    if(STRICT_PACKAGE)
+      message(FATAL_ERROR "STRICT_PACKAGE : Cannot find COHORT runtime.  Disabling COHORT fsal build")
+    else(STRICT_PACKAGE)
+      message(WARNING "Cannot find COHORT runtime.  Disabling COHORT fsal build")
+      set(USE_FSAL_COHORT OFF)
+    endif(STRICT_PACKAGE)
+  endif(NOT COHORT_FS)
+  find_library(COHORT_OSD ceph-osd)
+  check_library_exists(
+    ceph-osd
+    libosd_init
+    ${COHORT_PREFIX}
+    COHORT_OSD
+    )
+  if(NOT COHORT_OSD)
+    if(STRICT_PACKAGE)
+      message(FATAL_ERROR "STRICT_PACKAGE : Cannot find COHORT runtime.  Disabling COHORT fsal build")
+    else(STRICT_PACKAGE)
+      message(WARNING "Cannot find COHORT runtime.  Disabling COHORT fsal build")
+      set(USE_FSAL_COHORT OFF)
+    endif(STRICT_PACKAGE)
+  endif(NOT COHORT_OSD)
+endif(USE_FSAL_COHORT)
 
 if(USE_FSAL_LUSTRE)
   find_library(HAVE_LUSTREAPI lustreapi)
@@ -909,6 +954,7 @@ message(STATUS "-------------------------------------------------------")
 message(STATUS "USE_FSAL_PROXY = ${USE_FSAL_PROXY}")
 message(STATUS "USE_FSAL_VFS = ${USE_FSAL_VFS}")
 message(STATUS "USE_FSAL_CEPH = ${USE_FSAL_CEPH}")
+message(STATUS "USE_FSAL_COHORT = ${USE_FSAL_COHORT}")
 message(STATUS "USE_FSAL_HPSS = ${USE_FSAL_HPSS}")
 message(STATUS "USE_FSAL_XFS = ${USE_FSAL_XFS}")
 message(STATUS "USE_FSAL_GPFS = ${USE_FSAL_GPFS}")
@@ -943,6 +989,7 @@ message(STATUS "_USE_9P = ${_USE_9P}")
 message(STATUS "_USE_9P_RDMA = ${_USE_9P_RDMA}")
 message(STATUS "KRB5_PREFIX = ${KRB5_PREFIX}")
 message(STATUS "CEPH_PREFIX = ${CEPH_PREFIX}")
+message(STATUS "COHORT_PREFIX = ${COHORT_PREFIX}")
 message(STATUS "HPSS_PREFIX = ${HPSS_PREFIX}")
 message(STATUS "GLUSTER_PREFIX = ${GLUSTER_PREFIX}")
 message(STATUS "ZFS_PREFIX = ${ZFS_PREFIX}")
@@ -974,6 +1021,11 @@ set(USE_FSAL_PROXY ${USE_FSAL_PROXY}
 set(USE_FSAL_CEPH ${USE_FSAL_CEPH}
   CACHE BOOL
    "build CEPH FSAL shared library"
+   FORCE)
+
+set(USE_FSAL_COHORT ${USE_FSAL_COHORT}
+  CACHE BOOL
+   "build COHORT FSAL shared library"
    FORCE)
 
 set(USE_HPSS_FSAL ${USE_HPSS_FSAL}
@@ -1146,9 +1198,9 @@ if(USE_FSAL_CEPH)
     set( WITH_ARG "${WITH_ARG} --with ceph")
 endif(USE_FSAL_CEPH)
 
-if(USE_FSAL_CEPH)
-    set( WITH_ARG "${WITH_ARG} --with ceph")
-endif(USE_FSAL_CEPH)
+if(USE_FSAL_COHORT)
+    set( WITH_ARG "${WITH_ARG} --with cohort")
+endif(USE_FSAL_COHORT)
 
 if(USE_FSAL_GLUSTER)
     set( WITH_ARG "${WITH_ARG} --with gluster")
