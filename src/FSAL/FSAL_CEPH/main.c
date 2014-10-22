@@ -160,7 +160,7 @@ static fsal_status_t create_export(struct fsal_module *module,
 	export->export.fsal = module;
 
 	root.ino.val = CEPH_INO_ROOT;
-	root.snapid.val = CEPH_NOSNAP;
+// XXX	root.snapid.val = CEPH_NOSNAP;
 	i = ceph_ll_get_inode(export->cmount, root);
 	if (!i) {
 		status.major = ERR_FSAL_SERVERFAULT;

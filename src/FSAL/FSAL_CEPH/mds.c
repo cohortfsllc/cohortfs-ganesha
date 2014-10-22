@@ -107,7 +107,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 	nfsstat4 nfs_status = 0;
 
 	vinode.ino.val = deviceid->devid;
-	vinode.snapid.val = CEPH_NOSNAP;
+// XXX	vinode.snapid.val = CEPH_NOSNAP;
 
 	/* Sanity check on type */
 	if (type != LAYOUT4_NFSV4_1_FILES) {
@@ -422,9 +422,14 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
 		uint32_t r = 0;
 		if (handle->rd_issued == 0) {
+#if 0
+// thunderbeast mbarrier1
 			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
 					    false, initiate_recall, handle,
 					    &handle->rd_serial, NULL);
+#else
+r = 0;
+#endif
 			if (r < 0) {
 				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
 				return posix2nfs4_error(-r);
@@ -434,10 +439,14 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	} else {
 		uint32_t r = 0;
 		if (handle->rw_issued == 0) {
+#if 0
 			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
 					    true, initiate_recall, handle,
 					    &handle->rw_serial,
 					    &handle->rw_max_len);
+#else
+r = 0;
+#endif
 			if (r < 0) {
 				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
 				return posix2nfs4_error(-r);
@@ -507,10 +516,12 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 		}
 	}
 
+#if 0
 	ceph_ll_return_rw(export->cmount, handle->wire.vi,
 			  res->segment.io_mode ==
 			  LAYOUTIOMODE4_READ ? handle->rd_serial : handle->
 			  rw_serial);
+#endif
 
 	PTHREAD_RWLOCK_unlock(&handle->handle.lock);
 
@@ -562,10 +573,12 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 			}
 		}
 
+#if 0
 		ceph_ll_return_rw(export->cmount, handle->wire.vi,
 				  arg->cur_segment.io_mode ==
 				  LAYOUTIOMODE4_READ ? handle->
 				  rd_serial : handle->rw_serial);
+#endif
 
 		PTHREAD_RWLOCK_unlock(&handle->handle.lock);
 	}

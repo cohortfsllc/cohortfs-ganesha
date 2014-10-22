@@ -246,6 +246,8 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	/* If the client specifies FILE_SYNC4, then we have to connect
 	   the filehandle and use the MDS to update size and access
 	   time. */
+#if 0
+// XXX must ask adam about ceph_ll_connectable_m -mdw 20140922
 	if (stability_wanted == FILE_SYNC4) {
 		Fh *descriptor = NULL;
 
@@ -306,6 +308,7 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 		*written_length = amount_written;
 		*stability_got = FILE_SYNC4;
 	} else {
+#endif
 		/* FILE_SYNC4 wasn't specified, so we don't have to
 		   bother with the MDS. */
 
@@ -320,7 +323,9 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 
 		*written_length = amount_written;
 		*stability_got = stability_wanted;
+#if 0
 	}
+#endif
 
 	return NFS4_OK;
 }
