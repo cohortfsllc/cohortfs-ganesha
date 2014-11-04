@@ -45,6 +45,7 @@
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include "FSAL/fsal_commonlib.h"
+#include "FSAL/fsal_config.h"
 #include "internal.h"
 
 /**
@@ -346,75 +347,18 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 static bool fs_supports(struct fsal_export *export_pub,
 			fsal_fsinfo_options_t option)
 {
+#if 0
+/* if we have to support any options that aren't already in
+ * fsal_staticfsinfo_t & fsal_supports(), they go here.
+ */
 	switch (option) {
-	case fso_no_trunc:
-		return true;
-
-	case fso_chown_restricted:
-		return true;
-
-	case fso_case_insensitive:
-		return false;
-
-	case fso_case_preserving:
-		return true;
-
-	case fso_link_support:
-		return true;
-
-	case fso_symlink_support:
-		return true;
-
-	case fso_lock_support:
-		return false;
-
-	case fso_lock_support_owner:
-		return false;
-
-	case fso_lock_support_async_block:
-		return false;
-
-	case fso_named_attr:
-		return false;
-
-	case fso_unique_handles:
-		return true;
-
-	case fso_cansettime:
-		return true;
-
-	case fso_homogenous:
-		return true;
-
-	case fso_auth_exportpath_xdev:
-		return false;
-
-	case fso_accesscheck_support:
-		return false;
-
-	case fso_share_support:
-		return false;
-
-	case fso_share_support_owner:
-		return false;
-
-	case fso_pnfs_ds_supported:
-		return false;
-
-	case fso_pnfs_mds_supported:
-		return false;
-
-	case fso_delegations_r:
-		return false;
-
-	case fso_delegations_w:
-		return false;
-
-	case fso_reopen_method:
-		return false;
+	default:
+		break;
 	}
+#endif
 
-	return false;
+	struct fsal_staticfsinfo_t *info = cohort_staticinfo(export_pub->fsal);
+	return fsal_supports(info, option);
 }
 
 /**
@@ -565,23 +509,23 @@ static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
 /**
  * @brief Return the mode under which the FSAL will create files
  *
- * This function returns the default mode on any new file created.
+ * This function modifies the default mode on any new file created.
  *
  * @param[in] export_pub The public export
  *
- * @return 0600.
+ * @return 0 (usually).  Bits set here turn off bits in created files.
  */
 
 static uint32_t fs_umask(struct fsal_export *export_pub)
 {
-	return 0600;
+	return fsal_umask(cohort_staticinfo(export_pub->fsal));
 }
 
 /**
  * @brief Return the mode for extended attributes
  *
  * This function returns the access mode applied to extended
- * attributes.  This seems a bit dubious
+ * attributes.  Dubious.
  *
  * @param[in] export_pub The public export
  *
@@ -590,7 +534,7 @@ static uint32_t fs_umask(struct fsal_export *export_pub)
 
 static uint32_t fs_xattr_access_rights(struct fsal_export *export_pub)
 {
-	return 0644;
+	return fsal_xattr_access_rights(cohort_staticinfo(export_pub->fsal));
 }
 
 /**

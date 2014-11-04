@@ -221,9 +221,12 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 	struct Inode *i = NULL;
 	/* Status after create */
 	struct stat st;
+	mode_t unix_mode;
 	/* Newly created object */
 	struct cohort_handle *obj;
 
+	unix_mode = fsal2unix_mode(attrib->mode)
+	    & ~op_ctx->fsal_export->ops->fs_umask(op_ctx->fsal_export);
 	rc = ceph_ll_create(export->cmount, dir->i, name, unix_mode,
 			    O_CREAT, &st, &i, NULL, op_ctx->creds->caller_uid,
 			    op_ctx->creds->caller_gid);
@@ -270,11 +273,14 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 	    container_of(dir_pub, struct cohort_handle, handle);
 	/* Stat result */
 	struct stat st;
+	mode_t unix_mode;
 	/* Newly created object */
 	struct cohort_handle *obj = NULL;
 	struct Inode *i = NULL;
 
-	rc = ceph_ll_mkdir(export->cmount, dir->i, name, 0700, &st, &i,
+	unix_mode = fsal2unix_mode(attrib->mode)
+		& ~op_ctx->fsal_export->ops->fs_umask(op_ctx->fsal_export);
+	rc = ceph_ll_mkdir(export->cmount, dir->i, name, unix_mode, &st, &i,
 			   op_ctx->creds->caller_uid,
 			   op_ctx->creds->caller_gid);
 
@@ -295,7 +301,7 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 }
 
 /**
- * @name Crete a symlink
+ * @name Create a symlink
  *
  * This function creates a new symlink with the given content.
  *
@@ -450,6 +456,11 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 	struct stat st;
 	/* Mask of attributes to set */
 	uint32_t mask = 0;
+
+	/* apply umask, if mode attribute is to be changed */
+	if (FSAL_TEST_MASK(attrs->mask, ATTR_MODE))
+		attrs->mode &= ~op_ctx->fsal_export->ops->
+			fs_umask(op_ctx->fsal_export);
 
 	memset(&st, 0, sizeof(struct stat));
 
