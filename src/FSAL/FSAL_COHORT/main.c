@@ -58,11 +58,32 @@ struct cohort_fsal_module CohortFSM;
  */
 static const char *module_name = "Cohort";
 
+static struct fsal_staticfsinfo_t default_cohort_info = {
+	/* settable */
+#if 0
+	.umask = 0,
+	.xattr_access_rights = 0,
+#endif
+	/* fixed */
+	.symlink_support = true,
+	.link_support = true,
+	.cansettime = true,
+	.no_trunc = true,
+	.chown_restricted = true,
+	.case_preserving = true,
+	.unique_handles = true,
+	.homogenous = true,
+};
+
 static struct libosd_init_args CohortOSD = { 0, NULL, NULL, NULL, NULL };
 
 static struct config_item cohort_items[] = {
 	CONF_ITEM_PATH("Configuration", 0, MAXPATHLEN, "",
 		       cohort_fsal_module, where),
+	CONF_ITEM_MODE("umask", 0, 0777, 0,
+			cohort_fsal_module, fs_info.umask),
+	CONF_ITEM_MODE("xattr_access_rights", 0, 0777, 0,
+			cohort_fsal_module, fs_info.xattr_access_rights),
 	CONFIG_EOL
 };
 
@@ -75,6 +96,9 @@ static struct config_block cohort_block = {
 	.blk_desc.u.blk.commit = noop_conf_commit
 };
 
+/* Module methods
+ */
+
 /* init_config
  * must be called with a reference taken (via lookup_fsal)
  */
@@ -82,16 +106,17 @@ static struct config_block cohort_block = {
 static fsal_status_t init_config(struct fsal_module *module_in,
 				 config_file_t config_struct)
 {
-//	struct cohort_fsal_module *myself =
-//	    container_of(module_in, struct cohort_fsal_module, fsal);
+	struct cohort_fsal_module *myself =
+	    container_of(module_in, struct cohort_fsal_module, fsal);
 	struct config_error_type err_type;
 
 	LogDebug(COMPONENT_FSAL,
 		 "Cohort module setup.");
 
+	myself->fs_info = default_cohort_info;
 	(void) load_config_from_parse(config_struct,
 				      &cohort_block,
-				      &CohortFSM,
+				      myself,
 				      true,
 				      &err_type);
 	if (!config_error_is_harmless(&err_type))

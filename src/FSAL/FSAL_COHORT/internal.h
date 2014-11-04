@@ -54,6 +54,7 @@
 
 struct cohort_fsal_module {
 	struct fsal_module fsal;
+	struct fsal_staticfsinfo_t fs_info;
 	struct libosd *osd;
 	char *where;
 };
@@ -150,6 +151,8 @@ static inline fsal_status_t cohort2fsal_error(const int cohort_errorcode)
 }
 void cohort2fsal_attributes(const struct stat *buffstat,
 			    struct attrlist *fsalattr);
+
+struct fsal_staticfsinfo_t *cohort_staticinfo(struct fsal_module *hdl);
 
 void export_ops_init(struct export_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
