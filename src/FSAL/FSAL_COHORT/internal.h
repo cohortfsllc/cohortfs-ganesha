@@ -57,6 +57,7 @@ struct cohort_fsal_module {
 	struct fsal_staticfsinfo_t fs_info;
 	struct libosd *osd;
 	char *where;
+	bool start_osd;
 };
 extern struct cohort_fsal_module CohortFSM;
 

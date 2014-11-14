@@ -80,6 +80,8 @@ static struct libosd_init_args CohortOSD = { 0, NULL, NULL, NULL, NULL };
 static struct config_item cohort_items[] = {
 	CONF_ITEM_PATH("Configuration", 0, MAXPATHLEN, "",
 		       cohort_fsal_module, where),
+	CONF_ITEM_BOOL("start_osd", false,
+			cohort_fsal_module, start_osd),
 	CONF_ITEM_MODE("umask", 0, 0777, 0,
 			cohort_fsal_module, fs_info.umask),
 	CONF_ITEM_MODE("xattr_access_rights", 0, 0777, 0,
@@ -122,15 +124,17 @@ static fsal_status_t init_config(struct fsal_module *module_in,
 	if (!config_error_is_harmless(&err_type))
 		return fsalstat(ERR_FSAL_INVAL, 0);
 
-	/* leave default file NULL */
-	if (CohortFSM.where && strlen(CohortFSM.where) > 0)
-		CohortOSD.config = CohortFSM.where;
+	if (myself->start_osd) {
+		/* leave default file NULL */
+		if (myself->where && strlen(myself->where) > 0)
+			CohortOSD.config = myself->where;
 
-	CohortFSM.osd = libosd_init(&CohortOSD);
-	if (CohortFSM.osd == NULL) {
-		LogCrit(COMPONENT_FSAL,
-			"Unable to allocate osd");
-		return fsalstat(ERR_FSAL_NOMEM, 0);
+		myself->osd = libosd_init(&CohortOSD);
+		if (myself->osd == NULL) {
+			LogCrit(COMPONENT_FSAL,
+				"Unable to allocate osd");
+			return fsalstat(ERR_FSAL_NOMEM, 0);
+		}
 	}
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
@@ -346,9 +350,11 @@ MODULE_FINI void cohort_finish(void)
 			 "Cohort module has no osd object.");
 		goto cleanup;
 	}
-	libosd_shutdown(CohortFSM.osd);
-	libosd_join(CohortFSM.osd);
-	libosd_cleanup(CohortFSM.osd);
+	if (CohortFSM.osd) {
+		libosd_shutdown(CohortFSM.osd);
+		libosd_join(CohortFSM.osd);
+		libosd_cleanup(CohortFSM.osd);
+	}
 	CohortFSM.osd = NULL;
 
 cleanup:
