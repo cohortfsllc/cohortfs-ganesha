@@ -51,6 +51,7 @@
 #include <wbclient.h>
 #endif
 #include "common_utils.h"
+#include "nfs_exports.h"
 #include "idmapper.h"
 
 static struct gsh_buffdesc owner_domain;
