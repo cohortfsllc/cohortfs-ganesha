@@ -159,6 +159,8 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 				   void *parse_node,
 				   const struct fsal_up_vector *up_ops)
 {
+	struct cohort_fsal_module *myself =
+	    container_of(module_in, struct cohort_fsal_module, fsal);
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	/* A fake argument list for Cohort */
@@ -213,7 +215,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		goto error;
 	}
 
-	cohort_status = ceph_conf_read_file(export->cmount, NULL);
+	cohort_status = ceph_conf_read_file(export->cmount, myself->where);
 	if (cohort_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
