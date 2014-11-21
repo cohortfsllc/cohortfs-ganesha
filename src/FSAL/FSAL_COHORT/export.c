@@ -1,9 +1,12 @@
 /*
+ * vim:noexpandtab:shiftwidth=8:tabstop=8:tw=80:
+ *
  * Copyright © 2012-2014, CohortFS, LLC.
  * Author: Adam C. Emerson <aemerson@linuxbox.com>
  *
  * contributeur : William Allen Simpson <bill@cohortfs.com>
  *		  Marcus Watts <mdw@cohortfs.com>
+ *		  Daniel Gryniewicz <dang@cohortfs.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -206,22 +209,18 @@ nfsstat4 create_ds_handle(struct fsal_export * const export_pub,
 	*ds_pub = NULL;
 
 	/* ensure room for trailing '\0' */
-	if (desc->len > sizeof(ds->volume) + sizeof(ds->object_key) - 1)
+	if (desc->len != sizeof(ds->wire)) {
+		LogDebug(COMPONENT_PNFS, "DS Handle: desc wrong len %Zx:",
+			desc->len);
 		return NFS4ERR_BADHANDLE;
-
-	/* ensure volume plus at least 1 byte of object_key */
-	if (desc->len < sizeof(ds->volume) + 1)
-		return NFS4ERR_BADHANDLE;
+	}
 
 	ds = gsh_calloc(1, sizeof(struct cohort_ds));
 
 	if (ds == NULL)
 		return NFS4ERR_SERVERFAULT;
 
-	uuid_copy(ds->volume, desc->addr);
-
-	memcpy(&ds->object_key, desc->addr + sizeof(ds->volume),
-		desc->len - sizeof(ds->volume));
+	memcpy(&ds->wire, desc->addr, desc->len);
 
 	fsal_ds_handle_init(&ds->ds, export->export.ds_ops, export_pub->fsal);
 

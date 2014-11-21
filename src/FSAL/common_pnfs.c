@@ -159,6 +159,8 @@ nfsstat4 FSAL_encode_ipv4_netaddr(XDR *xdrs, uint16_t proto, uint32_t addr,
 			__LINE__, __func__);
 		return NFS4ERR_SERVERFAULT;
 	}
+	LogEvent(COMPONENT_PNFS, "addrbuff: %s len: %lu (24)", addrbuff,
+			written_length);
 
 	if (!xdr_string(xdrs, &buffptr, v4_addrbuff_len)) {
 		LogCrit(COMPONENT_FSAL, "Unable to encode address.");
@@ -336,6 +338,85 @@ nfsstat4 FSAL_encode_v4_multipath(XDR *xdrs, const uint32_t num_hosts,
 						      hosts[i].port);
 		if (nfs_status != NFS4_OK)
 			return nfs_status;
+	}
+
+	return NFS4_OK;
+}
+
+/**
+ * @brief Convenience function to encode loc_body for Placement Layout
+ *
+ * This function allows the FSAL to encode an placement_layout4
+ * without having to allocate and construct all the components of the
+ * structure, including file handles.
+ *
+ * To encode a completed placement_layout4 structure, call
+ * xdr_placement_layout4.
+ *
+ * @note This function encodes Ganesha data server handles in the
+ * loc_body, it does not use the FSAL's DS handle unadorned.
+ *
+ * @param[out] xdrs      XDR stream
+ * @param[in]  deviceid  The deviceid for the layout
+ * @param[in]  util      Stripe width and flags for the layout
+ * @param[in]  first_idx First stripe index
+ * @param[in]  ptrn_ofst Pattern offset
+ * @param[in]  export_id Export ID (export on Data Server)
+ * @param[in]  num_fhs   Number of file handles in array
+ * @param[in]  fhs       Array if buffer descriptors holding opaque DS
+ *                       handles
+ * @return NFS status codes.
+ */
+nfsstat4 FSAL_encode_placement_layout(XDR *xdrs,
+				 const struct pnfs_deviceid *deviceid,
+				 nfl_util4 util,
+				 const unsigned int export_id,
+				 const uint32_t num_fhs,
+				 const struct gsh_buffdesc *fhs)
+{
+	/* Index for traversing FH array */
+	size_t i = 0;
+	/* NFS status code */
+	nfsstat4 nfs_status = 0;
+
+	if (!xdr_fsal_deviceid(xdrs, (struct pnfs_deviceid *)deviceid)) {
+		LogMajor(COMPONENT_PNFS, "Failed encoding deviceid.");
+		return NFS4ERR_SERVERFAULT;
+	}
+
+	if (!xdr_nfl_util4(xdrs, &util)) {
+		LogMajor(COMPONENT_PNFS, "Failed encoding nfl_util4.");
+		return NFS4ERR_SERVERFAULT;
+	}
+
+	if (!xdr_uint32_t(xdrs, (int32_t *) &num_fhs)) {
+		LogMajor(COMPONENT_PNFS, "Failed encoding length of FH array.");
+		return NFS4ERR_SERVERFAULT;
+	}
+
+	for (i = 0; i < num_fhs; i++) {
+		nfs_fh4 handle;
+		struct alloc_file_handle_v4 buffer;
+		handle.nfs_fh4_val = (char *)&buffer;
+		handle.nfs_fh4_len = sizeof(buffer);
+		memset(&buffer, 0, sizeof(buffer));
+
+		nfs_status = make_file_handle_ds(fhs + i,
+						 export_id,
+						 &handle);
+		if (nfs_status != NFS4_OK) {
+			LogMajor(COMPONENT_PNFS, "Failed converting FH %lu.",
+				 i);
+			return nfs_status;
+		}
+
+		if (!xdr_bytes(xdrs,
+			       (char **)&handle.nfs_fh4_val,
+			       &handle.nfs_fh4_len,
+			       handle.nfs_fh4_len)) {
+			LogMajor(COMPONENT_PNFS, "Failed encoding FH %lu.", i);
+			return NFS4ERR_SERVERFAULT;
+		}
 	}
 
 	return NFS4_OK;

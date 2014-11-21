@@ -20,6 +20,8 @@ SET(fsalcohort_LIB_SRCS
    ds.c
    internal.c
    internal.h
+   placement.c
+   placement.h
 )
 
 add_library(fsalcohort SHARED ${fsalcohort_LIB_SRCS})

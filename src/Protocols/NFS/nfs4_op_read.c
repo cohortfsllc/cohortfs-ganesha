@@ -233,11 +233,13 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 
 	if ((data->minorversion > 0)
 	    && nfs4_Is_Fh_DSHandle(&data->currentFH)) {
+		LogDebug(COMPONENT_STATE, "Read DS handle");
 		if (io == CACHE_INODE_READ)
 			return op_dsread(op, data, resp);
 		else
 			return op_dsread_plus(op, data, resp, info);
 	}
+	LogDebug(COMPONENT_STATE, "Read MDS handle");
 
 	res_READ4->status = nfs4_sanity_check_FH(data, REGULAR_FILE, true);
 	if (res_READ4->status != NFS4_OK)
