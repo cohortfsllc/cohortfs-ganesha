@@ -1,6 +1,8 @@
 /*
- * Copyright © 2012-2014, CohortFS, LLC.
- * Author: Adam C. Emerson <aemerson@linuxbox.com>
+ * vim:noexpandtab:shiftwidth=8:tabstop=8:tw=80:
+ *
+ * Copyright © 2014 CohortFS LLC
+ * Author: Daniel Gryniewicz <dang@cohortfs.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -20,24 +22,28 @@
  * -------------
  */
 
-#include "ganesha_rpc.h"
+#include <pthread.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/types.h>
+#include <ifaddrs.h>
 #include <cephfs/libcephfs.h>
-#include "fsal.h"
+
 #include "fsal_types.h"
 #include "fsal_api.h"
-#include "fsal_up.h"
 #include "pnfs_utils.h"
+#include "export_mgr.h"
 #include "internal.h"
-#include "nfs_exports.h"
-#include "FSAL/fsal_commonlib.h"
+#include "placement.h"
 
-#ifdef COHORT_MDS
+#ifdef COHORT_PNFS
 
 /**
  * @file   FSAL_COHORT/mds.c
+ * @author Daniel Gryniewicz <dang@cohortfs.com>
  * @author Adam C. Emerson <aemerson@linuxbox.com>
  * @author Marcus Watts <mdw@cohortfs.com>
- * @date Wed Oct 22 13:24:33 2014
  *
  * @brief pNFS Metadata Server Operations for the Cohort FSAL
  *
@@ -46,149 +52,95 @@
  * support for the Cohort FSAL.
  */
 
-static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
+static uint32_t _get_local_address(void)
 {
-	/* The private 'full' object handle */
-	struct handle *handle = (struct handle *)opaque;
-	/* Return code from upcall operation */
-	state_status_t status = STATE_SUCCESS;
-	struct gsh_buffdesc key = {
-		.addr = &handle->vi,
-		.len = sizeof(vinodeno_t)
-	};
-	struct pnfs_segment segment = {
-		.offset = 0,
-		.length = UINT64_MAX,
-		.io_mode = (write ? LAYOUTIOMODE4_RW : LAYOUTIOMODE4_READ)
-	};
+	uint32_t addr;
+	struct ifaddrs *ifaddr, *ifa;
+	if (getifaddrs(&ifaddr) == -1)
+		return 0;
 
-	status = handle->up_ops->layoutrecall(&key, LAYOUT4_NFSV4_1_FILES,
-					      false, &segment, NULL, NULL);
+	/* Walk through linked list, maintaining head pointer so we can free
+	 * list later */
 
-	if (status != STATE_SUCCESS)
-		return false;
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (ifa->ifa_addr == NULL)
+			continue;
 
-	return true;
+		if (ifa->ifa_addr->sa_family != AF_INET)
+			continue;
+
+		if (strncmp(ifa->ifa_name, "eth0", 4))
+			continue;
+
+		addr = ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr;
+		break;
+	}
+	freeifaddrs(ifaddr);
+	return htonl(addr);
 }
 
+/*================================= fsal ops ===============================*/
 /**
- * @brief Describe a Cohort striping pattern
+ * @brief Size of the buffer needed for a ds_addr
  *
- * At present, we support a files based layout only.  The CRUSH
- * striping pattern is a-periodic
+ * This one is huge, due to the striping pattern.
  *
- * @param[in]  export_pub   Public export handle
+ * @param[in] export_pub Public export handle
+ *
+ * @return Size of the buffer needed for a ds_addr
+ */
+static
+size_t pl_fsal_fs_da_addr_size(struct fsal_module *fsal_hdl)
+{
+	LogFullDebug(COMPONENT_FSAL, "Ret => ~0UL");
+	return ~0UL;
+	/*return 0x1400;*/
+}
+
+#define PL_MAX_DEVS 1
+/**
+ * @brief Get the devices in a Cohort Placement
+ *
+ * At present, we support a files based layout only.
+ *
+ * @param[in]  fsal_hdl     Module handle
  * @param[out] da_addr_body Stream we write the result to
  * @param[in]  type         Type of layout that gave the device
  * @param[in]  deviceid     The device to look up
  *
  * @return Valid error codes in RFC 5661, p. 365.
  */
-
-static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
-			      XDR *da_addr_body, const layouttype4 type,
-			      const struct pnfs_deviceid *deviceid)
+static
+nfsstat4 pl_fsal_getdeviceinfo(struct fsal_module *fsal_hdl, XDR *da_addr_body,
+		       const layouttype4 type,
+		       const struct pnfs_deviceid *deviceid)
 {
-	/* Full 'private' export */
-	struct export *export = container_of(export_pub, struct export, export);
-	/* The number of Cohort OSDs in the cluster */
-	unsigned num_osds = ceph_ll_num_osds(export->cmount);
-	/* Minimal information needed to get layout info */
-	vinodeno_t vinode;
-	/* Structure containing the storage parameters of the file within
-	   the Cohort cluster. */
-	struct ceph_file_layout file_layout;
-	/* Currently, all layouts have the same number of stripes */
-	uint32_t stripes = BIGGEST_PATTERN;
-	/* Index for iterating over stripes */
-	size_t stripe = 0;
-	/* Index for iterating over OSDs */
-	size_t osd = 0;
-	/* NFSv4 status code */
-	nfsstat4 nfs_status = 0;
-
-	vinode.ino.val = deviceid->devid;
-// XXX	vinode.snapid.val = CEPH_NOSNAP;
+	uint32_t indices[PL_MAX_DEVS];
+	fsal_multipath_member_t dss[PL_MAX_DEVS];
 
 	/* Sanity check on type */
-	if (type != LAYOUT4_NFSV4_1_FILES) {
+	if (type != LAYOUT4_PLACEMENT) {
 		LogCrit(COMPONENT_PNFS, "Unsupported layout type: %x", type);
 		return NFS4ERR_UNKNOWN_LAYOUTTYPE;
 	}
 
-	/* Retrieve and calculate storage parameters of layout */
-	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
-	if (ceph_ll_file_layout(export->cmount, vinode, &file_layout) != 0) {
-		LogCrit(COMPONENT_PNFS, "Failed to get Cohort layout for inode");
-		return NFS4ERR_SERVERFAULT;
-	}
-
-	/* As this is large, we encode as we go rather than building a
-	   structure and encoding it all at once. */
-
-	/* The first entry in the nfsv4_1_file_ds_addr4 is the array
-	   of stripe indices. First we encode the count of stripes.
-	   Since our pattern doesn't repeat, we have as many indices
-	   as we do stripes. */
-
-	if (!inline_xdr_u_int32_t(da_addr_body, &stripes)) {
+	memset(dss, 0, sizeof(dss));
+	/* Currently a placeholder; get from actual Volume placement */
+	indices[0] = 0;
+	dss[0].proto = 6; /* Means TCP, not IPv6 */
+	dss[0].port = 2049;
+	dss[0].addr = _get_local_address();
+	if (dss[0].addr == 0) {
 		LogCrit(COMPONENT_PNFS,
-			"Failed to encode length of " "stripe_indices array: %"
-			PRIu32 ".", stripes);
+				"Unable to get IP address for OSD %lu.", 0LU);
 		return NFS4ERR_SERVERFAULT;
 	}
 
-	for (stripe = 0; stripe < stripes; stripe++) {
-		uint32_t stripe_osd = stripe_osd =
-		    ceph_ll_get_stripe_osd(export->cmount,
-					   vinode,
-					   stripe,
-					   &file_layout);
-		if (stripe_osd < 0) {
-			LogCrit(COMPONENT_PNFS,
-				"Failed to retrieve OSD for "
-				"stripe %lu of file %" PRIu64 ".  Error: %u",
-				stripe, deviceid->devid, -stripe_osd);
-			return NFS4ERR_SERVERFAULT;
-		}
-		if (!inline_xdr_u_int32_t(da_addr_body, &stripe_osd)) {
-			LogCrit(COMPONENT_PNFS,
-				"Failed to encode OSD for stripe %lu.", stripe);
-			return NFS4ERR_SERVERFAULT;
-		}
-	}
+	return FSAL_encode_placement_devices(da_addr_body, 1, indices, 1, dss);
 
-	/* The number of OSDs in our cluster is the length of our
-	   array of multipath_lists */
-
-	if (!inline_xdr_u_int32_t(da_addr_body, &num_osds)) {
-		LogCrit(COMPONENT_PNFS,
-			"Failed to encode length of "
-			"multipath_ds_list array: %u", num_osds);
-		return NFS4ERR_SERVERFAULT;
-	}
-
-	/* Since our index is the OSD number itself, we have only one
-	   host per multipath_list. */
-
-	for (osd = 0; osd < num_osds; osd++) {
-		fsal_multipath_member_t host;
-		memset(&host, 0, sizeof(fsal_multipath_member_t));
-		host.proto = 6;
-		if (ceph_ll_osdaddr(export->cmount, osd, &host.addr) < 0) {
-			LogCrit(COMPONENT_PNFS,
-				"Unable to get IP address for OSD %lu.", osd);
-			return NFS4ERR_SERVERFAULT;
-		}
-		host.port = 2049;
-		nfs_status = FSAL_encode_v4_multipath(da_addr_body, 1, &host);
-		if (nfs_status != NFS4_OK)
-			return nfs_status;
-	}
-
-	return NFS4_OK;
 }
 
+/*================================= export ops ===============================*/
 /**
  * @brief Get list of available devices
  *
@@ -203,12 +155,14 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
  * @return Valid error codes in RFC 5661, pp. 365-6.
  */
 
-static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
-			      void *opaque, bool(*cb) (void *opaque,
-						       const uint64_t id),
-			      struct fsal_getdevicelist_res *res)
+static
+nfsstat4 pl_exp_getdevicelist(struct fsal_export *exp_hdl, layouttype4 type,
+		       void *opaque, bool(*cb) (void *opaque,
+						const uint64_t id),
+		       struct fsal_getdevicelist_res *res)
 {
 	res->eof = true;
+	LogFullDebug(COMPONENT_FSAL, "ret => %d", NFS4_OK);
 	return NFS4_OK;
 }
 
@@ -224,12 +178,15 @@ static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
  *                        after export reference is relinquished
  */
 
-static void fs_layouttypes(struct fsal_export *export_pub, int32_t *count,
-			   const layouttype4 **types)
+static
+void pl_exp_layouttypes(struct fsal_export *exp_hdl, int32_t *count,
+		    const layouttype4 **types)
 {
-	static const layouttype4 supported_layout_type = LAYOUT4_NFSV4_1_FILES;
+	static const layouttype4 supported_layout_type = LAYOUT4_PLACEMENT;
+
 	*types = &supported_layout_type;
 	*count = 1;
+	LogFullDebug(COMPONENT_FSAL, "count = 1");
 }
 
 /**
@@ -242,8 +199,9 @@ static void fs_layouttypes(struct fsal_export *export_pub, int32_t *count,
  * @return 4 MB.
  */
 
-static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
+uint32_t pl_exp_layout_blocksize(struct fsal_export *exp_hdl)
 {
+	LogFullDebug(COMPONENT_FSAL, "ret => 0x400000");
 	return 0x400000;
 }
 
@@ -256,8 +214,10 @@ static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
  *
  * @return 1
  */
-static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
+static
+uint32_t pl_exp_maximum_segments(struct fsal_export *exp_hdl)
 {
+	LogFullDebug(COMPONENT_FSAL, "ret => 1");
 	return 1;
 }
 
@@ -265,41 +225,20 @@ static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
  * @brief Size of the buffer needed for a loc_body
  *
  * Just a handle plus a bit.
+ * Note: ~0UL means client's maximum
  *
  * @param[in] export_pub Public export handle
  *
  * @return Size of the buffer needed for a loc_body
  */
-static size_t fs_loc_body_size(struct fsal_export *export_pub)
+static
+size_t pl_exp_loc_body_size(struct fsal_export *exp_hdl)
 {
+	LogFullDebug(COMPONENT_FSAL, "ret => 0x100");
 	return 0x100;
 }
 
-/**
- * @brief Size of the buffer needed for a ds_addr
- *
- * This one is huge, due to the striping pattern.
- *
- * @param[in] export_pub Public export handle
- *
- * @return Size of the buffer needed for a ds_addr
- */
-static size_t fs_da_addr_size(struct fsal_export *export_pub)
-{
-	return 0x1400;
-}
-
-void export_ops_pnfs(struct export_ops *ops)
-{
-	ops->getdeviceinfo = getdeviceinfo;
-	ops->getdevicelist = getdevicelist;
-	ops->fs_layouttypes = fs_layouttypes;
-	ops->fs_layout_blocksize = fs_layout_blocksize;
-	ops->fs_maximum_segments = fs_maximum_segments;
-	ops->fs_loc_body_size = fs_loc_body_size;
-	ops->fs_da_addr_size = fs_da_addr_size;
-}
-
+/*================================= handle ops ===============================*/
 /**
  * @brief Grant a layout segment.
  *
@@ -318,166 +257,74 @@ void export_ops_pnfs(struct export_ops *ops)
  * @return Valid error codes in RFC 5661, pp. 366-7.
  */
 
-static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
-			  struct req_op_context *req_ctx, XDR *loc_body,
-			  const struct fsal_layoutget_arg *arg,
-			  struct fsal_layoutget_res *res)
+static
+nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
+		   struct req_op_context *req_ctx, XDR *loc_body,
+		   const struct fsal_layoutget_arg *arg,
+		   struct fsal_layoutget_res *res)
 {
+	struct cohort_handle *myself;
 	/* The private 'full' export */
-	struct export *export =
-	    container_of(req_ctx->fsal_export, struct export, export);
-	/* The private 'full' object handle */
-	struct handle *handle = container_of(obj_pub, struct handle, handle);
-	/* Structure containing the storage parameters of the file within
-	   the Cohort cluster. */
-	struct ceph_file_layout file_layout;
-	/* Width of each stripe on the file */
-	uint32_t stripe_width = 0;
+	struct cohort_export *export;
+	/* Size of each stripe unit */
+	uint32_t stripe_unit = 0;
 	/* Utility parameter */
 	nfl_util4 util = 0;
-	/* The last byte that can be accessed through pNFS */
-	uint64_t last_possible_byte = 0;
 	/* The deviceid for this layout */
-	struct pnfs_deviceid deviceid = DEVICE_ID_INIT_ZERO(FSAL_ID_CEPH);
+	struct pnfs_deviceid deviceid = DEVICE_ID_INIT_ZERO(FSAL_ID_COHORT);
 	/* NFS Status */
 	nfsstat4 nfs_status = 0;
 	/* DS wire handle */
-	struct ds_wire ds_wire;
+	struct cohort_ds_wire ds_wire;
 	/* Descriptor for DS handle */
 	struct gsh_buffdesc ds_desc = {.addr = &ds_wire,
-		.len = sizeof(struct ds_wire)
+		.len = sizeof(struct cohort_ds_wire)
 	};
-	/* The smallest layout the client will accept */
-	struct pnfs_segment smallest_acceptable = {
-		.io_mode = res->segment.io_mode,
-		.offset = res->segment.offset,
-		.length = arg->minlength
-	};
-	struct pnfs_segment forbidden_area = {
-		.io_mode = res->segment.io_mode,
-		.length = NFS4_UINT64_MAX
-	};
+	/*struct ceph_file_layout ceph_layout;*/
 
-	/* We support only LAYOUT4_NFSV4_1_FILES layouts */
+	myself = container_of(obj_hdl, struct cohort_handle, handle);
+	export = container_of(op_ctx->fsal_export, struct cohort_export,
+	    export);
 
-	if (arg->type != LAYOUT4_NFSV4_1_FILES) {
+	LogEvent(COMPONENT_PNFS, "begin");
+	/* We support only LAYOUT4_PLACEMENT layouts */
+
+	if (arg->type != LAYOUT4_PLACEMENT) {
 		LogCrit(COMPONENT_PNFS, "Unsupported layout type: %x",
 			arg->type);
 		return NFS4ERR_UNKNOWN_LAYOUTTYPE;
 	}
 
-	/* Get basic information on the file and calculate the dimensions
-	   of the layout we can support. */
-
-	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
-
-	ceph_ll_file_layout(export->cmount, handle->wire.vi, &file_layout);
-	stripe_width = file_layout.fl_stripe_unit;
-	last_possible_byte = (BIGGEST_PATTERN * stripe_width) - 1;
-	forbidden_area.offset = last_possible_byte + 1;
-
-	/* Since the Linux kernel refuses to work with any layout that
-	   doesn't cover the whole file, if a whole file layout is
-	   requested, lie.
-
-	   Otherwise, make sure the required layout doesn't go beyond
-	   what can be accessed through pNFS. This is a preliminary
-	   check before even talking to Cohort. */
-	if (!
-	    ((res->segment.offset == 0)
-	     && (res->segment.length == NFS4_UINT64_MAX))) {
-		if (pnfs_segments_overlap
-		    (&smallest_acceptable, &forbidden_area)) {
-			LogCrit(COMPONENT_PNFS,
-				"Required layout extends beyond allowed "
-				"region. offset: %" PRIu64 ", minlength: %"
-				PRIu64 ".", res->segment.offset,
-				arg->minlength);
-			return NFS4ERR_BADLAYOUT;
-		}
-		res->segment.offset = 0;
-		res->segment.length = stripe_width * BIGGEST_PATTERN;
-	}
-
-	LogFullDebug(COMPONENT_PNFS,
-		     "will issue layout offset: %" PRIu64 " length: %" PRIu64,
-		     res->segment.offset, res->segment.length);
-
-	/* We are using sparse layouts with commit-through-DS, so our
-	   utility word contains only the stripe width, our first
-	   stripe is always at the beginning of the layout, and there
-	   is no pattern offset. */
-
-	if ((stripe_width & ~NFL4_UFLG_STRIPE_UNIT_SIZE_MASK) != 0) {
+	stripe_unit = 0x4000;
+	if ((stripe_unit & ~NFL4_UFLG_STRIPE_UNIT_SIZE_MASK) != 0) {
 		LogCrit(COMPONENT_PNFS,
-			"Cohort returned stripe width that is disallowed by "
-			"NFS: %" PRIu32 ".", stripe_width);
+		    "Cohort returned stripe width that is disallowed by "
+		    "NFS: %" PRIu32 ".", stripe_unit);
 		return NFS4ERR_SERVERFAULT;
 	}
-	util = stripe_width;
+	util = stripe_unit;
 
-	/* If we have a cached capbility, use that.  Otherwise, call
-	   in to Cohort. */
-
-	PTHREAD_RWLOCK_wrlock(&handle->handle.lock);
-	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
-		int32_t r = 0;
-		if (handle->rd_issued == 0) {
-#if 0
-			/* (ceph part might be here: thunderbeast mbarrier1) */
-			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
-					    false, initiate_recall, handle,
-					    &handle->rd_serial, NULL);
-#endif
-			if (r < 0) {
-				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-				return posix2nfs4_error(-r);
-			}
-		}
-		++handle->rd_issued;
-	} else {
-		int32_t r = 0;
-		if (handle->rw_issued == 0) {
-#if 0
-			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
-					    true, initiate_recall, handle,
-					    &handle->rw_serial,
-					    &handle->rw_max_len);
-#endif
-			if (r < 0) {
-				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-				return posix2nfs4_error(-r);
-			}
-		}
-		forbidden_area.offset = handle->rw_max_len;
-		if (pnfs_segments_overlap
-		    (&smallest_acceptable, &forbidden_area)) {
-			PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-			return NFS4ERR_BADLAYOUT;
-		}
-#if CLIENTS_WILL_ACCEPT_SEGMENTED_LAYOUTS	/* sigh */
-		res->segment.length =
-		    (handle->rw_max_len - res->segment.offset);
-#endif
-		++handle->rw_issued;
-	}
-	PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-
-	/* For now, just make the low quad of the deviceid be the
-	   inode number.  With the span of the layouts constrained
-	   above, this lets us generate the device address on the fly
-	   from the deviceid rather than storing it. */
-
-	deviceid.devid = handle->wire.vi.ino.val;
+	/* For now, fake the device ID, since we'll have one device.  Once
+	 * FSAL_COHORT exists, use inode number in the low quad of the device
+	 * ID */
+	/*deviceid.devid = handle->wire.vi.ino.val;*/
+	deviceid.devid = 1;
 
 	/* We return exactly one filehandle, filling in the necessary
 	   information for the DS server to speak to the Cohort OSD
 	   directly. */
+	memcpy(&ds_wire.vi, &myself->vi, sizeof(ds_wire.vi));
 
-	ds_wire.wire = handle->wire;
-	ds_wire.layout = file_layout;
-	ds_wire.snapseq = ceph_ll_snap_seq(export->cmount, handle->wire.vi);
+	/*ceph_ll_file_layout(export->cmount, myself->i, &ceph_layout);*/
+	/*memcpy(&ds_wire.volume, ceph_layout.fl_uuid, sizeof(ds_wire.volume));;*/
 
+	/*ceph_ll_file_key(export->cmount, myself->i, ds_wire.object_key,*/
+			/*sizeof(ds_wire.object_key));*/
+
+	LogEvent(COMPONENT_PNFS,
+		"encoding fsal_id=%#hhx devid=%#lx util=%#x first_idx=%#x export_id=%#x num_fhs=%#x fh_len=%#Zx",
+			deviceid.fsal_id, deviceid.devid, util, 0,
+			req_ctx->export->export_id, 1, ds_desc.len);
 	nfs_status = FSAL_encode_file_layout(loc_body, &deviceid, util, 0, 0,
 					     req_ctx->export->export_id, 1,
 					     &ds_desc);
@@ -500,28 +347,6 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	/* If we failed in encoding the lo_content, relinquish what we
 	   reserved for it. */
 
-	PTHREAD_RWLOCK_wrlock(&handle->handle.lock);
-	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
-		if (--handle->rd_issued != 0) {
-			PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-			return nfs_status;
-		}
-	} else {
-		if (--handle->rd_issued != 0) {
-			PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-			return nfs_status;
-		}
-	}
-
-#if 0
-	ceph_ll_return_rw(export->cmount, handle->wire.vi,
-			  res->segment.io_mode ==
-			  LAYOUTIOMODE4_READ ? handle->rd_serial : handle->
-			  rw_serial);
-#endif
-
-	PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-
 	return nfs_status;
 }
 
@@ -539,46 +364,24 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
  * @return Valid error codes in RFC 5661, p. 367.
  */
 
-static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
-			     struct req_op_context *req_ctx, XDR *lrf_body,
-			     const struct fsal_layoutreturn_arg *arg)
+static
+nfsstat4 pl_hdl_layoutreturn(struct fsal_obj_handle *obj_hdl,
+		      struct req_op_context *req_ctx, XDR *lrf_body,
+		      const struct fsal_layoutreturn_arg *arg)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(req_ctx->fsal_export, struct export, export);
-	/* The private 'full' object handle */
-	struct handle *handle = container_of(obj_pub, struct handle, handle);
+	LogDebug(COMPONENT_FSAL,
+		 "reclaim=%d return_type=%d fsal_seg_data=%p dispose=%d last_segment=%d ncookies=%zu",
+		 arg->circumstance, arg->return_type, arg->fsal_seg_data,
+		 arg->dispose, arg->last_segment, arg->ncookies);
 
 	/* Sanity check on type */
-	if (arg->lo_type != LAYOUT4_NFSV4_1_FILES) {
+	if (arg->lo_type != LAYOUT4_PLACEMENT) {
 		LogCrit(COMPONENT_PNFS, "Unsupported layout type: %x",
 			arg->lo_type);
 		return NFS4ERR_UNKNOWN_LAYOUTTYPE;
 	}
 
-	if (arg->dispose) {
-		PTHREAD_RWLOCK_wrlock(&handle->handle.lock);
-		if (arg->cur_segment.io_mode == LAYOUTIOMODE4_READ) {
-			if (--handle->rd_issued != 0) {
-				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-				return NFS4_OK;
-			}
-		} else {
-			if (--handle->rd_issued != 0) {
-				PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-				return NFS4_OK;
-			}
-		}
-
-#if 0
-		ceph_ll_return_rw(export->cmount, handle->wire.vi,
-				  arg->cur_segment.io_mode ==
-				  LAYOUTIOMODE4_READ ? handle->
-				  rd_serial : handle->rw_serial);
-#endif
-
-		PTHREAD_RWLOCK_unlock(&handle->handle.lock);
-	}
+	/* XXX Handle release of layout from before restart */
 
 	return NFS4_OK;
 }
@@ -599,72 +402,46 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
  * @return Valid error codes in RFC 5661, p. 366.
  */
 
-static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
-			     struct req_op_context *req_ctx, XDR *lou_body,
-			     const struct fsal_layoutcommit_arg *arg,
-			     struct fsal_layoutcommit_res *res)
+static
+nfsstat4 pl_hdl_layoutcommit(struct fsal_obj_handle *obj_hdl,
+		      struct req_op_context *req_ctx, XDR *lou_body,
+		      const struct fsal_layoutcommit_arg *arg,
+		      struct fsal_layoutcommit_res *res)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(req_ctx->fsal_export, struct export, export);
-	/* The private 'full' object handle */
-	struct handle *handle = container_of(obj_pub, struct handle, handle);
-	/* Old stat, so we don't truncate file or reverse time */
-	struct stat stold;
-	/* new stat to set time and size */
-	struct stat stnew;
-	/* Mask to determine exactly what gets set */
-	int attrmask = 0;
-	/* Error returns from Cohort */
-	int cohort_status = 0;
+	/* Attributes used to set new values */
+	struct attrlist attrs;
+	/* Return status from FSAL calls */
+	fsal_status_t fsal_stat;
 
 	/* Sanity check on type */
-	if (arg->type != LAYOUT4_NFSV4_1_FILES) {
+	if (arg->type != LAYOUT4_PLACEMENT) {
 		LogCrit(COMPONENT_PNFS, "Unsupported layout type: %x",
 			arg->type);
 		return NFS4ERR_UNKNOWN_LAYOUTTYPE;
 	}
 
-	/* A more proper and robust implementation of this would use
-	   Cohort caps, but we need to hack at the client to expose
-	   those before it can work. */
+	memset(&attrs, 0, sizeof(attrs));
+	/* Get old attrs for comparison */
+	obj_hdl->ops->getattrs(obj_hdl);
 
-	memset(&stold, 0, sizeof(struct stat));
-	cohort_status = ceph_ll_getattr(export->cmount, handle->wire.vi,
-				      &stold, 0, 0);
-	if (cohort_status < 0) {
-		LogCrit(COMPONENT_PNFS,
-			"Error %d in attempt to get attributes of " "file %"
-			PRIu64 ".", -cohort_status, handle->wire.vi.ino.val);
-		return posix2nfs4_error(-cohort_status);
-	}
-
-	memset(&stnew, 0, sizeof(struct stat));
 	if (arg->new_offset) {
-		if (stold.st_size < arg->last_write + 1) {
-			attrmask |= CEPH_SETATTR_SIZE;
-			stnew.st_size = arg->last_write + 1;
-			res->size_supplied = true;
-			res->new_size = arg->last_write + 1;
+		/* File size changed.  This can only grow the file */
+		if (obj_hdl->attributes.filesize < arg->last_write + 1) {
+			attrs.filesize = arg->last_write + 1;
+			FSAL_SET_MASK(attrs.mask, ATTR_SIZE);
 		}
 	}
 
-	if ((arg->time_changed) &&
-	    (arg->new_time.seconds > stold.st_mtime))
-		stnew.st_mtime = arg->new_time.seconds;
-	else
-		stnew.st_mtime = time(NULL);
-
-	attrmask |= CEPH_SETATTR_MTIME;
-
-	cohort_status = ceph_ll_setattr(export->cmount, handle->wire.vi,
-				      &stnew, attrmask, 0, 0);
-	if (cohort_status < 0) {
-		LogCrit(COMPONENT_PNFS,
-			"Error %d in attempt to get attributes of " "file %"
-			PRIu64 ".", -cohort_status, handle->wire.vi.ino.val);
-		return posix2nfs4_error(-cohort_status);
+	if (arg->time_changed && (arg->new_time.seconds >
+				obj_hdl->attributes.mtime.tv_sec)) {
+		attrs.mtime.tv_sec = arg->new_time.seconds;
+		attrs.mtime.tv_nsec = 0;
+		FSAL_SET_MASK(attrs.mask, ATTR_MTIME);
 	}
+
+	fsal_stat = obj_hdl->ops->setattrs(obj_hdl, &attrs);
+	if (FSAL_IS_ERROR(fsal_stat))
+		return posix2nfs4_error(fsal_stat.minor);
 
 	/* This is likely universal for files. */
 
@@ -673,11 +450,30 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 	return NFS4_OK;
 }
 
-void handle_ops_pnfs(struct fsal_obj_ops *ops)
+/*============================== initialization ==============================*/
+void export_ops_pnfs(struct export_ops *ops)
 {
-	ops->layoutget = layoutget;
-	ops->layoutreturn = layoutreturn;
-	ops->layoutcommit = layoutcommit;
+	ops->getdevicelist = pl_exp_getdevicelist;
+	ops->fs_layouttypes = pl_exp_layouttypes;
+	ops->fs_layout_blocksize = pl_exp_layout_blocksize;
+	ops->fs_maximum_segments = pl_exp_maximum_segments;
+	ops->fs_loc_body_size = pl_exp_loc_body_size;
+	LogFullDebug(COMPONENT_FSAL, "Init'd export vector");
 }
 
-#endif				/* COHORT_MDS */
+void handle_ops_pnfs(struct fsal_obj_ops *ops)
+{
+	ops->layoutget = pl_hdl_layoutget;
+	ops->layoutreturn = pl_hdl_layoutreturn;
+	ops->layoutcommit = pl_hdl_layoutcommit;
+	LogDebug(COMPONENT_FSAL, "Init'd handle vector");
+}
+
+void fsal_ops_pnfs(struct fsal_ops *ops)
+{
+	ops->getdeviceinfo = pl_fsal_getdeviceinfo;
+	ops->fs_da_addr_size = pl_fsal_fs_da_addr_size;
+	LogDebug(COMPONENT_FSAL, "Init'd fsal vector");
+}
+
+#endif /* COHORT_PNFS */

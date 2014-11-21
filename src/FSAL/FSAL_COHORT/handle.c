@@ -977,7 +977,7 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->close = fsal_close;
 	ops->handle_digest = handle_digest;
 	ops->handle_to_key = handle_to_key;
-#ifdef CEPH_PNFS
+#ifdef COHORT_PNFS
 	handle_ops_pnfs(ops);
-#endif				/* CEPH_PNFS */
+#endif				/* COHORT_PNFS */
 }

@@ -94,16 +94,25 @@ struct cohort_handle {
 #endif				/* COHORT_PNFS */
 };
 
+#define keysize (32)
+/**
+ * Wire DS handle
+ */
+struct cohort_ds_wire {
+	vinodeno_t vi;		/*< The object identifier */
+	uuid_t volume;
+	char object_key[keysize];	/* MUST be same length as
+					struct alloc_file_handle_v4
+					pad[122] minus sizeof(uuid_t)*/
+};
+
 /**
  * The full, 'private' DS (data server) handle
  */
 
 struct cohort_ds {
 	struct fsal_ds_handle ds;	/*< Public DS handle */
-	uuid_t volume;
-	char object_key[114];		/* MUST be same length as
-					struct alloc_file_handle_v4
-					pad[122] minus sizeof(uuid_t) */
+	struct cohort_ds_wire wire;
 };
 
 #ifndef COHORT_INTERNAL_C
@@ -161,6 +170,7 @@ void ds_ops_init(struct fsal_ds_ops *ops);
 #ifdef COHORT_PNFS
 void export_ops_pnfs(struct export_ops *ops);
 void handle_ops_pnfs(struct fsal_obj_ops *ops);
+void fsal_ops_pnfs(struct fsal_ops *ops);
 #endif				/* COHORT_PNFS */
 
 #endif				/* !FSAL_COHORT_INTERNAL_INTERNAL__ */

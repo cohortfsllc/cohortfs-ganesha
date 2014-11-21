@@ -405,6 +405,7 @@ extern "C" {
 		LAYOUT4_NFSV4_1_FILES = 0x1,
 		LAYOUT4_OSD2_OBJECTS = 0x2,
 		LAYOUT4_BLOCK_VOLUME = 0x3,
+		LAYOUT4_PLACEMENT = 0xC0FFEE00,
 	};
 	typedef enum layouttype4 layouttype4;
 

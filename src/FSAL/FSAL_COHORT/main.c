@@ -251,6 +251,9 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	}
 
 	export->export.fsal = module_in;
+#ifdef COHORT_PNFS
+	fsal_ops_pnfs(export->export.fsal->ops);
+#endif /* COHORT_PNFS */
 
 	LogDebug(COMPONENT_FSAL,
 		 "Cohort module export %s.",

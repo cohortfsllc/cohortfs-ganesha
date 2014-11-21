@@ -174,11 +174,13 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 
 	if ((data->minorversion > 0)
 	     && (nfs4_Is_Fh_DSHandle(&data->currentFH))) {
+		LogDebug(COMPONENT_STATE, "Write DS handle");
 		if (io == CACHE_INODE_WRITE)
 			return op_dswrite(op, data, resp);
 		else
 			return op_dswrite_plus(op, data, resp, info);
 	}
+	LogDebug(COMPONENT_STATE, "Write MDS handle");
 
 	/*
 	 * Do basic checks on a filehandle
