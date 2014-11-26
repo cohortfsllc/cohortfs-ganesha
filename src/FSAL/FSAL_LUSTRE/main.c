@@ -31,12 +31,12 @@
 
 #include "config.h"
 
-#include "fsal.h"
 #include <libgen.h>		/* used for 'dirname' */
 #include <pthread.h>
 #include <string.h>
 #include <sys/types.h>
 #include "ganesha_list.h"
+#include "fsal.h"
 #include "fsal_handle.h"
 #include "fsal_internal.h"
 #include "lustre_methods.h"
@@ -254,10 +254,10 @@ MODULE_INIT void lustre_init(void)
 		fprintf(stderr, "LUSTRE module failed to register");
 		return;
 	}
-	myself->ops->create_export = lustre_create_export;
-	myself->ops->init_config = lustre_init_config;
-	myself->ops->getdeviceinfo = lustre_getdeviceinfo;
-	myself->ops->fs_da_addr_size = lustre_fs_da_addr_size;
+	myself->m_ops.create_export = lustre_create_export;
+	myself->m_ops.init_config = lustre_init_config;
+	myself->m_ops.getdeviceinfo = lustre_getdeviceinfo;
+	myself->m_ops.fs_da_addr_size = lustre_fs_da_addr_size;
 }
 
 MODULE_FINI void lustre_unload(void)

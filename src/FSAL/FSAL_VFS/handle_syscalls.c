@@ -146,9 +146,8 @@ void vfs_init_export_ops(struct vfs_fsal_export *myself,
 		LogInfo(COMPONENT_FSAL,
 			"pnfs_panfs was enabled for [%s]",
 			export_path);
-		export_ops_pnfs(myself->export.ops);
-		handle_ops_pnfs(myself->export.obj_ops);
-		fsal_ops_pnfs(myself->export.fsal->ops);
+		export_ops_pnfs(&myself->export.exp_ops);
+		fsal_ops_pnfs(&myself->export.fsal->m_ops);
 	}
 }
 
