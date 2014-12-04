@@ -198,9 +198,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 			op_ctx->export->fullpath);
 		goto error;
 	}
-	export_ops_init(export->export.ops);
-	handle_ops_init(export->export.obj_ops);
-	ds_ops_init(export->export.ds_ops);
+	export_ops_init(&export->export.exp_ops);
 	export->export.up_ops = up_ops;
 
 	initialized = true;
@@ -300,6 +298,32 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 }
 
 /**
+ * @brief Try to create a FSAL data server handle
+ *
+ * @param[in]  pds      FSAL pNFS DS
+ * @param[out] handle   FSAL DS handle
+ *
+ * @retval NFS4_OK, NFS4ERR_SERVERFAULT.
+ */
+
+static nfsstat4 fsal_ds_handle(struct fsal_pnfs_ds *const pds,
+			       const struct gsh_buffdesc *const hdl_desc,
+			       struct fsal_ds_handle **const handle)
+{
+	struct cohort_ds *ds = gsh_calloc(1, sizeof(struct cohort_ds));
+
+	if (ds == NULL) {
+		*handle = NULL;
+		return NFS4ERR_SERVERFAULT;
+	}
+	*handle = &ds->ds;
+	fsal_ds_handle_init(*handle, pds);
+	ds_ops_init(&(*handle)->dsh_ops);
+
+	return NFS4_OK;
+}
+
+/**
  * @brief Initialize and register the FSAL
  *
  * This function initializes the FSAL module handle, being called
@@ -327,8 +351,9 @@ MODULE_INIT void cohort_initiate(void)
 	}
 
 	/* Set up module operations */
-	myself->ops->create_export = create_export;
-	myself->ops->init_config = init_config;
+	myself->m_ops.fsal_ds_handle = fsal_ds_handle;
+	myself->m_ops.create_export = create_export;
+	myself->m_ops.init_config = init_config;
 }
 
 /**

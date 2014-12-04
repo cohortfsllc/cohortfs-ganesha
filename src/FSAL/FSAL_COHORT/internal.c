@@ -162,6 +162,7 @@ int construct_handle(const struct stat *st, struct Inode *i,
 
 	fsal_obj_handle_init(&constructing->handle, &export->export,
 			     constructing->handle.attributes.type);
+	handle_ops_init(&constructing->handle.obj_ops);
 
 	constructing->export = export;
 
