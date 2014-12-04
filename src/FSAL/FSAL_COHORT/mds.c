@@ -37,6 +37,15 @@
 #include "internal.h"
 #include "placement.h"
 
+struct ceph_file_layout {
+	/* file -> object mapping */
+	uint32_t fl_stripe_unit;   /* stripe unit, in bytes.  must be multiple
+				      of page size. */
+	uint32_t fl_stripe_count;   /* over this many objects */
+	uint32_t fl_object_size;   /* until objects are this big, then move to
+				      new objects */
+	uint8_t fl_uuid[16];
+};
 #ifdef COHORT_PNFS
 
 /**
@@ -280,7 +289,8 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 	struct gsh_buffdesc ds_desc = {.addr = &ds_wire,
 		.len = sizeof(struct cohort_ds_wire)
 	};
-	/*struct ceph_file_layout ceph_layout;*/
+	struct ceph_file_layout ceph_layout;
+	int rv;
 
 	myself = container_of(obj_hdl, struct cohort_handle, handle);
 	export = container_of(op_ctx->fsal_export, struct cohort_export,
@@ -295,7 +305,13 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 		return NFS4ERR_UNKNOWN_LAYOUTTYPE;
 	}
 
-	stripe_unit = 0x4000;
+	rv = ceph_ll_file_layout(export->cmount, myself->i, &ceph_layout);
+	if (rv != 0) {
+		LogCrit(COMPONENT_PNFS, "Failed to get Cohort layout");
+		return NFS4ERR_LAYOUTUNAVAILABLE;
+	}
+
+	stripe_unit = ceph_layout.fl_stripe_unit;
 	if ((stripe_unit & ~NFL4_UFLG_STRIPE_UNIT_SIZE_MASK) != 0) {
 		LogCrit(COMPONENT_PNFS,
 		    "Cohort returned stripe width that is disallowed by "
@@ -315,11 +331,14 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 	   directly. */
 	memcpy(&ds_wire.vi, &myself->vi, sizeof(ds_wire.vi));
 
-	/*ceph_ll_file_layout(export->cmount, myself->i, &ceph_layout);*/
-	/*memcpy(&ds_wire.volume, ceph_layout.fl_uuid, sizeof(ds_wire.volume));;*/
+	memcpy(&ds_wire.volume, ceph_layout.fl_uuid, sizeof(ds_wire.volume));
 
-	/*ceph_ll_file_key(export->cmount, myself->i, ds_wire.object_key,*/
-			/*sizeof(ds_wire.object_key));*/
+	rv = ceph_ll_file_key(export->cmount, myself->i, ds_wire.object_key,
+			sizeof(ds_wire.object_key));
+	if (rv < 0) {
+		LogCrit(COMPONENT_PNFS, "Failed to get Cohort object key");
+		return NFS4ERR_LAYOUTUNAVAILABLE;
+	}
 
 	LogEvent(COMPONENT_PNFS,
 		"encoding fsal_id=%#hhx devid=%#lx util=%#x first_idx=%#x export_id=%#x num_fhs=%#x fh_len=%#Zx",
