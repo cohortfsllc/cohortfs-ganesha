@@ -1,4 +1,6 @@
 /*
+ * vim:noexpandtab:shiftwidth=8:tabstop=8:tw=80:
+ *
  * Copyright © 2012-2014, CohortFS, LLC.
  * Author: Adam C. Emerson <aemerson@linuxbox.com>
  *
@@ -67,24 +69,6 @@ static void release(struct fsal_ds_handle *const ds_pub)
 	gsh_free(ds);
 }
 
-static Fh *ds_open(struct ceph_mount_info *cmount, vinodeno_t vi, int flags)
-{
-	Inode *i;
-	Fh *fh;
-	int rc;
-
-	i = ceph_ll_get_inode(cmount, vi);
-	if (!i)
-		return NULL;
-
-	rc = ceph_ll_open(cmount, i, flags, &fh, 0, 0);
-	if (rc < 0)
-		fh = NULL;
-	ceph_ll_put(cmount, i);
-
-	return fh;
-}
-
 /**
  * @brief Read from a data-server handle.
  *
@@ -112,27 +96,15 @@ static nfsstat4 ds_read(struct fsal_ds_handle *const ds_pub,
 			count4 * const supplied_length,
 			bool * const end_of_file)
 {
-	/* The private 'full' export */
-	struct cohort_export *export =
-	    container_of(req_ctx->fsal_export, struct cohort_export, export);
 	/* The private 'full' DS handle */
 	struct cohort_ds *ds = container_of(ds_pub, struct cohort_ds, ds);
 	/* The amount actually read */
 	int amount_read;
-	Fh *fh;
-
-	fh = ds_open(export->cmount, ds->wire.vi, O_RDONLY);
-	if (!fh)
-		return posix2nfs4_error(EINVAL);
 
 	amount_read =
-	    ceph_ll_read(export->cmount, fh, offset, requested_length, buffer);
-	ceph_ll_close(export->cmount, fh);
-
-	/*amount_read =*/
-		/*libosd_read(CohortFSM.osd, ds->wire.object_key, ds->wire.volume, offset,*/
-			/*requested_length, (char *)buffer,*/
-			/*LIBOSD_READ_FLAGS_NONE, NULL, NULL);*/
+		libosd_read(CohortFSM.osd, ds->wire.object_key, ds->wire.volume,
+			offset, requested_length, (char *)buffer,
+			LIBOSD_READ_FLAGS_NONE, NULL, NULL);
 	if (amount_read < 0)
 		return posix2nfs4_error(-amount_read);
 
@@ -177,30 +149,19 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 			 verifier4 * const writeverf,
 			 stable_how4 * const stability_got)
 {
-	/* The private 'full' export */
-	struct cohort_export *export =
-	    container_of(req_ctx->fsal_export, struct cohort_export, export);
 	/* The private 'full' DS handle */
 	struct cohort_ds *ds = container_of(ds_pub, struct cohort_ds, ds);
 	/* The amount actually written */
-	int amount_written, sync;
-	Fh *fh;
-
-	fh = ds_open(export->cmount, ds->wire.vi, O_RDWR);
-	if (!fh)
-		return posix2nfs4_error(EINVAL);
-
-	/*amount_written =*/
-	    /*libosd_write(CohortFSM.osd, ds->wire.object_key, ds->wire.volume,*/
-		/*offset, write_length, (char *)buffer,*/
-		/*(stability_wanted >= DATA_SYNC4) ?*/
-		/*LIBOSD_WRITE_CB_STABLE : LIBOSD_WRITE_CB_UNSTABLE,*/
-		/*NULL, NULL);*/
+	int amount_written;
 
 	amount_written =
-	    ceph_ll_write(export->cmount, fh, offset, write_length, buffer);
+		libosd_write(CohortFSM.osd, ds->wire.object_key,
+			ds->wire.volume, offset, write_length,
+			(char *)buffer, (stability_wanted >= DATA_SYNC4) ?
+			LIBOSD_WRITE_CB_STABLE : LIBOSD_WRITE_CB_UNSTABLE,
+			NULL, NULL);
+
 	if (amount_written < 0) {
-		ceph_ll_close(export->cmount, fh);
 		return posix2nfs4_error(-amount_written);
 	}
 
@@ -208,13 +169,11 @@ static nfsstat4 ds_write(struct fsal_ds_handle *const ds_pub,
 	    write_length, amount_written);
 
 	*stability_got = stability_wanted;
+
+	/* libosd cannot do file sync, just data sync */
 	if (stability_wanted >= DATA_SYNC4) {
-		sync = ceph_ll_fsync(export->cmount, fh,
-		    (stability_wanted == DATA_SYNC4));
-		if (sync < 0)
-			*stability_got = UNSTABLE4;
+		*stability_got = DATA_SYNC4;
 	}
-	ceph_ll_close(export->cmount, fh);
 
 	*written_length = amount_written;
 
@@ -243,6 +202,8 @@ static nfsstat4 ds_commit(struct fsal_ds_handle *const ds_pub,
 			  const offset4 offset, const count4 count,
 			  verifier4 * const writeverf)
 {
+	/* Currently no commit for libosd */
+#if 0
 	/* The private 'full' export */
 	struct cohort_export *export =
 	    container_of(req_ctx->fsal_export, struct cohort_export, export);
@@ -264,6 +225,7 @@ static nfsstat4 ds_commit(struct fsal_ds_handle *const ds_pub,
 		return posix2nfs4_error(rc);
 
 
+#endif
 	memset(*writeverf, 0, NFS4_VERIFIER_SIZE);
 	return NFS4_OK;
 }
