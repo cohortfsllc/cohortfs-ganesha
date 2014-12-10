@@ -33,7 +33,7 @@
  * @brief Internal definitions for the Cohort FSAL
  *
  * This file includes internal function definitions, constants, and
- * variable declarations used to impelment the Cohort FSAL, but not
+ * variable declarations used to implement the Cohort FSAL, but not
  * exposed as part of the API.
  */
 
@@ -154,7 +154,9 @@ int construct_handle(const struct stat *st, struct Inode *i,
 		return -ENOMEM;
 
 	constructing->vi.ino.val = st->st_ino;
-// XXX	constructing->vi.snapid.val = st->st_dev;
+#ifdef CEPH_NOSNAP
+	constructing->vi.snapid.val = st->st_dev;
+#endif /* CEPH_NOSNAP */
 	constructing->i = i;
 	constructing->up_ops = export->export.up_ops;
 
@@ -162,6 +164,7 @@ int construct_handle(const struct stat *st, struct Inode *i,
 
 	fsal_obj_handle_init(&constructing->handle, &export->export,
 			     constructing->handle.attributes.type);
+	handle_ops_init(&constructing->handle.obj_ops);
 
 	constructing->export = export;
 
@@ -179,6 +182,6 @@ int construct_handle(const struct stat *st, struct Inode *i,
 void deconstruct_handle(struct cohort_handle *obj)
 {
 	ceph_ll_put(obj->export->cmount, obj->i);
-	fsal_obj_handle_uninit(&obj->handle);
+	fsal_obj_handle_fini(&obj->handle);
 	gsh_free(obj);
 }

@@ -198,9 +198,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 			op_ctx->export->fullpath);
 		goto error;
 	}
-	export_ops_init(export->export.ops);
-	handle_ops_init(export->export.obj_ops);
-	ds_ops_init(export->export.ds_ops);
+	export_ops_init(&export->export.exp_ops);
 	export->export.up_ops = up_ops;
 
 	initialized = true;
@@ -251,16 +249,15 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	}
 
 	export->export.fsal = module_in;
-#ifdef COHORT_PNFS
-	fsal_ops_pnfs(export->export.fsal->ops);
-#endif /* COHORT_PNFS */
 
 	LogDebug(COMPONENT_FSAL,
 		 "Cohort module export %s.",
 		 op_ctx->export->fullpath);
 
 	root.ino.val = CEPH_INO_ROOT;
-// XXX	root.snapid.val = CEPH_NOSNAP;
+#ifdef CEPH_NOSNAP
+	root.snapid.val = CEPH_NOSNAP;
+#endif /* CEPH_NOSNAP */
 	i = ceph_ll_get_inode(export->cmount, root);
 	if (!i) {
 		status.major = ERR_FSAL_SERVERFAULT;
@@ -327,8 +324,12 @@ MODULE_INIT void cohort_initiate(void)
 	}
 
 	/* Set up module operations */
-	myself->ops->create_export = create_export;
-	myself->ops->init_config = init_config;
+#ifdef COHORT_PNFS
+	fsal_ops_pnfs(&myself->m_ops);
+#endif /* COHORT_PNFS */
+	myself->m_ops.fsal_pnfs_ds_ops = pnfs_ds_ops_init;
+	myself->m_ops.create_export = create_export;
+	myself->m_ops.init_config = init_config;
 }
 
 /**
