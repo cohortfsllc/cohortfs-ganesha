@@ -78,7 +78,7 @@ static struct fsal_staticfsinfo_t default_cohort_info = {
 static struct libosd_init_args CohortOSD = { 0, NULL, NULL, NULL, NULL };
 
 static struct config_item cohort_items[] = {
-	CONF_ITEM_PATH("Configuration", 0, MAXPATHLEN, "",
+	CONF_ITEM_PATH("Configuration", 0, MAXPATHLEN, NULL,
 		       cohort_fsal_module, where),
 	CONF_ITEM_BOOL("start_osd", false,
 			cohort_fsal_module, start_osd),
