@@ -609,8 +609,7 @@ int nfs4_op_read_plus(struct nfs_argop4 *op, compound_data_t *data,
 
 	contentp->what = info.io_content.what;
 	res_RPLUS->rpr_resok4.rpr_contents_count = 1;
-	res_RPLUS->rpr_resok4.rpr_eof =
-			res_READ4->READ4res_u.resok4.eof;
+	res_RPLUS->rpr_resok4.rpr_eof = 0;
 
 	if (info.io_content.what == NFS4_CONTENT_HOLE) {
 		contentp->hole.di_offset = info.io_content.hole.di_offset;
