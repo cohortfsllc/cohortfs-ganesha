@@ -174,6 +174,16 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 
 	if ((data->minorversion > 0)
 	     && (nfs4_Is_Fh_DSHandle(&data->currentFH))) {
+
+		offset = arg_WRITE4->offset;
+		size = arg_WRITE4->data.data_len;
+		stable_how = arg_WRITE4->stable;
+
+		LogFullDebug(COMPONENT_NFS_WRITE,
+			     "Write DS handle offset = %" PRIu64
+			     "  length = %" PRIu64 "  stable = %d",
+			     offset, size, stable_how);
+
 		LogDebug(COMPONENT_STATE, "Write DS handle");
 		if (io == CACHE_INODE_WRITE)
 			return op_dswrite(op, data, resp);
@@ -336,6 +346,10 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 	size = arg_WRITE4->data.data_len;
 	stable_how = arg_WRITE4->stable;
 	LogFullDebug(COMPONENT_NFS_V4,
+		     "offset = %" PRIu64 "  length = %" PRIu64 "  stable = %d",
+		     offset, size, stable_how);
+
+	LogFullDebug(COMPONENT_NFS_WRITE,
 		     "offset = %" PRIu64 "  length = %" PRIu64 "  stable = %d",
 		     offset, size, stable_how);
 
