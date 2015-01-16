@@ -101,6 +101,12 @@ static struct config_item vfs_params[] = {
 		       fsal_staticfsinfo_t, auth_exportpath_xdev),
 	CONF_ITEM_MODE("xattr_access_rights", 0400,
 		       fsal_staticfsinfo_t, xattr_access_rights),
+	/* permit deleg issue (ensure exclusive fs access) */
+	CONF_ITEM_ENUM_BITS("unsafe_delegations",
+			    FSAL_OPTION_FILE_READ_DELEG |
+			    FSAL_OPTION_FILE_WRITE_DELEG,
+			    FSAL_OPTION_FILE_DELEGATIONS,
+			    deleg_types, fsal_staticfsinfo_t, delegations),
 	CONFIG_EOL
 };
 
