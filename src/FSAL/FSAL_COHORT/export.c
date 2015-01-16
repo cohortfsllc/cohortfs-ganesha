@@ -69,6 +69,7 @@ static void release(struct fsal_export *export_pub)
 	struct cohort_export *export =
 	    container_of(export_pub, struct cohort_export, export);
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	deconstruct_handle(export->root);
 	export->root = 0;
 
@@ -117,6 +118,7 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 	/* Find the actual path in the supplied path */
 	const char *realpath;
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	if (*path != '/') {
 		realpath = strchr(path, ':');
 		if (realpath == NULL) {
@@ -167,6 +169,7 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	switch (in_type) {
 		/* Digested Handles */
 	case FSAL_DIGEST_NFSV3:
@@ -216,6 +219,7 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 
 	*pub_handle = NULL;
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	if (desc->len != sizeof(vinodeno_t)) {
 		status.major = ERR_FSAL_INVAL;
 		return status;
@@ -265,7 +269,9 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 	/* Filesystem stat */
 	struct statvfs vfs_st;
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	rc = ceph_ll_statfs(export->cmount, export->root->i, &vfs_st);
+	LogDebug(COMPONENT_FSAL, "statfs = %d", rc);
 
 	if (rc < 0)
 		return cohort2fsal_error(rc);
@@ -308,6 +314,7 @@ static bool fs_supports(struct fsal_export *export_pub,
 	}
 #endif
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	struct fsal_staticfsinfo_t *info = cohort_staticinfo(export_pub->fsal);
 	return fsal_supports(info, option);
 }
@@ -324,6 +331,7 @@ static bool fs_supports(struct fsal_export *export_pub,
 
 static uint64_t fs_maxfilesize(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return UINT64_MAX;
 }
 
@@ -339,6 +347,7 @@ static uint64_t fs_maxfilesize(struct fsal_export *export_pub)
 
 static uint32_t fs_maxread(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return 0x400000;
 }
 
@@ -354,6 +363,7 @@ static uint32_t fs_maxread(struct fsal_export *export_pub)
 
 static uint32_t fs_maxwrite(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return 0x400000;
 }
 
@@ -373,6 +383,7 @@ static uint32_t fs_maxlink(struct fsal_export *export_pub)
 	/* Cohort does not like hard links.  See the anchor table
 	   design.  We should fix this, but have to do it in the Cohort
 	   core. */
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return 1024;
 }
 
@@ -391,6 +402,7 @@ static uint32_t fs_maxnamelen(struct fsal_export *export_pub)
 	/* Cohort actually supports filenames of unlimited length, at
 	   least according to the protocol docs.  We may wish to
 	   constrain this later. */
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return UINT32_MAX;
 }
 
@@ -407,6 +419,7 @@ static uint32_t fs_maxnamelen(struct fsal_export *export_pub)
 static uint32_t fs_maxpathlen(struct fsal_export *export_pub)
 {
 	/* Similarly unlimited int he protocol */
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return UINT32_MAX;
 }
 
@@ -424,6 +437,7 @@ static struct timespec fs_lease_time(struct fsal_export *export_pub)
 {
 	struct timespec lease = { 300, 0 };
 
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return lease;
 }
 
@@ -439,6 +453,7 @@ static struct timespec fs_lease_time(struct fsal_export *export_pub)
 
 static fsal_aclsupp_t fs_acl_support(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return FSAL_ACLSUPPORT_DENY;
 }
 
@@ -454,6 +469,7 @@ static fsal_aclsupp_t fs_acl_support(struct fsal_export *export_pub)
 
 static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return supported_attributes;
 }
 
@@ -469,6 +485,7 @@ static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
 
 static uint32_t fs_umask(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return fsal_umask(cohort_staticinfo(export_pub->fsal));
 }
 
@@ -485,6 +502,7 @@ static uint32_t fs_umask(struct fsal_export *export_pub)
 
 static uint32_t fs_xattr_access_rights(struct fsal_export *export_pub)
 {
+	LogDebug(COMPONENT_FSAL, "Begin");
 	return fsal_xattr_access_rights(cohort_staticinfo(export_pub->fsal));
 }
 

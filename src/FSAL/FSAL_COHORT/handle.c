@@ -62,6 +62,7 @@ static void release(struct fsal_obj_handle *obj_pub)
 	struct cohort_handle *obj =
 	    container_of(obj_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	if (obj != obj->export->root)
 		deconstruct_handle(obj);
 }
@@ -92,6 +93,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	struct cohort_handle *obj = NULL;
 	struct Inode *i = NULL;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_lookup(export->cmount, dir->i, path, &st, &i, 0, 0);
 
 	if (rc < 0)
@@ -145,6 +147,7 @@ static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
 	/* Return status */
 	fsal_status_t fsal_status = { ERR_FSAL_NO_ERROR, 0 };
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_opendir(export->cmount, dir->i, &dir_desc, 0, 0);
 	if (rc < 0)
 		return cohort2fsal_error(rc);
@@ -225,6 +228,7 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 	/* Newly created object */
 	struct cohort_handle *obj;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	unix_mode = fsal2unix_mode(attrib->mode)
 	    & ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
 	rc = ceph_ll_create(export->cmount, dir->i, name, unix_mode,
@@ -278,6 +282,7 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 	struct cohort_handle *obj = NULL;
 	struct Inode *i = NULL;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	unix_mode = fsal2unix_mode(attrib->mode)
 		& ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
 	rc = ceph_ll_mkdir(export->cmount, dir->i, name, unix_mode, &st, &i,
@@ -333,6 +338,7 @@ static fsal_status_t fsal_symlink(struct fsal_obj_handle *dir_pub,
 	/* Newly created object */
 	struct cohort_handle *obj = NULL;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_symlink(export->cmount, dir->i, name, link_path, &st, &i,
 			     op_ctx->creds->caller_uid,
 			     op_ctx->creds->caller_gid);
@@ -382,6 +388,7 @@ static fsal_status_t fsal_readlink(struct fsal_obj_handle *link_pub,
 	/* Content points into a static buffer in the Cohort client's
 	   cache, so we don't have to free it. */
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_readlink(export->cmount, link->i, content,
 			      sizeof(content), 0, 0);
 
@@ -420,6 +427,7 @@ static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub)
 	/* Stat buffer */
 	struct stat st;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_getattr(export->cmount, handle->i, &st, 0, 0);
 
 	if (rc < 0)
@@ -457,6 +465,7 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 	/* Mask of attributes to set */
 	uint32_t mask = 0;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	/* apply umask, if mode attribute is to be changed */
 	if (FSAL_TEST_MASK(attrs->mask, ATTR_MODE))
 		attrs->mode &= ~op_ctx->fsal_export->exp_ops.
@@ -562,6 +571,7 @@ static fsal_status_t fsal_link(struct fsal_obj_handle *handle_pub,
 	    container_of(destdir_pub, struct cohort_handle, handle);
 	struct stat st;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_link(export->cmount, handle->i, destdir->i, name, &st,
 			  op_ctx->creds->caller_uid,
 			  op_ctx->creds->caller_gid);
@@ -603,6 +613,7 @@ static fsal_status_t fsal_rename(struct fsal_obj_handle *olddir_pub,
 	struct cohort_handle *newdir =
 	    container_of(newdir_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_rename(export->cmount, olddir->i, old_name, newdir->i,
 			    new_name, op_ctx->creds->caller_uid,
 			    op_ctx->creds->caller_gid);
@@ -638,6 +649,7 @@ static fsal_status_t fsal_unlink(struct fsal_obj_handle *dir_pub,
 	struct cohort_handle *dir =
 	    container_of(dir_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_unlink(export->cmount, dir->i, name,
 			    op_ctx->creds->caller_uid,
 			    op_ctx->creds->caller_gid);
@@ -693,6 +705,7 @@ static fsal_status_t fsal_open(struct fsal_obj_handle *handle_pub,
 	if (handle->openflags != FSAL_O_CLOSED)
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_open(export->cmount, handle->i, posix_flags, &(handle->fd),
 			  0, 0);
 	if (rc < 0) {
@@ -722,6 +735,7 @@ static fsal_openflags_t status(struct fsal_obj_handle *handle_pub)
 	struct cohort_handle *handle =
 	    container_of(handle_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	return handle->openflags;
 }
 
@@ -757,9 +771,11 @@ static fsal_status_t fsal_read(struct fsal_obj_handle *handle_pub,
 	/* Signed, so we can pick up on errors */
 	int64_t nb_read = 0;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	nb_read =
 	    ceph_ll_read(export->cmount, handle->fd, offset, buffer_size,
 			 buffer);
+	LogDebug(COMPONENT_FSAL, "nb_read %ld #%s#", nb_read, (char*)buffer);
 
 	if (nb_read < 0)
 		return cohort2fsal_error(nb_read);
@@ -803,6 +819,7 @@ static fsal_status_t fsal_write(struct fsal_obj_handle *handle_pub,
 	/* Signed, so we can pick up on errors */
 	int64_t nb_written = 0;
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	nb_written =
 	    ceph_ll_write(export->cmount, handle->fd, offset, buffer_size,
 			  buffer);
@@ -843,6 +860,7 @@ static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
 	struct cohort_handle *handle =
 	    container_of(handle_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_fsync(export->cmount, handle->fd, false);
 
 	if (rc < 0)
@@ -870,6 +888,7 @@ static fsal_status_t fsal_close(struct fsal_obj_handle *handle_pub)
 	struct cohort_handle *handle =
 	    container_of(handle_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	rc = ceph_ll_close(handle->export->cmount, handle->fd);
 
 	if (rc < 0)
@@ -903,6 +922,7 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *handle_pub,
 	const struct cohort_handle *handle =
 	    container_of(handle_pub, const struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	switch (output_type) {
 		/* Digested Handles */
 	case FSAL_DIGEST_NFSV3:
@@ -942,6 +962,7 @@ static void handle_to_key(struct fsal_obj_handle *handle_pub,
 	struct cohort_handle *handle =
 	    container_of(handle_pub, struct cohort_handle, handle);
 
+	LogDebug(COMPONENT_FSAL, "begin");
 	fh_desc->addr = &handle->vi;
 	fh_desc->len = sizeof(vinodeno_t);
 }

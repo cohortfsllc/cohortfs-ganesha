@@ -69,7 +69,7 @@ nfsstat4 FSAL_encode_placement_devices(XDR *xdrs,
 	/* NFS status code */
 	nfsstat4 nfs_status = 0;
 
-	LogEvent(COMPONENT_PNFS,
+	LogDebug(COMPONENT_PNFS,
 			"num_indices=%d indices[0]=%u num_dss=%d dss[0]=%u",
 			num_indices, indices[0], num_dss, dss[0].addr);
 
@@ -81,7 +81,7 @@ nfsstat4 FSAL_encode_placement_devices(XDR *xdrs,
 	}
 
 	for (i = 0; i < num_indices; i++) {
-		LogEvent(COMPONENT_PNFS, "    index %lu", i);
+		LogDebug(COMPONENT_PNFS, "    index %lu", i);
 		if (!inline_xdr_u_int32_t(xdrs, &indices[i])) {
 			LogCrit(COMPONENT_PNFS,
 				"Failed to encode OSD for index %lu.", i);
@@ -97,7 +97,7 @@ nfsstat4 FSAL_encode_placement_devices(XDR *xdrs,
 	}
 
 	for (i = 0; i < num_dss; i++) {
-		LogEvent(COMPONENT_PNFS, "    dss %lu", i);
+		LogDebug(COMPONENT_PNFS, "    dss %lu", i);
 		nfs_status = FSAL_encode_v4_multipath(xdrs, 1, &dss[i]);
 		if (nfs_status != NFS4_OK)
 			return nfs_status;
