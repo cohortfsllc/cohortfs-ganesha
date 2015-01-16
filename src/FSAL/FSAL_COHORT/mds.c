@@ -210,8 +210,8 @@ void pl_exp_layouttypes(struct fsal_export *exp_hdl, int32_t *count,
 
 uint32_t pl_exp_layout_blocksize(struct fsal_export *exp_hdl)
 {
-	LogFullDebug(COMPONENT_FSAL, "ret => 0x400000");
-	return 0x400000;
+	LogFullDebug(COMPONENT_FSAL, "ret => 0x1000000");
+	return 0x1000000;
 }
 
 /**
@@ -281,6 +281,8 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 	nfl_util4 util = 0;
 	/* The deviceid for this layout */
 	struct pnfs_deviceid deviceid = DEVICE_ID_INIT_ZERO(FSAL_ID_COHORT);
+	/* Ganesha server ID for DS */
+	uint16_t ds_id = 0;
 	/* NFS Status */
 	nfsstat4 nfs_status = 0;
 	/* DS wire handle */
@@ -296,7 +298,7 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 	export = container_of(op_ctx->fsal_export, struct cohort_export,
 	    export);
 
-	LogEvent(COMPONENT_PNFS, "begin");
+	LogDebug(COMPONENT_PNFS, "begin");
 	/* We support only LAYOUT4_PLACEMENT layouts */
 
 	if (arg->type != LAYOUT4_PLACEMENT) {
@@ -325,6 +327,9 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 	 * ID */
 	/*deviceid.devid = handle->wire.vi.ino.val;*/
 	deviceid.devid = 1;
+	/* For now we fake the DS ID, since we only have one.  Eventually, we'll
+	 * need to look it up on the FSAL */
+	ds_id = 0;
 
 	/* We return exactly one filehandle, filling in the necessary
 	   information for the DS server to speak to the Cohort OSD
@@ -340,13 +345,12 @@ nfsstat4 pl_hdl_layoutget(struct fsal_obj_handle *obj_hdl,
 		return NFS4ERR_LAYOUTUNAVAILABLE;
 	}
 
-	LogEvent(COMPONENT_PNFS,
-		"encoding fsal_id=%#hhx devid=%#lx util=%#x first_idx=%#x export_id=%#x num_fhs=%#x fh_len=%#Zx",
+	LogDebug(COMPONENT_PNFS,
+		"encoding fsal_id=%#hhx devid=%#lx util=%#x first_idx=%#x export_id=%#x num_fhs=%#x fh_len=%#Zx key=%s",
 			deviceid.fsal_id, deviceid.devid, util, 0,
-			req_ctx->export->export_id, 1, ds_desc.len);
+			ds_id, 1, ds_desc.len, ds_wire.object_key);
 	nfs_status = FSAL_encode_file_layout(loc_body, &deviceid, util, 0, 0,
-					     req_ctx->export->export_id, 1,
-					     &ds_desc);
+					     ds_id, 1, &ds_desc);
 	if (nfs_status != NFS4_OK) {
 		LogCrit(COMPONENT_PNFS,
 			"Failed to encode nfsv4_1_file_layout.");
@@ -388,6 +392,7 @@ nfsstat4 pl_hdl_layoutreturn(struct fsal_obj_handle *obj_hdl,
 		      struct req_op_context *req_ctx, XDR *lrf_body,
 		      const struct fsal_layoutreturn_arg *arg)
 {
+	LogDebug(COMPONENT_PNFS, "begin");
 	LogDebug(COMPONENT_FSAL,
 		 "reclaim=%d return_type=%d fsal_seg_data=%p dispose=%d last_segment=%d ncookies=%zu",
 		 arg->circumstance, arg->return_type, arg->fsal_seg_data,
@@ -432,6 +437,7 @@ nfsstat4 pl_hdl_layoutcommit(struct fsal_obj_handle *obj_hdl,
 	/* Return status from FSAL calls */
 	fsal_status_t fsal_stat;
 
+	LogDebug(COMPONENT_PNFS, "begin");
 	/* Sanity check on type */
 	if (arg->type != LAYOUT4_PLACEMENT) {
 		LogCrit(COMPONENT_PNFS, "Unsupported layout type: %x",
