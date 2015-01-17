@@ -2276,8 +2276,7 @@ state_status_t do_lock_op(cache_entry_t *entry,
 	memset(&conflicting_lock, 0, sizeof(conflicting_lock));
 
 	if (fsal_export->exp_ops.
-	    fs_supports(fsal_export, fso_lock_support_owner)
-	    || lock_op != FSAL_OP_UNLOCK) {
+	    fs_supports(fsal_export, fso_lock_support_owner)) {
 		if (lock_op == FSAL_OP_LOCKB &&
 		    !fsal_export->exp_ops.fs_supports(
 				fsal_export,
@@ -2323,7 +2322,9 @@ state_status_t do_lock_op(cache_entry_t *entry,
 		 * This CAN'T be right for 9P...
 		 * This WON'T be right for LEASE_LOCK...
 		 */
-		assert(sle_type == FSAL_POSIX_LOCK);
+	  /* Asserting !(FSAL_LEASE_LOCK) feels wrong for LEASE_LOCK, yes.
+	   * Also, in general, how can it be correct to forward the *LOCK ops
+	   * but not UNLOCK ops to the FSAL? (Matt) */
 		if (!LOCK_OWNER_9P(owner))
 			status = do_unlock_no_owner(entry, lock);
 	}
