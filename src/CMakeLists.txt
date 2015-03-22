@@ -758,18 +758,7 @@ else(HAVE_LIBCAP)
   message(STATUS "Could not find capabilities library, disabling USE_CAPS")
 endif(HAVE_LIBCAP)
 
-# Check if we have libblkid and libuuid, will just be reported under one
-# flag USE_BLKID
-
-check_include_files("blkid/blkid.h" HAVE_LIBBLKID_H)
-find_library(LIBBLKID blkid)  # Management of Capablilities
-check_library_exists(
-	blkid
-	blkid_devno_to_devname
-	""
-	HAVE_LIBBLKID
-	)
-
+# libuuid
 check_include_files("uuid/uuid.h" HAVE_LIBUUID_H)
 find_library(LIBUUID uuid)  # Management of Capablilities
 check_library_exists(
@@ -779,23 +768,31 @@ check_library_exists(
 	HAVE_LIBUUID
 	)
 
-if(HAVE_LIBBLKID AND HAVE_LIBUUID AND HAVE_LIBBLKID_H AND HAVE_LIBUUID_H)
-  # we have all the libraries and include files to use libblkid and libuuid
-  set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${LIBBLKID} ${LIBUUID})
+if (HAVE_LIBUUID)
+   set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${LIBBLKID} ${LIBUUID})
+endif (HAVE_LIBUUID)
+
+# libblkid internally uses on libuuid, but it's not the same package
+check_include_files("blkid/blkid.h" HAVE_LIBBLKID_H)
+find_library(LIBBLKID blkid)
+check_library_exists(
+	blkid
+	blkid_devno_to_devname
+	""
+	HAVE_LIBBLKID
+	)
+
+if(HAVE_LIBBLKID AND HAVE_LIBBLKID_H)
+  set(SYSTEM_LIBRARIES ${SYSTEM_LIBRARIES} ${LIBBLKID})
   set(USE_BLKID ON)
-else(HAVE_LIBBLKID AND HAVE_LIBUUID AND HAVE_LIBBLKID_H AND HAVE_LIBUUID_H)
-  # we are missing something and can't use libblkid and libuuid
+else(HAVE_LIBBLKID AND HAVE_LIBBLKID_H)
   set(USE_BLKID OFF)
   if(NOT HAVE_LIBBLKID)
     message(STATUS "Could not find blkid library, disabling USE_BLKID")
-  elseif(NOT HAVE_LIBUUID)
-    message(STATUS "Could not find uuid library, disabling USE_BLKID")
   elseif(NOT HAVE_LIBBLKID_H)
     message(STATUS "Could not find blkid header files, disabling USE_BLKID")
-  else(NOT HAVE_LIBBLKID)
-    message(STATUS "Could not find uuid header files, disabling USE_BLKID")
   endif(NOT HAVE_LIBBLKID)
-endif(HAVE_LIBBLKID AND HAVE_LIBUUID AND HAVE_LIBBLKID_H AND HAVE_LIBUUID_H)
+endif(HAVE_LIBBLKID AND HAVE_LIBBLKID_H)
 
 # check is daemon exists
 # I use check_library_exists there to be portab;e
