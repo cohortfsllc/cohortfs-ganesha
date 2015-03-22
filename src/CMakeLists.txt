@@ -464,7 +464,10 @@ if( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
 endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
 
 find_package(Krb5 REQUIRED gssapi)
-check_include_files(gssapi.h HAVE_GSSAPI_H)
+find_package(Gssapi)
+
+message(WARNING "krb5_found: ${KRB5_FOUND}")
+message(WARNING "have_gssapi_h: ${HAVE_GSSAPI_H}")
 
 if(KRB5_FOUND AND HAVE_GSSAPI_H)
   set(HAVE_KRB5 ON)

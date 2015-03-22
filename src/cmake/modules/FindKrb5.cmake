@@ -1,4 +1,4 @@
-# - Find kerberos 5
+# - Find kerberos 5i
 # Find the native Kerberos 5 headers and libraries.
 #  KRB5_INCLUDE_DIRS      - where to find krb5.h, etc.
 #  KRB5_LIBRARIES         - List of libraries when using kerberos 5.
@@ -109,11 +109,16 @@ IF(KRB5_FOUND)
       ENDIF("${flag}" MATCHES "^-L")
     ENDFOREACH(flag)
 
-    # add gssapi_krb5 (MIT)
-    SET(KRB5_LIBRARY_NAMES ${KRB5_LIBRARY_NAMES} "gssapi_krb5")
+    # GSSAPI library names
+    IF (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+    ELSE (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+        # add gssapi_krb5 (MIT)
+        SET(KRB5_LIBRARY_NAMES ${KRB5_LIBRARY_NAMES} "gssapi_krb5")
+    ENDIF (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
 
     # Search for each library needed using the directories given.
     FOREACH(name ${KRB5_LIBRARY_NAMES})
+      message(WARNING "looking for ${name}")
       # Look for this library.
       FIND_LIBRARY(KRB5_${name}_LIBRARY
         NAMES ${name}
@@ -125,6 +130,7 @@ IF(KRB5_FOUND)
 
       # If any library is not found then the whole package is not found.
       IF(NOT KRB5_${name}_LIBRARY)
+        message(WARNING "bonking k5 setup because KRB5_${name}_LIBRARY")
         SET(KRB5_FOUND 0)
       ENDIF(NOT KRB5_${name}_LIBRARY)
 
