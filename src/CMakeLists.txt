@@ -77,6 +77,11 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
   set(USE_EXECINFO ON)
 endif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+  set(SOLARIS ON)
+  set(UNIX ON)
+endif(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   set(WINDOWS ON)
 endif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -138,6 +143,17 @@ if (FREEBSD)
     set(OS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include/os/freebsd")
     find_library(LIBDL c)  # libc suffices on freebsd
 endif(FREEBSD)
+
+if (SOLARIS)
+    set(PLATFORM "SOLARIS")
+    # XXX Solaris builds are 64-bit, dammit
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64 -O -ggdb")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -rdynamic")
+    set(OS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include/os/solaris")
+    set(CMAKE_LIBRARY_PATH "/usr/lib/amd64 ${CMAKE_LIBRARY_PATH}")
+    find_library(LIBDL dl)
+endif (SOLARIS)
 
 if (LINUX)
     set(PLATFORM "LINUX")
