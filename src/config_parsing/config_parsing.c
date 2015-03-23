@@ -21,6 +21,7 @@
  */
 #include "config.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
 #if HAVE_STRING_H
