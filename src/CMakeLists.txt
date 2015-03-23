@@ -147,7 +147,7 @@ endif(FREEBSD)
 if (SOLARIS)
     set(PLATFORM "SOLARIS")
     # XXX Solaris builds are 64-bit, dammit
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64 -O -ggdb")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DSOLARIS -m64 -O -ggdb")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer")
     set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -rdynamic")
     set(OS_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include/os/solaris")
