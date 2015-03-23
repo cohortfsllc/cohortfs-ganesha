@@ -29,7 +29,6 @@
 #include "analyse.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #if HAVE_STRING_H
 #include <string.h>
 #endif
