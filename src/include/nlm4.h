@@ -16,14 +16,6 @@ extern "C" {
 #define SM_MAXSTRLEN 1024
 #define SM_PRIV_SZ 16
 
-	typedef int int32_t;
-
-	typedef u_int uint32_t;
-
-	typedef quad_t int64_t;
-
-	typedef u_quad_t uint64_t;
-
 	enum nlm4_stats {
 		NLM4_GRANTED = 0,
 		NLM4_DENIED = 1,
