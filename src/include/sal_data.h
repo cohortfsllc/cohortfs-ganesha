@@ -43,6 +43,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <dirent.h>		/* For having MAXNAMLEN */
+#include <limits.h> /* PATH_MAX */
 
 #include "abstract_atomic.h"
 #include "abstract_mem.h"
