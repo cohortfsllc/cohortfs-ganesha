@@ -80,6 +80,7 @@ const nfs_function_desc_t invalid_funcdesc = {
 	.dispatch_behaviour = NOTHING_SPECIAL
 };
 
+#ifdef _USE_NFS3
 const nfs_function_desc_t nfs3_func_desc[] = {
 	{
 	 .service_function = nfs_null,
@@ -265,6 +266,7 @@ const nfs_function_desc_t nfs3_func_desc[] = {
 	 (MAKES_WRITE | NEEDS_CRED | NEEDS_EXPORT | SUPPORTS_GSS)
 	 }
 };
+#endif /* _USE_NFS3 */
 
 /* Remeber that NFSv4 manages authentication though junction crossing, and
  * so does it for RO FS management (for each operation) */
@@ -378,6 +380,7 @@ const nfs_function_desc_t mnt3_func_desc[] = {
 #define nlm4_Unsupported nlm_Null
 #define nlm4_Unsupported_Free nlm_Null_Free
 
+#ifdef _USE_NLM
 const nfs_function_desc_t nlm4_func_desc[] = {
 	[NLMPROC4_NULL] = {
 			   .service_function = nlm_Null,
@@ -558,6 +561,7 @@ const nfs_function_desc_t nlm4_func_desc[] = {
 			       .funcname = "nlm4_Free_all",
 			       .dispatch_behaviour = NOTHING_SPECIAL},
 };
+#endif /* _USE_NLM */
 
 const nfs_function_desc_t rquota1_func_desc[] = {
 	[0] = {
@@ -676,11 +680,16 @@ const nfs_function_desc_t *nfs_rpc_get_funcdesc(nfs_request_data_t *reqnfs)
 	const nfs_function_desc_t *funcdesc = &invalid_funcdesc;
 
 	if (req->rq_prog == nfs_param.core_param.program[P_NFS]) {
-		funcdesc = (req->rq_vers == NFS_V3) ?
+		funcdesc =
+#ifdef _USE_NFS3
+			(req->rq_vers == NFS_V3) ?
 			&nfs3_func_desc[req->rq_proc] :
+#endif /* _USE_NFS3 */
 			&nfs4_func_desc[req->rq_proc];
+#ifdef _USE_NLM
 	} else if (req->rq_prog == nfs_param.core_param.program[P_NLM]) {
 		funcdesc = &nlm4_func_desc[req->rq_proc];
+#endif /* _USE_NLM */
 	} else if (req->rq_prog == nfs_param.core_param.program[P_MNT]) {
 		reqnfs->lookahead.flags |= NFS_LOOKAHEAD_MOUNT;
 		funcdesc = (req->rq_vers == MOUNT_V1) ?
@@ -707,7 +716,9 @@ static void nfs_rpc_execute(request_data_t *req,
 	nfs_request_data_t *reqnfs = req->r_u.nfs;
 	nfs_arg_t *arg_nfs = &reqnfs->arg_nfs;
 	nfs_res_t *res_nfs;
+#ifdef _USE_NFS3
 	int exportid = -1;
+#endif /* _USE_NFS3 */
 	struct svc_req *svcreq = &reqnfs->req;
 	SVCXPRT *xprt = reqnfs->xprt;
 	struct export_perms export_perms;
@@ -894,7 +905,12 @@ static void nfs_rpc_execute(request_data_t *req,
 		 */
 
 		progname = "NFS";
-		if (svcreq->rq_vers == NFS_V3) {
+		if (svcreq->rq_vers == NFS_V4) {
+			/* NFS V4 gets its own export id from the ops in the
+			 * compound */
+			protocol_options |= EXPORT_OPTION_NFSV4;
+#ifdef _USE_NFS3
+		} else if (svcreq->rq_vers == NFS_V3) {
 			protocol_options |= EXPORT_OPTION_NFSV3;
 			exportid = nfs3_FhandleToExportId((nfs_fh3 *) arg_nfs);
 			if (exportid < 0) {
@@ -940,10 +956,9 @@ static void nfs_rpc_execute(request_data_t *req,
 				    "Found export entry for path=%s as exportid=%d",
 				    op_ctx->export->fullpath,
 				    op_ctx->export->export_id);
-		} else {	/* NFS V4 gets its own export id from the ops
-				 * in the compound */
-			protocol_options |= EXPORT_OPTION_NFSV4;
+#endif /* _USE_NFS3 */
 		}
+#ifdef _USE_NLM
 	} else if (svcreq->rq_prog == nfs_param.core_param.program[P_NLM]) {
 		netobj *pfh3 = NULL;
 
@@ -1039,6 +1054,7 @@ static void nfs_rpc_execute(request_data_t *req,
 				}
 			}
 		}
+#endif /* _USE_NLM */
 	} else if (svcreq->rq_prog == nfs_param.core_param.program[P_MNT]) {
 		progname = "MNT";
 	}
@@ -1149,6 +1165,7 @@ static void nfs_rpc_execute(request_data_t *req,
 		 */
 		if (svcreq->rq_prog == nfs_param.core_param.program[P_NFS])
 			switch (svcreq->rq_vers) {
+#ifdef _USE_NFS3
 			case NFS_V3:
 				LogDebugAlt(COMPONENT_DISPATCH,
 					    COMPONENT_EXPORT,
@@ -1156,6 +1173,7 @@ static void nfs_rpc_execute(request_data_t *req,
 				res_nfs->res_getattr3.status = NFS3ERR_DQUOT;
 				rc = NFS_REQ_OK;
 				break;
+#endif /* _USE_NFS3 */
 
 			default:
 				LogDebugAlt(COMPONENT_DISPATCH,
@@ -1175,6 +1193,7 @@ static void nfs_rpc_execute(request_data_t *req,
 				  EXPORT_OPTION_MD_WRITE_ACCESS)) == 0) {
 		if (svcreq->rq_prog == nfs_param.core_param.program[P_NFS])
 			switch (svcreq->rq_vers) {
+#ifdef _USE_NFS3
 			case NFS_V3:
 				LogDebugAlt(COMPONENT_DISPATCH,
 					    COMPONENT_EXPORT,
@@ -1182,6 +1201,7 @@ static void nfs_rpc_execute(request_data_t *req,
 				res_nfs->res_getattr3.status = NFS3ERR_ROFS;
 				rc = NFS_REQ_OK;
 				break;
+#endif /* _USE_NFS3 */
 
 			default:
 				LogDebugAlt(COMPONENT_DISPATCH,
@@ -1268,7 +1288,9 @@ static void nfs_rpc_execute(request_data_t *req,
 
 	}
 
+#ifdef _USE_NFS3
  req_error:
+#endif /* _USE_NFS3 */
 
 /* NFSv4 stats are handled in nfs4_compound()
  */
@@ -1326,7 +1348,9 @@ static void nfs_rpc_execute(request_data_t *req,
 		dpq_status = nfs_dupreq_finish(svcreq, res_nfs);
 	goto freeargs;
 
+#if defined(_USE_NFS3) || defined(_USE_NLM)
  handle_err:
+#endif /* defined(_USE_NFS3) || defined(_USE_NLM) */
 	/* Reject the request for authentication reason (incompatible
 	 * file handle) */
 	if (isInfo(COMPONENT_DISPATCH) || isInfo(COMPONENT_EXPORT)) {

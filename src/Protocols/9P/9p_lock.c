@@ -162,8 +162,8 @@ int _9p_lock(struct _9p_request_data *req9p, void *worker_data,
 			break;
 		}
 
-		state_status = state_lock(pfid->pentry,
-					  powner, &pfid->state,
+		state_status = state_lock(pfid->pentry->obj_handle,
+					  powner, &state,
 					  STATE_NON_BLOCKING, NULL, &lock,
 					  &holder, &conflict);
 
@@ -177,7 +177,7 @@ int _9p_lock(struct _9p_request_data *req9p, void *worker_data,
 		break;
 
 	case _9P_LOCK_TYPE_UNLCK:
-		if (state_unlock(pfid->pentry, powner, false, 0, &lock)
+		if (state_unlock(pfid->pentry->obj_handle, powner, NULL, &lock)
 			    != STATE_SUCCESS)
 			status = _9P_LOCK_ERROR;
 		else

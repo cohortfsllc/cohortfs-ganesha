@@ -229,5 +229,75 @@ void display_fsinfo(struct fsal_staticfsinfo_t *info);
 
 const char *msg_fsal_err(fsal_errors_t fsal_err);
 
+fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, struct attrlist *attr);
+
+typedef cache_inode_status_t (*fsal_getattr_cb_t)
+	(void *opaque,
+	 struct fsal_obj_handle *obj,
+	 const struct attrlist *attr,
+	 uint64_t mounted_on_fileid,
+	 uint64_t cookie,
+	 enum cb_state cb_state);
+
+fsal_status_t fsal_access(struct fsal_obj_handle *obj,
+			  fsal_accessflags_t access_type,
+			  fsal_accessflags_t *allowed,
+			  fsal_accessflags_t *denied);
+fsal_status_t fsal_refresh_attrs(struct fsal_obj_handle *obj);
+cache_inode_status_t fsal_getattr(struct fsal_obj_handle *obj,
+				  void *opaque,
+				  fsal_getattr_cb_t cb,
+				  enum cb_state cb_state);
+fsal_status_t fsal_link(struct fsal_obj_handle *obj,
+			struct fsal_obj_handle *dest_dir,
+			const char *name);
+fsal_status_t fsal_lookup(struct fsal_obj_handle *parent,
+			  const char *name,
+			  struct fsal_obj_handle **obj);
+fsal_status_t fsal_lookupp(struct fsal_obj_handle *obj,
+			   struct fsal_obj_handle **parent);
+fsal_status_t fsal_create(struct fsal_obj_handle *parent,
+			  const char *name,
+			  object_file_type_t type, uint32_t mode,
+			  cache_inode_create_arg_t *create_arg,
+			  struct fsal_obj_handle **obj);
+bool fsal_create_verify(struct fsal_obj_handle *obj, uint32_t verf_hi,
+			uint32_t verf_lo);
+
+fsal_status_t fsal_rdwr_plus(struct fsal_obj_handle *obj,
+		      cache_inode_io_direction_t io_direction,
+		      uint64_t offset, size_t io_size,
+		      size_t *bytes_moved, void *buffer,
+		      bool *eof,
+		      bool *sync, struct io_info *info);
+fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
+		    uint64_t cookie, unsigned int *nbfound,
+		    bool *eod_met,
+		    attrmask_t attrmask,
+		    fsal_getattr_cb_t cb,
+		    void *opaque);
+fsal_status_t fsal_remove(struct fsal_obj_handle *parent, const char *name);
+nfsstat4 fsal_rename(struct fsal_obj_handle *dir_src,
+			  const char *oldname,
+			  struct fsal_obj_handle *dir_dest,
+			  const char *newname);
+fsal_status_t fsal_statfs(struct fsal_obj_handle *obj,
+			  fsal_dynamicfsinfo_t *dynamicinfo);
+fsal_status_t fsal_commit(struct fsal_obj_handle *obj_hdl, off_t offset,
+			 size_t len);
+/**
+ * @brief Return a changeid4 for this file.
+ *
+ * @param[in] obj   The file to query.
+ *
+ * @return A changeid4 indicating the last modification of the file.
+ */
+
+static inline changeid4
+fsal_get_changeid4(struct fsal_obj_handle *obj)
+{
+	return (changeid4)timespec_to_nsecs(&obj->attributes.chgtime);
+}
+
 #endif				/* !FSAL_H */
 /** @} */

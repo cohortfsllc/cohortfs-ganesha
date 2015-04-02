@@ -215,11 +215,11 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 	uint64_t offset = 0;
 	bool eof_met = false;
 	void *bufferdata = NULL;
-	cache_inode_status_t cache_status = CACHE_INODE_SUCCESS;
+	fsal_status_t fsal_status = {0, 0};
 	state_t *state_found = NULL;
 	state_t *state_open = NULL;
 	uint64_t file_size = 0;
-	cache_entry_t *entry = NULL;
+	struct fsal_obj_handle *obj = NULL;
 	bool sync = false;
 	bool anonymous_started = false;
 	state_owner_t *owner = NULL;
@@ -242,12 +242,12 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 	if (res_READ4->status != NFS4_OK)
 		return res_READ4->status;
 
-	entry = data->current_entry;
+	obj = data->current_obj;
 	/* Check stateid correctness and get pointer to state (also
 	   checks for special stateids) */
 
 	res_READ4->status =
-	    nfs4_Check_Stateid(&arg_READ4->stateid, entry, &state_found, data,
+	    nfs4_Check_Stateid(&arg_READ4->stateid, obj, &state_found, data,
 			       STATEID_SPECIAL_ANY, 0, false, "READ");
 	if (res_READ4->status != NFS4_OK)
 		return res_READ4->status;
@@ -373,7 +373,7 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 		   conflicts The stateid is all-0 or all-1 */
 		res_READ4->status = nfs4_Errno_state(
 				state_share_anonymous_io_start(
-					entry,
+					obj,
 					OPEN4_SHARE_ACCESS_READ,
 					arg_READ4->stateid.seqid != 0
 						? SHARE_BYPASS_READ
@@ -389,23 +389,21 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 	 *        cache_inode_access_no_mutex
 	 */
 	if (state_open == NULL &&
-	    entry->obj_handle->attributes.owner !=
+	    obj->attributes.owner !=
 	    op_ctx->creds->caller_uid) {
 		/* Need to permission check the read. */
-		cache_status =
-		    cache_inode_access(entry, FSAL_READ_ACCESS);
+		fsal_status = fsal_access(obj, FSAL_READ_ACCESS, NULL, NULL);
 
-		if (cache_status == CACHE_INODE_FSAL_EACCESS) {
+		if (fsal_status.major == ERR_FSAL_ACCESS) {
 			/* Test for execute permission */
-			cache_status =
-			    cache_inode_access(entry,
-					       FSAL_MODE_MASK_SET(FSAL_X_OK) |
-					       FSAL_ACE4_MASK_SET
-					       (FSAL_ACE_PERM_EXECUTE));
+			fsal_status = fsal_access(obj,
+					  FSAL_MODE_MASK_SET(FSAL_X_OK) |
+					  FSAL_ACE4_MASK_SET
+					  (FSAL_ACE_PERM_EXECUTE), NULL, NULL);
 		}
 
-		if (cache_status != CACHE_INODE_SUCCESS) {
-			res_READ4->status = nfs4_Errno(cache_status);
+		if (FSAL_IS_ERROR(fsal_status)) {
+			res_READ4->status = fsal_error_convert(fsal_status);
 			goto done;
 		}
 	}
@@ -476,23 +474,16 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
 		}
 	}
 
-	cache_status =
-	    cache_inode_rdwr_plus(entry, io, offset, size, &read_size,
-				  bufferdata, &eof_met, &sync, info);
-	if (cache_status != CACHE_INODE_SUCCESS) {
-		res_READ4->status = nfs4_Errno(cache_status);
+	fsal_status = fsal_rdwr_plus(obj, io, offset, size, &read_size,
+				     bufferdata, &eof_met, &sync, info);
+	if (FSAL_IS_ERROR(fsal_status)) {
+		res_READ4->status = fsal_error_convert(fsal_status);
 		gsh_free(bufferdata);
 		res_READ4->READ4res_u.resok4.data.data_val = NULL;
 		goto done;
 	}
 
-	if (cache_inode_size(entry, &file_size) !=
-	    CACHE_INODE_SUCCESS) {
-		res_READ4->status = nfs4_Errno(cache_status);
-		gsh_free(bufferdata);
-		res_READ4->READ4res_u.resok4.data.data_val = NULL;
-		goto done;
-	}
+	file_size = obj->attributes.filesize;
 
 	if (!anonymous_started && data->minorversion == 0)
 		op_ctx->clientid = NULL;
@@ -515,7 +506,7 @@ static int nfs4_read(struct nfs_argop4 *op, compound_data_t *data,
  done:
 
 	if (anonymous_started)
-		state_share_anonymous_io_done(entry, OPEN4_SHARE_ACCESS_READ);
+		state_share_anonymous_io_done(obj, OPEN4_SHARE_ACCESS_READ);
 
 	server_stats_io_done(size, read_size,
 			     (res_READ4->status == NFS4_OK) ? true : false,
@@ -656,7 +647,7 @@ int nfs4_op_io_advise(struct nfs_argop4 *op, compound_data_t *data,
 	fsal_status_t fsal_status = { 0, 0 };
 	struct io_hints hints;
 	state_t *state_found = NULL;
-	cache_entry_t *entry = NULL;
+	struct fsal_obj_handle *obj = NULL;
 
 	/* Say we are managing NFS4_OP_IO_ADVISE */
 	resp->resop = NFS4_OP_IO_ADVISE;
@@ -678,25 +669,23 @@ int nfs4_op_io_advise(struct nfs_argop4 *op, compound_data_t *data,
 	if (res_IO_ADVISE->iaa_status != NFS4_OK)
 		goto done;
 
-	entry = data->current_entry;
+	obj = data->current_obj;
 	/* Check stateid correctness and get pointer to state (also
 	   checks for special stateids) */
 
 	res_IO_ADVISE->iaa_status =
-	    nfs4_Check_Stateid(&arg_IO_ADVISE->iaa_stateid, entry,
+	    nfs4_Check_Stateid(&arg_IO_ADVISE->iaa_stateid, obj,
 				&state_found, data,  STATEID_SPECIAL_ANY,
 				0, false, "IO_ADVISE");
 	if (res_IO_ADVISE->iaa_status != NFS4_OK)
 		goto done;
 
-	if (state_found && entry) {
+	if (state_found && obj) {
 		hints.hints = arg_IO_ADVISE->iaa_hints.map[0];
 		hints.offset = arg_IO_ADVISE->iaa_offset;
 		hints.count = arg_IO_ADVISE->iaa_count;
 
-		fsal_status = entry->obj_handle->obj_ops.io_advise(
-					entry->obj_handle,
-					&hints);
+		fsal_status = obj->obj_ops.io_advise(obj, &hints);
 		if (FSAL_IS_ERROR(fsal_status)) {
 			res_IO_ADVISE->iaa_status = NFS4ERR_NOTSUPP;
 			goto done;
@@ -741,7 +730,7 @@ int nfs4_op_seek(struct nfs_argop4 *op, compound_data_t *data,
 	SEEK4res * const res_SEEK = &resp->nfs_resop4_u.opseek;
 	fsal_status_t fsal_status = { 0, 0 };
 	state_t *state_found = NULL;
-	cache_entry_t *entry = NULL;
+	struct fsal_obj_handle *obj = NULL;
 	struct io_info info;
 
 	/* Say we are managing NFS4_OP_SEEK */
@@ -758,12 +747,12 @@ int nfs4_op_seek(struct nfs_argop4 *op, compound_data_t *data,
 	if (res_SEEK->sr_status != NFS4_OK)
 		goto done;
 
-	entry = data->current_entry;
+	obj = data->current_obj;
 	/* Check stateid correctness and get pointer to state (also
 	   checks for special stateids) */
 
 	res_SEEK->sr_status =
-	    nfs4_Check_Stateid(&arg_SEEK->sa_stateid, entry,
+	    nfs4_Check_Stateid(&arg_SEEK->sa_stateid, obj,
 				&state_found, data,  STATEID_SPECIAL_ANY,
 				0, false, "SEEK");
 	if (res_SEEK->sr_status != NFS4_OK)
@@ -780,9 +769,7 @@ int nfs4_op_seek(struct nfs_argop4 *op, compound_data_t *data,
 		else
 			info.io_content.adb.adb_offset = arg_SEEK->sa_offset;
 
-		fsal_status = entry->obj_handle->obj_ops.seek(
-					entry->obj_handle,
-					&info);
+		fsal_status = obj->obj_ops.seek(obj, &info);
 		if (FSAL_IS_ERROR(fsal_status)) {
 			res_SEEK->sr_status = NFS4ERR_NXIO;
 			goto done;

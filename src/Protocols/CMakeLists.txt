@@ -4,7 +4,9 @@ include_directories(
 
 add_subdirectory(NFS)
 add_subdirectory(XDR)
-add_subdirectory(NLM)
+if(USE_NLM)
+	add_subdirectory(NLM)
+endif(USE_NLM)
 add_subdirectory(RQUOTA)
 
 if(USE_9P)

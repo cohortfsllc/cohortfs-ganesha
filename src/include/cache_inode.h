@@ -648,6 +648,7 @@ typedef cache_inode_status_t (*cache_inode_getattr_cb_t)
 	 cache_entry_t *entry,
 	 const struct attrlist *attr,
 	 uint64_t mounted_on_fileid,
+	 uint64_t cookie,
 	 enum cb_state cb_state);
 
 const char *cache_inode_err_str(cache_inode_status_t err);

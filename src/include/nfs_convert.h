@@ -54,4 +54,9 @@ nfsstat3 nfs3_Errno_verbose(cache_inode_status_t, const char *);
 #define nfs4_Errno(e) nfs4_Errno_verbose(e, __func__)
 #define nfs3_Errno(e) nfs3_Errno_verbose(e, __func__)
 
+static inline int fsal_error_convert(fsal_status_t status)
+{
+	return nfs4_Errno(cache_inode_error_convert(status));
+}
+
 #endif				/* _NFS_CONVERT_H */

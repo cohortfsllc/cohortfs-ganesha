@@ -217,7 +217,7 @@ int nfs3_read(nfs_arg_t *arg,
 
 		res->res_read3.status = nfs3_Errno_state(
 				state_share_anonymous_io_start(
-					entry,
+					entry->obj_handle,
 					OPEN4_SHARE_ACCESS_READ,
 					SHARE_BYPASS_READ));
 
@@ -236,7 +236,7 @@ int nfs3_read(nfs_arg_t *arg,
 						&eof_met,
 						&sync);
 
-		state_share_anonymous_io_done(entry, OPEN4_SHARE_ACCESS_READ);
+		state_share_anonymous_io_done(entry->obj_handle, OPEN4_SHARE_ACCESS_READ);
 
 		if (cache_status == CACHE_INODE_SUCCESS) {
 			nfs_read_ok(req, res, data, read_size,

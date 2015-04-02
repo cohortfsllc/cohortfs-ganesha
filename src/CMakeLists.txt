@@ -818,9 +818,12 @@ check_library_exists(
 #Protocols we support
 set(PROTOCOLS
   nfsproto
-  nlm
   rquota
 )
+
+if(USE_NLM)
+  set(PROTOCOLS ${PROTOCOLS} nlm)
+endif(USE_NLM)
 
 if(USE_9P)
   set(PROTOCOLS ${PROTOCOLS} 9p)
@@ -834,7 +837,6 @@ set(PROTOCOLS
 # Core subsystems
 set(GANESHA_CORE
   sal
-  cache_inode
   idmap
   avltree
   hashtable
@@ -848,6 +850,10 @@ set(GANESHA_CORE
   uid2grp
   fsalpseudo
   )
+
+if(USE_CACHE_INODE)
+  set(GANESHA_CORE ${GANESHA_CORE} cache_inode)
+endif(USE_CACHE_INODE)
 
 if(USE_DBUS)
   set(GANESHA_CORE ${GANESHA_CORE} gshdbus)
@@ -898,7 +904,9 @@ add_subdirectory(test)
 add_subdirectory(avl)
 add_subdirectory(hashtable)
 add_subdirectory(NodeList)
-add_subdirectory(cache_inode)
+if(USE_CACHE_INODE)
+  add_subdirectory(cache_inode)
+endif(USE_CACHE_INODE)
 add_subdirectory(SAL)
 add_subdirectory(libntirpc)
 add_subdirectory(RPCAL)

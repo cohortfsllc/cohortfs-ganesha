@@ -74,11 +74,11 @@ struct gsh_export {
 	/** This export is a node in the list of mounted_exports */
 	struct glist_head mounted_exports_node;
 	/** Entry for the root of this export, protected by lock */
-	cache_entry_t *exp_root_cache_inode;
+	struct fsal_obj_handle *exp_root_cache_inode;
 	/** Allowed clients */
 	struct glist_head clients;
 	/** Entry for the junction of this export.  Protected by lock */
-	cache_entry_t *exp_junction_inode;
+	struct fsal_obj_handle *exp_junction_obj;
 	/** The export this export sits on. Protected by lock */
 	struct gsh_export *exp_parent_exp;
 	/** Pointer to the fsal_export associated with this export */

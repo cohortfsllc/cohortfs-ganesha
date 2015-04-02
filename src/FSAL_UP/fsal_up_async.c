@@ -473,14 +473,14 @@ struct delegrecall_args {
 
 static void queue_delegrecall(struct fridgethr_context *ctx)
 {
-	cache_entry_t *entry = ctx->arg;
+	struct fsal_obj_handle *obj = ctx->arg;
 
-	(void)delegrecall_impl(entry);
+	(void)delegrecall_impl(obj);
 }
 
-int async_delegrecall(struct fridgethr *fr, cache_entry_t *entry)
+int async_delegrecall(struct fridgethr *fr, struct fsal_obj_handle *obj)
 {
-	int rc = fridgethr_submit(fr, queue_delegrecall, entry);
+	int rc = fridgethr_submit(fr, queue_delegrecall, obj);
 	return rc;
 }
 

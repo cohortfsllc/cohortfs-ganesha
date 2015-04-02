@@ -36,8 +36,7 @@
 #include "nfs_core.h"
 #include "nfs_proto_tools.h"
 #include "nfs_exports.h"
-#include "cache_inode.h"
-#include "cache_inode_lru.h"
+#include "fsal.h"
 #include "export_mgr.h"
 
 /**
@@ -53,7 +52,7 @@
 
 struct pseudofs_state {
 	struct gsh_export *export;
-	cache_entry_t *dirent;
+	struct fsal_obj_handle *obj;
 };
 
 /**
@@ -77,12 +76,12 @@ struct pseudofs_state {
  * directories in FSAL_PSEUDO filesystems).
  */
 void cleanup_pseudofs_node(char *pseudopath,
-			   cache_entry_t *entry)
+			   struct fsal_obj_handle *obj)
 {
-	cache_entry_t *parent_entry;
+	struct fsal_obj_handle *parent_obj;
 	char *pos = pseudopath + strlen(pseudopath) - 1;
 	char *name;
-	cache_inode_status_t cache_status;
+	fsal_status_t fsal_status;
 
 	/* Strip trailing / from pseudopath */
 	while (*pos == '/')
@@ -104,9 +103,9 @@ void cleanup_pseudofs_node(char *pseudopath,
 	LogDebug(COMPONENT_EXPORT,
 		 "Checking if pseudo node %s is needed", pseudopath);
 
-	cache_status = cache_inode_lookupp(entry, &parent_entry);
+	fsal_status = fsal_lookupp(obj, &parent_obj);
 
-	if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		/* Truncate the pseudopath to be the path to the parent */
 		*pos = '\0';
 		LogCrit(COMPONENT_EXPORT,
@@ -115,17 +114,12 @@ void cleanup_pseudofs_node(char *pseudopath,
 		return;
 	}
 
-	cache_status = cache_inode_remove(parent_entry, name);
+	fsal_status = fsal_remove(parent_obj, name);
 
-	if (cache_status == CACHE_INODE_DIR_NOT_EMPTY) {
-		LogDebug(COMPONENT_EXPORT,
-			 "PseudoFS parent directory %s is not empty",
-			 pseudopath);
-		goto out;
-	} else if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		LogCrit(COMPONENT_EXPORT,
 			"Removing pseudo node %s failed with %s",
-			pseudopath, cache_inode_err_str(cache_status));
+			pseudopath, msg_fsal_err(fsal_status.major));
 		goto out;
 	}
 
@@ -135,7 +129,7 @@ void cleanup_pseudofs_node(char *pseudopath,
 	 */
 	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
 
-	if (parent_entry == op_ctx->export->exp_root_cache_inode) {
+	if (parent_obj == op_ctx->export->exp_root_cache_inode) {
 		LogDebug(COMPONENT_EXPORT,
 			 "Reached root of PseudoFS %s",
 			 op_ctx->export->pseudopath);
@@ -150,28 +144,25 @@ void cleanup_pseudofs_node(char *pseudopath,
 	*pos = '\0';
 
 	/* check if the parent directory is needed */
-	cleanup_pseudofs_node(pseudopath, parent_entry);
+	cleanup_pseudofs_node(pseudopath, parent_obj);
 
 out:
-
-	cache_inode_put(parent_entry);
+	return;
 }
 
 bool make_pseudofs_node(char *name, void *arg)
 {
 	struct pseudofs_state *state = arg;
-	cache_entry_t *new_node = NULL;
-	cache_inode_status_t cache_status;
+	struct fsal_obj_handle *new_node = NULL;
+	fsal_status_t fsal_status;
 	bool retried = false;
 
 retry:
 
 	/* First, try to lookup the entry */
-	cache_status = cache_inode_lookup(state->dirent,
-					  name,
-					  &new_node);
+	fsal_status = fsal_lookup(state->obj, name, &new_node);
 
-	if (cache_status == CACHE_INODE_SUCCESS) {
+	if (!FSAL_IS_ERROR(fsal_status)) {
 		/* Make sure new node is a directory */
 		if (new_node->type != DIRECTORY) {
 			LogCrit(COMPONENT_EXPORT,
@@ -181,23 +172,20 @@ retry:
 				state->export->pseudopath,
 				name);
 			/* Release the reference on the new node */
-			cache_inode_put(new_node);
 			return false;
 		}
 
 		LogDebug(COMPONENT_EXPORT,
 			 "BUILDING PSEUDOFS: Parent %p entry %p %s FSAL %s already exists",
-			 state->dirent, new_node, name,
-			 new_node->obj_handle->fsal->name);
-		/* Release reference to the old node */
-		cache_inode_put(state->dirent);
+			 state->obj, new_node, name,
+			 new_node->fsal->name);
 
 		/* Make new node the current node */
-		state->dirent = new_node;
+		state->obj = new_node;
 		return true;
 	}
 
-	if (cache_status != CACHE_INODE_NOT_FOUND) {
+	if (fsal_status.major != ERR_FSAL_NOENT) {
 		/* An error occurred */
 		LogCrit(COMPONENT_EXPORT,
 			"BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s LOOKUP %s failed with %s",
@@ -205,7 +193,7 @@ retry:
 			state->export->fullpath,
 			state->export->pseudopath,
 			name,
-			cache_inode_err_str(cache_status));
+			msg_fsal_err(fsal_status.major));
 		return false;
 	}
 
@@ -218,27 +206,23 @@ retry:
 			state->export->fullpath,
 			state->export->pseudopath,
 			name,
-			cache_inode_err_str(cache_status));
+			msg_fsal_err(fsal_status.major));
 		return false;
 	}
 
 	/* Node was not found and no other error, must create node. */
-	cache_status = cache_inode_create(state->dirent,
-					  name,
-					  DIRECTORY,
-					  0755,
-					  NULL,
-					  &new_node);
+	fsal_status = fsal_create(state->obj, name, DIRECTORY, 0755, NULL,
+				  &new_node);
 
-	if (cache_status == CACHE_INODE_ENTRY_EXISTS && !retried) {
+	if (fsal_status.major == ERR_FSAL_EXIST && !retried) {
 		LogDebug(COMPONENT_EXPORT,
 			 "BUILDING PSEUDOFS: Parent %p Node %p %s seems to already exist, try LOOKUP again",
-			 state->dirent, new_node, name);
+			 state->obj, new_node, name);
 		retried = true;
 		goto retry;
 	}
 
-	if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		/* An error occurred */
 		LogCrit(COMPONENT_EXPORT,
 			"BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s CREATE %s failed with %s",
@@ -246,26 +230,23 @@ retry:
 			state->export->fullpath,
 			state->export->pseudopath,
 			name,
-			cache_inode_err_str(cache_status));
+			msg_fsal_err(fsal_status.major));
 		return false;
 	}
 
 	/* Lock (and refresh if necessary) the attributes */
-	cache_status =
-	    cache_inode_lock_trust_attrs(state->dirent, true);
+	fsal_status = fsal_refresh_attrs(state->obj);
 
-	if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		LogCrit(COMPONENT_EXPORT,
 			"BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s GETATTR %s failed with %s",
 			state->export->export_id,
 			state->export->fullpath,
 			state->export->pseudopath,
 			name,
-			cache_inode_err_str(cache_status));
+			msg_fsal_err(fsal_status.major));
 		return false;
 	}
-
-	PTHREAD_RWLOCK_unlock(&state->dirent->attr_lock);
 
 	LogDebug(COMPONENT_EXPORT,
 		 "BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s CREATE %s succeded",
@@ -274,11 +255,8 @@ retry:
 		 state->export->pseudopath,
 		 name);
 
-	/* Release reference to the old node */
-	cache_inode_put(state->dirent);
-
 	/* Make new node the current node */
-	state->dirent = new_node;
+	state->obj = new_node;
 	return true;
 }
 
@@ -296,7 +274,7 @@ bool pseudo_mount_export(struct gsh_export *export)
 	char *last_slash;
 	char *p;
 	char *rest;
-	cache_inode_status_t cache_status;
+	fsal_status_t fsal_status;
 	char *tok;
 	char *saveptr = NULL;
 	int rc;
@@ -368,10 +346,10 @@ bool pseudo_mount_export(struct gsh_export *export)
 		 export->pseudopath, rest);
 
 	/* Get the root inode of the mounted on export */
-	cache_status = nfs_export_get_root_entry(op_ctx->export,
-						 &state.dirent);
+	fsal_status = nfs_export_get_root_entry(op_ctx->export,
+						 &state.obj);
 
-	if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		LogCrit(COMPONENT_EXPORT,
 			"BUILDING PSEUDOFS: Could not get root entry for Export_Id %d Path %s Pseudo Path %s",
 			export->export_id, export->fullpath,
@@ -393,65 +371,38 @@ bool pseudo_mount_export(struct gsh_export *export)
 			/* Release reference on mount point inode
 			 * and the mounted on export
 			 */
-			cache_inode_put(state.dirent);
 			put_gsh_export(op_ctx->export);
 			return false;
 		}
 	}
 
-	/* Lock (and refresh if necessary) the attributes */
-	cache_status = cache_inode_lock_trust_attrs(state.dirent, true);
+	fsal_status = fsal_refresh_attrs(state.obj);
 
-	if (cache_status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		LogCrit(COMPONENT_EXPORT,
 			"BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s final GETATTR failed with %s",
 			export->export_id,
 			export->fullpath,
 			export->pseudopath,
-			cache_inode_err_str(cache_status));
+			msg_fsal_err(fsal_status.major));
 
 		/* Release reference on mount point inode
 		 * and the mounted on export
 		 */
-		cache_inode_put(state.dirent);
 		put_gsh_export(op_ctx->export);
-		return false;
-	}
-
-	/* Instead of an LRU reference, we must hold a pin reference.
-	 * We hold the LRU reference until we are done here to prevent
-	 * premature cleanup. Once we are done here, if the entry has
-	 * already gone bad, cleanup will happen on our unref and
-	 * and will be correct.
-	 */
-	cache_status = cache_inode_inc_pin_ref(state.dirent);
-
-	if (cache_status != CACHE_INODE_SUCCESS) {
-		LogCrit(COMPONENT_INIT,
-			"BUILDING PSEUDOFS: Export_Id %d Path %s Pseudo Path %s final pin failed with %s",
-			export->export_id,
-			export->fullpath,
-			export->pseudopath,
-			cache_inode_err_str(cache_status));
-
-		PTHREAD_RWLOCK_unlock(&state.dirent->attr_lock);
-
-		/* Release the LRU reference and return failure. */
-		cache_inode_put(state.dirent);
 		return false;
 	}
 
 	/* Now that all entries are added to pseudofs tree, and we are pointing
 	 * to the final node, make it a proper junction.
 	 */
-	state.dirent->object.dir.junction_export = export;
+	state.obj->junction_export = export;
 
 	/* And fill in the mounted on information for the export. */
 	PTHREAD_RWLOCK_wrlock(&export->lock);
 
-	export->exp_mounted_on_file_id =
-	    state.dirent->obj_handle->attributes.fileid;
-	export->exp_junction_inode = state.dirent;
+	export->exp_mounted_on_file_id = state.obj->attributes.fileid;
+	export->exp_junction_obj = state.obj;
 	export->exp_parent_exp = op_ctx->export;
 
 	/* Add ourselves to the list of exports mounted on parent */
@@ -461,11 +412,6 @@ bool pseudo_mount_export(struct gsh_export *export)
 	PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
 
 	PTHREAD_RWLOCK_unlock(&export->lock);
-
-	PTHREAD_RWLOCK_unlock(&state.dirent->attr_lock);
-
-	/* Release the LRU reference and return success. */
-	cache_inode_put(state.dirent);
 
 	return true;
 }
@@ -507,7 +453,7 @@ void pseudo_unmount_export(struct gsh_export *export)
 {
 	struct gsh_export *mounted_on_export;
 	struct gsh_export *sub_mounted_export;
-	cache_entry_t *junction_inode;
+	struct fsal_obj_handle *junction_inode;
 	struct root_op_context root_op_context;
 
 	/* Unmount any exports mounted on us */
@@ -551,9 +497,11 @@ void pseudo_unmount_export(struct gsh_export *export)
 	 */
 	PTHREAD_RWLOCK_wrlock(&export->lock);
 
-	junction_inode = export->exp_junction_inode;
+	junction_inode = export->exp_junction_obj;
 
+#if 0
 	if (junction_inode != NULL) {
+		/* XXX dang handle junction */
 		/* Clean up the junction inode */
 
 		/* Take an LRU reference */
@@ -581,6 +529,7 @@ void pseudo_unmount_export(struct gsh_export *export)
 		/* Release the attr_lock */
 		PTHREAD_RWLOCK_unlock(&junction_inode->attr_lock);
 	}
+#endif
 
 	/* Detach the export from the export it's mounted on */
 	mounted_on_export = export->exp_parent_exp;
@@ -627,13 +576,5 @@ void pseudo_unmount_export(struct gsh_export *export)
 
 		/* Release our reference to the export we are mounted on. */
 		put_gsh_export(mounted_on_export);
-	}
-
-	if (junction_inode != NULL) {
-		/* Release the pin reference */
-		cache_inode_dec_pin_ref(junction_inode, false);
-
-		/* Release the LRU reference */
-		cache_inode_put(junction_inode);
 	}
 }

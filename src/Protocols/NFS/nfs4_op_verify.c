@@ -85,11 +85,11 @@ int nfs4_op_verify(struct nfs_argop4 *op, compound_data_t *data,
 	}
 
 	res_VERIFY4->status =
-	    cache_entry_To_Fattr(data->current_entry,
-				 &file_attr4,
-				 data,
-				 &data->currentFH,
-				 &arg_VERIFY4->obj_attributes.attrmask);
+	    file_To_Fattr(data->current_obj,
+			  &file_attr4,
+			  data,
+			  &data->currentFH,
+			  &arg_VERIFY4->obj_attributes.attrmask);
 
 	if (res_VERIFY4->status != NFS4_OK)
 		return res_VERIFY4->status;

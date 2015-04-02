@@ -756,8 +756,10 @@ const char *state_owner_type_to_str(state_owner_type_t type)
 	switch (type) {
 	case STATE_LOCK_OWNER_UNKNOWN:
 		return "STATE_LOCK_OWNER_UNKNOWN";
+#ifdef _USE_NLM
 	case STATE_LOCK_OWNER_NLM:
 		return "STATE_LOCK_OWNER_NLM";
+#endif /* _USE_NLM */
 #ifdef _USE_9P
 	case STATE_LOCK_OWNER_9P:
 		return "STALE_LOCK_OWNER_9P";
@@ -794,8 +796,10 @@ bool different_owners(state_owner_t *owner1, state_owner_t *owner2)
 		return true;
 
 	switch (owner1->so_type) {
+#ifdef _USE_NLM
 	case STATE_LOCK_OWNER_NLM:
 		return compare_nlm_owner(owner1, owner2);
+#endif /* _USE_NLM */
 #ifdef _USE_9P
 	case STATE_LOCK_OWNER_9P:
 		return compare_9p_owner(owner1, owner2);
@@ -826,8 +830,10 @@ int display_owner(struct display_buffer *dspbuf, state_owner_t *owner)
 		return display_printf(dspbuf, "<NULL>");
 
 	switch (owner->so_type) {
+#ifdef _USE_NLM
 	case STATE_LOCK_OWNER_NLM:
 		return display_nlm_owner(dspbuf, owner);
+#endif /* _USE_NLM */
 
 #ifdef _USE_9P
 	case STATE_LOCK_OWNER_9P:
@@ -889,9 +895,11 @@ void free_state_owner(state_owner_t *owner)
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 
 	switch (owner->so_type) {
+#ifdef _USE_NLM
 	case STATE_LOCK_OWNER_NLM:
 		free_nlm_owner(owner);
 		break;
+#endif /* _USE_NLM */
 
 #ifdef _USE_9P
 	case STATE_LOCK_OWNER_9P:
@@ -935,8 +943,10 @@ void free_state_owner(state_owner_t *owner)
 hash_table_t *get_state_owner_hash_table(state_owner_t *owner)
 {
 	switch (owner->so_type) {
+#ifdef _USE_NLM
 	case STATE_LOCK_OWNER_NLM:
 		return ht_nlm_owner;
+#endif /* _USE_NLM */
 
 #ifdef _USE_9P
 	case STATE_LOCK_OWNER_9P:
@@ -1243,26 +1253,32 @@ state_owner_t *get_state_owner(care_t care, state_owner_t *key,
  * entry->state_lock.  It will now be reliably called in cleanup
  * processing.
  *
- * @param[in,out] entry File to be wiped
+ * @param[in,out] obj File to be wiped
  */
-void state_wipe_file(cache_entry_t *entry)
+void state_wipe_file(struct fsal_obj_handle *obj)
 {
+	struct state_file *fstate;
+
+	fstate = obj->obj_ops.get_file_state(obj);
+	if (!fstate) {
+		LogFullDebug(COMPONENT_STATE, "Could not get file state");
+		return;
+	}
+
 	/*
 	 * currently, only REGULAR files can have state; byte range locks and
 	 * stateid (for v4).  In the future, 4.1, directories could have
 	 * delegations, which is state.  At that point, we may need to modify
 	 * this routine to clear state on directories.
 	 */
-	if (entry->type != REGULAR_FILE)
+	if (obj->type != REGULAR_FILE)
 		return;
 
-	PTHREAD_RWLOCK_wrlock(&entry->state_lock);
-
-	state_lock_wipe(entry);
-	state_share_wipe(entry);
-	state_nfs4_state_wipe(entry);
-
-	PTHREAD_RWLOCK_unlock(&entry->state_lock);
+	state_lock_wipe(obj);
+#ifdef _USE_NLM
+	state_share_wipe(fstate);
+#endif /* _USE_NLM */
+	state_nfs4_state_wipe(fstate);
 
 #ifdef DEBUG_SAL
 	dump_all_states();
@@ -1318,7 +1334,9 @@ void state_release_export(struct gsh_export *export)
 
 	state_export_unlock_all();
 	state_export_release_nfs4_state();
+#ifdef _USE_NLM
 	state_export_unshare_all();
+#endif /* _USE_NLM */
 	release_root_op_context();
 }
 

@@ -235,7 +235,7 @@ typedef struct rpc_call_channel {
  * @todo Matt: this is automatically redundant, but in fact upstream
  * TI-RPC is not up-to-date with RFC 5665, will fix (Matt)
  *
- * @copyright 2012, Linux Box Corp
+ * @copyright 2012-2015, Linux Box Corp
 */
 enum rfc_5665_nc_type {
 	_NC_ERR,
@@ -320,13 +320,11 @@ typedef struct compound_data {
 	stateid4 saved_stateid;	/*< Saved stateid */
 	bool saved_stateid_valid;	/*< Saved stateid is valid */
 	unsigned int minorversion;	/*< NFSv4 minor version */
-	cache_entry_t *current_entry;	/*< Cache entry for current filehandle
-					 */
-	cache_entry_t *saved_entry;	/*< Cache entry for saved filehandle */
+	struct fsal_obj_handle *current_obj;	/*< Current object handle */
+	struct fsal_obj_handle *saved_obj;	/*< saved object handle */
 	struct fsal_ds_handle *current_ds;	/*< current ds handle */
 	struct fsal_ds_handle *saved_ds;	/*< Saved DS handle */
-	object_file_type_t current_filetype;	/*< File type of current entry
-						 */
+	object_file_type_t current_filetype;    /*< File type of current obj */
 	object_file_type_t saved_filetype;	/*< File type of saved entry */
 	struct gsh_export *saved_export; /*< Export entry related to the
 					     savedFH */
@@ -355,14 +353,10 @@ typedef int (*nfs4_op_function_t) (struct nfs_argop4 *, compound_data_t *,
 				   struct nfs_resop4 *);
 
 static inline void set_current_entry(compound_data_t *data,
-				     cache_entry_t *entry)
+				     struct fsal_obj_handle *obj)
 {
 	/* Mark current_stateid as invalid */
 	data->current_stateid_valid = false;
-
-	/* Release the reference to the old entry */
-	if (data->current_entry)
-		cache_inode_put(data->current_entry);
 
 	/* Clear out the current_ds */
 	if (data->current_ds) {
@@ -370,15 +364,15 @@ static inline void set_current_entry(compound_data_t *data,
 		data->current_ds = NULL;
 	}
 
-	data->current_entry = entry;
+	data->current_obj = obj;
 
-	if (entry == NULL) {
+	if (obj == NULL) {
 		data->current_filetype = NO_FILE_TYPE;
 		return;
 	}
 
 	/* Set the current file type */
-	data->current_filetype = entry->type;
+	data->current_filetype = obj->type;
 }
 
 #endif				/* NFS_PROTO_DATA_H */

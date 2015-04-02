@@ -234,7 +234,7 @@ int nfs3_Sattr_To_FSAL_attr(struct attrlist *pFSALattr, sattr3 *psattr);
 
 void nfs4_Fattr_Free(fattr4 *fattr);
 
-nfsstat4 nfs4_return_one_state(cache_entry_t *entry,
+nfsstat4 nfs4_return_one_state(struct fsal_obj_handle *obj,
 			       layoutreturn_type4 return_type,
 			       enum fsal_layoutreturn_circumstance circumstance,
 			       state_t *layout_state,
@@ -255,7 +255,7 @@ typedef enum {
 nfsstat4 nfs4_utf8string2dynamic(const utf8string *input, utf8_scantype_t scan,
 				 char **obj_name);
 
-nfsstat4 cache_entry_To_Fattr(cache_entry_t *, fattr4 *,
+nfsstat4 file_To_Fattr(struct fsal_obj_handle *, fattr4 *,
 			      compound_data_t *, nfs_fh4 *,
 			      struct bitmap4 *);
 
@@ -290,5 +290,4 @@ enum nfs4_minor_vers {
 	NFS4_MINOR_VERS_1,
 	NFS4_MINOR_VERS_2
 };
-
 #endif				/* _NFS_PROTO_TOOLS_H */

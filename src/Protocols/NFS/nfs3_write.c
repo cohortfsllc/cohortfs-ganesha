@@ -221,7 +221,7 @@ int nfs3_write(nfs_arg_t *arg,
 
 		res->res_write3.status = nfs3_Errno_state(
 				state_share_anonymous_io_start(
-					entry,
+					entry->obj_handle,
 					OPEN4_SHARE_ACCESS_WRITE,
 					SHARE_BYPASS_V3_WRITE));
 
@@ -234,7 +234,7 @@ int nfs3_write(nfs_arg_t *arg,
 		    cache_inode_rdwr(entry, CACHE_INODE_WRITE, offset, size,
 				     &written_size, data, &eof_met, &sync);
 
-		state_share_anonymous_io_done(entry, OPEN4_SHARE_ACCESS_WRITE);
+		state_share_anonymous_io_done(entry->obj_handle, OPEN4_SHARE_ACCESS_WRITE);
 
 		if (cache_status == CACHE_INODE_SUCCESS) {
 			/* Build Weak Cache Coherency data */

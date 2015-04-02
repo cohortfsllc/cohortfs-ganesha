@@ -135,9 +135,8 @@ static int nfs4_mds_putfh(compound_data_t *data)
 		(struct file_handle_v4 *)data->currentFH.nfs_fh4_val;
 	struct gsh_export *exporting;
 	cache_inode_fsal_data_t fsal_data;
-	fsal_status_t fsal_status;
-	cache_inode_status_t cache_status;
-	cache_entry_t *file_entry;
+	struct fsal_obj_handle *new_hdl;
+	fsal_status_t fsal_status = { 0, 0 };
 	bool changed = true;
 
 	LogFullDebug(COMPONENT_FILEHANDLE, "NFS4 Handle 0x%X export id %d",
@@ -191,15 +190,20 @@ static int nfs4_mds_putfh(compound_data_t *data)
 			       FSAL_DIGEST_NFSV4, &fsal_data.fh_desc,
 			       v4_handle->fhflags1);
 	if (FSAL_IS_ERROR(fsal_status))
-		return nfs4_Errno(cache_inode_error_convert(fsal_status));
+		return fsal_error_convert(fsal_status);
 
-	/* Build the pentry.  Refcount +1. */
-	cache_status = cache_inode_get(&fsal_data, &file_entry);
-	if (cache_status != CACHE_INODE_SUCCESS)
-		return nfs4_Errno(cache_status);
+	fsal_status =
+		fsal_data.export->exp_ops.create_handle(fsal_data.export,
+							 &fsal_data.fh_desc,
+							 &new_hdl);
+	if (FSAL_IS_ERROR(fsal_status)) {
+		LogDebug(COMPONENT_FILEHANDLE,
+			 "could not get create_handle object");
+		return fsal_error_convert(fsal_status);
+	}
 
 	/* Set the current entry using the ref from get */
-	set_current_entry(data, file_entry);
+	set_current_entry(data, new_hdl);
 
 	LogFullDebug(COMPONENT_FILEHANDLE,
 		     "File handle is of type %s(%d)",

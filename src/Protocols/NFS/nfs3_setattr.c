@@ -159,7 +159,7 @@ int nfs3_setattr(nfs_arg_t *arg,
 		if (arg->arg_setattr3.new_attributes.size.set_it) {
 			res->res_setattr3.status = nfs3_Errno_state(
 					state_share_anonymous_io_start(
-						entry,
+						entry->obj_handle,
 						OPEN4_SHARE_ACCESS_WRITE,
 						SHARE_BYPASS_V3_WRITE));
 
@@ -172,7 +172,7 @@ int nfs3_setattr(nfs_arg_t *arg,
 						   false);
 
 		if (arg->arg_setattr3.new_attributes.size.set_it)
-			state_share_anonymous_io_done(entry,
+			state_share_anonymous_io_done(entry->obj_handle,
 						      OPEN4_SHARE_ACCESS_WRITE);
 
 		if (cache_status != CACHE_INODE_SUCCESS) {

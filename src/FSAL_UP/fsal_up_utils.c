@@ -51,8 +51,9 @@
 
 cache_inode_status_t up_get(struct fsal_module *fsal,
 			    struct gsh_buffdesc *handle,
-			    cache_entry_t **entry)
+			    struct fsal_obj_handle **obj)
 {
+#if 0
 	cih_latch_t latch;
 	struct cache_inode_key key;
 
@@ -72,6 +73,10 @@ cache_inode_status_t up_get(struct fsal_module *fsal,
 	cih_latch_rele(&latch);
 
 	return CACHE_INODE_SUCCESS;
+#else
+	/* Find a way to get the object */
+	return CACHE_INODE_SERVERFAULT;
+#endif
 }
 
 /** @} */

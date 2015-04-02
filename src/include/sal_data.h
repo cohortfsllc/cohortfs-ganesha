@@ -383,6 +383,11 @@ union state_data {
 extern char all_zero[OTHERSIZE];
 extern char all_ones[OTHERSIZE];
 
+struct state_obj {
+	char digest[58];
+	size_t len;
+};
+
 /**
  * @brief Structure representing a single NFSv4 state
  *
@@ -401,7 +406,7 @@ struct state_t {
 	pthread_mutex_t state_mutex; /*< Mutex protecting following pointers */
 	struct gsh_export *state_export; /*< Export this entry belongs to */
 	state_owner_t *state_owner;	/*< State Owner related to this state */
-	cache_entry_t *state_entry;	/*< Related entry */
+	struct state_obj state_obj;	/*< digest of owning object */
 	union state_data state_data;
 	enum state_type state_type;
 	u_int32_t state_seqid;		/*< The NFSv4 Sequence id */
@@ -460,7 +465,9 @@ typedef struct state_nfs4_owner_name_t {
 
 typedef enum state_owner_type_t {
 	STATE_LOCK_OWNER_UNKNOWN,	/*< Unknown */
+#ifdef _USE_NLM
 	STATE_LOCK_OWNER_NLM,	/*< An NLM client */
+#endif /* _USE_NLM */
 #ifdef _USE_9P
 	STATE_LOCK_OWNER_9P,	/*< A 9P client */
 #endif
@@ -780,7 +787,7 @@ typedef enum state_blocking_t {
  * The granted call back is responsible for acquiring a reference to
  * the lock entry if needed.
  */
-typedef state_status_t(*granted_callback_t) (cache_entry_t *entry,
+typedef state_status_t(*granted_callback_t) (struct fsal_obj_handle *obj,
 					     state_lock_entry_t *lock_entry);
 
 /**
@@ -830,7 +837,7 @@ struct state_lock_entry_t {
 	struct glist_head sle_export_locks;	/*< Link on the export
 						   lock list */
 	struct gsh_export *sle_export;
-	cache_entry_t *sle_entry;	/*< File being locked */
+	struct fsal_obj_handle *sle_obj;	/*< File being locked */
 	state_block_data_t *sle_block_data;	/*< Blocking lock data */
 	state_owner_t *sle_owner;	/* Lock owner */
 	state_t *sle_state;	/*< Associated lock state */
@@ -838,6 +845,44 @@ struct state_lock_entry_t {
 	int32_t sle_ref_count;	/*< Reference count */
 	fsal_lock_param_t sle_lock;	/*< Lock description */
 	pthread_mutex_t sle_mutex;	/*< Mutex to protect the structure */
+};
+
+/**
+ * @brief Per-file state lists
+ *
+ * To be used by FSALs
+ */
+struct state_file {
+	/** File owning state */
+	struct fsal_obj_handle *obj;
+	/** NFSv4 states on this file */
+	struct glist_head list_of_states;
+	/** Layout recalls on this file */
+	struct glist_head layoutrecall_list;
+	/** Pointers for lock list */
+	struct glist_head lock_list;
+	/** Pointers for NLM share list */
+	struct glist_head nlm_share_list;
+	/** Share reservation state for this file. */
+	cache_inode_share_t share_state;
+	bool write_delegated; /* true iff write delegated */
+	/** Delegation statistics */
+	struct file_deleg_stats fdeleg_stats;
+	uint32_t anon_ops;   /* number of anonymous operations
+			      * happening at the moment which
+			      * prevents delegations from being
+			      * granted */
+};
+
+struct state_dir {
+	/** Number of known active children */
+	uint32_t nbactive;
+	/** If this is a junction, the export this node points
+	  to. Protected by the attr_lock. */
+	struct gsh_export *junction_export;
+	/** List of exports that have this cache inode
+	  as their root. Protected by the attr_lock. */
+	struct glist_head export_roots;
 };
 
 /**
@@ -871,7 +916,7 @@ struct recall_state_list {
 
 struct state_layout_recall_file {
 	struct glist_head entry_link;	/*< List of recalls on a file */
-	cache_entry_t *entry;	/*< Related cache entry */
+	struct fsal_obj_handle *obj;	/*< Related file */
 	layouttype4 type;	/*< Type of layout being recalled */
 	struct pnfs_segment segment;	/*< Segment to recall */
 	struct glist_head state_list;	/*< List of states affected by this
@@ -919,7 +964,7 @@ struct state_layout_recall_file {
  */
 
 struct state_cookie_entry_t {
-	cache_entry_t *sce_entry;	/*< Associated file */
+	struct fsal_obj_handle *sce_obj;	/*< Associated file */
 	state_lock_entry_t *sce_lock_entry;	/*< Associated lock */
 	void *sce_cookie;	/*< Cookie data */
 	int sce_cookie_size;	/*< Length of cookie */

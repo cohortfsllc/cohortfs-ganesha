@@ -181,11 +181,6 @@ const char *str_state_type(state_t *state)
 int display_stateid(struct display_buffer *dspbuf, state_t *state)
 {
 	int b_left;
-	cache_entry_t *entry;
-
-	PTHREAD_MUTEX_lock(&state->state_mutex);
-	entry = state->state_entry;
-	PTHREAD_MUTEX_unlock(&state->state_mutex);
 
 	b_left = display_stateid_other(dspbuf, state->stateid_other);
 
@@ -193,10 +188,10 @@ int display_stateid(struct display_buffer *dspbuf, state_t *state)
 		return b_left;
 
 	return display_printf(dspbuf,
-			      " STATE %p entry=%p type=%s seqid=%"PRIu32
+			      " STATE %p obj=%p type=%s seqid=%"PRIu32
 			      " refccount=%"PRId32,
 			      state,
-			      entry,
+			      &state->state_obj,
 			      str_state_type(state),
 			      state->state_seqid,
 			      atomic_fetch_int32_t(&state->state_refcount));
@@ -488,7 +483,7 @@ bool nfs4_State_Del(char *other)
  * This function yields the state for the stateid if it is valid.
  *
  * @param[in]  stateid     Stateid to look up
- * @param[in]  entry       Associated file (if any)
+ * @param[in]  fsal_obj    Associated file (if any)
  * @param[out] state       Found state
  * @param[in]  data        Compound data
  * @param[in]  flags       Flags governing special stateids
@@ -498,7 +493,7 @@ bool nfs4_State_Del(char *other)
  *
  * @return NFSv4 status codes
  */
-nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
+nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, struct fsal_obj_handle *fsal_obj,
 			    state_t **state, compound_data_t *data, int flags,
 			    seqid4 owner_seqid, bool check_seqid,
 			    const char *tag)
@@ -506,7 +501,7 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 	uint32_t epoch = 0;
 	uint64_t epoch_low = ServerEpoch & 0xFFFFFFFF;
 	state_t *state2 = NULL;
-	cache_entry_t *entry2 = NULL;
+	struct fsal_obj_handle *obj2 = NULL;
 	state_owner_t *owner2 = NULL;
 	char str[DISPLAY_STATEID4_SIZE];
 	struct display_buffer dspbuf = {sizeof(str), str, str};
@@ -617,13 +612,13 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 	/* Try to get the related state */
 	state2 = nfs4_State_Get_Pointer(stateid->other);
 
-	/* We also need a reference to the state_entry and state_owner.
+	/* We also need a reference to the state_obj and state_owner.
 	 * If we can't get them, we will check below for lease invalidity.
-	 * Note that calling get_state_entry_export_owner_refs with a NULL
+	 * Note that calling get_state_obj_export_owner_refs with a NULL
 	 * state2 returns false.
 	 */
-	if (!get_state_entry_export_owner_refs(state2,
-					       &entry2,
+	if (!get_state_obj_export_owner_refs(state2,
+					       &obj2,
 					       NULL,
 					       &owner2)) {
 		/* We matched this server's epoch, but could not find the
@@ -779,12 +774,12 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 	}
 
 	/* Sanity check : Is this the right file ? */
-	if ((entry != NULL) && (entry2 != entry)) {
+	if (fsal_obj && !fsal_obj->obj_ops.handle_cmp(fsal_obj, obj2)) {
+		status = NFS4ERR_BAD_STATEID;
 		if (str_valid)
 			LogDebug(COMPONENT_STATE,
 				 "Check %s stateid found stateid %s has wrong file",
 				 tag, str);
-		status = NFS4ERR_BAD_STATEID;
 		goto failure;
 	}
 
@@ -855,17 +850,14 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 	if ((flags & STATEID_SPECIAL_FREE) != 0) {
 		switch (state2->state_type) {
 		case STATE_TYPE_LOCK:
-			PTHREAD_RWLOCK_rdlock(&entry2->state_lock);
 			if (glist_empty
 			    (&state2->state_data.lock.state_locklist)) {
 				if (str_valid)
 					LogFullDebug(COMPONENT_STATE,
 						     "Check %s stateid %s has no locks, ok to free",
 						     tag, str);
-				PTHREAD_RWLOCK_unlock(&entry2->state_lock);
 				break;
 			}
-			PTHREAD_RWLOCK_unlock(&entry2->state_lock);
 			/* Fall through for failure */
 
 		case STATE_TYPE_NLM_LOCK:
@@ -900,8 +892,7 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 
  success:
 
-	if (entry2 != NULL) {
-		cache_inode_lru_unref(entry2, LRU_FLAG_NONE);
+	if (obj2 != NULL) {
 		dec_state_owner_ref(owner2);
 	}
 
@@ -917,8 +908,7 @@ nfsstat4 nfs4_Check_Stateid(stateid4 *stateid, cache_entry_t *entry,
 
  replay:
 
-	if (entry2 != NULL) {
-		cache_inode_lru_unref(entry2, LRU_FLAG_NONE);
+	if (obj2 != NULL) {
 		dec_state_owner_ref(owner2);
 	}
 

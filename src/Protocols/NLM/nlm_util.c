@@ -234,18 +234,18 @@ static void nlm4_send_grant_msg(state_async_queue_t *arg)
 		goto out;
 	}
 
-	PTHREAD_RWLOCK_wrlock(&cookie_entry->sce_entry->state_lock);
+	/*PTHREAD_RWLOCK_wrlock(&cookie_entry->sce_entry->state_lock);*/
 
 	if (cookie_entry->sce_lock_entry->sle_block_data == NULL) {
 		/* Wow, we're not doing well... */
-		PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);
+		/*PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);*/
 		LogFullDebug(COMPONENT_NLM,
 			     "Could not find block data for cookie=%s (must be an old NLM_GRANTED_RES)",
 			     buffer);
 		goto out;
 	}
 
-	PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);
+	/*PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);*/
 
 	/* Initialize a context, it is ok if the export is stale because
 	 * we must clean up the cookie_entry.
@@ -600,7 +600,7 @@ nlm4_stats nlm_convert_state_error(state_status_t status)
 	}
 }
 
-state_status_t nlm_granted_callback(cache_entry_t *pentry,
+state_status_t nlm_granted_callback(struct fsal_obj_handle *obj,
 				    state_lock_entry_t *lock_entry)
 {
 	state_block_data_t *block_data = lock_entry->sle_block_data;
@@ -634,7 +634,7 @@ state_status_t nlm_granted_callback(cache_entry_t *pentry,
 	 * It will also request lock from FSAL.
 	 * Could return STATE_LOCK_BLOCKED because FSAL would have had to block.
 	 */
-	state_status = state_add_grant_cookie(pentry,
+	state_status = state_add_grant_cookie(obj,
 					      &nlm_grant_cookie,
 					      sizeof(nlm_grant_cookie),
 					      lock_entry,

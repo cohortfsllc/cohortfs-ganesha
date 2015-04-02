@@ -90,7 +90,7 @@ int nfs4_op_access(struct nfs_argop4 *op, compound_data_t *data,
 
 	/* Perform the 'access' call */
 	cache_status =
-	    nfs_access_op(data->current_entry, arg_ACCESS4->access,
+	    nfs_access_op(data->current_obj, arg_ACCESS4->access,
 			  &res_ACCESS4->ACCESS4res_u.resok4.access,
 			  &res_ACCESS4->ACCESS4res_u.resok4.supported);
 

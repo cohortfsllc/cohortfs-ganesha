@@ -972,7 +972,29 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *obj_hdl,
 }
 
 /**
- * handle_digest
+ * handle_cmp
+ * default case compare with handle_to_key
+ */
+static bool handle_cmp(struct fsal_obj_handle *obj_hdl1,
+		       struct fsal_obj_handle *obj_hdl2)
+{
+	struct gsh_buffdesc key1, key2;
+
+	if (obj_hdl1 == NULL || obj_hdl2 == NULL)
+		return false;
+
+	if (obj_hdl1 == obj_hdl2)
+		return true;
+
+	obj_hdl1->obj_ops.handle_to_key(obj_hdl1, &key1);
+	obj_hdl2->obj_ops.handle_to_key(obj_hdl2, &key2);
+	if (key1.len != key2.len)
+		return false;
+	return !memcmp(key1.addr, key2.addr, key1.len);
+}
+
+/**
+ * handle_to_key
  * default case return a safe empty key
  */
 
@@ -981,6 +1003,16 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 {
 	fh_desc->addr = obj_hdl;
 	fh_desc->len = 0;
+}
+
+/**
+ * get_file_state
+ * default case return NULL
+ */
+
+static struct state_file *get_file_state(struct fsal_obj_handle *obj_hdl)
+{
+	return NULL;
 }
 
 /**
@@ -1092,7 +1124,9 @@ struct fsal_obj_ops def_handle_ops = {
 	.handle_is = handle_is,
 	.lru_cleanup = lru_cleanup,
 	.handle_digest = handle_digest,
+	.handle_cmp = handle_cmp,
 	.handle_to_key = handle_to_key,
+	.get_file_state = get_file_state,
 	.layoutget = layoutget,
 	.layoutreturn = layoutreturn,
 	.layoutcommit = layoutcommit

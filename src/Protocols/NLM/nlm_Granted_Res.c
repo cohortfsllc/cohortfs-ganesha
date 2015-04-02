@@ -70,19 +70,19 @@ int nlm4_Granted_Res(nfs_arg_t *args,
 		return NFS_REQ_OK;
 	}
 
-	PTHREAD_RWLOCK_wrlock(&cookie_entry->sce_entry->state_lock);
+	/*PTHREAD_RWLOCK_wrlock(&cookie_entry->sce_entry->state_lock);*/
 
 	if (cookie_entry->sce_lock_entry == NULL
 	    || cookie_entry->sce_lock_entry->sle_block_data == NULL) {
 		/* This must be an old NLM_GRANTED_RES */
-		PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);
+		/*PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);*/
 		LogFullDebug(COMPONENT_NLM,
 			     "Could not find block data for cookie=%s (must be an old NLM_GRANTED_RES)",
 			     buffer);
 		return NFS_REQ_OK;
 	}
 
-	PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);
+	/*PTHREAD_RWLOCK_unlock(&cookie_entry->sce_entry->state_lock);*/
 
 	/* Fill in op_ctx, nfs_rpc_execute will release the export ref.
 	 * We take an export reference even if the export is stale because

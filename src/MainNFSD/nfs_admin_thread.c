@@ -386,6 +386,7 @@ static void do_shutdown(void)
 		LogEvent(COMPONENT_THREAD, "Reaper thread shut down.");
 	}
 
+#ifdef _USE_CACHE_INODE
 	LogEvent(COMPONENT_MAIN, "Stopping LRU thread.");
 	rc = cache_inode_lru_pkgshutdown();
 	if (rc != 0) {
@@ -396,6 +397,7 @@ static void do_shutdown(void)
 	} else {
 		LogEvent(COMPONENT_THREAD, "LRU thread system shut down.");
 	}
+#endif /* _USE_CACHE_INODE */
 
 	LogEvent(COMPONENT_MAIN, "Removing all exports.");
 	remove_all_exports();
@@ -409,9 +411,11 @@ static void do_shutdown(void)
 		   potentially invalid locks. */
 		emergency_cleanup_fsals();
 	} else {
+#ifdef _USE_CACHE_INODE
 		LogEvent(COMPONENT_MAIN, "Destroying the inode cache.");
 		cache_inode_destroyer();
 		LogEvent(COMPONENT_MAIN, "Inode cache destroyed.");
+#endif /* _USE_CACHE_INODE */
 
 		LogEvent(COMPONENT_MAIN, "Destroying the FSAL system.");
 		destroy_fsals();

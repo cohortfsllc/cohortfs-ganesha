@@ -118,7 +118,7 @@ int nlm4_Unshare(nfs_arg_t *args,
 		return NFS_REQ_OK;
 	}
 
-	state_status = state_nlm_unshare(pentry,
+	state_status = state_nlm_unshare(pentry->obj_handle,
 					 arg->share.access,
 					 arg->share.mode,
 					 nlm_owner,

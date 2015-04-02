@@ -547,7 +547,7 @@ static int client_commit(void *node, void *link_mem, void *self_struct,
  * fsal method can process the rest of the parameters in the block
  */
 
-static int fsal_commit(void *node, void *link_mem, void *self_struct,
+static int fsal_cfg_commit(void *node, void *link_mem, void *self_struct,
 		       struct config_error_type *err_type)
 {
 	struct fsal_export **exp_hdl = link_mem;
@@ -585,8 +585,10 @@ static int fsal_commit(void *node, void *link_mem, void *self_struct,
 	status = fsal->m_ops.create_export(fsal,
 					   node, err_type,
 					  &fsal_up_top);
+#ifdef _USE_CACHE_INODE
 	if ((export->options_set & EXPORT_OPTION_EXPIRE_SET) == 0)
 		export->expire_time_attr = cache_param.expire_time_attr;
+#endif /* _USE_CACHE_INODE */
 
 	if (FSAL_IS_ERROR(status)) {
 		fsal_put(fsal);
@@ -726,9 +728,9 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	if (errcnt)
 		goto err_out;  /* have basic errors. don't even try more... */
 
-	/* export->fsal_export is valid iff fsal_commit succeeds.
-	 * Config code calls export_commit even if fsal_commit fails at
-	 * the moment, so error out here if fsal_commit failed.
+	/* export->fsal_export is valid iff fsal_cfg_commit succeeds.
+	 * Config code calls export_commit even if fsal_cfg_commit fails at
+	 * the moment, so error out here if fsal_cfg_commit failed.
 	 */
 	if (export->fsal_export == NULL) {
 		err_type->validate = true;
@@ -1164,7 +1166,7 @@ static struct config_item export_defaults_params[] = {
  * @brief Table of FSAL sub-block parameters
  *
  * NOTE: this points to a struct that is private to
- * fsal_commit.
+ * fsal_cfg_commit.
  */
 
 static struct config_item fsal_params[] = {
@@ -1225,7 +1227,7 @@ static struct config_item export_params[] = {
 		       gsh_export, expire_time_attr,
 		       EXPORT_OPTION_EXPIRE_SET,  options_set),
 	CONF_RELAX_BLOCK("FSAL", fsal_params,
-			 fsal_init, fsal_commit,
+			 fsal_init, fsal_cfg_commit,
 			 gsh_export, fsal_export),
 	CONFIG_EOL
 };
@@ -1547,21 +1549,14 @@ void exports_pkginit(void)
  * @return cache inode status code
  */
 
-cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *export,
-					       cache_entry_t **entry)
+fsal_status_t nfs_export_get_root_entry(struct gsh_export *export,
+					struct fsal_obj_handle **obj)
 {
-	cache_inode_status_t status;
+	fsal_status_t status;
 
-	PTHREAD_RWLOCK_rdlock(&export->lock);
-
-	status =
-	    cache_inode_lru_ref(export->exp_root_cache_inode, LRU_FLAG_NONE);
-
-	if (status == CACHE_INODE_SUCCESS)
-		*entry = export->exp_root_cache_inode;
-
-	PTHREAD_RWLOCK_unlock(&export->lock);
-
+	status = export->fsal_export->exp_ops.lookup_path(export->fsal_export,
+							  export->fullpath,
+							  obj);
 	return status;
 }
 
@@ -1578,9 +1573,7 @@ cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *export,
 int init_export_root(struct gsh_export *export)
 {
 	fsal_status_t fsal_status;
-	cache_inode_status_t cache_status;
 	struct fsal_obj_handle *root_handle;
-	cache_entry_t *entry = NULL;
 	struct root_op_context root_op_context;
 	int my_status;
 
@@ -1607,70 +1600,24 @@ int init_export_root(struct gsh_export *export)
 		goto out;
 	}
 
-	/* Add this entry to the Cache Inode as a "root" entry */
-
-	/* Get the cache inode entry (and an LRU reference */
-	cache_status = cache_inode_new_entry(root_handle, CACHE_INODE_FLAG_NONE,
-					     &entry);
-
-	if (entry == NULL) {
-		/* EFAULT for any internal error */
-		my_status = EFAULT;
-
-		LogCrit(COMPONENT_EXPORT,
-			"Error when creating root cached entry for %s, export_id=%d, cache_status=%s",
-			export->fullpath,
-			export->export_id,
-			cache_inode_err_str(cache_status));
-		goto out;
-	}
-
-	/* Instead of an LRU reference, we must hold a pin reference */
-	cache_status = cache_inode_inc_pin_ref(entry);
-
-	if (cache_status != CACHE_INODE_SUCCESS) {
-
-		my_status = EFAULT;
-
-		LogCrit(COMPONENT_EXPORT,
-			"Error when creating root cached entry for %s, export_id=%d, cache_status=%s",
-			export->fullpath,
-			export->export_id,
-			cache_inode_err_str(cache_status));
-
-		/* Release the LRU reference and return failure. */
-		cache_inode_put(entry);
-		goto out;
-	}
-
-	PTHREAD_RWLOCK_wrlock(&entry->attr_lock);
 	PTHREAD_RWLOCK_wrlock(&export->lock);
 
-	export->exp_root_cache_inode = entry;
-
-	glist_add_tail(&entry->object.dir.export_roots,
-		       &export->exp_root_list);
-
-	/* Protect this entry from removal (unlink) */
-	atomic_inc_int32_t(&entry->exp_root_refcount);
+	export->exp_root_cache_inode = root_handle;
 
 	PTHREAD_RWLOCK_unlock(&export->lock);
-	PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 
 	if (isDebug(COMPONENT_EXPORT)) {
 		LogDebug(COMPONENT_EXPORT,
-			 "Added root entry %p FSAL %s for path %s on export_id=%d",
-			 entry,
-			 entry->obj_handle->fsal->name,
+			 "Added root obj %p FSAL %s for path %s on export_id=%d",
+			 root_handle,
+			 root_handle->fsal->name,
 			 export->fullpath, export->export_id);
 	} else {
 		LogInfo(COMPONENT_EXPORT,
-			"Added root entry for path %s on export_id=%d",
+			"Added root obj for path %s on export_id=%d",
 			export->fullpath, export->export_id);
 	}
 
-	/* Release the LRU reference and return success. */
-	cache_inode_put(entry);
 	my_status = 0;
 out:
 	release_root_op_context();
@@ -1684,36 +1631,19 @@ out:
  */
 
 static inline void
-release_export_root_locked(struct gsh_export *export, cache_entry_t *entry)
+release_export_root_locked(struct gsh_export *export, struct fsal_obj_handle *obj)
 {
-	cache_entry_t *root_entry = NULL;
+	struct fsal_obj_handle *root_obj = NULL;
 
 	PTHREAD_RWLOCK_wrlock(&export->lock);
 
 	glist_del(&export->exp_root_list);
-	root_entry = export->exp_root_cache_inode;
+	root_obj = export->exp_root_cache_inode;
 	export->exp_root_cache_inode = NULL;
 
-	if (root_entry != NULL) {
-		/* Allow this entry to be removed (unlink) */
-		(void) atomic_dec_int32_t(&entry->exp_root_refcount);
-
-		/* We must not hold entry->attr_lock across
-		 * cache_inode_dec_pin_ref (LRU lane lock order)
-		 */
-		PTHREAD_RWLOCK_unlock(&entry->attr_lock);
-		PTHREAD_RWLOCK_unlock(&export->lock);
-
-		/* Release the pin reference */
-		cache_inode_dec_pin_ref(root_entry, false);
-	} else {
-		PTHREAD_RWLOCK_unlock(&entry->attr_lock);
-		PTHREAD_RWLOCK_unlock(&export->lock);
-	}
-
 	LogDebug(COMPONENT_EXPORT,
-		 "Released root entry %p for path %s on export_id=%d",
-		 root_entry, export->fullpath, export->export_id);
+		 "Released root obj %p for path %s on export_id=%d",
+		 root_obj, export->fullpath, export->export_id);
 }
 
 /**
@@ -1724,28 +1654,24 @@ release_export_root_locked(struct gsh_export *export, cache_entry_t *entry)
 
 void release_export_root(struct gsh_export *export)
 {
-	cache_entry_t *entry = NULL;
-	cache_inode_status_t status;
+	struct fsal_obj_handle *obj = NULL;
+	fsal_status_t fsal_status;
 
 	/* Get a reference to the root entry */
-	status = nfs_export_get_root_entry(export, &entry);
+	fsal_status = nfs_export_get_root_entry(export, &obj);
 
-	if (status != CACHE_INODE_SUCCESS) {
+	if (FSAL_IS_ERROR(fsal_status)) {
 		/* No more root entry, bail out, this export is
 		 * probably about to be destroyed.
 		 */
 		LogInfo(COMPONENT_CACHE_INODE,
 			"Export root for export id %d status %s",
-			export->export_id, cache_inode_err_str(status));
+			export->export_id, msg_fsal_err(fsal_status.major));
 		return;
 	}
 
-	PTHREAD_RWLOCK_wrlock(&entry->attr_lock);
-
 	/* Make the export unreachable as a root cache inode */
-	release_export_root_locked(export, entry);
-
-	cache_inode_put(entry);
+	release_export_root_locked(export, obj);
 }
 
 static inline void clean_up_export(struct gsh_export *export)
@@ -1757,8 +1683,10 @@ static inline void clean_up_export(struct gsh_export *export)
 	/* Release state belonging to this export */
 	state_release_export(export);
 
+#ifdef _USE_CACHE_INODE
 	/* Flush cache inodes belonging to this export */
 	cache_inode_unexport(export);
+#endif /* _USE_CACHE_INODE */
 }
 
 void unexport(struct gsh_export *export)
@@ -1802,7 +1730,7 @@ void kill_export_root_entry(cache_entry_t *entry)
 			export->export_id);
 
 		/* Make the export unreachable as a root cache inode */
-		release_export_root_locked(export, entry);
+		release_export_root_locked(export, entry->obj_handle);
 
 		/* Make the export otherwise unreachable and clean it up */
 		clean_up_export(export);
@@ -1845,7 +1773,7 @@ void kill_export_junction_entry(cache_entry_t *entry)
 	PTHREAD_RWLOCK_wrlock(&export->lock);
 
 	/* Detach the export */
-	export->exp_junction_inode = NULL;
+	export->exp_junction_obj = NULL;
 
 	PTHREAD_RWLOCK_unlock(&export->lock);
 	PTHREAD_RWLOCK_unlock(&entry->attr_lock);

@@ -1851,6 +1851,27 @@ struct fsal_obj_ops {
  */
 	void (*handle_to_key)(struct fsal_obj_handle *obj_hdl,
 			      struct gsh_buffdesc *fh_desc);
+/**
+ * @brief Compare two handles
+ *
+ * This function compares two handles to see if they reference the same file
+ *
+ * @param[in]     obj_hdl1    The first handle to compare
+ * @param[in]     obj_hdl2    The second handle to compare
+ *
+ * @return True if match, false otherwise
+ */
+	 bool (*handle_cmp)(struct fsal_obj_handle *obj_hdl1,
+			    struct fsal_obj_handle *obj_hdl2);
+
+/**
+ * @brief Get the file state from a handle
+ *
+ * @param[in]     obj_hdl     The handle look up
+ *
+ * @return Pointer to file state on success, NULL on failure
+ */
+	 struct state_file* (*get_file_state)(struct fsal_obj_handle *obj_hdl);
 /**@}*/
 
 /**@{*/
@@ -2329,6 +2350,7 @@ struct fsal_obj_handle {
 	pthread_rwlock_t lock;		/*< Lock on handle */
 	struct attrlist attributes;	/*< Cached attributes */
 	object_file_type_t type;	/*< Object file type */
+	struct gsh_export *junction_export; /*< Junction being exported */
 };
 
 /**

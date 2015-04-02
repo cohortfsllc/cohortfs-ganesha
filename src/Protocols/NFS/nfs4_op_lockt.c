@@ -184,7 +184,7 @@ int nfs4_op_lockt(struct nfs_argop4 *op, compound_data_t *data,
 	}
 
 	LogLock(COMPONENT_NFS_V4_LOCK, NIV_FULL_DEBUG, "LOCKT",
-		data->current_entry, lock_owner, &lock_desc);
+		data->current_obj, lock_owner, &lock_desc);
 
 	if (data->minorversion == 0) {
 		op_ctx->clientid =
@@ -195,7 +195,7 @@ int nfs4_op_lockt(struct nfs_argop4 *op, compound_data_t *data,
 	 * the lock in SAL (and FSAL).
 	 */
 
-	state_status = state_test(data->current_entry,
+	state_status = state_test(data->current_obj,
 				  lock_owner,
 				  &lock_desc,
 				  &conflict_owner,

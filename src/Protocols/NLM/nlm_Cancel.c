@@ -115,7 +115,7 @@ int nlm4_Cancel(nfs_arg_t *args,
 		return NFS_REQ_OK;
 	}
 
-	state_status = state_cancel(entry, nlm_owner, &lock);
+	state_status = state_cancel(entry->obj_handle, nlm_owner, &lock);
 	if (state_status != STATE_SUCCESS) {
 		/* Cancel could fail in the FSAL and make a bit of a mess,
 		 * especially if we are in out of memory situation. Such an

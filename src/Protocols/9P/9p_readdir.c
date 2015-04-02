@@ -87,6 +87,7 @@ static cache_inode_status_t _9p_readdir_callback(void *opaque,
 						 cache_entry_t *entry,
 						 const struct attrlist *attr,
 						 uint64_t mounted_on_fileid,
+						 uint64_t cookie,
 						 enum cb_state cb_state)
 {
 	struct cache_inode_readdir_cb_parms *cb_parms = opaque;

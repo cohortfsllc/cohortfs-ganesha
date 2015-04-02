@@ -62,13 +62,13 @@ pthread_mutex_t all_state_v4_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 /**
- * @brief adds a new state to a cache entry
+ * @brief adds a new state to a file
  *
  * This version of the function does not take the state lock on the
  * entry.  It exists to allow callers to integrate state into a larger
  * operation.
  *
- * @param[in,out] entry       Cache entry to operate on
+ * @param[in,out] fstate      file state to operate on
  * @param[in]     state_type  State to be defined
  * @param[in]     state_data  Data related to this state
  * @param[in]     owner_input Related open_owner
@@ -77,7 +77,8 @@ pthread_mutex_t all_state_v4_mutex = PTHREAD_MUTEX_INITIALIZER;
  *
  * @return Operation status
  */
-state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
+state_status_t state_add_impl(struct state_file *fstate,
+			      enum state_type state_type,
 			      union state_data *state_data,
 			      state_owner_t *owner_input, state_t **state,
 			      struct state_refer *refer)
@@ -86,20 +87,10 @@ state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
 	char str[DISPLAY_STATEID_OTHER_SIZE];
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
-	cache_inode_status_t cache_status;
-	bool got_pinned = false;
 	bool got_export_ref = false;
 	state_status_t status = 0;
 	bool mutex_init = false;
-
-	/* Take a cache inode reference for the state */
-	cache_status = cache_inode_lru_ref(entry, LRU_FLAG_NONE);
-
-	if (cache_status != CACHE_INODE_SUCCESS) {
-		status = cache_inode_status_to_state_status(cache_status);
-		LogDebug(COMPONENT_STATE, "Could not ref file");
-		return status;
-	}
+	struct gsh_buffdesc fh_desc;
 
 	/* Attempt to get a reference to the export. */
 	if (!export_ready(op_ctx->export)) {
@@ -114,19 +105,6 @@ state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
 	get_gsh_export_ref(op_ctx->export);
 
 	got_export_ref = true;
-
-	if (glist_empty(&entry->list_of_states)) {
-		cache_status = cache_inode_inc_pin_ref(entry);
-
-		if (cache_status != CACHE_INODE_SUCCESS) {
-			status =
-			    cache_inode_status_to_state_status(cache_status);
-			LogDebug(COMPONENT_STATE, "Could not pin file");
-			goto errout;
-		}
-
-		got_pinned = true;
-	}
 
 	pnew_state = pool_alloc(state_v4_pool, NULL);
 
@@ -170,8 +148,8 @@ state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
 					      pnew_state->stateid_other);
 
 		LogCrit(COMPONENT_STATE,
-			"Can't create a new state id %s for the entry %p (F)",
-			str, entry);
+			"Can't create a new state id %s for the obj %p (F)",
+			str, fstate->obj);
 
 		/* Return STATE_MALLOC_ERROR since most likely the
 		 * nfs4_State_Set failed to allocate memory.
@@ -196,10 +174,14 @@ state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
 	PTHREAD_MUTEX_unlock(&pnew_state->state_mutex);
 	PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
 
-	/* Add state to list for cache entry */
+	/* Add state to list for file */
 	PTHREAD_MUTEX_lock(&pnew_state->state_mutex);
-	glist_add_tail(&entry->list_of_states, &pnew_state->state_list);
-	pnew_state->state_entry = entry;
+	glist_add_tail(&fstate->list_of_states, &pnew_state->state_list);
+	fh_desc.addr = &pnew_state->state_obj.digest;
+	fh_desc.len = sizeof(pnew_state->state_obj.digest);
+	fstate->obj->obj_ops.handle_digest(fstate->obj, FSAL_DIGEST_NFSV4,
+					   &fh_desc);
+	pnew_state->state_obj.len = fh_desc.len;
 	PTHREAD_MUTEX_unlock(&pnew_state->state_mutex);
 
 	/* Add state to list for owner */
@@ -226,7 +208,7 @@ state_status_t state_add_impl(cache_entry_t *entry, enum state_type state_type,
 
 	if (pnew_state->state_type == STATE_TYPE_DELEG &&
 	    pnew_state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE)
-		entry->object.file.write_delegated = true;
+		fstate->write_delegated = true;
 
 	/* Copy the result */
 	*state = pnew_state;
@@ -246,21 +228,16 @@ errout:
 	if (pnew_state != NULL)
 		pool_free(state_v4_pool, pnew_state);
 
-	if (got_pinned)
-		cache_inode_dec_pin_ref(entry, false);
-
 	if (got_export_ref)
 		put_gsh_export(op_ctx->export);
-
-	cache_inode_lru_unref(entry, LRU_UNREF_STATE_LOCK_HELD);
 
 	return status;
 }				/* state_add */
 
 /**
- * @brief Adds a new state to a cache entry
+ * @brief Adds a new state to a file
  *
- * @param[in,out] entry       Cache entry to operate on
+ * @param[in,out] obj         File to operate on
  * @param[in]     state_type  State to be defined
  * @param[in]     state_data  Data related to this state
  * @param[in]     owner_input Related open_owner
@@ -269,12 +246,22 @@ errout:
  *
  * @return Operation status
  */
-state_status_t state_add(cache_entry_t *entry, enum state_type state_type,
+state_status_t state_add(struct fsal_obj_handle *obj,
+			 enum state_type state_type,
 			 union state_data *state_data,
 			 state_owner_t *owner_input,
 			 state_t **state, struct state_refer *refer)
 {
 	state_status_t status = 0;
+	struct state_file *fstate;
+
+	fstate = obj->obj_ops.get_file_state(obj);
+	if (!fstate) {
+		status = STATE_SERVERFAULT;
+		LogFullDebug(COMPONENT_STATE, "Could not get file state");
+		return status;
+	}
+
 
 	/* Ensure that states are are associated only with the appropriate
 	   owners */
@@ -290,22 +277,19 @@ state_status_t state_add(cache_entry_t *entry, enum state_type state_type,
 		return STATE_BAD_TYPE;
 	}
 
-	PTHREAD_RWLOCK_wrlock(&entry->state_lock);
 	status =
-	    state_add_impl(entry, state_type, state_data, owner_input, state,
+	    state_add_impl(fstate, state_type, state_data, owner_input, state,
 			   refer);
-	PTHREAD_RWLOCK_unlock(&entry->state_lock);
 
 	return status;
 }
 
 /**
- * @brief Remove a state from a cache entry
+ * @brief Remove a state from a file
  *
  * The caller must hold the state lock exclusively.
  *
  * @param[in]     state The state to remove
- * @param[in,out] entry The cache entry to modify
  *
  */
 
@@ -314,7 +298,7 @@ void state_del_locked(state_t *state)
 	char str[LOG_BUFF_LEN];
 	struct display_buffer dspbuf = {sizeof(str), str, str};
 	bool str_valid = false;
-	cache_entry_t *entry;
+	struct fsal_obj_handle *obj;
 	struct gsh_export *export;
 	state_owner_t *owner;
 
@@ -345,7 +329,7 @@ void state_del_locked(state_t *state)
 	 * knowing this reference is safe.
 	 */
 	PTHREAD_MUTEX_lock(&state->state_mutex);
-	entry = state->state_entry;
+	obj = get_state_obj_ref(state);
 	export = state->state_export;
 	owner = state->state_owner;
 	PTHREAD_MUTEX_unlock(&state->state_mutex);
@@ -363,12 +347,11 @@ void state_del_locked(state_t *state)
 		dec_state_owner_ref(owner);
 	}
 
-	/* Remove from the list of states for a particular cache entry */
+	/* Remove from the list of states for a particular file */
 	PTHREAD_MUTEX_lock(&state->state_mutex);
 	glist_del(&state->state_list);
-	state->state_entry = NULL;
+	memset(&state->state_obj, 0, sizeof(state->state_obj));
 	PTHREAD_MUTEX_unlock(&state->state_mutex);
-	cache_inode_lru_unref(entry, LRU_UNREF_STATE_LOCK_HELD);
 
 	/* Remove from the list of lock states for a particular open state.
 	 * This is safe to do without any special checks. If we are not on
@@ -380,8 +363,13 @@ void state_del_locked(state_t *state)
 
 	/* Reset write delegated if this is a write delegation */
 	if (state->state_type == STATE_TYPE_DELEG &&
-	    state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE)
-		entry->object.file.write_delegated = false;
+	    state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE) {
+		struct state_file *fstate;
+		fstate = obj->obj_ops.get_file_state(obj);
+		if (fstate) {
+			fstate->write_delegated = false;
+		}
+	}
 
 	/* Remove from list of states for a particular export.
 	 * In this case, it is safe to look at state_export without yet
@@ -405,9 +393,6 @@ void state_del_locked(state_t *state)
 	PTHREAD_MUTEX_unlock(&all_state_v4_mutex);
 #endif
 
-	if (glist_empty(&entry->list_of_states))
-		cache_inode_dec_pin_ref(entry, false);
-
 	/* Remove the sentinel reference */
 	dec_state_t_ref(state);
 }
@@ -420,28 +405,26 @@ void state_del_locked(state_t *state)
  */
 void state_del(state_t *state)
 {
-	cache_entry_t *entry = get_state_entry_ref(state);
+	struct fsal_obj_handle *obj = get_state_obj_ref(state);
 
-	if (entry == NULL) {
+	if (obj == NULL) {
 		LogDebug(COMPONENT_STATE,
 			 "Entry for state is stale");
 		return;
 	}
 
-	PTHREAD_RWLOCK_wrlock(&entry->state_lock);
+	/*PTHREAD_RWLOCK_wrlock(&entry->state_lock);*/
 
 	state_del_locked(state);
 
-	PTHREAD_RWLOCK_unlock(&entry->state_lock);
-
-	cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+	/*PTHREAD_RWLOCK_unlock(&entry->state_lock);*/
 }
 
 /**
  * @brief Get references to the various objects a state_t points to.
  *
  * @param[in] state The state_t to get references from
- * @param[in,out] entry Place to return the cache entry (NULL if not desired)
+ * @param[in,out] obj Place to return the owning object (NULL if not desired)
  * @param[in,out] export Place to return the export (NULL if not desired)
  * @param[in,out] owner Place to return the owner (NULL if not desired)
  *
@@ -451,13 +434,13 @@ void state_del(state_t *state)
  * For convenience, returns false if state is NULL which helps simplify
  * code for some callers.
  */
-bool get_state_entry_export_owner_refs(state_t *state,
-				       cache_entry_t **entry,
-				       struct gsh_export **export,
-				       state_owner_t **owner)
+bool get_state_obj_export_owner_refs(state_t *state,
+				     struct fsal_obj_handle **obj,
+				     struct gsh_export **export,
+				     state_owner_t **owner)
 {
-	if (entry != NULL)
-		*entry = NULL;
+	if (obj != NULL)
+		*obj = NULL;
 
 	if (export != NULL)
 		*export = NULL;
@@ -471,16 +454,12 @@ bool get_state_entry_export_owner_refs(state_t *state,
 	PTHREAD_MUTEX_lock(&state->state_mutex);
 
 	LogFullDebug(COMPONENT_STATE,
-		     "state %p state_entry %p state_export %p state_owner %p",
-		     state, state->state_entry, state->state_export,
+		     "state %p state_obj %p state_export %p state_owner %p",
+		     state, &state->state_obj, state->state_export,
 		     state->state_owner);
 
-	if (entry != NULL) {
-		if (state->state_entry != NULL &&
-		    cache_inode_lru_ref(state->state_entry,
-					LRU_FLAG_NONE) == CACHE_INODE_SUCCESS)
-			*entry = state->state_entry;
-		else
+	if (obj != NULL) {
+		if ((*obj = get_state_obj_ref(state)) == NULL)
 			goto fail;
 	}
 
@@ -510,9 +489,8 @@ fail:
 
 	PTHREAD_MUTEX_unlock(&state->state_mutex);
 
-	if (entry != NULL && *entry != NULL) {
-		cache_inode_lru_unref(*entry, LRU_FLAG_NONE);
-		*entry = NULL;
+	if (obj != NULL && *obj != NULL) {
+		*obj = NULL;
 	}
 
 	if (export != NULL && *export != NULL) {
@@ -529,22 +507,22 @@ fail:
 }
 
 /**
- * @brief Remove all state from a cache entry
+ * @brief Remove all state from a file
  *
  * Used by cache_inode_kill_entry in the event that the FSAL says a
  * handle is stale.
  *
- * @param[in,out] entry The entry to wipe
+ * @param[in,out] fstate File state to wipe
  */
-void state_nfs4_state_wipe(cache_entry_t *entry)
+void state_nfs4_state_wipe(struct state_file *fstate)
 {
 	struct glist_head *glist, *glistn;
 	state_t *state = NULL;
 
-	if (glist_empty(&entry->list_of_states))
+	if (glist_empty(&fstate->list_of_states))
 		return;
 
-	glist_for_each_safe(glist, glistn, &entry->list_of_states) {
+	glist_for_each_safe(glist, glistn, &fstate->list_of_states) {
 		state = glist_entry(glist, state_t, state_list);
 		if (state->state_type > STATE_TYPE_LAYOUT)
 			continue;
@@ -607,7 +585,7 @@ void release_openstate(state_owner_t *owner)
 	/* Only accept so many errors before giving up. */
 	while (errcnt < STATE_ERR_MAX) {
 		state_t *state;
-		cache_entry_t *entry = NULL;
+		struct fsal_obj_handle *obj = NULL;
 		struct gsh_export *export = NULL;
 
 		PTHREAD_MUTEX_lock(&owner->so_mutex);
@@ -627,14 +605,14 @@ void release_openstate(state_owner_t *owner)
 		glist_add_tail(&owner->so_owner.so_nfs4_owner.so_state_list,
 			       &state->state_owner_list);
 
-		/* Get references to the cache entry and export */
-		ok = get_state_entry_export_owner_refs(state,
-						       &entry,
+		/* Get references to the file and export */
+		ok = get_state_obj_export_owner_refs(state,
+						       &obj,
 						       &export,
 						       NULL);
 
 		if (!ok) {
-			/* The cache entry, export, or state must be about to
+			/* The file, export, or state must be about to
 			 * die, skip for now.
 			 */
 			PTHREAD_MUTEX_unlock(&owner->so_mutex);
@@ -646,13 +624,11 @@ void release_openstate(state_owner_t *owner)
 
 		PTHREAD_MUTEX_unlock(&owner->so_mutex);
 
-		PTHREAD_RWLOCK_wrlock(&entry->state_lock);
-
 		if (state->state_type == STATE_TYPE_SHARE) {
 			op_ctx->export = export;
 			op_ctx->fsal_export = export->fsal_export;
 
-			state_status = state_share_remove(entry, owner, state);
+			state_status = state_share_remove(obj, owner, state);
 
 			if (!state_unlock_err_ok(state_status)) {
 				errcnt++;
@@ -667,14 +643,7 @@ void release_openstate(state_owner_t *owner)
 		dec_state_t_ref(state);
 
 		/* Close the file in FSAL through the cache inode */
-		cache_inode_close(entry, CACHE_INODE_FLAG_NONE);
-
-		PTHREAD_RWLOCK_unlock(&entry->state_lock);
-
-		/* Release the lru ref to the cache inode we held while
-		 * calling state_del
-		 */
-		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+		obj->obj_ops.close(obj);
 	}
 
 	if (errcnt == STATE_ERR_MAX) {
@@ -698,7 +667,7 @@ void revoke_owner_delegs(state_owner_t *client_owner)
 {
 	struct glist_head *glist, *glistn;
 	state_t *state, *first;
-	cache_entry_t *entry;
+	struct fsal_obj_handle *obj;
 	bool so_mutex_held;
 
  again:
@@ -737,25 +706,21 @@ void revoke_owner_delegs(state_owner_t *client_owner)
 		 * even after state_deleg_revoke releases the reference it
 		 * holds.
 		 */
-		entry = get_state_entry_ref(state);
+		obj = get_state_obj_ref(state);
 
-		if (entry == NULL) {
+		if (obj == NULL) {
 			LogDebug(COMPONENT_STATE,
-				 "Stale state or cache entry");
+				 "Stale state or file");
 			continue;
 		}
 
 		PTHREAD_MUTEX_unlock(&client_owner->so_mutex);
 		so_mutex_held = false;
 
-		PTHREAD_RWLOCK_wrlock(&entry->state_lock);
-		state_deleg_revoke(entry, state);
-		PTHREAD_RWLOCK_unlock(&entry->state_lock);
+		state_deleg_revoke(obj, state);
 
-		/* Close the file in FSAL through the cache inode */
-		cache_inode_close(entry, 0);
-
-		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+		/* Close the file in FSAL */
+		obj->obj_ops.close(obj);
 
 		/* Since we dropped so_mutex, we must restart the loop. */
 		goto again;
@@ -790,7 +755,7 @@ void state_export_release_nfs4_state(void)
 	hold_export_lock = true;
 
 	glist_for_each_safe(glist, glistn, &op_ctx->export->exp_state_list) {
-		cache_entry_t *entry = NULL;
+		struct fsal_obj_handle *obj = NULL;
 		state_owner_t *owner = NULL;
 		bool deleted = false;
 		struct pnfs_segment entire = {
@@ -825,8 +790,9 @@ void state_export_release_nfs4_state(void)
 			continue;
 		}
 
-		if (!get_state_entry_export_owner_refs(state,
-						       &entry,
+
+		if (!get_state_obj_export_owner_refs(state,
+						       &obj,
 						       NULL,
 						       &owner)) {
 			/* This state_t is in the process of being destroyed,
@@ -840,11 +806,9 @@ void state_export_release_nfs4_state(void)
 		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
 		hold_export_lock = false;
 
-		PTHREAD_RWLOCK_wrlock(&entry->state_lock);
-
 		/* this deletes the state too */
 
-		(void) nfs4_return_one_state(entry,
+		(void) nfs4_return_one_state(obj,
 					     LAYOUTRETURN4_FILE,
 					     circumstance_revoke,
 					     state,
@@ -859,10 +823,6 @@ void state_export_release_nfs4_state(void)
 			errcnt++;
 		}
 
-		PTHREAD_RWLOCK_unlock(&entry->state_lock);
-
-		/* Release the references taken above */
-		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
 		dec_state_owner_ref(owner);
 		dec_state_t_ref(state);
 		if (errcnt < STATE_ERR_MAX) {
@@ -877,7 +837,7 @@ void state_export_release_nfs4_state(void)
 	}
 
 	while (errcnt < STATE_ERR_MAX) {
-		cache_entry_t *entry = NULL;
+		struct fsal_obj_handle *obj = NULL;
 		state_owner_t *owner = NULL;
 
 		if (!hold_export_lock) {
@@ -899,8 +859,8 @@ void state_export_release_nfs4_state(void)
 		glist_add_tail(&op_ctx->export->exp_state_list,
 			       &state->state_export_list);
 
-		if (!get_state_entry_export_owner_refs(state,
-						       &entry,
+		if (!get_state_obj_export_owner_refs(state,
+						       &obj,
 						       NULL,
 						       &owner)) {
 			/* This state_t is in the process of being destroyed,
@@ -914,13 +874,10 @@ void state_export_release_nfs4_state(void)
 		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
 		hold_export_lock = false;
 
-		PTHREAD_RWLOCK_wrlock(&entry->state_lock);
-
 		if (state->state_type == STATE_TYPE_SHARE) {
-			state_status = state_share_remove(entry, owner, state);
+			state_status = state_share_remove(obj, owner, state);
 
 			if (!state_unlock_err_ok(state_status)) {
-				PTHREAD_RWLOCK_unlock(&entry->state_lock);
 
 				LogEvent(COMPONENT_CLIENTID,
 					 "EXPIRY failed to release share stateid error %s",
@@ -928,7 +885,6 @@ void state_export_release_nfs4_state(void)
 				errcnt++;
 
 				/* Release the references taken above */
-				cache_inode_lru_unref(entry, LRU_FLAG_NONE);
 				dec_state_owner_ref(owner);
 				dec_state_t_ref(state);
 				continue;
@@ -937,15 +893,12 @@ void state_export_release_nfs4_state(void)
 
 		if (state->state_type == STATE_TYPE_DELEG) {
 			/* this deletes the state too */
-			state_deleg_revoke(entry, state);
+			state_deleg_revoke(obj, state);
 		} else {
 			state_del_locked(state);
 		}
 
-		PTHREAD_RWLOCK_unlock(&entry->state_lock);
-
 		/* Release the references taken above */
-		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
 		dec_state_owner_ref(owner);
 		dec_state_t_ref(state);
 	}

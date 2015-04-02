@@ -51,6 +51,7 @@ cache_inode_status_t nfs3_readdir_callback(void *opaque,
 					   cache_entry_t *entry,
 					   const struct attrlist *attr,
 					   uint64_t mounted_on_fileid,
+					   uint64_t cookie,
 					   enum cb_state cb_state);
 
 static void free_entry3s(entry3 *entry3s);
@@ -91,6 +92,7 @@ nfsstat3 nfs_readdir_dot_entry(cache_entry_t *entry, const char *name,
 			  entry,
 			  &entry->obj_handle->attributes,
 			  0,
+			  cookie,
 			  CB_ORIGINAL);
 
 	if (cache_status != CACHE_INODE_SUCCESS)
@@ -391,6 +393,7 @@ cache_inode_status_t nfs3_readdir_callback(void *opaque,
 					   cache_entry_t *entry,
 					   const struct attrlist *attr,
 					   uint64_t mounted_on_fileid,
+					   uint64_t cookie,
 					   enum cb_state cb_state)
 {
 	/* Not-so-opaque pointer to callback data` */

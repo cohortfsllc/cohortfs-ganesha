@@ -206,8 +206,8 @@ void LogClientListEntry(log_components_t component,
 
 int init_export_root(struct gsh_export *exp);
 
-cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *exp,
-					       cache_entry_t **entry);
+fsal_status_t nfs_export_get_root_entry(struct gsh_export *export,
+					struct fsal_obj_handle **obj);
 void unexport(struct gsh_export *export);
 void kill_export_root_entry(cache_entry_t *entry);
 void kill_export_junction_entry(cache_entry_t *entry);
