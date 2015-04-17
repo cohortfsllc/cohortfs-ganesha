@@ -82,9 +82,9 @@ static struct config_item cohort_items[] = {
 		       cohort_fsal_module, where),
 	CONF_ITEM_BOOL("start_osd", false,
 			cohort_fsal_module, start_osd),
-	CONF_ITEM_MODE("umask", 0, 0777, 0,
+	CONF_ITEM_MODE("umask", 0,
 			cohort_fsal_module, fs_info.umask),
-	CONF_ITEM_MODE("xattr_access_rights", 0, 0777, 0,
+	CONF_ITEM_MODE("xattr_access_rights", 0400,
 			cohort_fsal_module, fs_info.xattr_access_rights),
 	CONFIG_EOL
 };
@@ -106,11 +106,11 @@ static struct config_block cohort_block = {
  */
 
 static fsal_status_t init_config(struct fsal_module *module_in,
-				 config_file_t config_struct)
+				 config_file_t config_struct,
+				 struct config_error_type *err_type)
 {
 	struct cohort_fsal_module *myself =
 	    container_of(module_in, struct cohort_fsal_module, fsal);
-	struct config_error_type err_type;
 
 	LogDebug(COMPONENT_FSAL,
 		 "Cohort module setup.");
@@ -120,8 +120,8 @@ static fsal_status_t init_config(struct fsal_module *module_in,
 				      &cohort_block,
 				      myself,
 				      true,
-				      &err_type);
-	if (!config_error_is_harmless(&err_type))
+				      err_type);
+	if (!config_error_is_harmless(err_type))
 		return fsalstat(ERR_FSAL_INVAL, 0);
 
 	if (myself->start_osd) {
@@ -157,6 +157,7 @@ static fsal_status_t init_config(struct fsal_module *module_in,
 
 static fsal_status_t create_export(struct fsal_module *module_in,
 				   void *parse_node,
+				   struct config_error_type *err_type,
 				   const struct fsal_up_vector *up_ops)
 {
 	struct cohort_fsal_module *myself =
