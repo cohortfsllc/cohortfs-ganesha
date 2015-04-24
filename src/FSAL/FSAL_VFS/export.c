@@ -573,6 +573,8 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 	int retval = 0;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 
+	vfs_state_init();
+
 	myself = gsh_calloc(1, sizeof(struct vfs_fsal_export));
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,

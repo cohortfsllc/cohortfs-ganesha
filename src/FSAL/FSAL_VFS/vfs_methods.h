@@ -185,6 +185,11 @@ static inline bool vfs_unopenable_type(object_file_type_t type)
 	}
 }
 
+/* State storage */
+void vfs_state_init(void);
+void vfs_state_release(struct gsh_buffdesc *key);
+struct state_file *vfs_state_locate(struct fsal_obj_handle *obj);
+
 	/* I/O management */
 fsal_status_t vfs_open(struct fsal_obj_handle *obj_hdl,
 		       fsal_openflags_t openflags);

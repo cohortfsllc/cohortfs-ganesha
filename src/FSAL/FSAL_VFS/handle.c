@@ -1537,6 +1537,11 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	if (type == SYMBOLIC_LINK) {
 		if (myself->u.symlink.link_content != NULL)
 			gsh_free(myself->u.symlink.link_content);
+	} else if (type == REGULAR_FILE) {
+		struct gsh_buffdesc key;
+
+		handle_to_key(obj_hdl, &key);
+		vfs_state_release(&key);
 	} else if (vfs_unopenable_type(type)) {
 		if (myself->u.unopenable.name != NULL)
 			gsh_free(myself->u.unopenable.name);
@@ -1545,6 +1550,12 @@ static void release(struct fsal_obj_handle *obj_hdl)
 	}
 
 	gsh_free(myself);
+}
+
+static struct state_file *vfs_get_file_state(
+		     struct fsal_obj_handle *obj_hdl)
+{
+	return vfs_state_locate(obj_hdl);
 }
 
 void vfs_handle_ops_init(struct fsal_obj_ops *ops)
@@ -1573,6 +1584,7 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->lru_cleanup = vfs_lru_cleanup;
 	ops->handle_digest = handle_digest;
 	ops->handle_to_key = handle_to_key;
+	ops->get_file_state = vfs_get_file_state;
 
 	/* xattr related functions */
 	ops->list_ext_attrs = vfs_list_ext_attrs;
