@@ -849,6 +849,7 @@ set(GANESHA_CORE
   log
   uid2grp
   fsalpseudo
+  fsalmdcache
   )
 
 if(USE_CACHE_INODE)

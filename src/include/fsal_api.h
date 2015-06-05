@@ -2245,6 +2245,18 @@ struct fsal_module {
 };
 
 /**
+ * @brief Get a reference to a module
+ *
+ * @param[in] fsal_hdl FSAL on which to acquire reference.
+ */
+
+static inline void fsal_get(struct fsal_module *fsal_hdl)
+{
+	atomic_inc_int32_t(&fsal_hdl->refcount);
+	assert(fsal_hdl->refcount > 0);
+}
+
+/**
  * @brief Relinquish a reference to the module
  *
  * This function relinquishes one reference to the FSAL.  After the

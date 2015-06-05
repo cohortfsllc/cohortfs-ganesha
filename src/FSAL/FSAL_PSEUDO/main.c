@@ -57,7 +57,7 @@ struct pseudo_fsal_module {
 	/* pseudofsfs_specific_initinfo_t specific_info;  placeholder */
 };
 
-const char myname[] = "PSEUDOFS";
+const char pseudoname[] = "PSEUDOFS";
 
 /* filesystem info for PSEUDOFS */
 static struct fsal_staticfsinfo_t default_posix_info = {
@@ -155,7 +155,7 @@ void pseudo_fsal_init(void)
 	int retval;
 	struct fsal_module *myself = &PSEUDOFS.fsal;
 
-	retval = register_fsal(myself, myname, FSAL_MAJOR_VERSION,
+	retval = register_fsal(myself, pseudoname, FSAL_MAJOR_VERSION,
 			       FSAL_MINOR_VERSION, FSAL_ID_NO_PNFS);
 	if (retval != 0) {
 		fprintf(stderr, "PSEUDO module failed to register");
