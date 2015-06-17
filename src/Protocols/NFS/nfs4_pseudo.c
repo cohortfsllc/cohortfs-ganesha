@@ -197,7 +197,8 @@ retry:
 		return false;
 	}
 
-	if (strcmp(op_ctx->export->fsal_export->fsal->name,
+	if (strcmp(op_ctx->export->fsal_export->exp_ops.get_name(
+				 op_ctx->export->fsal_export),
 		   "PSEUDO") != 0) {
 		/* Only allowed to create directories on FSAL_PSEUDO */
 		LogCrit(COMPONENT_EXPORT,

@@ -75,30 +75,28 @@ void mdcache_copy_attrlist(struct attrlist *dest, struct attrlist *source)
 	if (dest == NULL || source == NULL)
 		return;
 
-	if (source->mask != 0LL) {
-		/* A full copy of the structure is done. It can obviously be
-		 * optimized.
-		 *
-		 * Testing each bit of the mask to copy fields one by one
-		 * doesn't seems efficient either. I think the best way would be
-		 * to check and copy the fields that are likely to be changed in
-		 * each fsal function, and to call a general purpose function
-		 * like this only if unexpected bits remains in the source mask.
-		 */
+	/* A full copy of the structure is done. It can obviously be
+	 * optimized.
+	 *
+	 * Testing each bit of the mask to copy fields one by one
+	 * doesn't seems efficient either. I think the best way would be
+	 * to check and copy the fields that are likely to be changed in
+	 * each fsal function, and to call a general purpose function
+	 * like this only if unexpected bits remains in the source mask.
+	 */
 
-		/* We must handle attrlist.acl field separately, because it has
-		 * a refcounter.
-		 */
-		if (dest->acl != source->acl) {
-			if (source->acl != NULL)
-				nfs4_acl_entry_inc_ref(source->acl);
+	/* We must handle attrlist.acl field separately, because it has
+	 * a refcounter.
+	 */
+	if (dest->acl != source->acl) {
+		if (source->acl != NULL)
+			nfs4_acl_entry_inc_ref(source->acl);
 
-			mdcache_attrlist_acl_release(dest);
-		}
-
-		memcpy(dest, source, sizeof(*dest));
-		FSAL_CLEAR_MASK(source->mask);
+		mdcache_attrlist_acl_release(dest);
 	}
+
+	memcpy(dest, source, sizeof(*dest));
+	FSAL_CLEAR_MASK(source->mask);
 }
 
 
@@ -189,7 +187,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 			    const char *path, struct fsal_obj_handle **handle)
 {
 	/** Parent as mdcache handle.*/
-	struct mdcache_fsal_obj_handle *null_parent =
+	struct mdcache_fsal_obj_handle *mdcache_parent =
 		container_of(parent, struct mdcache_fsal_obj_handle, obj_handle);
 
 	/** Handle given by the subfsal. */
@@ -204,8 +202,8 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 		container_of(op_ctx->fsal_export, struct mdcache_fsal_export,
 			     export);
 	op_ctx->fsal_export = export->sub_export;
-	status = null_parent->sub_handle->obj_ops.lookup(
-			null_parent->sub_handle, path, &sub_handle);
+	status = mdcache_parent->sub_handle->obj_ops.lookup(
+			mdcache_parent->sub_handle, path, &sub_handle);
 	op_ctx->fsal_export = &export->export;
 
 	/* wraping the subfsal handle in a mdcache handle. */

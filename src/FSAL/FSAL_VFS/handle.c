@@ -198,13 +198,18 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 	fs = parent->fs;
 	dirfd = vfs_fsal_open(parent_hdl, O_PATH | O_NOACCESS, &fsal_error);
 
-	if (dirfd < 0)
+	if (dirfd < 0) {
+		LogDebug(COMPONENT_FSAL, "Failed to open parent: %s",
+			 msg_fsal_err(fsal_error));
 		return fsalstat(fsal_error, -dirfd);
+	}
 
 	retval = fstatat(dirfd, path, &stat, AT_SYMLINK_NOFOLLOW);
 
 	if (retval < 0) {
 		retval = errno;
+		LogDebug(COMPONENT_FSAL, "Failed to open stat %s: %s", path,
+			 msg_fsal_err(posix2fsal_error(retval)));
 		goto direrr;
 	}
 

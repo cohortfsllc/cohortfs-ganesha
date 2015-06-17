@@ -57,7 +57,7 @@ struct pseudo_fsal_module {
 	/* pseudofsfs_specific_initinfo_t specific_info;  placeholder */
 };
 
-const char pseudoname[] = "PSEUDOFS";
+const char pseudoname[] = "PSEUDO";
 
 /* filesystem info for PSEUDOFS */
 static struct fsal_staticfsinfo_t default_posix_info = {
@@ -163,7 +163,6 @@ void pseudo_fsal_init(void)
 	}
 	myself->m_ops.create_export = pseudofs_create_export;
 	myself->m_ops.unload = unload_pseudo_fsal;
-	myself->name = gsh_strdup("PSEUDO");
 
 	/* initialize our config */
 	init_config(myself);

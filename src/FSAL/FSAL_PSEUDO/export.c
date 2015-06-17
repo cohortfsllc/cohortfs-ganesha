@@ -293,6 +293,8 @@ void pseudofs_export_ops_init(struct export_ops *ops)
 	ops->set_quota = set_quota;
 }
 
+fsal_status_t mdcache_export_init(const struct fsal_up_vector *up_ops);
+
 /* create_export
  * Create an export point and return a handle to it to be kept
  * in the export list.
@@ -307,6 +309,7 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 {
 	struct pseudofs_fsal_export *myself;
 	int retval = 0;
+        fsal_status_t status = {0, 0};
 
 	myself = gsh_calloc(1, sizeof(struct pseudofs_fsal_export));
 
@@ -350,6 +353,12 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 	}
 
 	op_ctx->fsal_export = &myself->export;
+
+        status = mdcache_export_init(up_ops);
+        if (FSAL_IS_ERROR(status)) {
+                LogDebug(COMPONENT_FSAL, "MDCACHE creation failed for PSEUDO");
+                return status;
+        }
 
 	LogDebug(COMPONENT_FSAL,
 		 "Created exp %p - %s",

@@ -53,6 +53,21 @@ struct fsal_staticfsinfo_t *mdcache_staticinfo(struct fsal_module *hdl);
 /* export object methods
  */
 
+/**
+ * @brief Return the name of the sub-FSAL
+ *
+ * For MDCACHE, we want to return the name of the sub-FSAL, not ourselves.
+ *
+ * @param[in] exp_hdl	Our export handle
+ * @return Name of sub-FSAL
+ */
+static char *mdcache_get_name(struct fsal_export *exp_hdl)
+{
+	struct mdcache_fsal_export *myself =
+		container_of(exp_hdl, struct mdcache_fsal_export, export);
+	return myself->sub_export->fsal->name;
+}
+
 static void mdcache_release(struct fsal_export *exp_hdl)
 {
 	struct mdcache_fsal_export *myself;
@@ -333,6 +348,7 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 
 void mdcache_export_ops_init(struct export_ops *ops)
 {
+	ops->get_name = mdcache_get_name;
 	ops->release = mdcache_release;
 	ops->lookup_path = mdcache_lookup_path;
 	ops->extract_handle = extract_handle;

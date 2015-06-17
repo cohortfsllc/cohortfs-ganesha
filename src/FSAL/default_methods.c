@@ -235,6 +235,15 @@ struct fsal_ops def_fsal_ops = {
 	.fsal_pnfs_ds_ops = fsal_pnfs_ds_ops,
 };
 
+/* get_name
+ * default case is to return the name of the FSAL
+ */
+
+static char *get_name(struct fsal_export *exp_hdl)
+{
+	return exp_hdl->fsal->name;
+}
+
 /* export_release
  * default case is to throw a fault error.
  * creating an export is not supported so getting here is bad
@@ -510,6 +519,7 @@ static void global_verifier(struct gsh_buffdesc *verf_desc)
  */
 
 struct export_ops def_export_ops = {
+	.get_name = get_name,
 	.release = export_release,
 	.lookup_path = lookup_path,
 	.lookup_junction = lookup_junction,

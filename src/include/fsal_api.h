@@ -626,6 +626,26 @@ struct export_ops {
 /**@{*/
 
 /**
+* Export information
+*/
+
+/**
+ * @brief Get the name of the FSAL provisioning the export
+ *
+ * This function is used to find the name of the ultimate FSAL providing the
+ * filesystem.  If FSALs are stacked, then the super-FSAL may want to pass this
+ * through to the sub-FSAL to get the name, or add the sub-FSAL's name onto it's
+ * own name.
+ *
+ * @param[in] exp_hdl The export to query.
+ * @return Name of FSAL provisioning export
+ */
+	 char *(*get_name)(struct fsal_export *exp_hdl);
+/**@}*/
+
+/**@{*/
+
+/**
 * Export lifecycle management.
 */
 
